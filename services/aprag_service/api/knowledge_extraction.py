@@ -1946,11 +1946,29 @@ async def _run_batch_extraction_job(
 
         async def process_single_topic(topic: Dict[str, Any]) -> tuple:
             """Process a single topic and return (success, result, error)"""
+            import time
+            topic_start_time = time.time()
             try:
                 topic_id = topic["topic_id"]
                 topic_title = topic["topic_title"]
 
-                logger.info(f"[KB BATCH JOB {job_id}] Processing topic: {topic_title}")
+                # Check if KB already exists (skip if not force_refresh)
+                if not force_refresh:
+                    with db.get_connection() as conn:
+                        existing = conn.execute("""
+                            SELECT knowledge_id FROM topic_knowledge_base WHERE topic_id = ?
+                        """, (topic_id,)).fetchone()
+                        if existing:
+                            logger.info(f"[KB BATCH JOB {job_id}] ⏭️ [SKIP] Topic already has KB: {topic_title} (ID: {topic_id})")
+                            return (True, {
+                                "topic_id": topic_id,
+                                "topic_title": topic_title,
+                                "knowledge_id": dict(existing)["knowledge_id"],
+                                "qa_pairs_generated": 0,
+                                "skipped": True
+                            }, None)
+
+                logger.info(f"[KB BATCH JOB {job_id}] 🔄 [PARALLEL] Starting topic: {topic_title} (ID: {topic_id})")
 
                 # Extract knowledge
                 extraction_req = KnowledgeExtractionRequest(
@@ -1975,6 +1993,8 @@ async def _run_batch_extraction_job(
                     "qa_pairs_generated": result.get("qa_pairs_generated", 0),
                 }
 
+                elapsed = time.time() - topic_start_time
+                logger.info(f"[KB BATCH JOB {job_id}] ✅ [PARALLEL] Completed topic: {topic_title} in {elapsed:.2f}s")
                 return (True, result_entry, None)
 
             except Exception as e:
@@ -2002,11 +2022,19 @@ async def _run_batch_extraction_job(
             batch_num = (i // max_concurrent) + 1
             total_batches = (total_topics + max_concurrent - 1) // max_concurrent
 
-            logger.info(f"[KB BATCH JOB {job_id}] Processing batch {batch_num}/{total_batches} ({len(batch)} topics)")
+            logger.info(f"[KB BATCH JOB {job_id}] 🚀 Processing batch {batch_num}/{total_batches} ({len(batch)} topics) IN PARALLEL")
+            
+            # Log which topics are being processed in parallel
+            topic_titles = [t["topic_title"] for t in batch]
+            logger.info(f"[KB BATCH JOB {job_id}] 📋 Parallel topics: {', '.join(topic_titles[:3])}{'...' if len(topic_titles) > 3 else ''}")
 
             # Process batch in parallel
+            import time
+            start_time = time.time()
             tasks = [process_single_topic(topic) for topic in batch]
             batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+            elapsed = time.time() - start_time
+            logger.info(f"[KB BATCH JOB {job_id}] ✅ Batch {batch_num} completed in {elapsed:.2f}s (parallel processing)")
 
             # Process results
             for idx, result in enumerate(batch_results):
