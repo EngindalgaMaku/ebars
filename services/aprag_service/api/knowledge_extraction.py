@@ -438,7 +438,7 @@ def translate_qa_pairs(qa_pairs: List[Dict]) -> List[Dict]:
 
 
 
-def get_session_model(session_id: str) -> str:
+async def get_session_model(session_id: str) -> str:
     """
     Get the model configured for a specific session from API Gateway
     """
@@ -447,14 +447,15 @@ def get_session_model(session_id: str) -> str:
         
     try:
         api_gateway_url = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
-        response = requests.get(f"{api_gateway_url}/sessions/{session_id}", timeout=10)
-        
-        if response.status_code == 200:
-            session_data = response.json()
-            rag_settings = session_data.get("rag_settings", {})
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{api_gateway_url}/sessions/{session_id}")
             
-            if rag_settings and rag_settings.get("model"):
-                return rag_settings["model"]
+            if response.status_code == 200:
+                session_data = response.json()
+                rag_settings = session_data.get("rag_settings", {})
+                
+                if rag_settings and rag_settings.get("model"):
+                    return rag_settings["model"]
         
         return os.getenv("DEFAULT_MODEL", "llama-3.1-8b-instant")
     except Exception as e:
@@ -462,16 +463,16 @@ def get_session_model(session_id: str) -> str:
         return os.getenv("DEFAULT_MODEL", "llama-3.1-8b-instant")
 
 
-def fetch_chunks_for_session(session_id: str) -> List[Dict[str, Any]]:
+async def fetch_chunks_for_session(session_id: str) -> List[Dict[str, Any]]:
     """Fetch all chunks for a session from document processing service"""
     try:
-        response = requests.get(
-            f"{DOCUMENT_PROCESSING_URL}/sessions/{session_id}/chunks",
-            timeout=30
-        )
-        
-        if response.status_code == 200:
-            chunks = response.json().get("chunks", [])
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                f"{DOCUMENT_PROCESSING_URL}/sessions/{session_id}/chunks"
+            )
+            
+            if response.status_code == 200:
+                chunks = response.json().get("chunks", [])
             
             # Normalize chunk IDs - ensure every chunk has a valid ID
             for i, chunk in enumerate(chunks):
@@ -496,11 +497,11 @@ def fetch_chunks_for_session(session_id: str) -> List[Dict[str, Any]]:
                 # Ensure chunk_id is set in the main dict (keep original type - string UUID or int)
                 chunk["chunk_id"] = chunk_id
                 
-            logger.info(f"✅ [FETCH CHUNKS] Fetched {len(chunks)} chunks, sample IDs (first 5): {[c.get('chunk_id') for c in chunks[:5]]}")
-            return chunks
-        else:
-            logger.warning(f"Could not fetch chunks: {response.status_code}")
-            return []
+                logger.info(f"✅ [FETCH CHUNKS] Fetched {len(chunks)} chunks, sample IDs (first 5): {[c.get('chunk_id') for c in chunks[:5]]}")
+                return chunks
+            else:
+                logger.warning(f"Could not fetch chunks: {response.status_code}")
+                return []
             
     except Exception as e:
         logger.error(f"Error fetching chunks for session {session_id}: {e}")
@@ -1633,7 +1634,7 @@ async def extract_knowledge_for_topic(topic_id: int, request: Optional[Knowledge
         
         # Fetch chunks
         logger.info(f"📦 [KB DEBUG] Fetching chunks for session {topic['session_id']}")
-        all_chunks = fetch_chunks_for_session(topic["session_id"])
+        all_chunks = await fetch_chunks_for_session(topic["session_id"])
         if not all_chunks:
             logger.error(f"❌ [KB DEBUG] No chunks found for session {topic['session_id']}")
             raise HTTPException(status_code=404, detail="No chunks found for session")
@@ -1669,7 +1670,7 @@ async def extract_knowledge_for_topic(topic_id: int, request: Optional[Knowledge
         logger.info(f"📝 [KB DEBUG] Prepared {len(chunks_text)} characters of text for LLM")
         
         # Get session's preferred model
-        model_to_use = get_session_model(topic["session_id"])
+        model_to_use = await get_session_model(topic["session_id"])
         logger.info(f"🤖 [KB DEBUG] Using model: {model_to_use} for extraction")
         
         # EXTRACTION PIPELINE
@@ -2212,7 +2213,7 @@ async def generate_qa_pairs_endpoint(topic_id: int, request: QAGenerationRequest
         if not topic:
             raise HTTPException(status_code=404, detail="Topic not found")
         
-        all_chunks = fetch_chunks_for_session(topic["session_id"])
+        all_chunks = await fetch_chunks_for_session(topic["session_id"])
         relevant_chunks = filter_chunks_by_topic(all_chunks, topic["keywords"], topic["related_chunk_ids"])
         
         chunks_text = "\n\n---\n\n".join([
@@ -2372,7 +2373,7 @@ async def refresh_topic_summary_only(topic_id: int, request: SelectiveRefreshReq
             kb_dict = dict(existing_kb)
 
         # Fetch relevant chunks
-        all_chunks = fetch_chunks_for_session(topic["session_id"])
+        all_chunks = await fetch_chunks_for_session(topic["session_id"])
         relevant_chunks = filter_chunks_by_topic(
             all_chunks, topic["keywords"], topic["related_chunk_ids"]
         )
@@ -2388,7 +2389,7 @@ async def refresh_topic_summary_only(topic_id: int, request: SelectiveRefreshReq
             for chunk in relevant_chunks
         ])
 
-        model_to_use = get_session_model(topic["session_id"])
+        model_to_use = await get_session_model(topic["session_id"])
         
         # Enhanced summary prompt with context
         current_concepts = json.loads(kb_dict["key_concepts"]) if kb_dict["key_concepts"] else []
@@ -2498,7 +2499,7 @@ async def refresh_topic_concepts_only(topic_id: int, request: SelectiveRefreshRe
             current_concepts = json.loads(dict(existing_kb)["key_concepts"]) if dict(existing_kb)["key_concepts"] else []
 
         # Fetch relevant chunks
-        all_chunks = fetch_chunks_for_session(topic["session_id"])
+        all_chunks = await fetch_chunks_for_session(topic["session_id"])
         relevant_chunks = filter_chunks_by_topic(
             all_chunks, topic["keywords"], topic["related_chunk_ids"]
         )
@@ -2508,7 +2509,7 @@ async def refresh_topic_concepts_only(topic_id: int, request: SelectiveRefreshRe
             for chunk in relevant_chunks
         ])
 
-        model_to_use = get_session_model(topic["session_id"])
+        model_to_use = await get_session_model(topic["session_id"])
         
         # Enhanced concepts prompt
         current_concepts_text = "\n".join([f"- {c.get('term', 'N/A')}: {c.get('definition', 'N/A')}" for c in current_concepts[:10]]) if current_concepts else "Henüz kavram yok"
@@ -2640,7 +2641,7 @@ async def refresh_learning_objectives_only(topic_id: int, request: SelectiveRefr
             current_objectives = json.loads(dict(existing_kb)["learning_objectives"]) if dict(existing_kb)["learning_objectives"] else []
 
         # Fetch relevant chunks
-        all_chunks = fetch_chunks_for_session(topic["session_id"])
+        all_chunks = await fetch_chunks_for_session(topic["session_id"])
         relevant_chunks = filter_chunks_by_topic(
             all_chunks, topic["keywords"], topic["related_chunk_ids"]
         )
@@ -2650,7 +2651,7 @@ async def refresh_learning_objectives_only(topic_id: int, request: SelectiveRefr
             for chunk in relevant_chunks
         ])
 
-        model_to_use = get_session_model(topic["session_id"])
+        model_to_use = await get_session_model(topic["session_id"])
         
         # Enhanced objectives prompt
         current_obj_text = "\n".join([f"- {o.get('level', 'N/A')}: {o.get('objective', 'N/A')}" for o in current_objectives]) if current_objectives else "Henüz hedef yok"
