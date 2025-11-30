@@ -564,17 +564,28 @@ async def generate_response(request: GenerationRequest):
             if not groq_client:
                 raise HTTPException(status_code=503, detail="Groq client is not available. Check GROQ_API_KEY.")
 
-            chat_completion = groq_client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": prompt},
-                ],
-                model=model_name,
-                temperature=request.temperature,
-                max_tokens=request.max_tokens,
-            )
-            response_content = chat_completion.choices[0].message.content or ""
-            return GenerationResponse(response=response_content, model_used=model_name)
+            try:
+                chat_completion = groq_client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    model=model_name,
+                    temperature=request.temperature,
+                    max_tokens=request.max_tokens,
+                )
+                response_content = chat_completion.choices[0].message.content or ""
+                return GenerationResponse(response=response_content, model_used=model_name)
+            except Exception as e:
+                error_str = str(e)
+                error_detail = f"Groq API error: {error_str}"
+                print(f"❌ {error_detail}")
+                print(f"❌ Traceback: {traceback.format_exc()}")
+                # Check for authentication errors
+                if "401" in error_str or "authentication" in error_str.lower() or "invalid" in error_str.lower() or "api key" in error_str.lower():
+                    raise HTTPException(status_code=401, detail=f"Groq API authentication failed. Check GROQ_API_KEY. Error: {error_str}")
+                else:
+                    raise HTTPException(status_code=500, detail=error_detail)
 
         elif is_huggingface_model(model_name):
             if not huggingface_client:
@@ -719,18 +730,39 @@ async def generate_response(request: GenerationRequest):
             
             print(f"Attempting to use model: {actual_model_name}")  # Debug print
             
-            response = client.chat(
-                model=actual_model_name,
-                messages=[{'role': 'user', 'content': prompt}],
-                stream=False
-            )
-            response_content = response['message']['content'] if response.get('message') and response['message'].get('content') else ""
-            return GenerationResponse(response=response_content, model_used=actual_model_name)
+            try:
+                response = client.chat(
+                    model=actual_model_name,
+                    messages=[{'role': 'user', 'content': prompt}],
+                    stream=False
+                )
+                response_content = response['message']['content'] if response.get('message') and response['message'].get('content') else ""
+                return GenerationResponse(response=response_content, model_used=actual_model_name)
+            except Exception as ollama_error:
+                error_str = str(ollama_error)
+                error_detail = f"Ollama API error: {error_str}"
+                print(f"❌ {error_detail}")
+                print(f"❌ Traceback: {traceback.format_exc()}")
+                # Check for model not found errors
+                if "not found" in error_str.lower() or "404" in error_str:
+                    raise HTTPException(status_code=404, detail=f"Model '{actual_model_name}' not found in Ollama. Error: {error_str}")
+                else:
+                    raise HTTPException(status_code=500, detail=error_detail)
 
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is
+        raise
     except Exception as e:
-        # Log the exception details here in a real application
-        print(f"❌ Error during model generation: {e}")
-        raise HTTPException(status_code=500, detail=f"An error occurred while generating the response: {str(e)}")
+        # Log the exception details with full traceback
+        error_str = str(e)
+        error_type = type(e).__name__
+        print(f"❌ Error during model generation: {error_type}: {error_str}")
+        print(f"❌ Full traceback:")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while generating the response: {error_type}: {error_str}"
+        )
 
 @app.get("/models/available", summary="List Available Models")
 def get_available_models():
