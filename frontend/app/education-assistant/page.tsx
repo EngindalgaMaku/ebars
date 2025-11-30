@@ -25,7 +25,7 @@ export default function EducationAssistantPage() {
 
   if (!mounted) {
     return (
-      <TeacherLayout>
+      <TeacherLayout activeTab="assistant">
         <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 lg:p-8 min-h-full">
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -126,7 +126,7 @@ function EducationAssistantContent() {
   };
 
   return (
-    <TeacherLayout>
+    <TeacherLayout activeTab="assistant">
       <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 lg:p-8 min-h-full">
         {/* Header Section */}
         <div className="mb-8">

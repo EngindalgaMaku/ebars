@@ -76,7 +76,7 @@ import remarkGfm from "remark-gfm";
 import DocumentUploadModal from "@/components/DocumentUploadModal";
 import EnhancedDocumentUploadModal from "@/components/EnhancedDocumentUploadModal";
 import LogoutButton from "@/components/LogoutButton";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import TeacherLayout from "@/app/components/TeacherLayout";
 import RecommendationPanel from "@/components/RecommendationPanel";
@@ -532,6 +532,7 @@ const MarkdownIcon = () => (
 
 export default function HomePage() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
@@ -545,11 +546,17 @@ export default function HomePage() {
 
   // Read tab from URL on mount and when URL changes (for navigation from other pages)
   useEffect(() => {
+    // Only process if we're on the home page
+    if (pathname !== "/") return;
+    
     const tabParam = searchParams?.get("tab");
     if (tabParam && ["dashboard", "sessions", "upload", "analytics", "modules", "assistant", "query"].includes(tabParam)) {
       setActiveTab(tabParam as TabType);
+    } else {
+      // If no tab param, default to dashboard
+      setActiveTab("dashboard");
     }
-  }, [searchParams]);
+  }, [pathname, searchParams]);
 
   // Module state
   const [modules, setModules] = useState<Module[]>([]);

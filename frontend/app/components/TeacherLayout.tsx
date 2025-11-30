@@ -149,6 +149,8 @@ function TeacherLayout({
       if (tabId === "dashboard") {
         router.push("/");
       } else {
+        // Use router.push - Next.js will handle the navigation
+        // The home page useEffect will read the tab from URL
         router.push(`/?tab=${tabId}`);
       }
     }
