@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
@@ -87,12 +87,11 @@ function TeacherLayout({
   const { user, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  // Determine active tab based on pathname and query params
+  // Determine active tab - use prop if provided, otherwise fallback to pathname
   const getActiveTabFromPath = (): TabType => {
     // Session detail page - still show sessions as active
     if (pathname?.startsWith("/sessions/")) {
@@ -104,21 +103,11 @@ function TeacherLayout({
     if (pathname === "/education-assistant") {
       return "assistant";
     }
-    if (pathname === "/") {
-      // Check URL hash or query params for analytics/modules
-      if (typeof window !== "undefined") {
-        const hash = window.location.hash;
-        const tabParam = searchParams?.get("tab");
-        if (hash === "#analytics" || tabParam === "analytics") return "analytics";
-        if (hash === "#modules" || tabParam === "modules") return "modules";
-        if (tabParam === "sessions") return "sessions";
-        if (tabParam === "dashboard") return "dashboard";
-      }
-      return "dashboard";
-    }
+    // Default to dashboard for home page
     return "dashboard";
   };
 
+  // Use activeTab prop if provided, otherwise determine from pathname
   const currentActiveTab = activeTab || getActiveTabFromPath();
 
   const handleLogout = async () => {
@@ -131,9 +120,6 @@ function TeacherLayout({
   };
 
   const handleTabClick = (tabId: TabType) => {
-    const navItem = navigationItems.find((item) => item.id === tabId);
-    if (!navItem) return;
-
     // Special handling for upload tab - redirect to document-center
     if (tabId === "upload") {
       router.push("/document-center");
@@ -148,15 +134,8 @@ function TeacherLayout({
       return;
     }
 
-    // For dashboard, sessions, analytics, modules: go to home page with tab query param
-    // Dashboard doesn't need query param (default)
-    if (tabId === "dashboard") {
-      router.push("/");
-    } else {
-      router.push(`/?tab=${tabId}`);
-    }
-
-    // Call onTabChange if provided (for tab state management)
+    // For all other tabs (dashboard, sessions, analytics, modules): just change the tab
+    // Don't change URL, just update the tab state directly
     if (onTabChange) {
       onTabChange(tabId);
     }

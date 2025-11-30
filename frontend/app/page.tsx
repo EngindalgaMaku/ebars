@@ -76,7 +76,7 @@ import remarkGfm from "remark-gfm";
 import DocumentUploadModal from "@/components/DocumentUploadModal";
 import EnhancedDocumentUploadModal from "@/components/EnhancedDocumentUploadModal";
 import LogoutButton from "@/components/LogoutButton";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import TeacherLayout from "@/app/components/TeacherLayout";
 import RecommendationPanel from "@/components/RecommendationPanel";
@@ -532,8 +532,6 @@ const MarkdownIcon = () => (
 
 export default function HomePage() {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
@@ -543,30 +541,6 @@ export default function HomePage() {
   const SESSIONS_PER_PAGE = 5;
   type TabType = "dashboard" | "sessions" | "upload" | "analytics" | "modules" | "assistant" | "query";
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
-  
-  // Check URL params for tab on mount and when URL changes
-  useEffect(() => {
-    const tabParam = searchParams?.get("tab");
-    const hash = typeof window !== "undefined" ? window.location.hash : "";
-    
-    // Check hash first (for analytics/modules)
-    if (hash === "#analytics") {
-      setActiveTab("analytics");
-      return;
-    }
-    if (hash === "#modules") {
-      setActiveTab("modules");
-      return;
-    }
-    
-    // Then check query param
-    if (tabParam && ["dashboard", "sessions", "upload", "analytics", "modules", "assistant", "query"].includes(tabParam)) {
-      setActiveTab(tabParam as TabType);
-    } else if (pathname === "/") {
-      // Default to dashboard if on home page with no tab param
-      setActiveTab("dashboard");
-    }
-  }, [pathname, searchParams]);
 
   // Module state
   const [modules, setModules] = useState<Module[]>([]);
