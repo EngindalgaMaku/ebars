@@ -18,9 +18,9 @@ services:
       - DOCUMENT_PROCESSOR_HOST=document-processing-service
       - DOCUMENT_PROCESSOR_PORT=8080
       - DOCUMENT_PROCESSOR_URL=http://document-processing-service:8080
-      - MODEL_INFERENCE_HOST=model-inference-service
+      - MODEL_INFERENCE_HOST=host.docker.internal
       - MODEL_INFERENCE_PORT=8002
-      - MODEL_INFERENCE_URL=http://model-inference-service:8002
+      - MODEL_INFERENCE_URL=http://host.docker.internal:8002
       - RAG_EVALUATOR_URL=http://rag-evaluator-service:8005
       - CHROMADB_HOST=chromadb-service
       - CHROMADB_PORT=8000
@@ -65,6 +65,8 @@ services:
     restart: unless-stopped
     networks:
       - rag-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         limits:
@@ -84,10 +86,10 @@ services:
       - HOST=0.0.0.0
       - PORT=8007
       - APRAG_SERVICE_PORT=8007
-      - MODEL_INFERENCE_HOST=model-inference-service
+      - MODEL_INFERENCE_HOST=host.docker.internal
       - MODEL_INFERENCE_PORT=8002
-      - MODEL_INFERENCE_URL=http://model-inference-service:8002
-      - MODEL_INFERENCER_URL=http://model-inference-service:8002
+      - MODEL_INFERENCE_URL=http://host.docker.internal:8002
+      - MODEL_INFERENCER_URL=http://host.docker.internal:8002
       - RERANKER_SERVICE_HOST=reranker-service
       - RERANKER_SERVICE_PORT=8008
       - RERANKER_SERVICE_URL=http://reranker-service:8008
@@ -135,6 +137,8 @@ services:
     restart: unless-stopped
     networks:
       - rag-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         limits:
@@ -211,9 +215,9 @@ services:
     ports:
       - "${DOCUMENT_PROCESSOR_PORT:-8003}:8080"
     environment:
-      - MODEL_INFERENCER_HOST=model-inference-service
+      - MODEL_INFERENCER_HOST=host.docker.internal
       - MODEL_INFERENCER_PORT=8002
-      - MODEL_INFERENCER_URL=http://model-inference-service:8002
+      - MODEL_INFERENCER_URL=http://host.docker.internal:8002
       - RERANKER_SERVICE_HOST=reranker-service
       - RERANKER_SERVICE_PORT=8008
       - RERANKER_SERVICE_URL=http://reranker-service:8008
@@ -232,6 +236,8 @@ services:
     restart: unless-stopped
     networks:
       - rag-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         limits:
@@ -245,8 +251,7 @@ services:
       context: ./services/model_inference_service
       dockerfile: Dockerfile.prod
     container_name: model-inference-service-prod
-    ports:
-      - "${MODEL_INFERENCE_PORT:-8002}:8002"
+    network_mode: host
     environment:
       - PORT=8002
       - MODEL_INFERENCE_PORT=8002
@@ -257,15 +262,15 @@ services:
       - ALIBABA_API_KEY=${ALIBABA_API_KEY:-${DASHSCOPE_API_KEY}}
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
       - ALIBABA_API_BASE=${ALIBABA_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
-      # Use Ollama service in Docker network
-      - OLLAMA_HOST=http://ollama-service:11434
+      # Use Ollama service - host network'te port mapping üzerinden eriş
+      - OLLAMA_HOST=http://localhost:11434
       - OLLAMA_SKIP_VERIFY=true
     depends_on:
       ollama-service:
         condition: service_started
     restart: unless-stopped
-    networks:
-      - rag-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     deploy:
       resources:
         limits:
