@@ -120,26 +120,38 @@ function TeacherLayout({
   };
 
   const handleTabClick = (tabId: TabType) => {
+    setSidebarOpen(false);
+
     // Special handling for upload tab - redirect to document-center
     if (tabId === "upload") {
-      router.push("/document-center");
-      setSidebarOpen(false);
+      if (pathname !== "/document-center") {
+        router.push("/document-center");
+      }
       return;
     }
 
     // Special handling for assistant tab - redirect to education-assistant page
     if (tabId === "assistant") {
-      router.push("/education-assistant");
-      setSidebarOpen(false);
+      if (pathname !== "/education-assistant") {
+        router.push("/education-assistant");
+      }
       return;
     }
 
-    // For all other tabs (dashboard, sessions, analytics, modules): just change the tab
-    // Don't change URL, just update the tab state directly
+    // For dashboard, sessions, analytics, modules: go to home page
+    // If onTabChange is provided, use it (for home page)
+    // Otherwise, navigate to home page with tab query param
     if (onTabChange) {
+      // We're on the home page, just change the tab
       onTabChange(tabId);
+    } else {
+      // We're on a different page, navigate to home page with tab query param
+      if (tabId === "dashboard") {
+        router.push("/");
+      } else {
+        router.push(`/?tab=${tabId}`);
+      }
     }
-    setSidebarOpen(false);
   };
 
   return (

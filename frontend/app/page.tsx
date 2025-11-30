@@ -76,7 +76,7 @@ import remarkGfm from "remark-gfm";
 import DocumentUploadModal from "@/components/DocumentUploadModal";
 import EnhancedDocumentUploadModal from "@/components/EnhancedDocumentUploadModal";
 import LogoutButton from "@/components/LogoutButton";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import TeacherLayout from "@/app/components/TeacherLayout";
 import RecommendationPanel from "@/components/RecommendationPanel";
@@ -532,6 +532,7 @@ const MarkdownIcon = () => (
 
 export default function HomePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
@@ -541,6 +542,14 @@ export default function HomePage() {
   const SESSIONS_PER_PAGE = 5;
   type TabType = "dashboard" | "sessions" | "upload" | "analytics" | "modules" | "assistant" | "query";
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
+
+  // Read tab from URL on mount and when URL changes (for navigation from other pages)
+  useEffect(() => {
+    const tabParam = searchParams?.get("tab");
+    if (tabParam && ["dashboard", "sessions", "upload", "analytics", "modules", "assistant", "query"].includes(tabParam)) {
+      setActiveTab(tabParam as TabType);
+    }
+  }, [searchParams]);
 
   // Module state
   const [modules, setModules] = useState<Module[]>([]);
