@@ -1387,19 +1387,19 @@ Sadece JSON çıktısı ver."""
             try:
                 data = json.loads(json_str)
                 return data.get("examples", [])
-        except json.JSONDecodeError as e:
-            # Second attempt: remove trailing commas before } or ]
-            try:
-                cleaned = re.sub(r",(\s*[}\]])", r"\1", json_str)
-                data = json.loads(cleaned)
-                logger.warning(
-                    "Examples JSON required cleanup but was parsed successfully: %s",
-                    str(e),
-                )
-                return data.get("examples", [])
-            except Exception as e2:
-                # Third attempt: more aggressive cleanup (same as QA generation)
+            except json.JSONDecodeError as e:
+                # Second attempt: remove trailing commas before } or ]
                 try:
+                    cleaned = re.sub(r",(\s*[}\]])", r"\1", json_str)
+                    data = json.loads(cleaned)
+                    logger.warning(
+                        "Examples JSON required cleanup but was parsed successfully: %s",
+                        str(e),
+                    )
+                    return data.get("examples", [])
+                except Exception as e2:
+                    # Third attempt: more aggressive cleanup (same as QA generation)
+                    try:
                     # Remove trailing commas, fix incomplete fields
                     cleaned = re.sub(r",(\s*[}\]])", r"\1", json_str)
                     cleaned = re.sub(r':\s*"[^"]*$', ': ""', cleaned, flags=re.MULTILINE)  # Fix incomplete strings
