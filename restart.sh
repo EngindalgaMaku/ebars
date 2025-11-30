@@ -15,7 +15,12 @@ fi
 
 echo "✅ .env.production dosyası bulundu"
 
+# Önce container'ları durdur (eğer çalışıyorsa)
+echo "🛑 Mevcut container'lar durduruluyor..."
+docker compose -f docker-compose.prod.yml --env-file .env.production down
+
 # Container'ları başlat (--env-file ile)
+echo "🚀 Container'lar başlatılıyor..."
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 echo "✅ Container'lar başlatıldı!"
