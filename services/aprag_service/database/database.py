@@ -1102,6 +1102,16 @@ class DatabaseManager:
                     # Execute parts before Step 2 (drop views, create new table)
                     conn.executescript(before_step2)
                     
+                    # Check if session_settings_new already has data (migration partially applied)
+                    cursor = conn.execute("SELECT COUNT(*) FROM session_settings_new")
+                    new_table_count = cursor.fetchone()[0]
+                    
+                    if new_table_count > 0:
+                        logger.info("session_settings_new table already has data, migration may be partially applied. Cleaning up...")
+                        conn.execute("DROP TABLE IF EXISTS session_settings_new")
+                        # Recreate the table
+                        conn.executescript(before_step2)
+                    
                     # Handle Step 2: Copy data manually based on column existence
                     if table_exists:
                         if enable_ebars_exists:
@@ -1141,6 +1151,29 @@ class DatabaseManager:
                     
                     conn.commit()
                     logger.info("✅ Session Settings FK Removal migration applied successfully")
+                except sqlite3.IntegrityError as e:
+                    # UNIQUE constraint error means migration was partially applied
+                    error_msg = str(e).lower()
+                    if "unique constraint" in error_msg and "session_settings_new" in error_msg:
+                        logger.warning("Migration partially applied (UNIQUE constraint). Attempting cleanup...")
+                        try:
+                            # Check if old table still exists
+                            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='session_settings'")
+                            old_table_exists = cursor.fetchone() is not None
+                            
+                            if not old_table_exists:
+                                # Migration was completed, just cleanup the new table name
+                                logger.info("Migration already completed, skipping...")
+                                return
+                            else:
+                                # Drop new table and retry
+                                conn.execute("DROP TABLE IF EXISTS session_settings_new")
+                                conn.commit()
+                                logger.info("Cleaned up partial migration, will retry on next startup")
+                        except Exception as cleanup_error:
+                            logger.warning(f"Could not cleanup partial migration: {cleanup_error}")
+                    else:
+                        raise
                 except sqlite3.OperationalError as e:
                     error_msg = str(e).lower()
                     if "no such column" in error_msg or "has no column" in error_msg:
@@ -1151,6 +1184,9 @@ class DatabaseManager:
                         conn.execute("DROP VIEW IF EXISTS topic_mastery_analytics")
                         conn.execute("DROP VIEW IF EXISTS topic_difficulty_analysis")
                         conn.execute("DROP VIEW IF EXISTS topic_recommendation_insights")
+                        
+                        # Drop new table if it exists (cleanup)
+                        conn.execute("DROP TABLE IF EXISTS session_settings_new")
                         
                         # Create new table
                         conn.execute("""
