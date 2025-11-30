@@ -6,6 +6,7 @@ import {
   getSessionTopics,
   updateTopic,
   deleteTopic,
+  reorderTopics,
   Topic,
   TopicExtractionRequest,
 } from "@/lib/api";
@@ -48,6 +49,9 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
   const [extractingKBBatch, setExtractingKBBatch] = useState(false);
   const [expandedTopics, setExpandedTopics] = useState<Set<number>>(new Set());
   const [topicKBData, setTopicKBData] = useState<{ [key: number]: any }>({});
+  // Topic reordering states
+  const [reorderingTopics, setReorderingTopics] = useState(false);
+  const [reorderCriteria, setReorderCriteria] = useState<"cognitive" | "proximity" | "hybrid">("cognitive");
   
   // Topic extraction modal states
   const [showExtractModal, setShowExtractModal] = useState(false);
@@ -686,6 +690,29 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
     await refreshKBComponent(topicId, "all");
   };
 
+  // Reorder topics using LLM
+  const handleReorderTopics = async (criteria: "cognitive" | "proximity" | "hybrid" = "cognitive") => {
+    try {
+      setReorderingTopics(true);
+      setError(null);
+      setSuccess(null);
+      
+      const result = await reorderTopics(sessionId, criteria);
+      
+      if (result.success) {
+        const criteriaText = criteria === "cognitive" ? "bilişsel sıraya" : criteria === "proximity" ? "yakınlığa" : "hibrit kriterlere";
+        setSuccess(`Konular ${criteriaText} göre sıralandı!`);
+        // Reload topics
+        await fetchTopics();
+      }
+    } catch (err: any) {
+      setError(err.message || "Konu sıralama başarısız oldu");
+      console.error("Error reordering topics:", err);
+    } finally {
+      setReorderingTopics(false);
+    }
+  };
+
   // Calculate QA embeddings batch - ASYNC with polling!
   const handleCalculateQAEmbeddings = async () => {
     try {
@@ -1013,138 +1040,77 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
           </p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={handleOpenExtractModal}
-            disabled={extracting}
-            className="py-2 px-3 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
-          >
-            {extracting ? (
-              <>
-                <svg
-                  className="animate-spin h-4 w-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                <span>Çıkarılıyor...</span>
-              </>
-            ) : (
-              <span>📋 Konuları Çıkar (Gelişmiş)</span>
-            )}
-          </button>
-          <button
-            onClick={() => handleOpenKBExtractModal("all")}
-            disabled={extractingKBBatch || topics.length === 0}
-            className="py-2 px-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-md text-sm font-medium hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
-            title="Tüm konular için bilgi tabanı ve soru-cevaplar oluştur"
-          >
-            {extractingKBBatch ? (
-              <>
-                <svg
-                  className="animate-spin h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                <span>Oluşturuluyor...</span>
-              </>
-            ) : (
-              <span>🧠 Bilgi Tabanı Oluştur</span>
-            )}
-          </button>
-          <button
-            onClick={() => handleOpenKBExtractModal("missing")}
-            disabled={extractingKBBatch || topics.length === 0}
-            className="py-2 px-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-md text-sm font-medium hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
-            title="Sadece eksik bilgi tabanı olan konular için bilgi tabanı oluştur"
-          >
-            {extractingKBBatch ? (
-              <>
-                <svg
-                  className="animate-spin h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                <span>Oluşturuluyor...</span>
-              </>
-            ) : (
-              <span>➕ Eksik KB'leri Oluştur</span>
-            )}
-          </button>
-          <button
-            onClick={handleCalculateQAEmbeddings}
-            disabled={calculatingEmbeddings || topics.length === 0}
-            className="py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-md text-sm font-medium hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
-            title="QA pair'ler için embedding'leri hesapla (sonradan yapılabilir)"
-          >
-            {calculatingEmbeddings ? (
-              <>
-                <svg
-                  className="animate-spin h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                <span>Hesaplanıyor...</span>
-              </>
-            ) : (
-              <span>🔢 QA Embedding Hesapla</span>
-            )}
-          </button>
+          <div className="relative">
+            <select
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === "extract-topics") {
+                  handleOpenExtractModal();
+                } else if (value === "create-kb") {
+                  handleOpenKBExtractModal("all");
+                } else if (value === "calculate-embeddings") {
+                  handleCalculateQAEmbeddings();
+                } else if (value === "reorder-cognitive") {
+                  handleReorderTopics("cognitive");
+                } else if (value === "reorder-proximity") {
+                  handleReorderTopics("proximity");
+                } else if (value === "reorder-hybrid") {
+                  handleReorderTopics("hybrid");
+                }
+                e.target.value = ""; // Reset dropdown
+              }}
+              disabled={extracting || extractingKBBatch || calculatingEmbeddings || reorderingTopics || topics.length === 0}
+              className="py-2 px-4 pr-8 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md text-sm font-medium hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 min-w-[200px]"
+              title="İşlem seçin"
+            >
+              <option value="" disabled>
+                {(extracting || extractingKBBatch || calculatingEmbeddings || reorderingTopics) ? (
+                  <>
+                    {extracting && "Çıkarılıyor..."}
+                    {extractingKBBatch && "Oluşturuluyor..."}
+                    {calculatingEmbeddings && "Hesaplanıyor..."}
+                    {reorderingTopics && "Sıralanıyor..."}
+                  </>
+                ) : (
+                  "⚙️ İşlem Seçin"
+                )}
+              </option>
+              <option value="extract-topics" disabled={extracting || topics.length === 0}>
+                📋 Konuları Çıkar (Gelişmiş)
+              </option>
+              <option value="create-kb" disabled={extractingKBBatch || topics.length === 0}>
+                🧠 Bilgi Tabanı Oluştur
+              </option>
+              <option value="calculate-embeddings" disabled={calculatingEmbeddings || topics.length === 0}>
+                🔢 QA Embedding Hesapla
+              </option>
+              <option value="" disabled>──────────</option>
+              <option value="reorder-cognitive" disabled={reorderingTopics || topics.length < 2}>
+                🔄 Bilişsel Sıraya Göre Sırala
+              </option>
+              <option value="reorder-proximity" disabled={reorderingTopics || topics.length < 2}>
+                🔗 Yakınlığa Göre Sırala
+              </option>
+              <option value="reorder-hybrid" disabled={reorderingTopics || topics.length < 2}>
+                🎯 Hibrit Sıralama
+              </option>
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+              <svg
+                className="w-4 h-4 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
 

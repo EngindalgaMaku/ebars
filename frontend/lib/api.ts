@@ -2423,6 +2423,31 @@ export async function updateTopic(
   return res.json();
 }
 
+// Reorder topics using LLM
+export async function reorderTopics(
+  sessionId: string,
+  sortingCriteria: "cognitive" | "proximity" | "hybrid" = "cognitive"
+): Promise<{ success: boolean; message: string; total_topics: number; criteria: string }> {
+  const token = tokenManager.getAccessToken?.() || null;
+  const res = await fetch(
+    `${getApiUrl()}/aprag/topics/reorder/${sessionId}?sorting_criteria=${sortingCriteria}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `Failed to reorder topics: ${res.statusText}`);
+  }
+
+  return res.json();
+}
+
 // Delete a topic
 export async function deleteTopic(
   topicId: number

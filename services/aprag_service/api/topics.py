@@ -10,7 +10,7 @@ from typing import Optional, List, Dict, Any
 import logging
 import json
 from datetime import datetime
-import requests
+import httpx
 import os
 
 logger = logging.getLogger(__name__)
@@ -3120,4 +3120,201 @@ async def get_student_progress(
         import traceback
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Failed to get student progress: {str(e)}")
+
+
+@router.post("/reorder/{session_id}")
+async def reorder_topics(session_id: str, sorting_criteria: Optional[str] = "cognitive"):
+    """
+    Reorder topics using LLM based on:
+    - cognitive: Cognitive learning order (Bloom's taxonomy, prerequisites)
+    - proximity: Topic proximity and relatedness
+    - hybrid: Both cognitive and proximity
+    """
+    # Check if APRAG is enabled
+    if not FeatureFlags.is_aprag_enabled(session_id):
+        raise HTTPException(
+            status_code=403,
+            detail="APRAG module is disabled. Please enable it from admin settings."
+        )
+    
+    db = get_db()
+    
+    try:
+        # Get all topics for the session
+        with db.get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT 
+                    topic_id, topic_title, topic_order, description, keywords,
+                    estimated_difficulty, prerequisites
+                FROM course_topics
+                WHERE session_id = ? AND is_active = TRUE
+                ORDER BY topic_order, topic_id
+            """, (session_id,))
+            
+            topics = []
+            for row in cursor.fetchall():
+                topic = dict(row)
+                topic["keywords"] = json.loads(topic["keywords"]) if topic["keywords"] else []
+                topic["prerequisites"] = json.loads(topic["prerequisites"]) if topic["prerequisites"] else []
+                topics.append(topic)
+        
+        if len(topics) < 2:
+            raise HTTPException(status_code=400, detail="At least 2 topics are required for reordering")
+        
+        # Get session model
+        model_to_use = get_session_model(session_id)
+        logger.info(f"🔄 [TOPIC REORDER] Using model: {model_to_use} for reordering {len(topics)} topics")
+        
+        # Prepare topic list for LLM
+        topics_text = "\n".join([
+            f"{i+1}. {t['topic_title']} (ID: {t['topic_id']}, Order: {t['topic_order']})"
+            f"{' - Keywords: ' + ', '.join(t['keywords']) if t['keywords'] else ''}"
+            f"{' - Difficulty: ' + t['estimated_difficulty'] if t.get('estimated_difficulty') else ''}"
+            f"{' - Prerequisites: ' + str(t['prerequisites']) if t['prerequisites'] else ''}"
+            for i, t in enumerate(topics)
+        ])
+        
+        # Create prompt based on sorting criteria
+        if sorting_criteria == "cognitive":
+            prompt = f"""Sen bir eğitim uzmanısın. Aşağıdaki konuları BİLİŞSEL ÖĞRENME SIRASINA göre sırala.
+
+BİLİŞSEL SIRALAMA KRİTERLERİ:
+1. Bloom Taksonomisi: Hatırlama → Anlama → Uygulama → Analiz → Değerlendirme → Yaratma
+2. Önkoşul ilişkileri: Temel kavramlar önce, ileri kavramlar sonra
+3. Zorluk seviyesi: Kolaydan zora doğru
+4. Mantıksal akış: Bir konu diğerine temel oluşturmalı
+
+KONULAR:
+{topics_text}
+
+SADECE JSON çıktısı ver:
+{{
+  "ordered_topics": [
+    {{"topic_id": 1, "new_order": 1, "reason": "Temel kavram, önkoşul"}},
+    {{"topic_id": 2, "new_order": 2, "reason": "Birinci konuya dayalı"}},
+    ...
+  ]
+}}
+
+TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
+        
+        elif sorting_criteria == "proximity":
+            prompt = f"""Sen bir eğitim uzmanısın. Aşağıdaki konuları BİRBİRİNE YAKINLIK ve İLİŞKİLİLİK sırasına göre sırala.
+
+YAKINLIK KRİTERLERİ:
+1. İçerik benzerliği: Aynı kavramları içeren konular yan yana
+2. Konsept ilişkisi: Birbirini tamamlayan konular birlikte
+3. Uygulama alanı: Aynı bağlamda kullanılan konular yakın
+4. Teknik yakınlık: Aynı teknoloji/araç kullanan konular birlikte
+
+KONULAR:
+{topics_text}
+
+SADECE JSON çıktısı ver:
+{{
+  "ordered_topics": [
+    {{"topic_id": 1, "new_order": 1, "reason": "Benzer içerik"}},
+    {{"topic_id": 2, "new_order": 2, "reason": "İlişkili kavram"}},
+    ...
+  ]
+}}
+
+TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
+        
+        else:  # hybrid
+            prompt = f"""Sen bir eğitim uzmanısın. Aşağıdaki konuları HEM BİLİŞSEL SIRA HEM YAKINLIK kriterlerine göre sırala.
+
+HİBRİT SIRALAMA:
+1. Bilişsel sıra: Bloom Taksonomisi ve önkoşul ilişkileri
+2. Yakınlık: İçerik benzerliği ve konsept ilişkisi
+3. Dengeli yaklaşım: Her iki kriteri de dikkate al
+
+KONULAR:
+{topics_text}
+
+SADECE JSON çıktısı ver:
+{{
+  "ordered_topics": [
+    {{"topic_id": 1, "new_order": 1, "reason": "Temel ve yakın konular"}},
+    {{"topic_id": 2, "new_order": 2, "reason": "Bilişsel sıra ve yakınlık"}},
+    ...
+  ]
+}}
+
+TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
+        
+        # Call LLM
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    f"{MODEL_INFERENCER_URL}/models/generate",
+                    json={
+                        "prompt": prompt,
+                        "model": model_to_use,
+                        "max_tokens": 3000,
+                        "temperature": 0.3
+                    }
+                )
+                
+                if response.status_code != 200:
+                    raise HTTPException(status_code=500, detail=f"LLM service error: {response.status_code}")
+                
+                result = response.json()
+                llm_output = result.get("response", "")
+                
+                # Parse JSON
+                import re
+                json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
+                if not json_match:
+                    raise HTTPException(status_code=500, detail="Could not parse LLM response as JSON")
+                
+                data = json.loads(json_match.group())
+                ordered_topics = data.get("ordered_topics", [])
+                
+                if len(ordered_topics) != len(topics):
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"LLM returned {len(ordered_topics)} topics, expected {len(topics)}"
+                    )
+                
+                # Update topic_order in database
+                with db.get_connection() as conn:
+                    for item in ordered_topics:
+                        topic_id = item.get("topic_id")
+                        new_order = item.get("new_order")
+                        
+                        if topic_id is None or new_order is None:
+                            continue
+                        
+                        conn.execute("""
+                            UPDATE course_topics
+                            SET topic_order = ?
+                            WHERE topic_id = ? AND session_id = ?
+                        """, (new_order, topic_id, session_id))
+                    
+                    conn.commit()
+                
+                logger.info(f"✅ [TOPIC REORDER] Successfully reordered {len(ordered_topics)} topics using {sorting_criteria} criteria")
+                
+                return {
+                    "success": True,
+                    "message": f"Topics reordered successfully using {sorting_criteria} criteria",
+                    "total_topics": len(ordered_topics),
+                    "criteria": sorting_criteria
+                }
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parse error: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to parse LLM response: {str(e)}")
+        except Exception as e:
+            logger.error(f"LLM error: {e}")
+            raise HTTPException(status_code=500, detail=f"LLM service error: {str(e)}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error reordering topics: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to reorder topics: {str(e)}")
 
