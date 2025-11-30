@@ -166,8 +166,8 @@ services:
       - DATABASE_PATH=/app/data/rag_assistant.db
       - CORS_ORIGINS=${CORS_ORIGINS}
       - CORS_CREDENTIALS=true
-      - RATE_LIMIT_RPM=300
-      - RATE_LIMIT_BURST=50
+      - RATE_LIMIT_RPM=600
+      - RATE_LIMIT_BURST=100
       - REQUIRE_AUTH=true
     volumes:
       - database_data:/app/data

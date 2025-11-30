@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
@@ -33,55 +33,88 @@ const navigationItems: Array<{
   name: string;
   icon: React.ComponentType<{ className?: string }>;
   desc: string;
+  path: string;
 }> = [
   {
     id: "dashboard",
     name: "Kontrol Paneli",
     icon: LayoutDashboard,
     desc: "Genel Bakış",
+    path: "/",
   },
   {
     id: "sessions",
     name: "Ders Oturumları",
     icon: BookOpen,
     desc: "Sınıf Yönetimi",
+    path: "/sessions",
   },
   {
     id: "upload",
     name: "Belge Merkezi",
     icon: FolderOpen,
     desc: "Materyal Yükleme",
+    path: "/document-center",
   },
   {
     id: "analytics",
     name: "Analytics Dashboard",
     icon: BarChart3,
     desc: "Konu Analizi",
+    path: "/",
   },
   {
     id: "modules",
     name: "Modül Sistemi",
     icon: FolderOpen,
     desc: "Eğitim Modülleri",
+    path: "/",
   },
   {
     id: "assistant",
     name: "Akıllı Asistan",
     icon: Bot,
     desc: "Soru & Cevap",
+    path: "/education-assistant",
   },
 ];
 
 function TeacherLayout({
   children,
-  activeTab = "dashboard",
+  activeTab,
   onTabChange,
 }: TeacherLayoutProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // Determine active tab based on pathname
+  const getActiveTabFromPath = (): TabType => {
+    if (pathname?.startsWith("/sessions/") || pathname === "/sessions") {
+      return "sessions";
+    }
+    if (pathname === "/document-center") {
+      return "upload";
+    }
+    if (pathname === "/education-assistant") {
+      return "assistant";
+    }
+    if (pathname === "/") {
+      // Check URL hash or query params for analytics/modules
+      if (typeof window !== "undefined") {
+        const hash = window.location.hash;
+        if (hash === "#analytics") return "analytics";
+        if (hash === "#modules") return "modules";
+      }
+      return "dashboard";
+    }
+    return "dashboard";
+  };
+
+  const currentActiveTab = activeTab || getActiveTabFromPath();
 
   const handleLogout = async () => {
     try {
@@ -93,23 +126,19 @@ function TeacherLayout({
   };
 
   const handleTabClick = (tabId: TabType) => {
-    // Special handling for upload tab - redirect to document-center
-    if (tabId === "upload") {
-      router.push("/document-center");
-      setSidebarOpen(false);
-      return;
+    const navItem = navigationItems.find((item) => item.id === tabId);
+    if (!navItem) return;
+
+    // Navigate to the correct path
+    if (tabId === "analytics" || tabId === "modules") {
+      // For analytics and modules, go to home page with hash
+      router.push(`${navItem.path}#${tabId}`);
+    } else {
+      // For other tabs, navigate directly
+      router.push(navItem.path);
     }
 
-    // Special handling for assistant tab - redirect to education-assistant page
-    if (tabId === "assistant") {
-      router.push("/education-assistant");
-      setSidebarOpen(false);
-      return;
-    }
-
-    // For all other tabs, go to main page first and then set the active tab
-    router.push("/");
-
+    // Call onTabChange if provided
     if (onTabChange) {
       onTabChange(tabId);
     }
@@ -183,7 +212,12 @@ function TeacherLayout({
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navigationItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            // Check if current path matches this item's path
+            const isPathMatch = pathname === item.path || 
+              (item.id === "sessions" && pathname?.startsWith("/sessions")) ||
+              (item.id === "analytics" && pathname === "/" && typeof window !== "undefined" && window.location.hash === "#analytics") ||
+              (item.id === "modules" && pathname === "/" && typeof window !== "undefined" && window.location.hash === "#modules");
+            const isActive = currentActiveTab === item.id || isPathMatch;
 
             return (
               <button
