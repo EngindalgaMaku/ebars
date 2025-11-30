@@ -1853,9 +1853,13 @@ async def generate_topic_recommendation(
 
 import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
 # Global dict to track extraction jobs
 extraction_jobs = {}
+# Lock for thread-safe job status updates
+job_status_lock = threading.Lock()
 
 def run_extraction_in_background(job_id: str, session_id: str, method: str, system_prompt: Optional[str] = None):
     """
@@ -1991,25 +1995,38 @@ def run_extraction_in_background(job_id: str, session_id: str, method: str, syst
             
             logger.info(f"Split into {len(batches)} batches")
             
-            # Extract topics from each batch with INCREMENTAL SAVES
+            # Extract topics from batches with PARALLEL PROCESSING for speed
+            # Use ThreadPoolExecutor to process multiple batches concurrently
             all_topics = []
-            for i, batch in enumerate(batches):
-                extraction_jobs[job_id]["current_batch"] = i + 1
-                extraction_jobs[job_id]["message"] = f"Batch {i+1}/{len(batches)} işleniyor..."
-                
-                logger.info(f"🔄 Processing batch {i+1}/{len(batches)} ({len(batch)} chunks)")
-                topics_data = extract_topics_with_llm(batch, {"include_subtopics": True}, session_id, system_prompt)
-                batch_topics = topics_data.get("topics", [])
-                all_topics.extend(batch_topics)
-                
-                # INCREMENTAL SAVE - Save topics after each batch
-                if batch_topics:
-                    # Normalize topics first (handle "name" -> "topic_title" etc.)
+            completed_batches = 0
+            total_batches = len(batches)
+            
+            # Determine optimal worker count
+            # Docker container has 2 CPU cores and 3 uvicorn workers
+            # Each worker should use 2-3 threads to avoid context switching overhead
+            # Also consider API rate limits - max 4 parallel requests is safe
+            # Optimal: 3 threads per worker = 3 workers * 3 threads = 9 total parallel batches
+            # But for large jobs, we can use 4 threads per worker = 12 total
+            max_workers = min(4, total_batches)  # Max 4 parallel batches per worker (safe for 2 CPUs)
+            logger.info(f"🚀 [PARALLEL PROCESSING] Processing {total_batches} batches with {max_workers} parallel workers per uvicorn process")
+            
+            def process_single_batch(batch_index: int, batch: List[Dict]) -> tuple:
+                """Process a single batch and return (batch_index, topics, saved_count)"""
+                try:
+                    logger.info(f"🔄 [BATCH {batch_index+1}] Processing batch {batch_index+1}/{total_batches} ({len(batch)} chunks)")
+                    
+                    # Extract topics from batch
+                    topics_data = extract_topics_with_llm(batch, {"include_subtopics": True}, session_id, system_prompt)
+                    batch_topics = topics_data.get("topics", [])
+                    
+                    if not batch_topics:
+                        return (batch_index, [], 0)
+                    
+                    # Normalize topics
                     normalized_batch_topics = []
-                    current_topic_count = len(all_topics) - len(batch_topics)
+                    chunk_id_map = {chunk.get("chunk_id"): chunk for chunk in chunks if chunk.get("chunk_id")}
                     
                     for j, topic in enumerate(batch_topics):
-                        # Use merge function's logic to normalize the topic
                         title = None
                         possible_title_keys = ["topic_title", "title", "name", "topic_name", "başlık", "konu"]
                         
@@ -2018,33 +2035,24 @@ def run_extraction_in_background(job_id: str, session_id: str, method: str, syst
                                 title = str(topic[key]).strip()
                                 break
                         
-                        if title:  # Only save if we found a valid title
-                            # Map LLM's related_chunks to actual chunk IDs
+                        if title:
                             related_chunk_ids = []
                             llm_related = topic.get("related_chunks", topic.get("ilgili_chunklar", []))
                             
-                            # Create a map of chunk_id -> chunk for quick lookup
-                            chunk_id_map = {chunk.get("chunk_id"): chunk for chunk in chunks if chunk.get("chunk_id")}
-                            
-                            # Process LLM's related_chunks
                             for ref in llm_related:
                                 if isinstance(ref, int):
-                                    # First try: ref is a chunk ID (most likely if LLM followed instructions)
                                     if ref in chunk_id_map:
                                         if ref not in related_chunk_ids:
                                             related_chunk_ids.append(ref)
-                                    # Second try: ref is a 1-based index
                                     elif 1 <= ref <= len(chunks):
                                         chunk_id = chunks[ref - 1].get("chunk_id")
                                         if chunk_id and chunk_id not in related_chunk_ids:
                                             related_chunk_ids.append(chunk_id)
-                                    # Third try: ref is a 0-based index
                                     elif 0 <= ref < len(chunks):
                                         chunk_id = chunks[ref].get("chunk_id")
                                         if chunk_id and chunk_id not in related_chunk_ids:
                                             related_chunk_ids.append(chunk_id)
                                 else:
-                                    # Already an ID (string or other type), try to convert and use
                                     try:
                                         ref_id = int(ref) if isinstance(ref, str) and ref.isdigit() else ref
                                         if ref_id in chunk_id_map and ref_id not in related_chunk_ids:
@@ -2052,40 +2060,93 @@ def run_extraction_in_background(job_id: str, session_id: str, method: str, syst
                                     except (ValueError, TypeError):
                                         pass
                             
-                            # If no related chunks found, try to match by keywords
                             if not related_chunk_ids:
                                 keywords = topic.get("keywords", topic.get("anahtar_kelimeler", []))
                                 if keywords:
                                     for chunk in chunks:
                                         chunk_text = (chunk.get("chunk_text") or chunk.get("content") or chunk.get("text", "")).lower()
-                                        # Check if any keyword appears in chunk
                                         if any(kw.lower() in chunk_text for kw in keywords):
                                             chunk_id = chunk.get("chunk_id")
                                             if chunk_id and chunk_id not in related_chunk_ids:
                                                 related_chunk_ids.append(chunk_id)
-                                                if len(related_chunk_ids) >= 5:  # Limit to 5 chunks
+                                                if len(related_chunk_ids) >= 5:
                                                     break
-                            
-                            logger.info(f"📝 [TOPIC EXTRACTION] Topic '{title}': LLM returned {llm_related}, mapped to chunk IDs: {related_chunk_ids}")
                             
                             normalized_topic = {
                                 "topic_title": title,
-                                "order": current_topic_count + j + 1,
+                                "order": batch_index * 100 + j + 1,  # Temporary order, will be recalculated
                                 "difficulty": topic.get("difficulty", topic.get("zorluk", topic.get("estimated_difficulty", "orta"))),
                                 "keywords": topic.get("keywords", topic.get("anahtar_kelimeler", [])),
                                 "prerequisites": topic.get("prerequisites", topic.get("on_koşullar", [])),
                                 "subtopics": topic.get("subtopics", topic.get("alt_konular", [])),
-                                "related_chunks": related_chunk_ids  # Use mapped chunk IDs
+                                "related_chunks": related_chunk_ids
                             }
                             normalized_batch_topics.append(normalized_topic)
                     
-                    # Save normalized batch topics to database immediately
+                    # Save to database (thread-safe)
+                    saved_count = 0
                     if normalized_batch_topics:
-                        saved_batch_count = save_topics_to_db(normalized_batch_topics, session_id, db)
-                        logger.info(f"💾 [INCREMENTAL SAVE] Batch {i+1}: Saved {saved_batch_count} topics to database")
-                        extraction_jobs[job_id]["message"] = f"Batch {i+1}/{len(batches)} tamamlandı, {saved_batch_count} konu kaydedildi"
-                    else:
-                        logger.warning(f"⚠️ [INCREMENTAL SAVE] Batch {i+1}: No valid topics found to save")
+                        saved_count = save_topics_to_db(normalized_batch_topics, session_id, db)
+                        logger.info(f"💾 [BATCH {batch_index+1}] Saved {saved_count} topics to database")
+                    
+                    return (batch_index, batch_topics, saved_count)
+                    
+                except Exception as e:
+                    logger.error(f"❌ [BATCH {batch_index+1}] Error processing batch: {e}")
+                    return (batch_index, [], 0)
+            
+            # Process batches in parallel
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all batches
+                future_to_batch = {
+                    executor.submit(process_single_batch, i, batch): i 
+                    for i, batch in enumerate(batches)
+                }
+                
+                # Collect results as they complete
+                batch_results = {}
+                for future in as_completed(future_to_batch):
+                    batch_index, batch_topics, saved_count = future.result()
+                    batch_results[batch_index] = (batch_topics, saved_count)
+                    all_topics.extend(batch_topics)
+                    
+                    # Update progress (thread-safe)
+                    with job_status_lock:
+                        completed_batches += 1
+                        extraction_jobs[job_id]["current_batch"] = completed_batches
+                        extraction_jobs[job_id]["message"] = f"Batch {completed_batches}/{total_batches} tamamlandı ({saved_count} konu kaydedildi)"
+                    
+                    logger.info(f"✅ [PROGRESS] {completed_batches}/{total_batches} batches completed")
+            
+            # Reorder topics by batch order and fix topic order numbers
+            all_topics_ordered = []
+            topic_order_counter = 1
+            for i in range(total_batches):
+                if i in batch_results:
+                    batch_topics, _ = batch_results[i]
+                    all_topics_ordered.extend(batch_topics)
+            
+            all_topics = all_topics_ordered
+            
+            # Fix topic order numbers in database (they were saved with temporary order)
+            if all_topics:
+                with db.get_connection() as conn:
+                    # Get all topics for this session and reorder them
+                    topics_in_db = conn.execute("""
+                        SELECT topic_id, topic_title FROM course_topics 
+                        WHERE session_id = ? AND is_active = TRUE
+                        ORDER BY topic_order
+                    """, (session_id,)).fetchall()
+                    
+                    # Update order numbers sequentially
+                    for idx, topic_row in enumerate(topics_in_db, 1):
+                        conn.execute("""
+                            UPDATE course_topics 
+                            SET topic_order = ? 
+                            WHERE topic_id = ?
+                        """, (idx, topic_row[0]))
+                    conn.commit()
+                    logger.info(f"✅ [REORDER] Fixed topic order numbers for {len(topics_in_db)} topics")
             
             extraction_jobs[job_id]["message"] = "Tüm batch'ler tamamlandı! Son kontrolü yapılıyor..."
             
@@ -2186,7 +2247,12 @@ async def get_extraction_status(job_id: str):
     Get status of background extraction job
     """
     if job_id not in extraction_jobs:
-        raise HTTPException(status_code=404, detail="Job not found")
+        # Job not found - might have been completed, failed, or service restarted
+        logger.warning(f"Job {job_id} not found in extraction_jobs. Available jobs: {list(extraction_jobs.keys())}")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Job {job_id} not found. It may have completed, failed, or the service was restarted."
+        )
     
     job = extraction_jobs[job_id]
     return {

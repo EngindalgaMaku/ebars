@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 import requests
 import os
 import uuid
+import asyncio
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,9 @@ BATCH_KB_JOBS: Dict[str, Dict[str, Any]] = {}
 
 # In-memory job store for batch QA embedding calculation
 BATCH_EMBEDDING_JOBS: Dict[str, Dict[str, Any]] = {}
+
+# Lock for thread-safe job status updates
+kb_job_status_lock = threading.Lock()
 
 
 # ============================================================================
@@ -1877,12 +1882,15 @@ async def extract_knowledge_batch(
 
         # Convert request model to plain dict for background task
         request_data: Dict[str, Any] = request.model_dump() if request else {}
-
-        # Schedule background job
-        if background_tasks is None:
-            # Safety fallback: run inline (mainly for tests)
-            await _run_batch_extraction_job(session_id, topics, request_data, job_id)
-        else:
+        
+        # Schedule background job using asyncio.create_task for reliable async execution
+        logger.info(f"[KB BATCH] Starting background job {job_id} for {len(topics)} topics")
+        task = asyncio.create_task(
+            _run_batch_extraction_job(session_id, topics, request_data, job_id)
+        )
+        
+        # Also add to background_tasks if provided (for FastAPI lifecycle)
+        if background_tasks is not None:
             background_tasks.add_task(
                 _run_batch_extraction_job, session_id, topics, request_data, job_id
             )
@@ -1911,12 +1919,14 @@ async def _run_batch_extraction_job(
     Internal background job that performs batch KB extraction.
     Updates BATCH_KB_JOBS[job_id] with progress.
     """
+    logger.info(f"[KB BATCH JOB {job_id}] Starting batch extraction job for {len(topics)} topics")
+    
     db = get_db()
     job = BATCH_KB_JOBS.get(job_id)
 
     if not job:
         # Job was somehow removed; nothing to do
-        logger.warning(f"[KB BATCH JOB] Job {job_id} not found at start")
+        logger.warning(f"[KB BATCH JOB {job_id}] Job not found at start")
         return
 
     try:
@@ -1929,23 +1939,25 @@ async def _run_batch_extraction_job(
         generate_qa_pairs = extraction_config.get("generate_qa_pairs", True)
         qa_pairs_per_topic = extraction_config.get("qa_pairs_per_topic", 15)
 
-        for topic in topics:
+        # PARALLEL PROCESSING: Process topics concurrently
+        total_topics = len(topics)
+        max_concurrent = min(4, total_topics)  # Max 4 parallel topics (safe for 2 CPUs)
+        logger.info(f"🚀 [KB BATCH JOB {job_id}] Processing {total_topics} topics with {max_concurrent} parallel workers")
+
+        async def process_single_topic(topic: Dict[str, Any]) -> tuple:
+            """Process a single topic and return (success, result, error)"""
             try:
                 topic_id = topic["topic_id"]
                 topic_title = topic["topic_title"]
 
                 logger.info(f"[KB BATCH JOB {job_id}] Processing topic: {topic_title}")
 
-                # Update current topic in job status
-                job["current_topic_id"] = topic_id
-                job["current_topic_title"] = topic_title
-
                 # Extract knowledge
                 extraction_req = KnowledgeExtractionRequest(
-                    topic_id=topic_id,
                     force_refresh=force_refresh,
+                    system_prompt=system_prompt,  # Include system_prompt in request
                 )
-                result = await extract_knowledge_for_topic(topic_id, extraction_req, system_prompt)
+                result = await extract_knowledge_for_topic(topic_id, extraction_req)
 
                 # Generate QA pairs if requested
                 if generate_qa_pairs:
@@ -1956,22 +1968,17 @@ async def _run_batch_extraction_job(
                     qa_result = await generate_qa_pairs_endpoint(topic_id, qa_req)
                     result["qa_pairs_generated"] = qa_result.get("count", 0)
 
-                results.append(
-                    {
-                        "topic_id": result.get("topic_id"),
-                        "topic_title": result.get("topic_title"),
-                        "knowledge_id": result.get("knowledge_id"),
-                        "qa_pairs_generated": result.get("qa_pairs_generated", 0),
-                    }
-                )
+                result_entry = {
+                    "topic_id": result.get("topic_id"),
+                    "topic_title": result.get("topic_title"),
+                    "knowledge_id": result.get("knowledge_id"),
+                    "qa_pairs_generated": result.get("qa_pairs_generated", 0),
+                }
 
-                # Update progress
-                job["processed_successfully"] = len(results)
-                job["results"] = results
+                return (True, result_entry, None)
 
             except Exception as e:
                 import traceback
-
                 error_detail = traceback.format_exc()
                 logger.error(
                     f"[KB BATCH JOB {job_id}] Error processing topic {topic.get('topic_id')} "
@@ -1985,9 +1992,66 @@ async def _run_batch_extraction_job(
                     "error": str(e),
                     "error_type": type(e).__name__,
                 }
-                errors.append(error_entry)
-                job["errors"] = errors
-                job["errors_count"] = len(errors)
+
+                return (False, None, error_entry)
+
+        # Process topics in parallel batches
+        completed = 0
+        for i in range(0, total_topics, max_concurrent):
+            batch = topics[i:i + max_concurrent]
+            batch_num = (i // max_concurrent) + 1
+            total_batches = (total_topics + max_concurrent - 1) // max_concurrent
+
+            logger.info(f"[KB BATCH JOB {job_id}] Processing batch {batch_num}/{total_batches} ({len(batch)} topics)")
+
+            # Process batch in parallel
+            tasks = [process_single_topic(topic) for topic in batch]
+            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Process results
+            for idx, result in enumerate(batch_results):
+                if isinstance(result, Exception):
+                    # Exception during task execution
+                    topic = batch[idx]
+                    error_entry = {
+                        "topic_id": topic.get("topic_id"),
+                        "topic_title": topic.get("topic_title"),
+                        "error": str(result),
+                        "error_type": type(result).__name__,
+                    }
+                    errors.append(error_entry)
+                elif isinstance(result, tuple) and len(result) == 3:
+                    success, result_entry, error_entry = result
+                    if success and result_entry:
+                        results.append(result_entry)
+                    elif error_entry:
+                        errors.append(error_entry)
+                else:
+                    # Unexpected result format
+                    topic = batch[idx]
+                    logger.warning(f"[KB BATCH JOB {job_id}] Unexpected result format: {type(result)}")
+                    error_entry = {
+                        "topic_id": topic.get("topic_id"),
+                        "topic_title": topic.get("topic_title"),
+                        "error": f"Unexpected result format: {type(result)}",
+                        "error_type": "UnexpectedError",
+                    }
+                    errors.append(error_entry)
+
+                # Update progress (thread-safe)
+                completed += 1
+                with kb_job_status_lock:
+                    job["processed_successfully"] = len(results)
+                    job["errors_count"] = len(errors)
+                    job["results"] = results
+                    job["errors"] = errors
+                    if completed < total_topics:
+                        # Update current topic being processed
+                        current_topic = topics[completed] if completed < len(topics) else topics[-1]
+                        job["current_topic_id"] = current_topic.get("topic_id")
+                        job["current_topic_title"] = current_topic.get("topic_title")
+
+            logger.info(f"[KB BATCH JOB {job_id}] Batch {batch_num} completed: {len([r for r in batch_results if not isinstance(r, Exception) and r[0]])} success, {len([r for r in batch_results if isinstance(r, Exception) or (not isinstance(r, Exception) and not r[0])])} errors")
 
         # Mark job as completed
         job["status"] = "completed"
@@ -2079,11 +2143,14 @@ async def extract_knowledge_batch_missing(
         request_data: Dict[str, Any] = request.model_dump() if request else {}
         request_data["force_refresh"] = False  # Don't overwrite existing KBs
 
-        # Schedule background job
-        if background_tasks is None:
-            # Safety fallback: run inline (mainly for tests)
-            await _run_batch_extraction_job(session_id, topics, request_data, job_id)
-        else:
+        # Schedule background job using asyncio.create_task for reliable async execution
+        logger.info(f"[KB BATCH] Starting background job {job_id} for {len(topics)} missing topics")
+        task = asyncio.create_task(
+            _run_batch_extraction_job(session_id, topics, request_data, job_id)
+        )
+        
+        # Also add to background_tasks if provided (for FastAPI lifecycle)
+        if background_tasks is not None:
             background_tasks.add_task(
                 _run_batch_extraction_job, session_id, topics, request_data, job_id
             )
