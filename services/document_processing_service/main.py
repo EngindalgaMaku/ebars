@@ -181,15 +181,8 @@ def get_chroma_client():
         
         logger.info(f"🔍 DIAGNOSTIC: Connecting to ChromaDB at host='{host}', port={port}, https={use_https}")
         
-        # Create Settings WITHOUT host - host is passed directly to HttpClient
-        # Passing host in Settings causes "host provided in settings is different" error
-        from chromadb.config import Settings
-        chroma_settings = Settings(
-            anonymized_telemetry=False,
-            chroma_client_auth_provider=None,
-            chroma_api_impl="chromadb.api.fastapi.FastAPI",
-        )
-        
+        # HttpClient handles all configuration internally - don't pass Settings to avoid conflicts
+        # Settings object can cause "host provided in settings is different" error
         if use_https:
             # For Cloud Run, try to use the full URL
             # ChromaDB HttpClient may need special configuration for HTTPS
@@ -197,14 +190,12 @@ def get_chroma_client():
             # Try to connect - ChromaDB HttpClient may handle HTTPS URLs
             client = chromadb.HttpClient(
                 host=host,
-                port=port,
-                settings=chroma_settings
+                port=port
             )
         else:
             client = chromadb.HttpClient(
                 host=host,
-                port=port,
-                settings=chroma_settings
+                port=port
             )
         
         logger.info(f"✅ ChromaDB client created successfully")
