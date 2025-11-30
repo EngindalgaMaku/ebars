@@ -209,11 +209,12 @@ function TeacherLayout({
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {navigationItems.map((item) => {
             const Icon = item.icon;
-            // Check if current path matches this item's path
-            const isPathMatch = pathname === item.path || 
-              (item.id === "sessions" && pathname?.startsWith("/sessions")) ||
-              (item.id === "analytics" && pathname === "/" && typeof window !== "undefined" && window.location.hash === "#analytics") ||
-              (item.id === "modules" && pathname === "/" && typeof window !== "undefined" && window.location.hash === "#modules");
+            // Only check pathname for specific routes (not for tabs on home page)
+            const isPathMatch = 
+              (item.id === "sessions" && pathname?.startsWith("/sessions/")) ||
+              (item.id === "upload" && pathname === "/document-center") ||
+              (item.id === "assistant" && pathname === "/education-assistant");
+            // Use activeTab prop as primary source, pathname only for specific routes
             const isActive = currentActiveTab === item.id || isPathMatch;
 
             return (
