@@ -59,26 +59,20 @@ def get_chroma_client():
         
         logger.info(f"🔍 DIAGNOSTIC: Connecting to ChromaDB at host='{host}', port={port}, https={use_https}")
         
-        # Configure ChromaDB settings with longer timeouts for bulk operations
-        chroma_settings = Settings(
-            anonymized_telemetry=False,
-            chroma_client_auth_provider=None,
-            chroma_api_impl="chromadb.api.fastapi.FastAPI",
-        )
-        
+        # Create ChromaDB HttpClient directly without Settings to avoid host mismatch
+        # HttpClient handles host/port internally, Settings should not specify host
         if use_https:
             # For Cloud Run, try to use the full URL
             logger.warning("⚠️ HTTPS detected for ChromaDB. Ensure ChromaDB service supports HTTPS or use HTTP proxy.")
             client = chromadb.HttpClient(
                 host=host,
-                port=port,
-                settings=chroma_settings
+                port=port
             )
         else:
+            # For Docker/local: use host and port directly
             client = chromadb.HttpClient(
                 host=host,
-                port=port,
-                settings=chroma_settings
+                port=port
             )
         
         logger.info(f"✅ ChromaDB client created successfully")
