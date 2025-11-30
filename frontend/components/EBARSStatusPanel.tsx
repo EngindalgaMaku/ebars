@@ -17,6 +17,7 @@ interface EBARSState {
   difficulty_level: string;
   prompt_parameters: any;
   adaptive_prompt?: string; // Generated prompt for display
+  complete_prompt?: string; // Complete prompt (Question + EBARS + RAG)
   statistics: {
     total_feedback_count: number;
     positive_feedback_count: number;
