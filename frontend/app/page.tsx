@@ -546,8 +546,21 @@ export default function HomePage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get("tab");
-    if (tabParam === "query") {
-      setActiveTab("query");
+    const hash = window.location.hash;
+    
+    // Check hash first (for analytics/modules)
+    if (hash === "#analytics") {
+      setActiveTab("analytics");
+      return;
+    }
+    if (hash === "#modules") {
+      setActiveTab("modules");
+      return;
+    }
+    
+    // Then check query param
+    if (tabParam && ["dashboard", "sessions", "upload", "analytics", "modules", "assistant", "query"].includes(tabParam)) {
+      setActiveTab(tabParam as TabType);
     }
   }, []);
 
@@ -556,8 +569,23 @@ export default function HomePage() {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
-      if (tabParam === "query") {
-        setActiveTab("query");
+      const hash = window.location.hash;
+      
+      // Check hash first (for analytics/modules)
+      if (hash === "#analytics") {
+        setActiveTab("analytics");
+        return;
+      }
+      if (hash === "#modules") {
+        setActiveTab("modules");
+        return;
+      }
+      
+      // Then check query param
+      if (tabParam && ["dashboard", "sessions", "upload", "analytics", "modules", "assistant", "query"].includes(tabParam)) {
+        setActiveTab(tabParam as TabType);
+      } else {
+        setActiveTab("dashboard");
       }
     };
     window.addEventListener("popstate", handlePopState);

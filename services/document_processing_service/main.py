@@ -10,7 +10,7 @@ from pydantic import BaseModel
 import requests
 import logging
 import chromadb
-from chromadb.config import Settings
+# Settings removed - HttpClient handles configuration internally
 
 # Import UNIFIED chunking system with LLM post-processing support
 import sys
@@ -181,18 +181,8 @@ def get_chroma_client():
         
         logger.info(f"🔍 DIAGNOSTIC: Connecting to ChromaDB at host='{host}', port={port}, https={use_https}")
         
-        # Create HttpClient with proper host/port configuration
-        # Note: chromadb.HttpClient doesn't support HTTPS directly for Cloud Run
-        # For Cloud Run, you may need to use a different client or proxy
-        # Configure ChromaDB settings with longer timeouts for bulk operations
-        chroma_settings = Settings(
-            anonymized_telemetry=False,
-            chroma_client_auth_provider=None,
-            chroma_api_impl="chromadb.api.fastapi.FastAPI",
-            # Increase timeouts for bulk update operations (default is 60s)
-            # These help with SSL handshake timeouts during high load
-        )
-        
+        # HttpClient handles configuration internally - don't pass settings to avoid conflicts
+        # Passing Settings with host can cause "host provided in settings is different" error
         if use_https:
             # For Cloud Run, try to use the full URL
             # ChromaDB HttpClient may need special configuration for HTTPS
@@ -200,14 +190,12 @@ def get_chroma_client():
             # Try to connect - ChromaDB HttpClient may handle HTTPS URLs
             client = chromadb.HttpClient(
                 host=host,
-                port=port,
-                settings=chroma_settings
+                port=port
             )
         else:
             client = chromadb.HttpClient(
                 host=host,
-                port=port,
-                settings=chroma_settings
+                port=port
             )
         
         logger.info(f"✅ ChromaDB client created successfully")

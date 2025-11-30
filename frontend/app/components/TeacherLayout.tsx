@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard,
@@ -47,7 +47,7 @@ const navigationItems: Array<{
     name: "Ders Oturumları",
     icon: BookOpen,
     desc: "Sınıf Yönetimi",
-    path: "/sessions",
+    path: "/",
   },
   {
     id: "upload",
@@ -87,13 +87,15 @@ function TeacherLayout({
   const { user, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  // Determine active tab based on pathname
+  // Determine active tab based on pathname and query params
   const getActiveTabFromPath = (): TabType => {
-    if (pathname?.startsWith("/sessions/") || pathname === "/sessions") {
+    // Session detail page - still show sessions as active
+    if (pathname?.startsWith("/sessions/")) {
       return "sessions";
     }
     if (pathname === "/document-center") {
@@ -106,8 +108,11 @@ function TeacherLayout({
       // Check URL hash or query params for analytics/modules
       if (typeof window !== "undefined") {
         const hash = window.location.hash;
-        if (hash === "#analytics") return "analytics";
-        if (hash === "#modules") return "modules";
+        const tabParam = searchParams?.get("tab");
+        if (hash === "#analytics" || tabParam === "analytics") return "analytics";
+        if (hash === "#modules" || tabParam === "modules") return "modules";
+        if (tabParam === "sessions") return "sessions";
+        if (tabParam === "dashboard") return "dashboard";
       }
       return "dashboard";
     }
@@ -129,16 +134,29 @@ function TeacherLayout({
     const navItem = navigationItems.find((item) => item.id === tabId);
     if (!navItem) return;
 
-    // Navigate to the correct path
-    if (tabId === "analytics" || tabId === "modules") {
-      // For analytics and modules, go to home page with hash
-      router.push(`${navItem.path}#${tabId}`);
-    } else {
-      // For other tabs, navigate directly
-      router.push(navItem.path);
+    // Special handling for upload tab - redirect to document-center
+    if (tabId === "upload") {
+      router.push("/document-center");
+      setSidebarOpen(false);
+      return;
     }
 
-    // Call onTabChange if provided
+    // Special handling for assistant tab - redirect to education-assistant page
+    if (tabId === "assistant") {
+      router.push("/education-assistant");
+      setSidebarOpen(false);
+      return;
+    }
+
+    // For dashboard, sessions, analytics, modules: go to home page with tab query param
+    // Dashboard doesn't need query param (default)
+    if (tabId === "dashboard") {
+      router.push("/");
+    } else {
+      router.push(`/?tab=${tabId}`);
+    }
+
+    // Call onTabChange if provided (for tab state management)
     if (onTabChange) {
       onTabChange(tabId);
     }
