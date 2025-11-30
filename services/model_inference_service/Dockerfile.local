@@ -1,0 +1,25 @@
+# Use Python slim image as base image for CPU compatibility
+FROM python:3.9-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Install system dependencies (minimal - no Ollama installation)
+RUN apt-get update && apt-get install -y procps && rm -rf /var/lib/apt/lists/*
+
+# Copy the dependencies file to the working directory
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install -r requirements.txt
+
+# Set environment for external Ollama connection
+ENV OLLAMA_HOST="http://host.docker.internal:11434"
+ENV PATH="/usr/local/bin:${PATH}"
+
+# Copy the main application
+COPY main.py .
+
+# Direct startup - no Ollama installation or serve
+# Uses external Ollama running on host machine
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]

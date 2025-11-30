@@ -1,0 +1,42 @@
+# Minimal requirements for Cloud Run deployment
+# Only core API Gateway functionality
+
+# API server
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+
+# Configuration management  
+python-dotenv
+
+# HTTP requests for inter-service communication
+requests>=2.31.0
+httpx>=0.27.0
+PyPDF2>=3.0.0
+
+# Enhanced logging
+colorlog>=6.7.0
+
+# Cloud storage for persistent data
+google-cloud-storage>=2.10.0
+
+# Lightweight Chunking System Dependencies (96.5% size reduction achieved)
+# Heavy ML dependencies removed: sentence-transformers, scikit-learn, nltk
+numpy>=1.21.0                 # Kept for basic numerical operations
+markdown>=3.4.0              # For AST-based markdown parsing
+python-markdown-math>=0.8    # For mathematical formula preservation
+beautifulsoup4>=4.11.0       # For HTML/XML parsing support
+lxml>=4.9.0                  # For XML processing in AST parser
+
+# Performance and caching (lightweight)
+cachetools>=5.3.0            # For intelligent caching mechanisms
+
+# System monitoring (lightweight)
+psutil>=5.9.0                # For system resource monitoring
+
+# Authentication dependencies
+bcrypt>=4.0.0                # For password hashing in database modules
+passlib>=1.7.4              # For password context management
+
+# Basic dependencies only - ChromaDB, FAISS moved to microservices
+# CRAG evaluation moved to Document Processing Service
