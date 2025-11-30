@@ -658,7 +658,7 @@ export default function CognitiveTestPage() {
                                 </p>
                                 {answer.characteristics && answer.characteristics.length > 0 && (
                                   <div className="mt-2 flex flex-wrap gap-1">
-                                    {answer.characteristics.map((char, idx) => (
+                                    {answer.characteristics.map((char: string, idx: number) => (
                                       <span
                                         key={idx}
                                         className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded"
