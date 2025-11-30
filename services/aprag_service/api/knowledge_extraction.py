@@ -438,7 +438,7 @@ def get_session_model(session_id: str) -> str:
     Get the model configured for a specific session from API Gateway
     """
     if not session_id:
-        return "llama3:8b"
+        return os.getenv("DEFAULT_MODEL", "llama-3.1-8b-instant")
         
     try:
         api_gateway_url = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
@@ -451,10 +451,10 @@ def get_session_model(session_id: str) -> str:
             if rag_settings and rag_settings.get("model"):
                 return rag_settings["model"]
         
-        return "llama3:8b"
+        return os.getenv("DEFAULT_MODEL", "llama-3.1-8b-instant")
     except Exception as e:
         logger.warning(f"Could not get session model: {e}")
-        return "llama3:8b"
+        return os.getenv("DEFAULT_MODEL", "llama-3.1-8b-instant")
 
 
 def fetch_chunks_for_session(session_id: str) -> List[Dict[str, Any]]:
@@ -687,8 +687,12 @@ YANITINI SADECE TÜRKÇE OLARAK YAZ.
         return ""
 
 
-async def extract_key_concepts(topic_title: str, chunks_text: str, model: str = "llama3:8b", system_prompt: Optional[str] = None) -> List[Dict]:
+async def extract_key_concepts(topic_title: str, chunks_text: str, model: str = None, system_prompt: Optional[str] = None) -> List[Dict]:
     """Extract key concepts with definitions"""
+    
+    # Use default model if not provided
+    if not model:
+        model = os.getenv("DEFAULT_MODEL", "llama-3.1-8b-instant")
     
     # Use custom system prompt if provided
     if system_prompt:
@@ -790,7 +794,7 @@ Sadece JSON çıktısı ver, başka açıklama yapma."""
         return []
 
 
-async def extract_learning_objectives(topic_title: str, chunks_text: str, model: str = "llama3:8b", system_prompt: Optional[str] = None) -> List[Dict]:
+async def extract_learning_objectives(topic_title: str, chunks_text: str, model: str = None, system_prompt: Optional[str] = None) -> List[Dict]:
     """Extract Bloom's Taxonomy-aligned learning objectives"""
     
     # Use custom system prompt if provided
@@ -923,9 +927,13 @@ async def generate_qa_pairs(
     chunks_text: str, 
     count: int = 15,
     difficulty_dist: Dict[str, int] = None,
-    model: str = "llama3:8b"
+    model: str = None
 ) -> List[Dict]:
     """Generate question-answer pairs for a topic"""
+    
+    # Use default model if not provided
+    if not model:
+        model = os.getenv("DEFAULT_MODEL", "llama-3.1-8b-instant")
     
     if difficulty_dist is None:
         difficulty_dist = {"beginner": 5, "intermediate": 7, "advanced": 3}
@@ -1245,8 +1253,12 @@ UNUTMA: Bu bir TÜRKÇE eğitim materyali - her kelimen Türkçe olmalı!"""
         return []
 
 
-async def extract_examples_and_applications(topic_title: str, chunks_text: str, model: str = "llama3:8b", system_prompt: Optional[str] = None) -> List[Dict]:
+async def extract_examples_and_applications(topic_title: str, chunks_text: str, model: str = None, system_prompt: Optional[str] = None) -> List[Dict]:
     """Extract real-world examples and applications"""
+    
+    # Use default model if not provided
+    if not model:
+        model = os.getenv("DEFAULT_MODEL", "llama-3.1-8b-instant")
     
     # Use custom system prompt if provided
     if system_prompt:
