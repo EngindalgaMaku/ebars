@@ -1400,83 +1400,83 @@ Sadece JSON çıktısı ver."""
                 except Exception as e2:
                     # Third attempt: more aggressive cleanup (same as QA generation)
                     try:
-                    # Remove trailing commas, fix incomplete fields
-                    cleaned = re.sub(r",(\s*[}\]])", r"\1", json_str)
-                    cleaned = re.sub(r':\s*"[^"]*$', ': ""', cleaned, flags=re.MULTILINE)  # Fix incomplete strings
-                    cleaned = re.sub(r':\s*\[[^\]]*$', ': []', cleaned, flags=re.MULTILINE)  # Fix incomplete arrays
-                    cleaned = re.sub(r':\s*\{[^\}]*$', ': {}', cleaned, flags=re.MULTILINE)  # Fix incomplete objects
-                    # Remove any remaining trailing commas
-                    cleaned = re.sub(r',(\s*[}\]])', r'\1', cleaned)
-                    data = json.loads(cleaned)
-                    logger.warning("Examples JSON required aggressive cleanup but was parsed successfully")
-                    return data.get("examples", [])
-                except Exception as e3:
-                    # Fourth attempt: ULTRA-AGGRESSIVE JSON repair (similar to topics.py)
-                    try:
-                        logger.warning("Examples JSON: Attempting ultra-aggressive repair...")
-                        
-                        # Extract everything between first { and last }
-                        repair_text = json_str.strip()
-                        first_brace = repair_text.find('{')
-                        last_brace = repair_text.rfind('}')
-                        
-                        if first_brace >= 0 and last_brace > first_brace:
-                            repair_text = repair_text[first_brace:last_brace + 1]
+                        # Remove trailing commas, fix incomplete fields
+                        cleaned = re.sub(r",(\s*[}\]])", r"\1", json_str)
+                        cleaned = re.sub(r':\s*"[^"]*$', ': ""', cleaned, flags=re.MULTILINE)  # Fix incomplete strings
+                        cleaned = re.sub(r':\s*\[[^\]]*$', ': []', cleaned, flags=re.MULTILINE)  # Fix incomplete arrays
+                        cleaned = re.sub(r':\s*\{[^\}]*$', ': {}', cleaned, flags=re.MULTILINE)  # Fix incomplete objects
+                        # Remove any remaining trailing commas
+                        cleaned = re.sub(r',(\s*[}\]])', r'\1', cleaned)
+                        data = json.loads(cleaned)
+                        logger.warning("Examples JSON required aggressive cleanup but was parsed successfully")
+                        return data.get("examples", [])
+                    except Exception as e3:
+                        # Fourth attempt: ULTRA-AGGRESSIVE JSON repair (similar to topics.py)
+                        try:
+                            logger.warning("Examples JSON: Attempting ultra-aggressive repair...")
                             
-                            # 1. Fix missing commas between fields (more comprehensive)
-                            repair_text = re.sub(r'"\s*"\s*"', '", "', repair_text)
-                            repair_text = re.sub(r'}\s*{', '},{', repair_text)
-                            repair_text = re.sub(r']\s*{', '],{', repair_text)
-                            repair_text = re.sub(r'}\s*"', '},"', repair_text)
-                            repair_text = re.sub(r']\s*"', '],"', repair_text)
-                            repair_text = re.sub(r'([0-9])\s*"', r'\1,"', repair_text)
-                            repair_text = re.sub(r'"\s*([0-9])', r'", \1', repair_text)
+                            # Extract everything between first { and last }
+                            repair_text = json_str.strip()
+                            first_brace = repair_text.find('{')
+                            last_brace = repair_text.rfind('}')
                             
-                            # Fix missing commas after closing quotes before new keys (most common issue)
-                            repair_text = re.sub(r'"\s+"([a-zA-Z_][a-zA-Z0-9_]*)"\s*:', r'", "\1":', repair_text)
-                            repair_text = re.sub(r'"\s+"([^"]+)"\s*:', r'", "\1":', repair_text)
-                            
-                            # Fix missing commas after values before closing braces/brackets
-                            repair_text = re.sub(r'(["\d\]}])\s*"([a-zA-Z_])', r'\1, "\2', repair_text)
-                            
-                            # 2. Fix double commas
-                            repair_text = re.sub(r',\s*,+', ',', repair_text)
-                            
-                            # 3. Fix trailing commas
-                            repair_text = re.sub(r',(\s*[}\]])', r'\1', repair_text)
-                            
-                            # 4. Fix incomplete strings
-                            repair_text = re.sub(r':\s*"[^"]*$', ': ""', repair_text, flags=re.MULTILINE)
-                            
-                            # 5. Fix incomplete arrays
-                            repair_text = re.sub(r':\s*\[[^\]]*$', ': []', repair_text, flags=re.MULTILINE)
-                            
-                            # 6. Fix incomplete objects
-                            repair_text = re.sub(r':\s*\{[^\}]*$', ': {}', repair_text, flags=re.MULTILINE)
-                            
-                            # 7. Fix malformed arrays
-                            repair_text = re.sub(r'\[\s*,+', '[', repair_text)
-                            repair_text = re.sub(r',+\s*\]', ']', repair_text)
-                            
-                            # 8. Fix missing commas in arrays
-                            repair_text = re.sub(r'"\s+"([^"]*")', r'", "\1', repair_text)
-                            
-                            # 9. Fix missing commas after closing braces/brackets
-                            repair_text = re.sub(r'}\s+"', '}, "', repair_text)
-                            repair_text = re.sub(r']\s+"', '], "', repair_text)
-                            
-                            logger.debug("Ultra-repaired examples JSON snippet: %s", repair_text[:500])
-                            
-                            data = json.loads(repair_text)
-                            logger.warning("Examples JSON: Ultra-aggressive repair succeeded!")
-                            return data.get("examples", [])
-                        else:
-                            raise ValueError("Could not find JSON boundaries in repair text")
-                            
-                    except Exception as e4:
-                        # Final attempt: Parse error message to find exact location and fix
-                        error_msg = str(e4)
-                        logger.warning(f"Examples JSON: Final repair attempt. Error: {error_msg}")
+                            if first_brace >= 0 and last_brace > first_brace:
+                                repair_text = repair_text[first_brace:last_brace + 1]
+                                
+                                # 1. Fix missing commas between fields (more comprehensive)
+                                repair_text = re.sub(r'"\s*"\s*"', '", "', repair_text)
+                                repair_text = re.sub(r'}\s*{', '},{', repair_text)
+                                repair_text = re.sub(r']\s*{', '],{', repair_text)
+                                repair_text = re.sub(r'}\s*"', '},"', repair_text)
+                                repair_text = re.sub(r']\s*"', '],"', repair_text)
+                                repair_text = re.sub(r'([0-9])\s*"', r'\1,"', repair_text)
+                                repair_text = re.sub(r'"\s*([0-9])', r'", \1', repair_text)
+                                
+                                # Fix missing commas after closing quotes before new keys (most common issue)
+                                repair_text = re.sub(r'"\s+"([a-zA-Z_][a-zA-Z0-9_]*)"\s*:', r'", "\1":', repair_text)
+                                repair_text = re.sub(r'"\s+"([^"]+)"\s*:', r'", "\1":', repair_text)
+                                
+                                # Fix missing commas after values before closing braces/brackets
+                                repair_text = re.sub(r'(["\d\]}])\s*"([a-zA-Z_])', r'\1, "\2', repair_text)
+                                
+                                # 2. Fix double commas
+                                repair_text = re.sub(r',\s*,+', ',', repair_text)
+                                
+                                # 3. Fix trailing commas
+                                repair_text = re.sub(r',(\s*[}\]])', r'\1', repair_text)
+                                
+                                # 4. Fix incomplete strings
+                                repair_text = re.sub(r':\s*"[^"]*$', ': ""', repair_text, flags=re.MULTILINE)
+                                
+                                # 5. Fix incomplete arrays
+                                repair_text = re.sub(r':\s*\[[^\]]*$', ': []', repair_text, flags=re.MULTILINE)
+                                
+                                # 6. Fix incomplete objects
+                                repair_text = re.sub(r':\s*\{[^\}]*$', ': {}', repair_text, flags=re.MULTILINE)
+                                
+                                # 7. Fix malformed arrays
+                                repair_text = re.sub(r'\[\s*,+', '[', repair_text)
+                                repair_text = re.sub(r',+\s*\]', ']', repair_text)
+                                
+                                # 8. Fix missing commas in arrays
+                                repair_text = re.sub(r'"\s+"([^"]*")', r'", "\1', repair_text)
+                                
+                                # 9. Fix missing commas after closing braces/brackets
+                                repair_text = re.sub(r'}\s+"', '}, "', repair_text)
+                                repair_text = re.sub(r']\s+"', '], "', repair_text)
+                                
+                                logger.debug("Ultra-repaired examples JSON snippet: %s", repair_text[:500])
+                                
+                                data = json.loads(repair_text)
+                                logger.warning("Examples JSON: Ultra-aggressive repair succeeded!")
+                                return data.get("examples", [])
+                            else:
+                                raise ValueError("Could not find JSON boundaries in repair text")
+                                
+                        except Exception as e4:
+                            # Final attempt: Parse error message to find exact location and fix
+                            error_msg = str(e4)
+                            logger.warning(f"Examples JSON: Final repair attempt. Error: {error_msg}")
                         
                         try:
                             # Extract line and column from error message if available
