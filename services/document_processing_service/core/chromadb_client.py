@@ -58,20 +58,34 @@ def get_chroma_client():
         
         logger.info(f"🔍 DIAGNOSTIC: Connecting to ChromaDB at host='{host}', port={port}, https={use_https}")
         
-        # HttpClient handles all configuration internally - don't pass Settings to avoid conflicts
-        # Settings object can cause "host provided in settings is different" error
+        # ChromaDB 1.3.0+ requires Settings with matching host to avoid conflict
+        # The Settings chroma_server_host must match the HttpClient host parameter
+        from chromadb.config import Settings
+        
+        # Create Settings with the SAME host as HttpClient to avoid conflict
+        chroma_settings = Settings(
+            chroma_server_host=host,  # Must match HttpClient host parameter
+            chroma_server_http_port=port,
+            anonymized_telemetry=False,
+            chroma_client_auth_provider=None,
+            chroma_api_impl="chromadb.api.fastapi.FastAPI",
+        )
+        
         if use_https:
             # For Cloud Run, try to use the full URL
             logger.warning("⚠️ HTTPS detected for ChromaDB. Ensure ChromaDB service supports HTTPS or use HTTP proxy.")
             client = chromadb.HttpClient(
                 host=host,
-                port=port
+                port=port,
+                settings=chroma_settings
             )
         else:
             # For Docker/local: use host and port directly
+            # Settings host must match HttpClient host to avoid conflict
             client = chromadb.HttpClient(
                 host=host,
-                port=port
+                port=port,
+                settings=chroma_settings
             )
         
         logger.info(f"✅ ChromaDB client created successfully")
