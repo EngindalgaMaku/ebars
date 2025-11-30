@@ -11,7 +11,7 @@ import json
 import re
 import hashlib
 from datetime import datetime, timedelta
-import requests
+import httpx
 import os
 import uuid
 import asyncio
@@ -75,21 +75,21 @@ async def calculate_and_store_qa_embedding(
         
         logger.info(f"📦 Calculating embedding for QA {qa_id} using model {embedding_model}...")
         
-        # Calculate embedding
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/embeddings",
-            json={
-                "texts": [question],
-                "model": embedding_model
-            },
-            timeout=15
-        )
-        
-        if response.status_code != 200:
-            logger.error(f"❌ Embedding calculation failed for QA {qa_id}: {response.status_code}")
-            return False
-        
-        data = response.json()
+        # Calculate embedding (async)
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                f"{MODEL_INFERENCER_URL}/embeddings",
+                json={
+                    "texts": [question],
+                    "model": embedding_model
+                }
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"❌ Embedding calculation failed for QA {qa_id}: {response.status_code}")
+                return False
+            
+            data = response.json()
         embeddings = data.get("embeddings", [])
         
         if not embeddings or len(embeddings) == 0:
@@ -199,29 +199,29 @@ async def calculate_and_store_qa_embeddings_batch(
             logger.warning("⚠️ No questions found in QA pairs for embedding")
             return 0
         
-        # Calculate embeddings in batch
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/embeddings",
-            json={
-                "texts": questions,
-                "model": embedding_model
-            },
-            timeout=30  # Increased timeout for batch
-        )
-        
-        if response.status_code != 200:
-            logger.error(f"❌ Batch embedding calculation failed: {response.status_code}")
-            # Fallback to individual calculations
-            success_count = 0
-            for qa in qa_pairs:
-                if qa.get("qa_id") and qa.get("question"):
-                    if await calculate_and_store_qa_embedding(
-                        qa["qa_id"], qa["question"], embedding_model, db
-                    ):
-                        success_count += 1
-            return success_count
-        
-        data = response.json()
+        # Calculate embeddings in batch (async)
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{MODEL_INFERENCER_URL}/embeddings",
+                json={
+                    "texts": questions,
+                    "model": embedding_model
+                }
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"❌ Batch embedding calculation failed: {response.status_code}")
+                # Fallback to individual calculations
+                success_count = 0
+                for qa in qa_pairs:
+                    if qa.get("qa_id") and qa.get("question"):
+                        if await calculate_and_store_qa_embedding(
+                            qa["qa_id"], qa["question"], embedding_model, db
+                        ):
+                            success_count += 1
+                return success_count
+            
+            data = response.json()
         embeddings = data.get("embeddings", [])
         
         if len(embeddings) != len(questions):
@@ -660,32 +660,32 @@ YANITINI SADECE TÜRKÇE OLARAK YAZ.
 ÖZET:"""
 
     try:
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/models/generate",
-            json={
-                "prompt": prompt,
-                "model": model,
-                "max_tokens": 600,
-                "temperature": 0.3
-            },
-            timeout=90
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            summary = result.get("response", "").strip()
-            # Cleanup: bazı modeller giriş cümlesi ekliyor, bunları kaldır
-            # Örnek: "Here is a comprehensive and complete summary in Turkish:"
-            summary = re.sub(
-                r"^Here\s+is\s+a\s+comprehensive.*?:\s*",
-                "",
-                summary,
-                flags=re.IGNORECASE | re.DOTALL,
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            response = await client.post(
+                f"{MODEL_INFERENCER_URL}/models/generate",
+                json={
+                    "prompt": prompt,
+                    "model": model,
+                    "max_tokens": 600,
+                    "temperature": 0.3
+                }
             )
-            return summary
-        else:
-            logger.error(f"LLM service error: {response.status_code}")
-            return ""
+            
+            if response.status_code == 200:
+                result = response.json()
+                summary = result.get("response", "").strip()
+                # Cleanup: bazı modeller giriş cümlesi ekliyor, bunları kaldır
+                # Örnek: "Here is a comprehensive and complete summary in Turkish:"
+                summary = re.sub(
+                    r"^Here\s+is\s+a\s+comprehensive.*?:\s*",
+                    "",
+                    summary,
+                    flags=re.IGNORECASE | re.DOTALL,
+                )
+                return summary
+            else:
+                logger.error(f"LLM service error: {response.status_code}")
+                return ""
             
     except Exception as e:
         logger.error(f"Error in summary extraction: {e}")
@@ -771,26 +771,26 @@ KURALLAR:
 Sadece JSON çıktısı ver, başka açıklama yapma."""
 
     try:
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/models/generate",
-            json={
-                "prompt": prompt,
-                "model": model,
-                "max_tokens": 1200,
-                "temperature": 0.3
-            },
-            timeout=90
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            llm_output = result.get("response", "")
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            response = await client.post(
+                f"{MODEL_INFERENCER_URL}/models/generate",
+                json={
+                    "prompt": prompt,
+                    "model": model,
+                    "max_tokens": 1200,
+                    "temperature": 0.3
+                }
+            )
             
-            # Parse JSON
-            json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group())
-                return data.get("concepts", [])
+            if response.status_code == 200:
+                result = response.json()
+                llm_output = result.get("response", "")
+                
+                # Parse JSON
+                json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
+                if json_match:
+                    data = json.loads(json_match.group())
+                    return data.get("concepts", [])
         
         return []
         
@@ -890,25 +890,25 @@ Her seviyeden en az 1 hedef belirle. Hedefler ölçülebilir ve net olmalı.
 Sadece JSON çıktısı ver."""
 
     try:
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/models/generate",
-            json={
-                "prompt": prompt,
-                "model": model,
-                "max_tokens": 1200,
-                "temperature": 0.3
-            },
-            timeout=120
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            llm_output = result.get("response", "")
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{MODEL_INFERENCER_URL}/models/generate",
+                json={
+                    "prompt": prompt,
+                    "model": model,
+                    "max_tokens": 1200,
+                    "temperature": 0.3
+                }
+            )
             
-            json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
-            if json_match:
-                data = json.loads(json_match.group())
-                objectives = data.get("objectives", [])
+            if response.status_code == 200:
+                result = response.json()
+                llm_output = result.get("response", "")
+                
+                json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
+                if json_match:
+                    data = json.loads(json_match.group())
+                    objectives = data.get("objectives", [])
                 
                 # İngilizce seviyeleri Türkçe'ye çevir (geriye dönük uyumluluk için)
                 for obj in objectives:
@@ -1020,22 +1020,22 @@ CEVABINI TÜRKÇE KONTROL ET - İngilizce kelime varsa yeniden yaz!
 UNUTMA: Bu bir TÜRKÇE eğitim materyali - her kelimen Türkçe olmalı!"""
 
     try:
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/models/generate",
-            json={
-                "prompt": prompt,
-                "model": model,
-                "max_tokens": 3000,
-                "temperature": 0.5,  # Slightly higher for creativity
-            },
-            timeout=150,
-        )
-
-        if response.status_code != 200:
-            logger.error(
-                f"LLM service error during QA generation: {response.status_code} - {response.text}"
+        async with httpx.AsyncClient(timeout=150.0) as client:
+            response = await client.post(
+                f"{MODEL_INFERENCER_URL}/models/generate",
+                json={
+                    "prompt": prompt,
+                    "model": model,
+                    "max_tokens": 3000,
+                    "temperature": 0.5,  # Slightly higher for creativity
+                }
             )
-            return []
+
+            if response.status_code != 200:
+                logger.error(
+                    f"LLM service error during QA generation: {response.status_code} - {response.text}"
+                )
+                return []
 
         result = response.json()
         llm_output = result.get("response", "")
@@ -1347,46 +1347,46 @@ Her örnek şunları içermeli (TÜMÜ TÜRKÇE OLMALIDIR):
 Sadece JSON çıktısı ver."""
 
     try:
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/models/generate",
-            json={
-                "prompt": prompt,
-                "model": model,
-                "max_tokens": 1500,
-                "temperature": 0.6,
-            },
-            timeout=90,
-        )
-
-        if response.status_code != 200:
-            logger.error(
-                f"LLM service error during examples extraction: {response.status_code} - {response.text}"
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            response = await client.post(
+                f"{MODEL_INFERENCER_URL}/models/generate",
+                json={
+                    "prompt": prompt,
+                    "model": model,
+                    "max_tokens": 1500,
+                    "temperature": 0.6,
+                }
             )
-            return []
 
-        result = response.json()
-        llm_output = result.get("response", "")
+            if response.status_code != 200:
+                logger.error(
+                    f"LLM service error during examples extraction: {response.status_code} - {response.text}"
+                )
+                return []
 
-        if not llm_output:
-            logger.warning("Examples extraction returned empty response")
-            return []
+            result = response.json()
+            llm_output = result.get("response", "")
 
-        # Try to extract JSON block
-        json_match = re.search(r"\{.*\}", llm_output, re.DOTALL)
-        if not json_match:
-            logger.error(
-                "Examples extraction: could not find JSON object in LLM output. "
-                "First 300 chars: %s",
-                llm_output[:300],
-            )
-            return []
+            if not llm_output:
+                logger.warning("Examples extraction returned empty response")
+                return []
 
-        json_str = json_match.group()
+            # Try to extract JSON block
+            json_match = re.search(r"\{.*\}", llm_output, re.DOTALL)
+            if not json_match:
+                logger.error(
+                    "Examples extraction: could not find JSON object in LLM output. "
+                    "First 300 chars: %s",
+                    llm_output[:300],
+                )
+                return []
 
-        # First parse attempt
-        try:
-            data = json.loads(json_str)
-            return data.get("examples", [])
+            json_str = json_match.group()
+
+            # First parse attempt
+            try:
+                data = json.loads(json_str)
+                return data.get("examples", [])
         except json.JSONDecodeError as e:
             # Second attempt: remove trailing commas before } or ]
             try:
@@ -2418,30 +2418,30 @@ DERS MATERYALİ:
 
 YENİ ÖZET (SADECE METİN, JSON DEĞİL):"""
 
-        # Generate new summary
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/models/generate",
-            json={
-                "prompt": prompt,
-                "model": model_to_use,
-                "max_tokens": 700,
-                "temperature": 0.3
-            },
-            timeout=90
-        )
-        
-        if response.status_code != 200:
-            raise HTTPException(status_code=500, detail="LLM service error")
-        
-        result = response.json()
-        new_summary = result.get("response", "").strip()
-        
-        # Clean up response
-        new_summary = re.sub(r"^Here\s+is\s+.*?:\s*", "", new_summary, flags=re.IGNORECASE)
-        new_summary = new_summary.replace("YENİ ÖZET:", "").strip()
-        
-        if not new_summary:
-            raise HTTPException(status_code=500, detail="Failed to generate summary")
+        # Generate new summary (async)
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            response = await client.post(
+                f"{MODEL_INFERENCER_URL}/models/generate",
+                json={
+                    "prompt": prompt,
+                    "model": model_to_use,
+                    "max_tokens": 700,
+                    "temperature": 0.3
+                }
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="LLM service error")
+            
+            result = response.json()
+            new_summary = result.get("response", "").strip()
+            
+            # Clean up response
+            new_summary = re.sub(r"^Here\s+is\s+.*?:\s*", "", new_summary, flags=re.IGNORECASE)
+            new_summary = new_summary.replace("YENİ ÖZET:", "").strip()
+            
+            if not new_summary:
+                raise HTTPException(status_code=500, detail="Failed to generate summary")
 
         # Update only summary in database
         with db.get_connection() as conn:
@@ -2550,22 +2550,22 @@ KAVRAM YENİLEME KURALLARI:
 
 Sadece JSON çıktısı ver, başka metin ekleme."""
 
-        # Generate new concepts
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/models/generate",
-            json={
-                "prompt": prompt,
-                "model": model_to_use,
-                "max_tokens": 1500,
-                "temperature": 0.3
-            },
-            timeout=90
-        )
-        
-        if response.status_code != 200:
-            raise HTTPException(status_code=500, detail="LLM service error")
-        
-        result = response.json()
+        # Generate new concepts (async)
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            response = await client.post(
+                f"{MODEL_INFERENCER_URL}/models/generate",
+                json={
+                    "prompt": prompt,
+                    "model": model_to_use,
+                    "max_tokens": 1500,
+                    "temperature": 0.3
+                }
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="LLM service error")
+            
+            result = response.json()
         llm_output = result.get("response", "")
         
         # Parse JSON
@@ -2691,22 +2691,22 @@ BLOOM SEVİYELERİ (MUTLAKA TÜRKÇE): "Hatırlama", "Anlama", "Uygulama", "Anal
 
 Sadece JSON çıktısı ver."""
 
-        # Generate new objectives
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/models/generate",
-            json={
-                "prompt": prompt,
-                "model": model_to_use,
-                "max_tokens": 1500,
-                "temperature": 0.3
-            },
-            timeout=120
-        )
-        
-        if response.status_code != 200:
-            raise HTTPException(status_code=500, detail="LLM service error")
-        
-        result = response.json()
+        # Generate new objectives (async)
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{MODEL_INFERENCER_URL}/models/generate",
+                json={
+                    "prompt": prompt,
+                    "model": model_to_use,
+                    "max_tokens": 1500,
+                    "temperature": 0.3
+                }
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="LLM service error")
+            
+            result = response.json()
         llm_output = result.get("response", "")
         
         # Parse JSON
