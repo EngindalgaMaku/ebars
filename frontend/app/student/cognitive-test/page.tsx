@@ -75,6 +75,11 @@ export default function CognitiveTestPage() {
   }, [user, sessionId, router, attempt]);
 
   const loadTest = async (testAttempt: number = 1, autoReset: boolean = false) => {
+    if (!user || !sessionId) {
+      router.push("/student/chat");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -95,6 +100,11 @@ export default function CognitiveTestPage() {
         
         // If test already completed and we haven't tried resetting yet, reset and retry
         if (errorData.detail && errorData.detail.includes("already been completed") && !autoReset) {
+          if (!user || !sessionId) {
+            router.push("/student/chat");
+            return;
+          }
+          
           try {
             // Reset the test first
             const resetResponse = await fetch(
@@ -143,6 +153,11 @@ export default function CognitiveTestPage() {
   };
 
   const handleSubmitQuestions = async () => {
+    if (!user || !sessionId) {
+      router.push("/student/chat");
+      return;
+    }
+
     if (Object.keys(answers).length < questions.length) {
       if (
         !confirm(
@@ -213,6 +228,11 @@ export default function CognitiveTestPage() {
   };
 
   const loadTopics = async (correctIndices: number[]) => {
+    if (!user || !sessionId) {
+      router.push("/student/chat");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -258,6 +278,10 @@ export default function CognitiveTestPage() {
   };
 
   const loadLeveledAnswers = async (topic: Topic) => {
+    if (!user || !sessionId) {
+      return;
+    }
+
     try {
       setLoadingAnswers((prev) => ({ ...prev, [topic.question_index]: true }));
 
@@ -330,6 +354,11 @@ export default function CognitiveTestPage() {
   };
 
   const handleSubmitPreferences = async () => {
+    if (!user || !sessionId) {
+      router.push("/student/chat");
+      return;
+    }
+
     if (Object.keys(selectedLevels).length < topics.length) {
       alert("Lütfen tüm konular için size uygun cevabı seçin.");
       return;
@@ -512,6 +541,11 @@ export default function CognitiveTestPage() {
             <div className="flex gap-3">
               <button
                 onClick={async () => {
+                  if (!user || !sessionId) {
+                    router.push("/student/chat");
+                    return;
+                  }
+
                   if (confirm("Testi tekrar almak istediğinize emin misiniz? Mevcut puanınız sıfırlanacak.")) {
                     try {
                       setLoading(true);
