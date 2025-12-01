@@ -167,6 +167,13 @@ class ProfessionalSessionManager:
             # Use local SQLite for development
             conn = sqlite3.connect(str(self.db_path), timeout=30.0)
             conn.row_factory = sqlite3.Row
+            # Enable WAL mode for better concurrent access (critical for 20+ users)
+            try:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA synchronous=NORMAL;")  # Balance between safety and performance
+                conn.execute("PRAGMA busy_timeout=30000;")  # 30 second timeout
+            except Exception as e:
+                logger.warning(f"Failed to set SQLite PRAGMA settings: {e}")
             try:
                 yield conn
                 conn.commit()
