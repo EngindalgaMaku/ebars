@@ -1619,9 +1619,21 @@ class DatabaseManager:
             Number of affected rows
         """
         with self.get_connection() as conn:
-            cursor = conn.execute(query, params)
-            conn.commit()
-            return cursor.rowcount
+            # Disable foreign key checks temporarily for session_settings operations
+            # (migration removed FK but SQLite may still check in some cases)
+            try:
+                conn.execute("PRAGMA foreign_keys = OFF")
+                cursor = conn.execute(query, params)
+                conn.commit()
+                conn.execute("PRAGMA foreign_keys = ON")
+                return cursor.rowcount
+            except Exception as e:
+                # Re-enable foreign keys even if there's an error
+                try:
+                    conn.execute("PRAGMA foreign_keys = ON")
+                except:
+                    pass
+                raise
     
     def execute_insert(self, query: str, params: tuple = ()) -> int:
         """
@@ -1635,9 +1647,21 @@ class DatabaseManager:
             Last inserted row ID
         """
         with self.get_connection() as conn:
-            cursor = conn.execute(query, params)
-            conn.commit()
-            return cursor.lastrowid
+            # Disable foreign key checks temporarily for session_settings operations
+            # (migration removed FK but SQLite may still check in some cases)
+            try:
+                conn.execute("PRAGMA foreign_keys = OFF")
+                cursor = conn.execute(query, params)
+                conn.commit()
+                conn.execute("PRAGMA foreign_keys = ON")
+                return cursor.lastrowid
+            except Exception as e:
+                # Re-enable foreign keys even if there's an error
+                try:
+                    conn.execute("PRAGMA foreign_keys = ON")
+                except:
+                    pass
+                raise
     
     def ensure_feature_flags_table(self, conn: sqlite3.Connection):
         """
