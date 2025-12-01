@@ -3588,6 +3588,187 @@ async def api_reprocess_session_documents(session_id: str, request: Request):
     """Re-process existing documents in a session - API prefix version"""
     return await reprocess_session_documents(session_id, request)
 
+# ============================================================================
+# NOTIFICATION SYSTEM ENDPOINTS
+# ============================================================================
+
+class NotificationCreate(BaseModel):
+    type: str  # "success" | "error" | "warning" | "info"
+    title: str
+    message: str
+    sessionId: Optional[str] = None
+    userId: Optional[str] = None
+
+class NotificationResponse(BaseModel):
+    id: str
+    type: str
+    title: str
+    message: str
+    timestamp: str
+    read: bool
+    sessionId: Optional[str] = None
+    userId: Optional[str] = None
+
+def _init_notifications_table():
+    """Initialize notifications table in SQLite"""
+    try:
+        conn = sqlite3.connect(professional_session_manager.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                read INTEGER DEFAULT 0,
+                session_id TEXT,
+                user_id TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_notifications_session_id ON notifications(session_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read)
+        """)
+        conn.commit()
+        conn.close()
+        logger.info("✅ Notifications table initialized")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize notifications table: {e}")
+
+# Initialize notifications table on startup
+_init_notifications_table()
+
+@app.get("/api/v1/notifications/pending")
+def get_pending_notifications(
+    request: Request,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None
+):
+    """Get pending (unread) notifications"""
+    try:
+        conn = sqlite3.connect(professional_session_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Build query with filters
+        query = "SELECT id, type, title, message, timestamp, read, session_id, user_id FROM notifications WHERE read = 0"
+        params = []
+        
+        if user_id:
+            query += " AND (user_id = ? OR user_id IS NULL)"
+            params.append(user_id)
+        
+        if session_id:
+            query += " AND (session_id = ? OR session_id IS NULL)"
+            params.append(session_id)
+        
+        query += " ORDER BY timestamp DESC LIMIT 100"
+        
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        notifications = []
+        for row in rows:
+            notifications.append({
+                "id": row[0],
+                "type": row[1],
+                "title": row[2],
+                "message": row[3],
+                "timestamp": row[4],
+                "read": bool(row[5]),
+                "sessionId": row[6],
+                "userId": row[7]
+            })
+        
+        return {
+            "notifications": notifications,
+            "count": len(notifications)
+        }
+    except Exception as e:
+        logger.error(f"❌ Failed to get pending notifications: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get notifications: {str(e)}")
+
+@app.post("/api/v1/notifications/pending")
+def create_notification(notification: NotificationCreate, request: Request):
+    """Create a new notification"""
+    try:
+        notification_id = str(uuid.uuid4())
+        timestamp = datetime.now().isoformat()
+        
+        conn = sqlite3.connect(professional_session_manager.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO notifications (id, type, title, message, timestamp, read, session_id, user_id)
+            VALUES (?, ?, ?, ?, ?, 0, ?, ?)
+        """, (
+            notification_id,
+            notification.type,
+            notification.title,
+            notification.message,
+            timestamp,
+            notification.sessionId,
+            notification.userId
+        ))
+        conn.commit()
+        conn.close()
+        
+        return {
+            "success": True,
+            "notification": {
+                "id": notification_id,
+                "type": notification.type,
+                "title": notification.title,
+                "message": notification.message,
+                "timestamp": timestamp,
+                "read": False,
+                "sessionId": notification.sessionId,
+                "userId": notification.userId
+            },
+            "message": "Notification created successfully"
+        }
+    except Exception as e:
+        logger.error(f"❌ Failed to create notification: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create notification: {str(e)}")
+
+@app.patch("/api/v1/notifications/{notification_id}/read")
+def mark_notification_read(notification_id: str, request: Request):
+    """Mark a notification as read"""
+    try:
+        conn = sqlite3.connect(professional_session_manager.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE notifications SET read = 1 WHERE id = ?
+        """, (notification_id,))
+        conn.commit()
+        conn.close()
+        
+        return {"success": True, "message": "Notification marked as read"}
+    except Exception as e:
+        logger.error(f"❌ Failed to mark notification as read: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to mark notification as read: {str(e)}")
+
+# Also add endpoints without /api prefix for compatibility
+@app.get("/v1/notifications/pending")
+def get_pending_notifications_v1(
+    request: Request,
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None
+):
+    """Get pending (unread) notifications - v1 endpoint"""
+    return get_pending_notifications(request, user_id, session_id)
+
+@app.post("/v1/notifications/pending")
+def create_notification_v1(notification: NotificationCreate, request: Request):
+    """Create a new notification - v1 endpoint"""
+    return create_notification(notification, request)
+
 @app.get("/api/sessions/{session_id}/rag-settings")
 def api_get_rag_settings(session_id: str, request: Request):
     """Get RAG settings - API prefix version"""
