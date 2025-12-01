@@ -412,8 +412,8 @@ export default function StudentChatPage() {
             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
               <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Soru & Cevap</h2>
+            <div className="min-w-0 flex-1 hidden md:block">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Akıllı Asistan</h2>
               <p className="text-xs sm:text-sm text-gray-500 truncate">
                 Seçili oturum hakkında sorularınızı sorun
               </p>
@@ -520,11 +520,14 @@ export default function StudentChatPage() {
 
       {/* Chat Container */}
       <div
-        className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col"
-        style={{ height: "calc(100vh - 240px)", minHeight: "400px" }}
+        className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col relative"
+        style={{ 
+          height: "calc(100vh - 240px)", 
+          minHeight: "400px"
+        }}
       >
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-24 md:pb-6">
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center max-w-md">
@@ -579,7 +582,7 @@ export default function StudentChatPage() {
                             <ReactMarkdown
                               components={{
                                 p: ({ children }) => (
-                                  <p className="mb-2 last:mb-0">{children}</p>
+                                  <p className="mb-2 last:mb-0 text-justify">{children}</p>
                                 ),
                                 ul: ({ children }) => (
                                   <ul className="ml-4 mb-2 list-disc">
@@ -994,9 +997,8 @@ export default function StudentChatPage() {
           </div>
         )}
 
-
-        {/* Input Area - Fixed at Bottom */}
-        <div className="border-t border-gray-200 bg-gray-50 p-3 sm:p-4">
+        {/* Input Area - Inside container for desktop */}
+        <div className="hidden md:block border-t border-gray-200 bg-gray-50 p-3 sm:p-4">
           <form onSubmit={handleSendMessage} className="flex gap-2 sm:gap-3">
             <input
               type="text"
@@ -1033,6 +1035,45 @@ export default function StudentChatPage() {
             iyileştirebilirsin
           </p>
         </div>
+      </div>
+
+      {/* Input Area - Fixed at Bottom for Mobile */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 sm:p-4 z-50 shadow-lg">
+        <form onSubmit={handleSendMessage} className="flex gap-2 sm:gap-3 max-w-6xl mx-auto">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Sorunuzu yazın..."
+            disabled={isQuerying || !selectedSession}
+            className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-900 placeholder-gray-500 text-sm sm:text-base"
+          />
+          <button
+            type="submit"
+            disabled={isQuerying || !query.trim() || !selectedSession}
+            className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1 sm:gap-2 font-medium shadow-md hover:shadow-lg text-sm sm:text-base"
+          >
+            {isQuerying ? (
+              <>
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                <span className="hidden sm:inline">
+                  {asyncTaskProgress ? "Cevap Üretiliyor" : "Gönderiliyor"}
+                </span>
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span className="hidden sm:inline">Gönder</span>
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Help Text */}
+        <p className="text-xs text-gray-500 mt-2 text-center">
+          💡 Cevapları emojilerle değerlendirerek öğrenme deneyimini
+          iyileştirebilirsin
+        </p>
       </div>
 
       {/* Source Modal */}

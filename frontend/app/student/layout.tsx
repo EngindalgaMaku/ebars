@@ -88,7 +88,7 @@ export default function StudentLayout({
               }`}
             >
               <MessageSquare className="w-4 h-4" />
-              Soru & Cevap
+              Akıllı Asistan
             </Link>
           </div>
         </div>
