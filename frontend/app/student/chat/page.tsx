@@ -392,27 +392,27 @@ export default function StudentChatPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto p-4 pb-6" style={{ minHeight: "calc(100vh - 100px)" }}>
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 pb-4 sm:pb-6" style={{ minHeight: "calc(100vh - 100px)" }}>
       {/* Header Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <BookOpen className="w-6 h-6 text-white" />
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Soru & Cevap</h2>
-              <p className="text-sm text-gray-500">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Soru & Cevap</h2>
+              <p className="text-xs sm:text-sm text-gray-500 truncate">
                 Seçili oturum hakkında sorularınızı sorun
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <select
               value={selectedSession || ""}
               onChange={(e) => handleSessionChange(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 font-medium"
+              className="w-full sm:w-auto px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 font-medium text-sm sm:text-base"
             >
               {sessions.map((session) => (
                 <option key={session.session_id} value={session.session_id}>
@@ -424,11 +424,11 @@ export default function StudentChatPage() {
             {messages.length > 0 && (
               <button
                 onClick={handleClearHistory}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
                 title="Sohbet geçmişini temizle"
               >
                 <Trash2 className="w-4 h-4" />
-                <span className="hidden sm:inline">Temizle</span>
+                <span>Temizle</span>
               </button>
             )}
           </div>
@@ -436,16 +436,16 @@ export default function StudentChatPage() {
 
         {/* Session Info */}
         {selectedSessionData && (
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex items-center gap-4 text-sm text-gray-600">
+          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
               <span>📖 {selectedSessionData.document_count || 0} Döküman</span>
               {selectedSessionData.rag_settings?.embedding_model && (
-                <span>
+                <span className="truncate">
                   🔮 {selectedSessionData.rag_settings.embedding_model}
                 </span>
               )}
               {selectedSessionData.rag_settings?.chunk_strategy && (
-                <span>
+                <span className="truncate">
                   ✂️ {selectedSessionData.rag_settings.chunk_strategy}
                 </span>
               )}
@@ -509,7 +509,7 @@ export default function StudentChatPage() {
       {/* Chat Container */}
       <div
         className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col"
-        style={{ height: "calc(100vh - 280px)", minHeight: "600px" }}
+        style={{ height: "calc(100vh - 240px)", minHeight: "400px" }}
       >
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -979,32 +979,32 @@ export default function StudentChatPage() {
 
 
         {/* Input Area - Fixed at Bottom */}
-        <div className="border-t border-gray-200 bg-gray-50 p-4">
-          <form onSubmit={handleSendMessage} className="flex gap-3">
+        <div className="border-t border-gray-200 bg-gray-50 p-3 sm:p-4">
+          <form onSubmit={handleSendMessage} className="flex gap-2 sm:gap-3">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Sorunuzu yazın..."
               disabled={isQuerying || !selectedSession}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-900 placeholder-gray-500"
+              className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-900 placeholder-gray-500 text-sm sm:text-base"
             />
             <button
               type="submit"
               disabled={isQuerying || !query.trim() || !selectedSession}
-              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 font-medium shadow-md hover:shadow-lg"
+              className="px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1 sm:gap-2 font-medium shadow-md hover:shadow-lg text-sm sm:text-base"
             >
               {isQuerying ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>
+                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                  <span className="hidden sm:inline">
                     {asyncTaskProgress ? "Cevap Üretiliyor" : "Gönderiliyor"}
                   </span>
                 </>
               ) : (
                 <>
-                  <Send className="w-5 h-5" />
-                  <span>Gönder</span>
+                  <Send className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="hidden sm:inline">Gönder</span>
                 </>
               )}
             </button>

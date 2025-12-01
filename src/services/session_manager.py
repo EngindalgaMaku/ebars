@@ -592,7 +592,9 @@ class ProfessionalSessionManager:
                 params.append(category.value)
                 
             if status:
-                query += " AND status = ?"
+                # Case-insensitive status matching for robustness
+                # Also filter out NULL and empty status values
+                query += " AND status IS NOT NULL AND status != '' AND LOWER(status) = LOWER(?)"
                 params.append(status.value)
             
             query += " ORDER BY updated_at DESC LIMIT ?"

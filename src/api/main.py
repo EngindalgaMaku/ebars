@@ -432,11 +432,17 @@ def list_sessions(created_by: Optional[str] = None, category: Optional[str] = No
                 if len(sessions) > 0:
                     logger.info(f"[SESSION LIST] Found {len(sessions)} sessions with case-insensitive matching")
         else:
-            # Students: show only active sessions
+            # Students: show only active sessions (ignore query parameter status)
+            # Always force ACTIVE status for students regardless of query parameter
             sessions = professional_session_manager.list_sessions(
                 created_by=None, category=category_enum, status=SessionStatus.ACTIVE, limit=limit
             )
-            logger.info(f"[SESSION LIST] Student user - returning {len(sessions)} active sessions")
+            # Debug: Log session statuses to verify filtering
+            if sessions:
+                session_statuses = [f"{s.name}: {s.status.value}" for s in sessions]
+                logger.info(f"[SESSION LIST] Student user - returning {len(sessions)} sessions with statuses: {session_statuses}")
+            else:
+                logger.info(f"[SESSION LIST] Student user - no active sessions found")
         return [_convert_metadata_to_response(session) for session in sessions]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list sessions: {str(e)}")
@@ -1584,7 +1590,9 @@ def _require_owner_or_admin(request: Request, session_id: str) -> SessionMetadat
         owner_keys = set(_user_owner_keys(user))
         if metadata.created_by not in owner_keys:
             raise HTTPException(status_code=403, detail="You do not have access to this session")
-    return metadata
+        return metadata
+    # Students cannot delete sessions
+    raise HTTPException(status_code=403, detail="Students cannot delete sessions. Only teachers and admins can delete sessions.")
 
 class RAGSettings(BaseModel):
     model: Optional[str] = None
