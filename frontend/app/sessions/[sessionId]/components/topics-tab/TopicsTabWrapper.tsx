@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, Info } from "lucide-react";
 import { SessionErrorBoundary } from "../shared/ErrorBoundary";
-import TopicManagementPanel from "@/components/TopicManagementPanel.backup";
+import TopicManagementPanel from "@/components/TopicManagementPanel";
 
 interface TopicsTabWrapperProps {
   sessionId: string;

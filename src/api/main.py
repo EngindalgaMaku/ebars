@@ -1381,11 +1381,62 @@ async def _run_batch_processing_job(job_id: str, job_data: Dict[str, Any]):
 
 
 @app.get("/api/documents/process-and-store-batch/status/{job_id}")
-async def get_batch_processing_status(job_id: str):
+async def get_batch_processing_status(job_id: str, session_id: Optional[str] = None):
     """Get status of a batch processing job"""
     job = BATCH_PROCESSING_JOBS.get(job_id)
+    
+    # If job not found, try to find by session_id if provided
+    if not job and session_id:
+        logger.info(f"Job {job_id} not found, searching by session_id: {session_id}")
+        for existing_job_id, existing_job in BATCH_PROCESSING_JOBS.items():
+            if existing_job.get("session_id") == session_id:
+                logger.info(f"Found job {existing_job_id} for session {session_id}")
+                job = existing_job
+                break
+    
     if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
+        # Job not found - this can happen if:
+        # 1. API Gateway was restarted (in-memory dict lost)
+        # 2. Job completed and was cleaned up
+        # 3. Job is in a different worker process
+        
+        # Try to find job by checking if processing completed
+        # by looking at recent jobs or session metadata
+        logger.warning(f"Job {job_id} not found in BATCH_PROCESSING_JOBS. This may be normal if job completed or server restarted.")
+        
+        # If session_id provided, check session metadata to see if chunks exist
+        if session_id:
+            try:
+                session_metadata = professional_session_manager.get_session_metadata(session_id)
+                if session_metadata and session_metadata.total_chunks > 0:
+                    logger.info(f"Session {session_id} has {session_metadata.total_chunks} chunks - processing likely completed")
+                    return {
+                        "success": True,
+                        "job": {
+                            "job_id": job_id,
+                            "session_id": session_id,
+                            "status": "likely_completed",
+                            "message": "Job tracking not available, but session has chunks. Processing likely completed successfully.",
+                            "total_chunks": session_metadata.total_chunks,
+                            "total_files": session_metadata.document_count,
+                            "note": "This can happen if the server was restarted. Chunks are available in the session."
+                        }
+                    }
+            except Exception as e:
+                logger.error(f"Error checking session metadata: {e}")
+        
+        # Return a more helpful response instead of 404
+        # The job might have completed successfully even if tracking is lost
+        return {
+            "success": True,
+            "job": {
+                "job_id": job_id,
+                "session_id": session_id,
+                "status": "unknown",
+                "message": "Job tracking information not available. The job may have completed successfully. Please check chunks for the session.",
+                "note": "This can happen if the server was restarted or the job completed. Check the session chunks to verify processing status."
+            }
+        }
     
     return {
         "success": True,

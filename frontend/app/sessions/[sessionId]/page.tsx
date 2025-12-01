@@ -229,20 +229,60 @@ export default function SessionPage() {
 
     const pollStatus = async () => {
       try {
+        // Include session_id as query parameter to help find job if tracking is lost
         const res = await fetch(
-          `/api/documents/process-and-store-batch/status/${batchJobId}`
+          `/api/documents/process-and-store-batch/status/${batchJobId}?session_id=${sessionId}`
         );
 
         if (!res.ok) {
+          // If 404, job tracking might be lost but processing may have completed
+          if (res.status === 404) {
+            console.warn("Batch job tracking not found - checking if processing completed");
+            // Check chunks to see if processing actually completed
+            try {
+              await fetchChunks();
+              const currentChunks = chunks.length;
+              // If we have chunks, processing likely completed successfully
+              if (currentChunks > 0) {
+                console.log("Chunks found - batch processing likely completed successfully");
+                if (interval) clearInterval(interval);
+                setBatchJobId(null);
+                setProcessing(false);
+                setSuccess(
+                  "İşlem tamamlandı! Chunk'lar başarıyla oluşturuldu. (İşlem takibi kaybolmuş olabilir ama sonuçlar mevcut.)"
+                );
+                await fetchSessionDetails();
+                return;
+              }
+            } catch (err) {
+              console.error("Error checking chunks:", err);
+            }
+          }
+          
           consecutiveErrors++;
           if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
             console.error("Batch status polling failed too many times");
             if (interval) clearInterval(interval);
             setBatchJobId(null);
             setProcessing(false);
-            setError(
-              "Batch işlem durumu alınamadı. İşlem arka planda devam ediyor olabilir."
-            );
+            // Check chunks one more time before showing error
+            try {
+              await fetchChunks();
+              if (chunks.length > 0) {
+                setSuccess(
+                  "İşlem tamamlandı! Chunk'lar başarıyla oluşturuldu. (İşlem takibi kaybolmuş olabilir.)"
+                );
+                await fetchSessionDetails();
+              } else {
+                setError(
+                  "Batch işlem durumu alınamadı. İşlem arka planda devam ediyor olabilir. Lütfen sayfayı yenileyip chunk'ları kontrol edin."
+                );
+              }
+            } catch (err) {
+              setError(
+                "Batch işlem durumu alınamadı. İşlem arka planda devam ediyor olabilir. Lütfen sayfayı yenileyip chunk'ları kontrol edin."
+              );
+            }
             return;
           }
           return;
@@ -251,6 +291,32 @@ export default function SessionPage() {
         consecutiveErrors = 0;
         const data = await res.json();
         setBatchStatus(data.job);
+
+        // Handle unknown or likely_completed status (job tracking lost but processing may have completed)
+        if (data.job.status === "unknown" || data.job.status === "likely_completed") {
+          console.log(`Job status: ${data.job.status} - checking chunks to verify completion`);
+          try {
+            await fetchChunks();
+            if (chunks.length > 0 || data.job.total_chunks > 0) {
+              if (interval) clearInterval(interval);
+              setBatchJobId(null);
+              setProcessing(false);
+              const chunksCount = data.job.total_chunks || chunks.length;
+              setSuccess(
+                `İşlem tamamlandı! ${chunksCount} chunk başarıyla oluşturuldu. (İşlem takibi kaybolmuş olabilir ama sonuçlar mevcut.)`
+              );
+              await fetchSessionDetails();
+            } else {
+              // Still processing or failed - continue polling but less frequently
+              setSuccess(
+                "İşlem durumu belirsiz. Chunk'lar henüz görünmüyor. İşlem arka planda devam ediyor olabilir..."
+              );
+            }
+          } catch (err) {
+            console.error("Error checking chunks:", err);
+          }
+          return;
+        }
 
         if (data.job.status === "completed" || data.job.status === "completed_with_errors" || data.job.status === "failed") {
           if (interval) clearInterval(interval);
