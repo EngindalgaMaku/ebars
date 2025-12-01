@@ -326,7 +326,23 @@ async def update_session_settings(
                 WHERE session_id = ?
             """
             
-            db.execute_update(update_query, tuple(update_values))
+            # Disable foreign key checks temporarily for UPDATE (migration removed FK but SQLite may still check)
+            try:
+                with db.get_connection() as conn:
+                    # Disable foreign key checks
+                    conn.execute("PRAGMA foreign_keys = OFF")
+                    # Execute update
+                    cursor = conn.execute(update_query, tuple(update_values))
+                    conn.commit()
+                    # Re-enable foreign key checks
+                    conn.execute("PRAGMA foreign_keys = ON")
+                    logger.info(f"Successfully updated session settings for session {session_id}")
+            except Exception as e:
+                error_msg = f"Failed to update session settings: {str(e)}"
+                logger.error(error_msg)
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise HTTPException(status_code=500, detail=error_msg)
             
         else:
             # Create new settings with provided updates
@@ -342,29 +358,45 @@ async def update_session_settings(
             except Exception as e:
                 logger.warning(f"Could not add enable_ebars column: {e}")
             
-            db.execute_insert(
-                """
-                INSERT INTO session_settings 
-                (session_id, user_id, enable_progressive_assessment, enable_personalized_responses,
-                 enable_multi_dimensional_feedback, enable_topic_analytics, enable_cacs, enable_zpd,
-                 enable_bloom, enable_cognitive_load, enable_emoji_feedback, enable_ebars)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    session_id, 
-                    user_id,
-                    updates.enable_progressive_assessment or False,
-                    updates.enable_personalized_responses or False,
-                    updates.enable_multi_dimensional_feedback or False,
-                    updates.enable_topic_analytics if updates.enable_topic_analytics is not None else True,
-                    updates.enable_cacs if updates.enable_cacs is not None else True,
-                    updates.enable_zpd if updates.enable_zpd is not None else True,
-                    updates.enable_bloom if updates.enable_bloom is not None else True,
-                    updates.enable_cognitive_load if updates.enable_cognitive_load is not None else True,
-                    updates.enable_emoji_feedback if updates.enable_emoji_feedback is not None else True,
-                    updates.enable_ebars if updates.enable_ebars is not None else False
-                )
-            )
+            # Disable foreign key checks temporarily for INSERT (migration removed FK but SQLite may still check)
+            try:
+                with db.get_connection() as conn:
+                    # Disable foreign key checks
+                    conn.execute("PRAGMA foreign_keys = OFF")
+                    # Execute insert
+                    cursor = conn.execute(
+                        """
+                        INSERT INTO session_settings 
+                        (session_id, user_id, enable_progressive_assessment, enable_personalized_responses,
+                         enable_multi_dimensional_feedback, enable_topic_analytics, enable_cacs, enable_zpd,
+                         enable_bloom, enable_cognitive_load, enable_emoji_feedback, enable_ebars)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            session_id, 
+                            user_id,
+                            updates.enable_progressive_assessment or False,
+                            updates.enable_personalized_responses or False,
+                            updates.enable_multi_dimensional_feedback or False,
+                            updates.enable_topic_analytics if updates.enable_topic_analytics is not None else True,
+                            updates.enable_cacs if updates.enable_cacs is not None else True,
+                            updates.enable_zpd if updates.enable_zpd is not None else True,
+                            updates.enable_bloom if updates.enable_bloom is not None else True,
+                            updates.enable_cognitive_load if updates.enable_cognitive_load is not None else True,
+                            updates.enable_emoji_feedback if updates.enable_emoji_feedback is not None else True,
+                            updates.enable_ebars if updates.enable_ebars is not None else False
+                        )
+                    )
+                    conn.commit()
+                    # Re-enable foreign key checks
+                    conn.execute("PRAGMA foreign_keys = ON")
+                    logger.info(f"Successfully created session settings for session {session_id}")
+            except Exception as e:
+                error_msg = f"Failed to create session settings: {str(e)}"
+                logger.error(error_msg)
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise HTTPException(status_code=500, detail=error_msg)
         
         # Return updated settings
         return await get_session_settings(session_id, db)
