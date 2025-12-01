@@ -177,12 +177,12 @@ const nextConfig = {
 
     return [
       {
-        source: "/api/:path*",
-        destination: `${apiUrl}/api/:path*`,
-      },
-      {
         source: "/api/auth/:path*",
         destination: `${authUrl}/:path*`,
+      },
+      {
+        source: "/api/:path*",
+        destination: `${apiUrl}/:path*`,  // /api prefix'ini kaldır (API Gateway'de prefix yok)
       },
     ];
   },
