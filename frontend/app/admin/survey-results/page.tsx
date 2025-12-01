@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { BarChart3, Download, RefreshCw, Users, TrendingUp } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import { getApiUrl } from "@/lib/api";
 
 interface SurveyResult {
   id: number;
@@ -55,13 +56,13 @@ export default function SurveyResultsPage() {
     try {
       const [resultsResponse, statsResponse] = await Promise.all([
         fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/aprag/survey/results`,
+          `${getApiUrl()}/aprag/survey/results`,
           {
             credentials: "include",
           }
         ),
         fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/aprag/survey/stats`,
+          `${getApiUrl()}/aprag/survey/stats`,
           {
             credentials: "include",
           }

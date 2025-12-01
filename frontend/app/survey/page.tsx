@@ -11,6 +11,7 @@ import { CheckCircle2, ArrowRight, ArrowLeft, Loader2, Info } from "lucide-react
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import { getApiUrl } from "@/lib/api";
 
 interface SurveyAnswers {
   // Temel Bilgiler
@@ -50,7 +51,7 @@ export default function SurveyPage() {
 
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/aprag/survey/status/${user.id}`,
+          `${getApiUrl()}/aprag/survey/status/${user.id}`,
           {
             credentials: "include",
           }
@@ -98,7 +99,7 @@ export default function SurveyPage() {
     setIsSubmitting(true);
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/aprag/survey/submit`,
+        `${getApiUrl()}/aprag/survey/submit`,
         {
           method: "POST",
           headers: {

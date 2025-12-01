@@ -4246,6 +4246,7 @@ class StudentChatMessageCreate(BaseModel):
     session_id: str
     suggestions: Optional[List[str]] = None
     aprag_interaction_id: Optional[int] = None
+    user_id: Optional[str] = None  # Will be set from authentication if not provided
 
 class StudentChatMessageResponse(BaseModel):
     id: int
@@ -4275,6 +4276,7 @@ def init_student_chat_table():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS student_chat_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
                 user_message TEXT NOT NULL,
                 bot_message TEXT NOT NULL,
                 sources TEXT,
@@ -4286,9 +4288,20 @@ def init_student_chat_table():
                 FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
             )
         """)
+        # Add user_id column if it doesn't exist (migration for existing tables)
+        try:
+            cursor.execute("ALTER TABLE student_chat_history ADD COLUMN user_id TEXT")
+            logger.info("✅ Added user_id column to student_chat_history table")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" not in str(e).lower():
+                raise
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_student_chat_session 
             ON student_chat_history(session_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_student_chat_user_session 
+            ON student_chat_history(user_id, session_id)
         """)
         conn.commit()
         conn.close()
@@ -4301,18 +4314,28 @@ init_student_chat_table()
 
 @app.get("/api/students/chat-history/{session_id}", response_model=List[StudentChatMessageResponse])
 async def get_student_chat_history(session_id: str, request: Request):
-    """Get chat history for a specific session"""
+    """Get chat history for a specific session - USER-SPECIFIC"""
     try:
+        # Get current user from authentication
+        current_user = _get_current_user(request)
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        user_id = str(current_user.get("id", ""))
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found in token")
+        
         conn = get_student_db_connection()
         cursor = conn.cursor()
         
+        # Filter by both session_id AND user_id for security
         cursor.execute("""
             SELECT id, user_message as user, bot_message as bot, sources, duration_ms as durationMs,
                    session_id, timestamp, suggestions, aprag_interaction_id
             FROM student_chat_history
-            WHERE session_id = ?
+            WHERE session_id = ? AND user_id = ?
             ORDER BY timestamp ASC
-        """, (session_id,))
+        """, (session_id, user_id))
         
         rows = cursor.fetchall()
         conn.close()
@@ -4333,15 +4356,30 @@ async def get_student_chat_history(session_id: str, request: Request):
                     message['suggestions'] = None
             history.append(message)
         
+        logger.info(f"✅ Retrieved {len(history)} chat messages for user {user_id} in session {session_id}")
         return history
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get chat history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/students/chat-message", response_model=StudentChatMessageResponse)
 async def save_student_chat_message(message: StudentChatMessageCreate, request: Request):
-    """Save a student chat message"""
+    """Save a student chat message - USER-SPECIFIC"""
     try:
+        # Get current user from authentication
+        current_user = _get_current_user(request)
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        # Use user_id from token (preferred) or from message body (fallback)
+        user_id = str(current_user.get("id", ""))
+        if not user_id:
+            user_id = message.user_id
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found")
+        
         conn = get_student_db_connection()
         cursor = conn.cursor()
         
@@ -4351,9 +4389,10 @@ async def save_student_chat_message(message: StudentChatMessageCreate, request: 
         
         cursor.execute("""
             INSERT INTO student_chat_history 
-            (user_message, bot_message, sources, duration_ms, session_id, timestamp, suggestions, aprag_interaction_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (user_id, user_message, bot_message, sources, duration_ms, session_id, timestamp, suggestions, aprag_interaction_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
+            user_id,
             message.user,
             message.bot,
             sources_json,
@@ -4381,20 +4420,32 @@ async def save_student_chat_message(message: StudentChatMessageCreate, request: 
             "aprag_interaction_id": message.aprag_interaction_id
         }
         
-        logger.info(f"✅ Saved chat message for session {message.session_id}")
+        logger.info(f"✅ Saved chat message for user {user_id} in session {message.session_id}")
         return response
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to save chat message: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/students/chat-history/{session_id}")
 async def clear_student_chat_history(session_id: str, request: Request):
-    """Clear chat history for a specific session"""
+    """Clear chat history for a specific session - USER-SPECIFIC"""
     try:
+        # Get current user from authentication
+        current_user = _get_current_user(request)
+        if not current_user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        
+        user_id = str(current_user.get("id", ""))
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found in token")
+        
         conn = get_student_db_connection()
         cursor = conn.cursor()
         
-        cursor.execute("DELETE FROM student_chat_history WHERE session_id = ?", (session_id,))
+        # Only delete messages belonging to this user
+        cursor.execute("DELETE FROM student_chat_history WHERE session_id = ? AND user_id = ?", (session_id, user_id))
         deleted_count = cursor.rowcount
         
         conn.commit()

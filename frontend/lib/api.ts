@@ -312,13 +312,9 @@ export async function hybridRAGQuery(data: {
   sources_used?: { chunks: number; kb: number; qa_pairs: number };
   suggestions?: string[]; // Follow-up question suggestions
 }> {
-  // Use direct API Gateway URL for hybrid-rag queries to avoid Next.js proxy timeout
-  // Other endpoints continue to use /api (Next.js proxy)
-  const apiGatewayUrl =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  const hybridRagUrl = apiGatewayUrl.startsWith("http")
-    ? `${apiGatewayUrl}/api/aprag/hybrid-rag/query`
-    : `${getApiUrl()}/aprag/hybrid-rag/query`;
+  // Use /api (Next.js rewrites) for HTTPS compatibility
+  // Next.js rewrites will proxy to the backend API Gateway
+  const hybridRagUrl = `${getApiUrl()}/aprag/hybrid-rag/query`;
 
   const res = await fetch(hybridRagUrl, {
     method: "POST",
@@ -437,12 +433,9 @@ export interface AsyncRAGStatusResponse {
 export async function startAsyncRAGQuery(
   data: AsyncRAGRequest
 ): Promise<AsyncRAGInitResponse> {
-  // Use direct API Gateway URL for async-rag queries to avoid Next.js proxy timeout
-  const apiGatewayUrl =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  const asyncRagUrl = apiGatewayUrl.startsWith("http")
-    ? `${apiGatewayUrl}/api/aprag/async-rag/async-query`
-    : `${getApiUrl()}/aprag/async-rag/async-query`;
+  // Use /api (Next.js rewrites) for HTTPS compatibility
+  // Next.js rewrites will proxy to the backend API Gateway
+  const asyncRagUrl = `${getApiUrl()}/aprag/async-rag/async-query`;
 
   const res = await fetch(asyncRagUrl, {
     method: "POST",
@@ -756,12 +749,9 @@ export async function configureAndProcess(data: {
     formData.append("llm_model_name", data.llm_model_name);
   }
 
-  // Use direct API Gateway URL for long-running processing to avoid Next.js proxy timeout
-  const apiGatewayUrl =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  const processUrl = apiGatewayUrl.startsWith("http")
-    ? `${apiGatewayUrl}/api/documents/process-and-store`
-    : `${getApiUrl()}/documents/process-and-store`;
+  // Use /api (Next.js rewrites) for HTTPS compatibility
+  // Next.js rewrites will proxy to the backend API Gateway
+  const processUrl = `${getApiUrl()}/documents/process-and-store`;
 
   // ✅ AGGRESSIVE FIRE-AND-FORGET: 10 saniye timeout - herhangi bir hata = arka plan işleme
   const fireAndForgetTimeout = 10000; // 10 saniye - çok agresif!
