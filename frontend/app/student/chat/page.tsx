@@ -555,7 +555,7 @@ export default function StudentChatPage() {
                   {/* User Question */}
                   {message.user && message.user !== "..." && (
                     <div className="flex justify-end">
-                      <div className="max-w-[75%]">
+                      <div className="w-full max-w-full">
                         <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 shadow-md">
                           <p className="text-sm leading-relaxed whitespace-pre-wrap">
                             {message.user}
@@ -573,7 +573,7 @@ export default function StudentChatPage() {
                   {/* Bot Answer */}
                   {message.bot && message.bot !== "..." && (
                     <div className="flex justify-start">
-                      <div className="max-w-[85%]">
+                      <div className="w-full max-w-full">
                         <div className="bg-gray-50 border border-gray-200 rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm group">
                           <div className="prose prose-sm max-w-none text-gray-800">
                             <ReactMarkdown
@@ -698,46 +698,51 @@ export default function StudentChatPage() {
               )}
                           </div>
 
-                          {/* İlgili Sorular (Suggestions) */}
+                          {/* İlgili Sorular (Suggestions) - Collapsed on mobile */}
                           {Array.isArray(message.suggestions) &&
                             message.suggestions.length > 0 && (
                               <div className="mt-6 pt-4 border-t border-gray-200">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <svg
-                                    className="w-5 h-5 text-indigo-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                                    />
-                                  </svg>
-                                  <span className="text-sm font-semibold text-gray-700">
-                                    İlgili Sorular
-                                  </span>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  {message.suggestions.map((suggestion, i) => (
-                                    <button
-                                      key={i}
-                                      onClick={async () => {
-                                        setQuery(suggestion);
-                                        setTimeout(async () => {
-                                          await sendMessage(suggestion, sessionRagSettings);
-                                        }, 100);
-                                      }}
-                                      className="px-4 py-2 text-sm bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-md transition-all duration-200 transform hover:scale-105 min-h-[40px] flex items-center gap-2"
-                                      title="Bu soruyu sor"
+                                <details className="group">
+                                  <summary className="cursor-pointer list-none flex items-center gap-2 mb-3 hover:text-indigo-700 transition-colors">
+                                    <svg
+                                      className="w-5 h-5 text-indigo-600 group-open:rotate-180 transition-transform"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
                                     >
-                                      <span>💡</span>
-                                      <span>{suggestion}</span>
-                                    </button>
-                                  ))}
-                                </div>
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                                      />
+                                    </svg>
+                                    <span className="text-sm font-semibold text-gray-700">
+                                      İlgili Sorular
+                                    </span>
+                                    <span className="text-xs text-gray-500 ml-auto">
+                                      ({message.suggestions.length} soru)
+                                    </span>
+                                  </summary>
+                                  <div className="mt-3 space-y-2">
+                                    {message.suggestions.map((suggestion, i) => (
+                                      <button
+                                        key={i}
+                                        onClick={async () => {
+                                          setQuery(suggestion);
+                                          setTimeout(async () => {
+                                            await sendMessage(suggestion, sessionRagSettings);
+                                          }, 100);
+                                        }}
+                                        className="w-full text-left px-4 py-3 text-sm bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg hover:from-indigo-100 hover:to-purple-100 hover:border-indigo-300 hover:shadow-md transition-all duration-200 flex items-start gap-3 group"
+                                        title="Bu soruyu sor"
+                                      >
+                                        <span className="text-indigo-600 mt-0.5 flex-shrink-0">💡</span>
+                                        <span className="flex-1 text-gray-700 group-hover:text-indigo-700">{suggestion}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </details>
                               </div>
                             )}
 
@@ -1037,8 +1042,10 @@ export default function StudentChatPage() {
         onClose={() => setIsModalOpen(false)}
       />
 
-      {/* KBRAG & Personalization Debug Panel */}
-      <KBRAGPersonalizationDebugPanel debugData={debugData} />
+      {/* KBRAG & Personalization Debug Panel - Hidden on mobile */}
+      <div className="hidden md:block">
+        <KBRAGPersonalizationDebugPanel debugData={debugData} />
+      </div>
     </div>
   );
 }
