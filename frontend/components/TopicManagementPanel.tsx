@@ -1141,6 +1141,9 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
                   "⚙️ İşlem Seçin"
                 )}
               </option>
+              <option value="TEST" disabled style={{ color: '#ff0000', backgroundColor: '#ffff00', fontSize: '20px', fontWeight: 'bold' }}>
+                🔴 TEST YAZISI - BUNU GÖRÜYOR MUSUN?
+              </option>
               <option value="extract-topics" disabled={extracting || topics.length === 0} style={{ color: '#1f2937', backgroundColor: '#ffffff' }}>
                 📋 Konuları Çıkar (Gelişmiş)
               </option>
