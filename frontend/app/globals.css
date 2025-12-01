@@ -578,6 +578,40 @@
   transition: opacity 0.2s;
 }
 
+/* Select option visibility fix - ensures dropdown options are visible */
+/* CRITICAL: Override text-white class for options */
+select.topic-action-select {
+  color: white !important;
+}
+
+/* AGGRESSIVE: Force dark text for ALL options - highest priority */
+select.topic-action-select option,
+select.topic-action-select > option,
+.topic-action-select option,
+option[value]:not([value=""]) {
+  color: #1f2937 !important;
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  -webkit-text-fill-color: #1f2937 !important;
+}
+
+select.topic-action-select option:disabled,
+select.topic-action-select > option:disabled,
+.topic-action-select option:disabled,
+option[value]:disabled {
+  color: #9ca3af !important;
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  -webkit-text-fill-color: #9ca3af !important;
+}
+
+/* Override any inherited text-white */
+select.topic-action-select option.text-white,
+select.topic-action-select option[class*="text-white"] {
+  color: #1f2937 !important;
+  -webkit-text-fill-color: #1f2937 !important;
+}
+
 /* Dark mode support - optional */
 @media (prefers-color-scheme: dark) {
   .dark-mode {

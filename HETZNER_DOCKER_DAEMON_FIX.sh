@@ -72,3 +72,4 @@ fi
 echo ""
 echo "✅ İşlem tamamlandı!"
 
+

@@ -140,3 +140,4 @@ echo "=== 4. Model Inference Service Son Loglar ==="
 docker compose -f docker-compose.prod.yml logs model-inference-service --tail 10
 ```
 
+

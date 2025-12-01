@@ -108,3 +108,4 @@ docker exec model-inference-service-prod curl -I https://dashscope.aliyuncs.com 
 # HTTP/2 404 (veya başka bir status code, ama timeout olmamalı)
 ```
 
+

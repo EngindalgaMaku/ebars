@@ -112,3 +112,4 @@ docker compose logs model-inference-service
 docker compose logs -f model-inference-service
 ```
 
+

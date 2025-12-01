@@ -58,3 +58,4 @@ echo "✅ Frontend build tamamlandı!"
 echo "🌐 Browser'da http://65.109.230.236:3000 adresini açın"
 echo "📝 Network tab'ında isteklerin http://65.109.230.236:8000 ve http://65.109.230.236:8006 adreslerine gittiğini kontrol edin"
 
+

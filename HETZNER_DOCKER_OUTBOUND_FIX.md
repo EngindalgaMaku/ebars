@@ -132,3 +132,4 @@ echo "=== 7. Container'dan Network Test ==="
 docker exec model-inference-service-prod curl -v https://8.8.8.8 --max-time 5 2>&1 | head -5
 ```
 
+

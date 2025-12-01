@@ -155,3 +155,4 @@ echo "=== 4. Document Processing Service Son Loglar ==="
 docker compose -f docker-compose.prod.yml logs document-processing-service --tail 20 | grep -i "embedding\|error\|success"
 ```
 
+

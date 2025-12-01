@@ -3290,13 +3290,253 @@ TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
                 result = response.json()
                 llm_output = result.get("response", "")
                 
-                # Parse JSON
+                # Log the raw LLM output for debugging
+                logger.debug(f"🔍 [TOPIC REORDER] Raw LLM output (first 500 chars): {llm_output[:500]}")
+                
+                # Parse JSON with repair attempts
                 import re
-                json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
-                if not json_match:
+                data = None
+                parse_error = None
+                
+                # First attempt: Try to extract and parse JSON directly
+                try:
+                    json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
+                    if json_match:
+                        data = json.loads(json_match.group())
+                        logger.info("✅ [TOPIC REORDER] JSON parsed successfully on first attempt")
+                    else:
+                        raise ValueError("No JSON object found in LLM response")
+                except (json.JSONDecodeError, ValueError) as e:
+                    parse_error = e
+                    # Log detailed error information
+                    if isinstance(e, json.JSONDecodeError):
+                        error_info = []
+                        if hasattr(e, 'pos'):
+                            error_info.append(f"pos={e.pos}")
+                        if hasattr(e, 'lineno'):
+                            error_info.append(f"line={e.lineno}")
+                        if hasattr(e, 'colno'):
+                            error_info.append(f"col={e.colno}")
+                        
+                        if error_info:
+                            logger.error(f"⚠️ [TOPIC REORDER] Initial JSON parse failed at {', '.join(error_info)}: {e}")
+                            
+                            # Show the problematic line
+                            if hasattr(e, 'lineno') and e.lineno:
+                                lines = llm_output.split('\n')
+                                if e.lineno <= len(lines):
+                                    problem_line = lines[e.lineno - 1]
+                                    logger.error(f"⚠️ [TOPIC REORDER] Problematic line {e.lineno}: {problem_line[:300]}")
+                        else:
+                            logger.error(f"⚠️ [TOPIC REORDER] Initial JSON parse failed: {e}. Attempting repair...")
+                    else:
+                        logger.error(f"⚠️ [TOPIC REORDER] Initial JSON parse failed: {e}. Attempting repair...")
+                    
+                    # Second attempt: Extract JSON with better boundaries
+                    try:
+                        # Find first { and last } to extract complete JSON
+                        first_brace = llm_output.find('{')
+                        last_brace = llm_output.rfind('}')
+                        
+                        if first_brace >= 0 and last_brace > first_brace:
+                            json_str = llm_output[first_brace:last_brace + 1]
+                            
+                            # Apply JSON repairs
+                            repaired_json = json_str
+                            
+                            # Fix trailing commas before closing braces/brackets
+                            repaired_json = re.sub(r',(\s*[}\]])', r'\1', repaired_json)
+                            
+                            # Fix missing commas between objects in arrays
+                            repaired_json = re.sub(r'}\s*{', r'}, {', repaired_json)
+                            
+                            # Fix missing commas after values (be careful not to break valid JSON)
+                            # Only add comma if followed by a key (string with colon) or another value in array context
+                            repaired_json = re.sub(r'([0-9])\s*"([^"]*":)', r'\1, "\2', repaired_json)  # Number followed by key
+                            repaired_json = re.sub(r'([0-9])\s*{', r'\1, {', repaired_json)  # Number followed by object
+                            repaired_json = re.sub(r'(")\s*"([^"]*":)', r'\1, "\2', repaired_json)  # String value followed by key
+                            repaired_json = re.sub(r'(true|false|null)\s*"([^"]*":)', r'\1, "\2', repaired_json)  # Boolean/null followed by key
+                            repaired_json = re.sub(r'(true|false|null)\s*{', r'\1, {', repaired_json)  # Boolean/null followed by object
+                            repaired_json = re.sub(r'}\s*"([^"]*":)', r'}, "\1', repaired_json)  # Object followed by key
+                            repaired_json = re.sub(r']\s*"([^"]*":)', r'], "\1', repaired_json)  # Array followed by key
+                            repaired_json = re.sub(r']\s*{', r'], {', repaired_json)  # Array followed by object
+                            
+                            # Fix incomplete strings (strings that don't close)
+                            repaired_json = re.sub(r':\s*"[^"]*$', ': ""', repaired_json, flags=re.MULTILINE)
+                            
+                            # Remove leading/trailing commas in arrays
+                            repaired_json = re.sub(r'\[\s*,', '[', repaired_json)
+                            repaired_json = re.sub(r',\s*\]', ']', repaired_json)
+                            
+                            # Try parsing repaired JSON
+                            data = json.loads(repaired_json)
+                            logger.info("✅ [TOPIC REORDER] JSON successfully repaired and parsed")
+                        else:
+                            raise ValueError("Could not find JSON boundaries in LLM response")
+                    except (json.JSONDecodeError, ValueError) as e2:
+                        logger.warning(f"⚠️ [TOPIC REORDER] Standard JSON repair failed: {e2}. Attempting ultra-aggressive repair...")
+                        
+                        # Third attempt: ULTRA-AGGRESSIVE JSON REPAIR
+                        try:
+                            logger.info(f"🔧 [TOPIC REORDER] ULTRA-AGGRESSIVE JSON repair starting...")
+                            
+                            # Extract everything between first { and last }
+                            repair_text = llm_output.strip()
+                            first_brace = repair_text.find('{')
+                            last_brace = repair_text.rfind('}')
+                            
+                            if first_brace >= 0 and last_brace > first_brace:
+                                repair_text = repair_text[first_brace:last_brace + 1]
+                                
+                                # AGGRESSIVE FIXES (similar to topic extraction)
+                                # 1. Fix incomplete strings
+                                repair_text = re.sub(r':\s*"[^"]*$', ': ""', repair_text, flags=re.MULTILINE)
+                                
+                                # 2. Fix missing commas (more aggressive)
+                                repair_text = re.sub(r'}\s*{', '},{', repair_text)
+                                repair_text = re.sub(r']\s*{', '],{', repair_text)
+                                repair_text = re.sub(r'}\s*"', '},"', repair_text)
+                                repair_text = re.sub(r']\s*"', '],"', repair_text)
+                                repair_text = re.sub(r'([0-9])\s*"', r'\1,"', repair_text)
+                                repair_text = re.sub(r'(")\s*"', r'\1,"', repair_text)  # String followed by string
+                                repair_text = re.sub(r'(true|false|null)\s*"', r'\1,"', repair_text)
+                                repair_text = re.sub(r'(true|false|null)\s*{', r'\1,{', repair_text)
+                                
+                                # 3. Fix trailing commas
+                                repair_text = re.sub(r',(\s*[}\]])', r'\1', repair_text)
+                                
+                                # 4. Fix arrays with missing commas
+                                repair_text = re.sub(r'"\s*"([^"]*")', r'", "\1', repair_text)
+                                
+                                # 5. Fix missing commas in ordered_topics array (most common issue)
+                                # Pattern: } followed by { (missing comma between objects in array)
+                                repair_text = re.sub(r'}\s*{\s*"topic_id"', r'}, {"topic_id"', repair_text)
+                                repair_text = re.sub(r'}\s*{\s*"new_order"', r'}, {"new_order"', repair_text)
+                                repair_text = re.sub(r'}\s*{\s*"reason"', r'}, {"reason"', repair_text)
+                                
+                                # 6. Fix missing commas after closing quotes (very common)
+                                # Pattern: "value" followed by "key" (missing comma)
+                                repair_text = re.sub(r'"\s*"([a-zA-Z_][^"]*":)', r'", "\1', repair_text)
+                                
+                                # 7. Fix missing commas after numbers in object context
+                                # Pattern: number followed by "key" (missing comma)
+                                repair_text = re.sub(r'(\d+)\s*"([a-zA-Z_][^"]*":)', r'\1, "\2', repair_text)
+                                
+                                # 8. Fix missing commas after closing braces in arrays
+                                # Pattern: }"key" (missing comma)
+                                repair_text = re.sub(r'}\s*"([a-zA-Z_][^"]*":)', r'}, "\1', repair_text)
+                                
+                                # 9. Ensure proper JSON ending
+                                if not repair_text.rstrip().endswith(']}') and not repair_text.rstrip().endswith('}'):
+                                    # Try to close properly
+                                    if '"ordered_topics"' in repair_text and not repair_text.rstrip().endswith(']}'):
+                                        repair_text = repair_text.rstrip(', \n\r\t')
+                                        if not repair_text.endswith(']'):
+                                            repair_text += ']'
+                                        if not repair_text.endswith('}'):
+                                            repair_text += '}'
+                                
+                                # 10. Fix malformed arrays
+                                repair_text = re.sub(r'\[\s*,', '[', repair_text)
+                                repair_text = re.sub(r',\s*\]', ']', repair_text)
+                                
+                                # 11. Fix escaped quotes that might break parsing
+                                # Ensure proper escaping
+                                repair_text = re.sub(r'\\([^"\\/bfnrt])', r'\\\\\1', repair_text)
+                                
+                                # 12. Fix unclosed strings (add closing quote at end of line if missing)
+                                # This is a last resort - be careful
+                                lines = repair_text.split('\n')
+                                fixed_lines = []
+                                for line in lines:
+                                    # Count unescaped quotes
+                                    quote_count = len([m for m in re.finditer(r'(?<!\\)"', line)])
+                                    if quote_count % 2 == 1 and ':' in line and line.strip().endswith('"') == False:
+                                        # Odd number of quotes, might be unclosed
+                                        if not line.rstrip().endswith('\\"'):
+                                            line = line.rstrip() + '"'
+                                    fixed_lines.append(line)
+                                repair_text = '\n'.join(fixed_lines)
+                                
+                                # 13. Log error location if JSONDecodeError has position info
+                                if isinstance(e2, json.JSONDecodeError):
+                                    error_info = []
+                                    if hasattr(e2, 'pos'):
+                                        error_info.append(f"pos={e2.pos}")
+                                    if hasattr(e2, 'lineno'):
+                                        error_info.append(f"line={e2.lineno}")
+                                    if hasattr(e2, 'colno'):
+                                        error_info.append(f"col={e2.colno}")
+                                    
+                                    if error_info:
+                                        logger.warning(f"🔍 [TOPIC REORDER] Previous error location: {', '.join(error_info)}")
+                                        
+                                        # Try to find the problematic line
+                                        if hasattr(e2, 'lineno') and e2.lineno:
+                                            lines = repair_text.split('\n')
+                                            if e2.lineno <= len(lines):
+                                                problem_line = lines[e2.lineno - 1]
+                                                logger.warning(f"🔍 [TOPIC REORDER] Problematic line {e2.lineno}: {problem_line[:200]}")
+                                
+                                logger.info(f"🔧 [TOPIC REORDER] Ultra-repaired JSON length: {len(repair_text)} chars")
+                                
+                                # Try parsing repaired JSON
+                                data = json.loads(repair_text)
+                                logger.info("✅ [TOPIC REORDER] JSON successfully repaired with ultra-aggressive method!")
+                            else:
+                                raise ValueError("Could not find JSON boundaries in LLM response")
+                        except (json.JSONDecodeError, ValueError) as e3:
+                            logger.error(f"❌ [TOPIC REORDER] Ultra-aggressive JSON repair also failed: {e3}")
+                            logger.error(f"❌ [TOPIC REORDER] Original error: {parse_error}")
+                            logger.error(f"❌ [TOPIC REORDER] Standard repair error: {e2}")
+                            
+                            # Log the problematic area if we have position info
+                            if isinstance(e3, json.JSONDecodeError):
+                                error_info = []
+                                if hasattr(e3, 'pos'):
+                                    error_info.append(f"pos={e3.pos}")
+                                if hasattr(e3, 'lineno'):
+                                    error_info.append(f"line={e3.lineno}")
+                                if hasattr(e3, 'colno'):
+                                    error_info.append(f"col={e3.colno}")
+                                
+                                logger.error(f"❌ [TOPIC REORDER] Final error location: {', '.join(error_info)}")
+                                
+                                # Try to find the problematic line in original output
+                                if hasattr(e3, 'lineno') and e3.lineno:
+                                    lines = llm_output.split('\n')
+                                    if e3.lineno <= len(lines):
+                                        problem_line = lines[e3.lineno - 1]
+                                        logger.error(f"❌ [TOPIC REORDER] Problematic line {e3.lineno} in LLM output:")
+                                        logger.error(f"❌ [TOPIC REORDER] {problem_line}")
+                                        
+                                        # Show surrounding lines for context
+                                        start_line = max(0, e3.lineno - 3)
+                                        end_line = min(len(lines), e3.lineno + 2)
+                                        logger.error(f"❌ [TOPIC REORDER] Context (lines {start_line+1}-{end_line}):")
+                                        for i in range(start_line, end_line):
+                                            marker = ">>> " if i == e3.lineno - 1 else "    "
+                                            logger.error(f"❌ [TOPIC REORDER] {marker}{i+1}: {lines[i][:200]}")
+                                
+                                # Also try position-based context
+                                if hasattr(e3, 'pos'):
+                                    error_pos = e3.pos
+                                    start_pos = max(0, error_pos - 500)
+                                    end_pos = min(len(llm_output), error_pos + 500)
+                                    logger.error(f"❌ [TOPIC REORDER] Error at position {error_pos} in LLM output:")
+                                    logger.error(f"❌ [TOPIC REORDER] Context: ...{llm_output[start_pos:end_pos]}...")
+                            
+                            logger.error(f"❌ [TOPIC REORDER] LLM output length: {len(llm_output)} chars")
+                            logger.error(f"❌ [TOPIC REORDER] LLM output (first 2000 chars): {llm_output[:2000]}")
+                            
+                            raise HTTPException(
+                                status_code=500, 
+                                detail=f"Failed to parse LLM response as JSON after all repair attempts. Original: {str(parse_error)}, Standard repair: {str(e2)}, Ultra-aggressive: {str(e3)}"
+                            )
+                
+                if data is None:
                     raise HTTPException(status_code=500, detail="Could not parse LLM response as JSON")
                 
-                data = json.loads(json_match.group())
                 ordered_topics = data.get("ordered_topics", [])
                 
                 if len(ordered_topics) != len(topics):
@@ -3332,7 +3572,48 @@ TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
                 }
                 
         except json.JSONDecodeError as e:
-            logger.error(f"JSON parse error: {e}")
+            # Log detailed error information
+            error_info = []
+            if hasattr(e, 'pos'):
+                error_info.append(f"pos={e.pos}")
+            if hasattr(e, 'lineno'):
+                error_info.append(f"line={e.lineno}")
+            if hasattr(e, 'colno'):
+                error_info.append(f"col={e.colno}")
+            
+            logger.error(f"❌ [TOPIC REORDER] JSON parse error at {', '.join(error_info) if error_info else 'unknown location'}: {e}")
+            
+            # Show the problematic line
+            if hasattr(e, 'lineno') and e.lineno:
+                try:
+                    lines = llm_output.split('\n')
+                    if e.lineno <= len(lines):
+                        problem_line = lines[e.lineno - 1]
+                        logger.error(f"❌ [TOPIC REORDER] Problematic line {e.lineno}: {problem_line}")
+                        
+                        # Show surrounding lines for context
+                        start_line = max(0, e.lineno - 3)
+                        end_line = min(len(lines), e.lineno + 2)
+                        logger.error(f"❌ [TOPIC REORDER] Context (lines {start_line+1}-{end_line}):")
+                        for i in range(start_line, end_line):
+                            marker = ">>> " if i == e.lineno - 1 else "    "
+                            logger.error(f"❌ [TOPIC REORDER] {marker}{i+1}: {lines[i][:300]}")
+                except Exception as log_err:
+                    logger.error(f"❌ [TOPIC REORDER] Could not extract problematic line: {log_err}")
+            
+            # Also show position-based context
+            if hasattr(e, 'pos'):
+                try:
+                    error_pos = e.pos
+                    start_pos = max(0, error_pos - 500)
+                    end_pos = min(len(llm_output), error_pos + 500)
+                    logger.error(f"❌ [TOPIC REORDER] Error at position {error_pos}, context: ...{llm_output[start_pos:end_pos]}...")
+                except Exception as log_err:
+                    logger.error(f"❌ [TOPIC REORDER] Could not extract position context: {log_err}")
+            
+            logger.error(f"❌ [TOPIC REORDER] Full LLM output length: {len(llm_output)} chars")
+            logger.error(f"❌ [TOPIC REORDER] First 2000 chars: {llm_output[:2000]}")
+            
             raise HTTPException(status_code=500, detail=f"Failed to parse LLM response: {str(e)}")
         except Exception as e:
             logger.error(f"LLM error: {e}")

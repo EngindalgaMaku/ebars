@@ -109,3 +109,4 @@ echo "   - API Gateway: http://YOUR_SERVER_IP:8000"
 echo "   - Auth Service: http://YOUR_SERVER_IP:8006"
 echo ""
 
+

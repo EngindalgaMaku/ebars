@@ -1028,6 +1028,32 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
 
   return (
     <div>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          /* Aggressive option styling - highest priority */
+          select.topic-action-select option,
+          .topic-action-select option,
+          select option,
+          option {
+            color: #1f2937 !important;
+            background-color: #ffffff !important;
+            background: #ffffff !important;
+          }
+          select.topic-action-select option:disabled,
+          .topic-action-select option:disabled,
+          select option:disabled,
+          option:disabled {
+            color: #9ca3af !important;
+            background-color: #ffffff !important;
+            background: #ffffff !important;
+          }
+          /* Force all options in this select */
+          select.topic-action-select > option {
+            color: #1f2937 !important;
+            background: #ffffff !important;
+          }
+        `
+      }} />
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-base font-semibold text-foreground">
@@ -1060,10 +1086,13 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
                 e.target.value = ""; // Reset dropdown
               }}
               disabled={extracting || extractingKBBatch || calculatingEmbeddings || reorderingTopics || topics.length === 0}
-              className="py-2 px-4 pr-8 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md text-sm font-medium hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 min-w-[200px]"
+              className="topic-action-select py-2 px-4 pr-8 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-md text-sm font-medium hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 min-w-[200px]"
+              style={{
+                color: 'white'
+              }}
               title="İşlem seçin"
             >
-              <option value="" disabled>
+              <option value="" disabled style={{ color: '#1f2937', backgroundColor: '#ffffff' }}>
                 {(extracting || extractingKBBatch || calculatingEmbeddings || reorderingTopics) ? (
                   <>
                     {extracting && "Çıkarılıyor..."}
@@ -1075,23 +1104,23 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
                   "⚙️ İşlem Seçin"
                 )}
               </option>
-              <option value="extract-topics" disabled={extracting || topics.length === 0}>
+              <option value="extract-topics" disabled={extracting || topics.length === 0} style={{ color: '#1f2937', backgroundColor: '#ffffff' }}>
                 📋 Konuları Çıkar (Gelişmiş)
               </option>
-              <option value="create-kb" disabled={extractingKBBatch || topics.length === 0}>
+              <option value="create-kb" disabled={extractingKBBatch || topics.length === 0} style={{ color: '#1f2937', backgroundColor: '#ffffff' }}>
                 🧠 Bilgi Tabanı Oluştur
               </option>
-              <option value="calculate-embeddings" disabled={calculatingEmbeddings || topics.length === 0}>
+              <option value="calculate-embeddings" disabled={calculatingEmbeddings || topics.length === 0} style={{ color: '#1f2937', backgroundColor: '#ffffff' }}>
                 🔢 QA Embedding Hesapla
               </option>
-              <option value="" disabled>──────────</option>
-              <option value="reorder-cognitive" disabled={reorderingTopics || topics.length < 2}>
+              <option value="" disabled style={{ color: '#9ca3af', backgroundColor: '#ffffff' }}>──────────</option>
+              <option value="reorder-cognitive" disabled={reorderingTopics || topics.length < 2} style={{ color: '#1f2937', backgroundColor: '#ffffff' }}>
                 🔄 Bilişsel Sıraya Göre Sırala
               </option>
-              <option value="reorder-proximity" disabled={reorderingTopics || topics.length < 2}>
+              <option value="reorder-proximity" disabled={reorderingTopics || topics.length < 2} style={{ color: '#1f2937', backgroundColor: '#ffffff' }}>
                 🔗 Yakınlığa Göre Sırala
               </option>
-              <option value="reorder-hybrid" disabled={reorderingTopics || topics.length < 2}>
+              <option value="reorder-hybrid" disabled={reorderingTopics || topics.length < 2} style={{ color: '#1f2937', backgroundColor: '#ffffff' }}>
                 🎯 Hibrit Sıralama
               </option>
             </select>
