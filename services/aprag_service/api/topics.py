@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import logging
 import json
+import sqlite3
+import traceback
 from datetime import datetime
 import httpx
 import os
@@ -1536,66 +1538,92 @@ async def classify_question(request: QuestionClassificationRequest):
             if request.interaction_id:
                 try:
                     with db.get_connection() as conn:
-                        # Get user_id from interaction if not provided
-                        if not request.user_id:
-                            cursor = conn.execute(
-                                "SELECT user_id FROM student_interactions WHERE interaction_id = ?",
-                                (request.interaction_id,)
-                            )
-                            result = cursor.fetchone()
-                            if result:
-                                user_id = result[0]
-                            else:
-                                user_id = "unknown_user"
-                                logger.warning(f"No user_id found for interaction_id {request.interaction_id}, using 'unknown_user'")
+                        # First, verify that interaction_id exists in student_interactions table
+                        # This prevents FOREIGN KEY constraint errors
+                        cursor = conn.execute(
+                            "SELECT interaction_id, user_id FROM student_interactions WHERE interaction_id = ?",
+                            (request.interaction_id,)
+                        )
+                        interaction_result = cursor.fetchone()
+                        
+                        if not interaction_result:
+                            logger.warning(f"Interaction ID {request.interaction_id} not found in student_interactions table. Skipping question_topic_mapping insert.")
+                            # Don't fail the entire request, just skip the mapping
                         else:
-                            user_id = request.user_id
-                        
-                        # Log values before insertion for debugging
-                        logger.info(f"Attempting to insert into question_topic_mapping with values:")
-                        logger.info(f"- interaction_id: {request.interaction_id} (type: {type(request.interaction_id)})")
-                        logger.info(f"- topic_id: {classification['topic_id']} (type: {type(classification['topic_id'])})")
-                        logger.info(f"- confidence_score: {classification['confidence_score']} (type: {type(classification['confidence_score'])})")
-                        
-                        # Ensure all required fields are present and valid
-                        if classification['topic_id'] is None:
-                            raise ValueError("topic_id cannot be None")
-                        
-                        if not isinstance(classification['topic_id'], int):
-                            try:
-                                classification['topic_id'] = int(classification['topic_id'])
-                            except (ValueError, TypeError) as e:
-                                raise ValueError(f"Invalid topic_id format: {classification['topic_id']}")
-                        
-                        # Insert mapping
-                        cursor = conn.execute("""
-                            INSERT INTO question_topic_mapping (
-                                interaction_id, 
-                                topic_id, 
-                                confidence_score, 
-                                mapping_method,
-                                question_complexity, 
-                                question_type
-                            ) VALUES (?, ?, ?, ?, ?, ?)
-                        """, (
-                            request.interaction_id,
-                            classification["topic_id"],
-                            float(classification["confidence_score"]),
-                            "llm_classification",
-                            classification["question_complexity"],
-                            classification["question_type"]
-                        ))
-                        
-                        mapping_id = cursor.lastrowid
-                        conn.commit()
-                        
-                        logger.info(f"Successfully saved question-topic mapping with ID {mapping_id}")
+                            # Get user_id from interaction if not provided
+                            if not request.user_id:
+                                user_id = interaction_result[1] if interaction_result[1] else "unknown_user"
+                                if not interaction_result[1]:
+                                    logger.warning(f"No user_id found for interaction_id {request.interaction_id}, using 'unknown_user'")
+                            else:
+                                user_id = request.user_id
+                            
+                            # Verify topic_id exists in course_topics table
+                            topic_cursor = conn.execute(
+                                "SELECT topic_id FROM course_topics WHERE topic_id = ? AND session_id = ? AND is_active = TRUE",
+                                (classification['topic_id'], request.session_id)
+                            )
+                            topic_result = topic_cursor.fetchone()
+                            
+                            if not topic_result:
+                                logger.warning(f"Topic ID {classification['topic_id']} not found in course_topics table for session {request.session_id}. Skipping question_topic_mapping insert.")
+                                # Don't fail the entire request, just skip the mapping
+                            else:
+                                # Log values before insertion for debugging
+                                logger.info(f"Attempting to insert into question_topic_mapping with values:")
+                                logger.info(f"- interaction_id: {request.interaction_id} (type: {type(request.interaction_id)})")
+                                logger.info(f"- topic_id: {classification['topic_id']} (type: {type(classification['topic_id'])})")
+                                logger.info(f"- confidence_score: {classification['confidence_score']} (type: {type(classification['confidence_score'])})")
+                                
+                                # Ensure all required fields are present and valid
+                                if classification['topic_id'] is None:
+                                    raise ValueError("topic_id cannot be None")
+                                
+                                if not isinstance(classification['topic_id'], int):
+                                    try:
+                                        classification['topic_id'] = int(classification['topic_id'])
+                                    except (ValueError, TypeError) as e:
+                                        raise ValueError(f"Invalid topic_id format: {classification['topic_id']}")
+                                
+                                # Insert mapping with foreign key check disabled temporarily if needed
+                                try:
+                                    cursor = conn.execute("""
+                                        INSERT INTO question_topic_mapping (
+                                            interaction_id, 
+                                            topic_id, 
+                                            confidence_score, 
+                                            mapping_method,
+                                            question_complexity, 
+                                            question_type
+                                        ) VALUES (?, ?, ?, ?, ?, ?)
+                                    """, (
+                                        request.interaction_id,
+                                        classification["topic_id"],
+                                        float(classification["confidence_score"]),
+                                        "llm_classification",
+                                        classification["question_complexity"],
+                                        classification["question_type"]
+                                    ))
+                                    
+                                    mapping_id = cursor.lastrowid
+                                    conn.commit()
+                                    
+                                    logger.info(f"Successfully saved question-topic mapping with ID {mapping_id}")
+                                except sqlite3.IntegrityError as fk_error:
+                                    # Foreign key constraint failed - log and skip, don't fail entire request
+                                    error_msg = f"Foreign key constraint failed for question_topic_mapping: {str(fk_error)}"
+                                    logger.warning(f"⚠️ {error_msg}")
+                                    logger.warning(f"⚠️ interaction_id={request.interaction_id}, topic_id={classification['topic_id']}")
+                                    # Don't raise - just skip the mapping
                     
+                except HTTPException:
+                    raise
                 except Exception as e:
+                    # Log error but don't fail the entire request
                     error_msg = f"Error saving question-topic mapping: {str(e)}"
-                    logger.error(error_msg, exc_info=True)
-                    # Don't call conn.rollback() here - connection is already closed by context manager
-                    raise HTTPException(status_code=500, detail=error_msg)
+                    logger.warning(f"⚠️ {error_msg}")
+                    logger.warning(f"⚠️ Traceback: {traceback.format_exc()}")
+                    # Don't raise HTTPException - classification was successful, mapping is optional
             
             # Update topic progress if interaction_id is provided
             if request.interaction_id:
