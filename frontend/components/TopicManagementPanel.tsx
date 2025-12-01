@@ -975,6 +975,42 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
   };
 
   // Load topics on mount
+  // Fix select option colors - DOM manipulation for browser compatibility
+  useEffect(() => {
+    const selectElement = document.getElementById('topic-action-select') as HTMLSelectElement;
+    if (!selectElement) return;
+
+    const applyOptionStyles = () => {
+      const options = selectElement.querySelectorAll('option');
+      options.forEach((option) => {
+        option.style.color = '#1f2937';
+        option.style.backgroundColor = '#ffffff';
+        if (option.disabled) {
+          option.style.color = '#9ca3af';
+        }
+      });
+    };
+
+    // Apply styles immediately
+    applyOptionStyles();
+
+    // Apply styles when select is focused/opened
+    const handleFocus = () => {
+      setTimeout(applyOptionStyles, 0);
+    };
+    const handleMouseDown = () => {
+      setTimeout(applyOptionStyles, 0);
+    };
+
+    selectElement.addEventListener('focus', handleFocus);
+    selectElement.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      selectElement.removeEventListener('focus', handleFocus);
+      selectElement.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, [topics.length, extracting, extractingKBBatch, calculatingEmbeddings, reorderingTopics]);
+
   useEffect(() => {
     if (sessionId && apragEnabled) {
       fetchTopics();
@@ -1068,6 +1104,7 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
         <div className="flex gap-2">
           <div className="relative">
             <select
+              id="topic-action-select"
               onChange={(e) => {
                 const value = e.target.value;
                 if (value === "extract-topics") {

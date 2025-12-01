@@ -3298,6 +3298,7 @@ TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
                 data = None
                 parse_error = None
                 
+                
                 # First attempt: Try to extract and parse JSON directly
                 try:
                     json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
@@ -3341,14 +3342,25 @@ TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
                         if first_brace >= 0 and last_brace > first_brace:
                             json_str = llm_output[first_brace:last_brace + 1]
                             
-                            # Apply JSON repairs
+                            # Apply JSON repairs - MULTI-PASS approach for better results
                             repaired_json = json_str
                             
-                            # Fix trailing commas before closing braces/brackets
+                            # PASS 1: Fix trailing commas before closing braces/brackets (do this first)
                             repaired_json = re.sub(r',(\s*[}\]])', r'\1', repaired_json)
                             
-                            # Fix missing commas between objects in arrays
+                            # PASS 2: Fix missing commas between objects in arrays (MOST COMMON ISSUE)
+                            # This is the #1 cause of "Expecting ',' delimiter" errors
                             repaired_json = re.sub(r'}\s*{', r'}, {', repaired_json)
+                            
+                            # PASS 3: Fix missing commas after closing quotes when followed by opening quote (key)
+                            # Pattern: "value" "key": (missing comma)
+                            repaired_json = re.sub(r'"\s+"([a-zA-Z_][^"]*":)', r'", "\1', repaired_json)
+                            
+                            # PASS 4: Fix missing commas after numbers when followed by quote (key)
+                            repaired_json = re.sub(r'(\d+)\s+"([a-zA-Z_][^"]*":)', r'\1, "\2', repaired_json)
+                            
+                            # PASS 5: Fix missing commas after booleans/null when followed by quote (key)
+                            repaired_json = re.sub(r'(true|false|null)\s+"([a-zA-Z_][^"]*":)', r'\1, "\2', repaired_json)
                             
                             # Fix missing commas after values (be careful not to break valid JSON)
                             # Only add comma if followed by a key (string with colon) or another value in array context
@@ -3392,15 +3404,32 @@ TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
                                 # 1. Fix incomplete strings
                                 repair_text = re.sub(r':\s*"[^"]*$', ': ""', repair_text, flags=re.MULTILINE)
                                 
-                                # 2. Fix missing commas (more aggressive)
+                                # 2. Fix missing commas (ULTRA-AGGRESSIVE - multiple passes)
+                                # PASS 1: Most common - } followed by { (objects in array)
                                 repair_text = re.sub(r'}\s*{', '},{', repair_text)
+                                
+                                # PASS 2: ] followed by { or "
                                 repair_text = re.sub(r']\s*{', '],{', repair_text)
-                                repair_text = re.sub(r'}\s*"', '},"', repair_text)
                                 repair_text = re.sub(r']\s*"', '],"', repair_text)
+                                
+                                # PASS 3: } followed by " (object end, next is key)
+                                repair_text = re.sub(r'}\s*"', '},"', repair_text)
+                                
+                                # PASS 4: Number followed by " (key)
                                 repair_text = re.sub(r'([0-9])\s*"', r'\1,"', repair_text)
-                                repair_text = re.sub(r'(")\s*"', r'\1,"', repair_text)  # String followed by string
-                                repair_text = re.sub(r'(true|false|null)\s*"', r'\1,"', repair_text)
+                                
+                                # PASS 5: String value followed by " (key) - VERY COMMON
+                                repair_text = re.sub(r'(")\s*"([a-zA-Z_][^"]*":)', r'\1, "\2', repair_text)
+                                
+                                # PASS 6: Boolean/null followed by " (key)
+                                repair_text = re.sub(r'(true|false|null)\s*"([a-zA-Z_][^"]*":)', r'\1, "\2', repair_text)
+                                
+                                # PASS 7: Boolean/null followed by {
                                 repair_text = re.sub(r'(true|false|null)\s*{', r'\1,{', repair_text)
+                                
+                                # PASS 8: Any closing quote followed by opening quote (if it looks like key:value)
+                                # This catches cases like: "value" "key": value
+                                repair_text = re.sub(r'"\s+"([a-zA-Z_][^"]*":)', r'", "\1', repair_text)
                                 
                                 # 3. Fix trailing commas
                                 repair_text = re.sub(r',(\s*[}\]])', r'\1', repair_text)
