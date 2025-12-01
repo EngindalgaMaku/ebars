@@ -1625,28 +1625,40 @@ SADECE JSON çıktısı ver, başka açıklama yapma."""
                         if isinstance(q['options'], dict) and all(k in q['options'] for k in ['A', 'B', 'C', 'D']):
                             valid_questions.append(q)
                 
+                # Fill missing questions with generic ones if needed
                 if len(valid_questions) < num_questions:
-                    logger.warning(f"⚠️ Only {len(valid_questions)} valid questions generated (expected {num_questions})")
-                    # If we have at least 3 questions, use them (better than failing)
-                    if len(valid_questions) >= 3:
-                        logger.info(f"✅ Using {len(valid_questions)} questions (minimum acceptable)")
-                        # Continue with available questions
-                    else:
-                        # Too few questions, try to retry with different chunks or raise error
-                        logger.error(f"❌ Too few questions generated: {len(valid_questions)} < 3")
-                        raise Exception(f"LLM generated only {len(valid_questions)} valid questions (minimum 3 required). Please try again or check session content.")
+                    missing_count = num_questions - len(valid_questions)
+                    logger.warning(f"⚠️ Only {len(valid_questions)} valid questions generated (expected {num_questions}), filling {missing_count} with generic questions")
+                    
+                    # Get generic questions and use them to fill the gap
+                    generic_questions = _generate_generic_questions()
+                    
+                    # Take generic questions and adjust their indices
+                    for i, generic_q in enumerate(generic_questions[:missing_count]):
+                        # Create a new question with adjusted index
+                        new_question = {
+                            **generic_q,
+                            "index": len(valid_questions) + i,
+                            "question": generic_q.get("question", ""),
+                            "options": generic_q.get("options", {}),
+                            "correct_answer": generic_q.get("correct_answer", "A"),
+                            "difficulty": generic_q.get("difficulty", "easy"),
+                            "type": generic_q.get("type", "knowledge"),
+                            "explanation": generic_q.get("explanation", ""),
+                            "is_generic": True  # Mark as generic for tracking
+                        }
+                        valid_questions.append(new_question)
+                    
+                    logger.info(f"✅ Filled {missing_count} missing questions with generic ones. Total: {len(valid_questions)} questions")
                 
                 # Take first num_questions if more than needed
                 if len(valid_questions) > num_questions:
                     valid_questions = valid_questions[:num_questions]
                 
                 # Ensure difficulty distribution (flexible if fewer questions)
-                easy_count = sum(1 for q in valid_questions if q.get('difficulty') == 'easy')
-                medium_count = sum(1 for q in valid_questions if q.get('difficulty') == 'medium')
-                hard_count = sum(1 for q in valid_questions if q.get('difficulty') == 'hard')
+                # First, assign difficulty to questions that don't have it
                 unknown_count = sum(1 for q in valid_questions if q.get('difficulty') not in ['easy', 'medium', 'hard'])
                 
-                # If questions don't have difficulty labels, assign default
                 if unknown_count > 0:
                     logger.warning(f"⚠️ {unknown_count} questions missing difficulty labels, assigning defaults")
                     for i, q in enumerate(valid_questions):
@@ -1659,23 +1671,47 @@ SADECE JSON çıktısı ver, başka açıklama yapma."""
                             else:
                                 q['difficulty'] = 'hard'
                 
-                logger.info(f"✅ Generated {len(valid_questions)} questions: {easy_count} easy, {medium_count} medium, {hard_count} hard")
+                # Count final distribution
+                easy_count = sum(1 for q in valid_questions if q.get('difficulty') == 'easy')
+                medium_count = sum(1 for q in valid_questions if q.get('difficulty') == 'medium')
+                hard_count = sum(1 for q in valid_questions if q.get('difficulty') == 'hard')
+                generic_count = sum(1 for q in valid_questions if q.get('is_generic', False))
+                
+                if generic_count > 0:
+                    logger.info(f"✅ Generated {len(valid_questions)} questions ({generic_count} generic fallback): {easy_count} easy, {medium_count} medium, {hard_count} hard")
+                else:
+                    logger.info(f"✅ Generated {len(valid_questions)} questions: {easy_count} easy, {medium_count} medium, {hard_count} hard")
                 
                 return valid_questions
             else:
                 logger.error("❌ Could not parse JSON from LLM response")
                 logger.error(f"   Response preview: {generated_text[:500]}")
-                raise Exception("LLM response is not valid JSON. Cannot parse questions.")
+                # Fallback: Use generic questions
+                logger.warning("⚠️ Falling back to generic questions due to JSON parse error")
+                generic_questions = _generate_generic_questions()
+                # Take only the number needed
+                return generic_questions[:num_questions]
         except json.JSONDecodeError as e:
             logger.error(f"❌ JSON parse error: {e}")
             logger.error(f"   Response preview: {generated_text[:500]}")
-            raise Exception(f"Failed to parse LLM response as JSON: {str(e)}")
+            # Fallback: Use generic questions
+            logger.warning("⚠️ Falling back to generic questions due to JSON parse error")
+            generic_questions = _generate_generic_questions()
+            # Take only the number needed
+            return generic_questions[:num_questions]
             
     except HTTPException:
         raise  # Re-raise HTTP exceptions
     except Exception as e:
         logger.error(f"❌ Error generating questions from chunks: {e}", exc_info=True)
-        raise Exception(f"Failed to generate questions from session content: {str(e)}")
+        # Final fallback: Use generic questions if everything fails
+        logger.warning("⚠️ Falling back to generic questions due to error")
+        try:
+            generic_questions = _generate_generic_questions()
+            return generic_questions[:num_questions]
+        except Exception as fallback_error:
+            logger.error(f"❌ Even generic questions failed: {fallback_error}")
+            raise Exception(f"Failed to generate questions from session content: {str(e)}")
 
 
 async def _evaluate_answer_with_llm(
