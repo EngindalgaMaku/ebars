@@ -3279,7 +3279,7 @@ TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
                     json={
                         "prompt": prompt,
                         "model": model_to_use,
-                        "max_tokens": 3000,
+                        "max_tokens": max(8000, len(topics) * 50),  # Dynamic: at least 50 tokens per topic
                         "temperature": 0.3
                     }
                 )
@@ -3455,7 +3455,92 @@ TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
                                 # Pattern: }"key" (missing comma)
                                 repair_text = re.sub(r'}\s*"([a-zA-Z_][^"]*":)', r'}, "\1', repair_text)
                                 
-                                # 9. Ensure proper JSON ending
+                                # 9. Fix truncated JSON (if LLM output was cut off)
+                                # Count opening and closing braces/brackets
+                                open_braces = repair_text.count('{')
+                                close_braces = repair_text.count('}')
+                                open_brackets = repair_text.count('[')
+                                close_brackets = repair_text.count(']')
+                                
+                                # If JSON is incomplete, try to close it properly
+                                if open_braces > close_braces or open_brackets > close_brackets:
+                                    logger.warning(f"⚠️ [TOPIC REORDER] JSON appears truncated. Braces: {open_braces}/{close_braces}, Brackets: {open_brackets}/{close_brackets}")
+                                    
+                                    # Find the last complete object in ordered_topics array
+                                    # Look for the last complete } pattern that's followed by comma or end
+                                    last_complete_obj = -1
+                                    for i in range(len(repair_text) - 1, -1, -1):
+                                        if repair_text[i] == '}':
+                                            # Check if this is a complete object (followed by comma, ], or whitespace+comma)
+                                            remaining = repair_text[i+1:].strip()
+                                            if remaining.startswith(',') or remaining.startswith(']') or remaining == '':
+                                                last_complete_obj = i
+                                                break
+                                    
+                                    if last_complete_obj > 0:
+                                        # Extract up to last complete object (including the comma if present)
+                                        repair_text = repair_text[:last_complete_obj + 1]
+                                        # Remove trailing comma if exists
+                                        repair_text = repair_text.rstrip().rstrip(',')
+                                    
+                                    # Add missing closing brackets/braces
+                                    missing_brackets = open_brackets - close_brackets
+                                    missing_braces = open_braces - close_braces
+                                    
+                                    if missing_brackets > 0:
+                                        repair_text += ']' * missing_brackets
+                                    if missing_braces > 0:
+                                        repair_text += '}' * missing_braces
+                                
+                                # 9b. Fix incomplete last object (if JSON was cut off mid-object)
+                                # Look for patterns like: {"topic_id": 192, "new... (incomplete)
+                                # Find the last complete object and remove anything after it
+                                lines = repair_text.split('\n')
+                                fixed_lines = []
+                                found_incomplete = False
+                                for i, line in enumerate(lines):
+                                    # Check if line looks like start of object but doesn't end properly
+                                    if '"topic_id"' in line and '"new_order"' not in line and i > len(lines) - 3:
+                                        # This might be an incomplete object - skip it and everything after
+                                        found_incomplete = True
+                                        logger.warning(f"⚠️ [TOPIC REORDER] Found incomplete object at line {i+1}, truncating JSON here")
+                                        break
+                                    
+                                    # Check if line has incomplete string (ends with quote but no closing)
+                                    if line.strip().startswith('{"topic_id"') and not line.strip().endswith('},') and not line.strip().endswith('}'):
+                                        # Check if next line exists and continues
+                                        if i + 1 < len(lines):
+                                            next_line = lines[i + 1].strip()
+                                            # If next line doesn't look like continuation, this is incomplete
+                                            if not next_line.startswith('"') and not next_line.startswith('{'):
+                                                found_incomplete = True
+                                                logger.warning(f"⚠️ [TOPIC REORDER] Found incomplete object at line {i+1}, truncating JSON here")
+                                                break
+                                    
+                                    fixed_lines.append(line)
+                                
+                                if found_incomplete:
+                                    # Remove last incomplete line
+                                    if fixed_lines:
+                                        last_line = fixed_lines[-1].strip()
+                                        # If last line doesn't end with }, remove it
+                                        if not last_line.endswith('},') and not last_line.endswith('}'):
+                                            fixed_lines.pop()
+                                            # Make sure previous line ends properly
+                                            if fixed_lines:
+                                                prev_line = fixed_lines[-1].rstrip()
+                                                if prev_line.endswith(','):
+                                                    fixed_lines[-1] = prev_line.rstrip(',')
+                                    
+                                    repair_text = '\n'.join(fixed_lines)
+                                    # Ensure proper closing
+                                    repair_text = repair_text.rstrip().rstrip(',')
+                                    if not repair_text.endswith(']'):
+                                        repair_text += ']'
+                                    if not repair_text.endswith('}'):
+                                        repair_text += '}'
+                                
+                                # Ensure proper JSON ending
                                 if not repair_text.rstrip().endswith(']}') and not repair_text.rstrip().endswith('}'):
                                     # Try to close properly
                                     if '"ordered_topics"' in repair_text and not repair_text.rstrip().endswith(']}'):
@@ -3509,9 +3594,42 @@ TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
                                 
                                 logger.info(f"🔧 [TOPIC REORDER] Ultra-repaired JSON length: {len(repair_text)} chars")
                                 
-                                # Try parsing repaired JSON
-                                data = json.loads(repair_text)
-                                logger.info("✅ [TOPIC REORDER] JSON successfully repaired with ultra-aggressive method!")
+                                # Final check: If JSON still fails, try to extract only complete objects
+                                try:
+                                    data = json.loads(repair_text)
+                                    logger.info("✅ [TOPIC REORDER] JSON successfully repaired with ultra-aggressive method!")
+                                except json.JSONDecodeError as final_error:
+                                    logger.warning(f"⚠️ [TOPIC REORDER] Final parse attempt failed: {final_error}. Trying to extract only complete objects...")
+                                    
+                                    # Last resort: Extract only complete objects from ordered_topics array
+                                    # Find all complete objects (those ending with },)
+                                    import re as regex_module
+                                    complete_objects = regex_module.findall(r'\{[^}]*"topic_id"[^}]*"new_order"[^}]*"reason"[^}]*\},?', repair_text)
+                                    
+                                    if complete_objects:
+                                        logger.info(f"🔧 [TOPIC REORDER] Found {len(complete_objects)} complete objects, reconstructing JSON...")
+                                        
+                                        # Reconstruct JSON with only complete objects
+                                        reconstructed_json = '{\n  "ordered_topics": [\n'
+                                        for i, obj in enumerate(complete_objects):
+                                            # Ensure object ends with }
+                                            obj = obj.rstrip(',').rstrip()
+                                            if not obj.endswith('}'):
+                                                obj += '}'
+                                            reconstructed_json += f'    {obj}'
+                                            if i < len(complete_objects) - 1:
+                                                reconstructed_json += ','
+                                            reconstructed_json += '\n'
+                                        reconstructed_json += '  ]\n}'
+                                        
+                                        logger.info(f"🔧 [TOPIC REORDER] Reconstructed JSON with {len(complete_objects)} objects")
+                                        
+                                        # Try parsing reconstructed JSON
+                                        data = json.loads(reconstructed_json)
+                                        logger.info("✅ [TOPIC REORDER] JSON successfully reconstructed from complete objects!")
+                                    else:
+                                        # If no complete objects found, raise the original error
+                                        raise final_error
                             else:
                                 raise ValueError("Could not find JSON boundaries in LLM response")
                         except (json.JSONDecodeError, ValueError) as e3:
