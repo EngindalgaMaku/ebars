@@ -446,9 +446,9 @@ export default function StudentChatPage() {
           </div>
         </div>
 
-        {/* Session Info */}
+        {/* Session Info - Hidden on mobile */}
         {selectedSessionData && (
-          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100">
+          <div className="hidden md:block mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100">
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
               <span>📖 {selectedSessionData.document_count || 0} Döküman</span>
               {selectedSessionData.rag_settings?.embedding_model && (
