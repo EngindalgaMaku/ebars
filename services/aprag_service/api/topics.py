@@ -1699,13 +1699,13 @@ async def classify_question(request: QuestionClassificationRequest):
         except HTTPException:
             raise
         except Exception as e:
-            error_msg = f"Error in question classification: {str(e)}"
-            logger.error(error_msg)
-            logger.error(f"Error type: {type(e).__name__}")
-            logger.error(f"Error args: {e.args}")
             import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            raise HTTPException(status_code=500, detail=error_msg)
+            error_detail = f"Error in question classification: {type(e).__name__}: {str(e)}"
+            logger.error(f"❌ {error_detail}")
+            logger.error(f"❌ Error args: {e.args}")
+            logger.error(f"❌ Full traceback:")
+            logger.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=error_detail)
         
         # Check if mastery is achieved and generate recommendation (only if APRAG is enabled)
         recommendation = None
@@ -1735,12 +1735,12 @@ async def classify_question(request: QuestionClassificationRequest):
         raise
     except Exception as e:
         import traceback
-        error_traceback = traceback.format_exc()
-        logger.error(f"Error classifying question: {e}")
-        logger.error(f"Error type: {type(e).__name__}")
-        logger.error(f"Error args: {e.args}")
-        logger.error(f"Full traceback:\n{error_traceback}")
-        raise HTTPException(status_code=500, detail=f"Question classification failed: {str(e)}")
+        error_detail = f"Unexpected error in classify_question endpoint: {type(e).__name__}: {str(e)}"
+        logger.error(f"❌ {error_detail}")
+        logger.error(f"❌ Error args: {e.args}")
+        logger.error(f"❌ Full traceback:")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=error_detail)
 
 
 async def generate_topic_recommendation(
