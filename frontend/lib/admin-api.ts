@@ -8,9 +8,27 @@ import { apiClient } from "./api-client";
 import { URLS } from "@/config/ports";
 
 // ===== CONFIGURATION =====
+// Use /api path for Next.js rewrites to avoid Mixed Content errors
+function getApiUrl(): string {
+  if (typeof window !== "undefined") {
+    // Client-side: always use /api (Next.js rewrites will proxy to backend over HTTPS)
+    return "/api";
+  }
+  // Server-side: use default (for SSR)
+  return URLS.API_GATEWAY;
+}
 
-const MAIN_GATEWAY_URL = URLS.API_GATEWAY;
-const AUTH_SERVICE_URL = URLS.AUTH_SERVICE;
+function getAuthUrl(): string {
+  if (typeof window !== "undefined") {
+    // Client-side: use /api/auth for auth service (Next.js rewrites)
+    return "/api/auth";
+  }
+  // Server-side: use default (for SSR)
+  return URLS.AUTH_SERVICE;
+}
+
+const MAIN_GATEWAY_URL = getApiUrl();
+const AUTH_SERVICE_URL = getAuthUrl();
 
 // ===== TYPE DEFINITIONS =====
 

@@ -147,10 +147,42 @@ const nextConfig = {
       return finalUrl;
     })();
 
+    // Auth service URL for rewrites
+    const authUrl = (() => {
+      if (
+        process.env.NEXT_PUBLIC_AUTH_URL &&
+        process.env.NEXT_PUBLIC_AUTH_URL.startsWith("http")
+      ) {
+        return process.env.NEXT_PUBLIC_AUTH_URL;
+      }
+
+      const authServiceHost = process.env.AUTH_SERVICE_INTERNAL_URL
+        ? process.env.AUTH_SERVICE_INTERNAL_URL.replace("http://", "").split(":")[0]
+        : process.env.AUTH_SERVICE_HOST ||
+          (isDocker ? "auth-service" : "localhost");
+
+      const authServicePort = process.env.AUTH_SERVICE_INTERNAL_URL
+        ? process.env.AUTH_SERVICE_INTERNAL_URL.replace("http://", "").split(":")[1] || "8006"
+        : process.env.AUTH_SERVICE_PORT || "8006";
+
+      if (
+        authServiceHost.startsWith("http://") ||
+        authServiceHost.startsWith("https://")
+      ) {
+        return authServiceHost;
+      }
+
+      return `http://${authServiceHost}:${authServicePort}`;
+    })();
+
     return [
       {
         source: "/api/:path*",
         destination: `${apiUrl}/api/:path*`,
+      },
+      {
+        source: "/api/auth/:path*",
+        destination: `${authUrl}/:path*`,
       },
     ];
   },
