@@ -159,3 +159,4 @@ docker compose -f docker-compose.prod.yml logs document-processing-service --tai
 
 
 
+

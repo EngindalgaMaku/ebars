@@ -198,6 +198,9 @@ else:
         "http://65.109.230.236:8000",  # External IP API gateway
         "http://65.109.230.236:8006",  # External IP auth service
         "http://65.109.230.236:8007",  # External IP APRAG service
+        # Domain-based access
+        "http://ebars.kodleon.com",
+        "https://ebars.kodleon.com"
     ]
 
 # Ensure external server IP origins are always included for Docker deployment
@@ -206,7 +209,10 @@ external_origins = [
     "http://65.109.230.236:3000",
     "http://65.109.230.236:8000",
     "http://65.109.230.236:8006",
-    "http://65.109.230.236:8007"
+    "http://65.109.230.236:8007",
+    # Domain-based access
+    "http://ebars.kodleon.com",
+    "https://ebars.kodleon.com"
 ]
 for origin in external_origins:
     if origin not in cors_origins:

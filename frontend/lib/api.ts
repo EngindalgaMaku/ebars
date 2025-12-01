@@ -2423,43 +2423,6 @@ export async function updateTopic(
   return res.json();
 }
 
-// Reorder topics using LLM
-export async function reorderTopics(
-  sessionId: string,
-  sortingCriteria: "cognitive" | "proximity" | "hybrid" = "cognitive"
-): Promise<{ success: boolean; message: string; total_topics: number; criteria: string }> {
-  const token = tokenManager.getAccessToken?.() || null;
-  const res = await fetch(
-    `${getApiUrl()}/aprag/topics/reorder/${sessionId}?sorting_criteria=${sortingCriteria}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    }
-  );
-
-  if (!res.ok) {
-    let error;
-    try {
-      error = await res.json();
-    } catch (e) {
-      // If response is not JSON, try to get text
-      const text = await res.text();
-      error = { detail: text || `Failed to reorder topics: ${res.statusText}` };
-    }
-    throw new Error(error.detail || `Failed to reorder topics: ${res.statusText}`);
-  }
-
-  const result = await res.json();
-  // Validate response structure
-  if (!result || typeof result !== 'object') {
-    throw new Error("Invalid response format from server");
-  }
-  return result;
-}
-
 // Delete a topic
 export async function deleteTopic(
   topicId: number
@@ -2471,33 +2434,6 @@ export async function deleteTopic(
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-  });
-
-  if (!res.ok) {
-    throw new Error(await res.text());
-  }
-
-  return res.json();
-}
-
-// Delete multiple topics in batch
-export async function deleteTopicsBatch(
-  topicIds: number[]
-): Promise<{ 
-  success: boolean; 
-  deleted_count: number; 
-  total_requested: number;
-  failed_topics: Array<{ topic_id: number; error: string }>;
-  message: string;
-}> {
-  const token = tokenManager.getAccessToken?.() || null;
-  const res = await fetch(`${getApiUrl()}/aprag/topics/delete-batch`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(topicIds),
   });
 
   if (!res.ok) {

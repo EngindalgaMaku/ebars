@@ -65,14 +65,20 @@ class Config:
             "http://46.62.254.131:8000",  # External IP API gateway
             "http://46.62.254.131:8006",  # External IP auth service (self)
             "http://localhost:8000",     # Local API gateway
-            "http://127.0.0.1:8000"      # Local API gateway
+            "http://127.0.0.1:8000",      # Local API gateway
+            # Domain-based access
+            "http://ebars.kodleon.com",
+            "https://ebars.kodleon.com"
         ]
     
     # Ensure external server IP origins are always included for Docker deployment
     external_origins = [
         "http://46.62.254.131:3000",
         "http://46.62.254.131:8000",
-        "http://46.62.254.131:8006"
+        "http://46.62.254.131:8006",
+        # Domain-based access
+        "http://ebars.kodleon.com",
+        "https://ebars.kodleon.com"
     ]
     for origin in external_origins:
         if origin not in CORS_ORIGINS:

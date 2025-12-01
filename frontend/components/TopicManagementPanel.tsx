@@ -6,8 +6,6 @@ import {
   getSessionTopics,
   updateTopic,
   deleteTopic,
-  deleteTopicsBatch,
-  reorderTopics,
   Topic,
   TopicExtractionRequest,
 } from "@/lib/api";
@@ -29,8 +27,6 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
   const [success, setSuccess] = useState<string | null>(null);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
   const [topicPage, setTopicPage] = useState(1);
-  const [selectedTopics, setSelectedTopics] = useState<Set<number>>(new Set());
-  const [deletingBatch, setDeletingBatch] = useState(false);
   // KB batch extraction job tracking
   const [kbBatchJobId, setKbBatchJobId] = useState<string | null>(null);
   const [kbBatchStatus, setKbBatchStatus] = useState<any | null>(null);
@@ -52,9 +48,6 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
   const [extractingKBBatch, setExtractingKBBatch] = useState(false);
   const [expandedTopics, setExpandedTopics] = useState<Set<number>>(new Set());
   const [topicKBData, setTopicKBData] = useState<{ [key: number]: any }>({});
-  // Topic reordering states
-  const [reorderingTopics, setReorderingTopics] = useState(false);
-  const [reorderCriteria, setReorderCriteria] = useState<"cognitive" | "proximity" | "hybrid">("cognitive");
   
   // Topic extraction modal states
   const [showExtractModal, setShowExtractModal] = useState(false);
@@ -232,82 +225,8 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
       await deleteTopic(topicId);
       setSuccess(`"${topicTitle}" konusu başarıyla silindi`);
       await fetchTopics();
-      // Remove from selection if selected
-      setSelectedTopics((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(topicId);
-        return newSet;
-      });
     } catch (e: any) {
       setError(e.message || "Konu silinemedi");
-    }
-  };
-
-  // Toggle topic selection
-  const toggleTopicSelection = (topicId: number) => {
-    setSelectedTopics((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(topicId)) {
-        newSet.delete(topicId);
-      } else {
-        newSet.add(topicId);
-      }
-      return newSet;
-    });
-  };
-
-  // Toggle all topics selection
-  const toggleAllTopicsSelection = () => {
-    if (selectedTopics.size === paginatedTopics.length) {
-      setSelectedTopics(new Set());
-    } else {
-      setSelectedTopics(new Set(paginatedTopics.map((t) => t.topic_id)));
-    }
-  };
-
-  // Delete selected topics in batch
-  const handleDeleteSelectedTopics = async () => {
-    if (selectedTopics.size === 0) {
-      setError("Lütfen silmek için en az bir konu seçin");
-      return;
-    }
-
-    const selectedArray = Array.from(selectedTopics);
-    const selectedTitles = selectedArray
-      .map((id) => topics.find((t) => t.topic_id === id)?.topic_title)
-      .filter(Boolean)
-      .join(", ");
-
-    if (
-      !confirm(
-        `${selectedTopics.size} konuyu silmek istediğinizden emin misiniz?\n\nSeçili konular: ${selectedTitles}\n\nBu işlem geri alınamaz ve konularla ilişkili tüm veriler (bilgi tabanı, soru-cevaplar vb.) silinecektir.`
-      )
-    ) {
-      return;
-    }
-
-    try {
-      setDeletingBatch(true);
-      setError(null);
-      const result = await deleteTopicsBatch(selectedArray);
-      
-      if (result.success) {
-        if (result.failed_topics && result.failed_topics.length > 0) {
-          setError(
-            `${result.deleted_count} konu silindi, ${result.failed_topics.length} konu silinemedi: ${result.failed_topics.map((f) => f.error).join(", ")}`
-          );
-        } else {
-          setSuccess(`${result.deleted_count} konu başarıyla silindi`);
-        }
-        setSelectedTopics(new Set());
-        await fetchTopics();
-      } else {
-        setError("Toplu silme başarısız oldu");
-      }
-    } catch (e: any) {
-      setError(e.message || "Konular silinemedi");
-    } finally {
-      setDeletingBatch(false);
     }
   };
 
@@ -767,29 +686,6 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
     await refreshKBComponent(topicId, "all");
   };
 
-  // Reorder topics using LLM
-  const handleReorderTopics = async (criteria: "cognitive" | "proximity" | "hybrid" = "cognitive") => {
-    try {
-      setReorderingTopics(true);
-      setError(null);
-      setSuccess(null);
-      
-      const result = await reorderTopics(sessionId, criteria);
-      
-      if (result.success) {
-        const criteriaText = criteria === "cognitive" ? "bilişsel sıraya" : criteria === "proximity" ? "yakınlığa" : "hibrit kriterlere";
-        setSuccess(`Konular ${criteriaText} göre sıralandı!`);
-        // Reload topics
-        await fetchTopics();
-      }
-    } catch (err: any) {
-      setError(err.message || "Konu sıralama başarısız oldu");
-      console.error("Error reordering topics:", err);
-    } finally {
-      setReorderingTopics(false);
-    }
-  };
-
   // Calculate QA embeddings batch - ASYNC with polling!
   const handleCalculateQAEmbeddings = async () => {
     try {
@@ -1105,32 +1001,6 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
 
   return (
     <div>
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          /* Aggressive option styling - highest priority */
-          select.topic-action-select option,
-          .topic-action-select option,
-          select option,
-          option {
-            color: #1f2937 !important;
-            background-color: #ffffff !important;
-            background: #ffffff !important;
-          }
-          select.topic-action-select option:disabled,
-          .topic-action-select option:disabled,
-          select option:disabled,
-          option:disabled {
-            color: #9ca3af !important;
-            background-color: #ffffff !important;
-            background: #ffffff !important;
-          }
-          /* Force all options in this select */
-          select.topic-action-select > option {
-            color: #1f2937 !important;
-            background: #ffffff !important;
-          }
-        `
-      }} />
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-base font-semibold text-foreground">
@@ -1143,81 +1013,138 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
           </p>
         </div>
         <div className="flex gap-2">
-          <div className="relative">
-            <select
-              defaultValue=""
-              onChange={(e) => {
-                const value = e.target.value;
-                if (value === "extract-topics") {
-                  handleOpenExtractModal();
-                } else if (value === "create-kb") {
-                  handleOpenKBExtractModal("all");
-                } else if (value === "calculate-embeddings") {
-                  handleCalculateQAEmbeddings();
-                } else if (value === "reorder-cognitive") {
-                  handleReorderTopics("cognitive");
-                } else if (value === "reorder-proximity") {
-                  handleReorderTopics("proximity");
-                } else if (value === "reorder-hybrid") {
-                  handleReorderTopics("hybrid");
-                }
-                e.target.value = ""; // Reset dropdown
-              }}
-              disabled={extracting || extractingKBBatch || calculatingEmbeddings || reorderingTopics}
-              className="topic-action-select py-2 px-4 pr-8 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-md text-sm font-medium hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 min-w-[200px]"
-              style={{
-                color: 'white'
-              }}
-              title="İşlem seçin"
-            >
-              <option value="" disabled className="text-gray-900 bg-white">
-                {(extracting || extractingKBBatch || calculatingEmbeddings || reorderingTopics) ? (
-                  <>
-                    {extracting && "Çıkarılıyor..."}
-                    {extractingKBBatch && "Oluşturuluyor..."}
-                    {calculatingEmbeddings && "Hesaplanıyor..."}
-                    {reorderingTopics && "Sıralanıyor..."}
-                  </>
-                ) : (
-                  "⚙️ İşlem Seçin"
-                )}
-              </option>
-              <option value="extract-topics" disabled={extracting} className="text-gray-900 bg-white">
-                📋 Konuları Çıkar (Gelişmiş)
-              </option>
-              <option value="create-kb" disabled={extractingKBBatch || topics.length === 0} className="text-gray-900 bg-white">
-                🧠 Bilgi Tabanı Oluştur
-              </option>
-              <option value="calculate-embeddings" disabled={calculatingEmbeddings || topics.length === 0} className="text-gray-900 bg-white">
-                🔢 QA Embedding Hesapla
-              </option>
-              <option value="" disabled className="text-gray-500 bg-white">──────────</option>
-              <option value="reorder-cognitive" disabled={reorderingTopics || topics.length < 2} className="text-gray-900 bg-white">
-                🔄 Bilişsel Sıraya Göre Sırala
-              </option>
-              <option value="reorder-proximity" disabled={reorderingTopics || topics.length < 2} className="text-gray-900 bg-white">
-                🔗 Yakınlığa Göre Sırala
-              </option>
-              <option value="reorder-hybrid" disabled={reorderingTopics || topics.length < 2} className="text-gray-900 bg-white">
-                🎯 Hibrit Sıralama
-              </option>
-            </select>
-            <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-              <svg
-                className="w-4 h-4 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </div>
-          </div>
+          <button
+            onClick={handleOpenExtractModal}
+            disabled={extracting}
+            className="py-2 px-3 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
+          >
+            {extracting ? (
+              <>
+                <svg
+                  className="animate-spin h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <span>Çıkarılıyor...</span>
+              </>
+            ) : (
+              <span>📋 Konuları Çıkar (Gelişmiş)</span>
+            )}
+          </button>
+          <button
+            onClick={() => handleOpenKBExtractModal("all")}
+            disabled={extractingKBBatch || topics.length === 0}
+            className="py-2 px-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-md text-sm font-medium hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
+            title="Tüm konular için bilgi tabanı ve soru-cevaplar oluştur"
+          >
+            {extractingKBBatch ? (
+              <>
+                <svg
+                  className="animate-spin h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <span>Oluşturuluyor...</span>
+              </>
+            ) : (
+              <span>🧠 Bilgi Tabanı Oluştur</span>
+            )}
+          </button>
+          <button
+            onClick={() => handleOpenKBExtractModal("missing")}
+            disabled={extractingKBBatch || topics.length === 0}
+            className="py-2 px-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-md text-sm font-medium hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
+            title="Sadece eksik bilgi tabanı olan konular için bilgi tabanı oluştur"
+          >
+            {extractingKBBatch ? (
+              <>
+                <svg
+                  className="animate-spin h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <span>Oluşturuluyor...</span>
+              </>
+            ) : (
+              <span>➕ Eksik KB'leri Oluştur</span>
+            )}
+          </button>
+          <button
+            onClick={handleCalculateQAEmbeddings}
+            disabled={calculatingEmbeddings || topics.length === 0}
+            className="py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-md text-sm font-medium hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
+            title="QA pair'ler için embedding'leri hesapla (sonradan yapılabilir)"
+          >
+            {calculatingEmbeddings ? (
+              <>
+                <svg
+                  className="animate-spin h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                <span>Hesaplanıyor...</span>
+              </>
+            ) : (
+              <span>🔢 QA Embedding Hesapla</span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -1269,74 +1196,10 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
           </div>
         ) : (
           <>
-            {/* Selection and Batch Actions Bar */}
-            <div className="flex items-center justify-between mb-3 p-2 bg-muted/50 rounded-lg border border-border">
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedTopics.size === paginatedTopics.length && paginatedTopics.length > 0}
-                    onChange={toggleAllTopicsSelection}
-                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm text-foreground">
-                    Tümünü Seç ({selectedTopics.size} seçili)
-                  </span>
-                </label>
-                {selectedTopics.size > 0 && (
-                  <button
-                    onClick={handleDeleteSelectedTopics}
-                    disabled={deletingBatch}
-                    className="px-3 py-1.5 text-sm font-medium bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-2"
-                  >
-                    {deletingBatch ? (
-                      <>
-                        <svg
-                          className="animate-spin h-4 w-4"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                        Siliniyor...
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                        Seçilenleri Sil ({selectedTopics.size})
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-              {/* Top Pagination (so it's always visible) */}
-              {totalPages > 1 && (
-                <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+            {/* Top Pagination (so it's always visible) */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-end mb-3 text-xs sm:text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => setTopicPage((p) => Math.max(1, p - 1))}
                     disabled={topicPage === 1}
@@ -1354,8 +1217,8 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
                     Sonraki
                   </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
             <div className="space-y-3">
               {paginatedTopics.map((topic) => {
                 const subtopics = topics.filter(
@@ -1366,19 +1229,10 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
                 return (
                   <div
                     key={topic.topic_id}
-                    className={`border border-border rounded-lg p-4 hover:bg-muted/30 transition-colors ${
-                      selectedTopics.has(topic.topic_id) ? "bg-primary/10 border-primary" : ""
-                    }`}
+                    className="border border-border rounded-lg p-4 hover:bg-muted/30 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-2 flex-1 min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={selectedTopics.has(topic.topic_id)}
-                          onChange={() => toggleTopicSelection(topic.topic_id)}
-                          className="mt-1 w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
-                          onClick={(e) => e.stopPropagation()}
-                        />
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
                             #{topic.topic_order}

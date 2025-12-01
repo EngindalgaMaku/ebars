@@ -9,10 +9,8 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import logging
 import json
-import sqlite3
-import traceback
 from datetime import datetime
-import httpx
+import requests
 import os
 
 logger = logging.getLogger(__name__)
@@ -57,10 +55,10 @@ def get_session_model(session_id: str) -> Optional[str]:
     try:
         # Use the correct endpoint - /sessions/{session_id} returns the full session data including rag_settings
         logger.info(f"Getting session model for {session_id} from {API_GATEWAY_URL}/sessions/{session_id}")
-        with httpx.Client(timeout=30.0) as client:
-            response = client.get(
-                f"{API_GATEWAY_URL}/sessions/{session_id}"
-            )
+        response = requests.get(
+            f"{API_GATEWAY_URL}/sessions/{session_id}",
+            timeout=30  # Increased timeout from 5 to 30 seconds
+        )
         logger.info(f"API Gateway response status: {response.status_code}")
         
         if response.status_code == 200:
@@ -116,7 +114,7 @@ def get_session_model(session_id: str) -> Optional[str]:
         
         # Default model if not found
         return "llama-3.1-8b-instant"
-    except (httpx.RequestError, httpx.HTTPStatusError) as e:
+    except requests.exceptions.RequestException as e:
         logger.error(f"Request error getting session model for {session_id}: {e}", exc_info=True)
         # Return default model on error
         return "llama-3.1-8b-instant"
@@ -206,12 +204,11 @@ def fetch_chunks_for_session(session_id: str) -> List[Dict[str, Any]]:
     """
     try:
         # Try to get chunks from document processing service
-        # Use httpx (same as knowledge_extraction.py) instead of requests
-        import httpx
-        with httpx.Client(timeout=30.0) as client:
-            response = client.get(
-                f"{DOCUMENT_PROCESSING_URL}/sessions/{session_id}/chunks"
-            )
+        # If that doesn't work, we'll need to query ChromaDB directly
+        response = requests.get(
+            f"{DOCUMENT_PROCESSING_URL}/sessions/{session_id}/chunks",
+            timeout=30
+        )
         
         if response.status_code == 200:
             chunks = response.json().get("chunks", [])
@@ -336,16 +333,16 @@ Sadece JSON çıktısı ver:
         timeout_seconds = 600 if "qwen" in model_to_use.lower() else 240  # 10 min for qwen, 4 min for others
         logger.info(f"⏰ [TIMEOUT] Using {timeout_seconds}s timeout for {model_to_use}")
         
-        with httpx.Client(timeout=timeout_seconds) as client:
-            response = client.post(
-                f"{MODEL_INFERENCER_URL}/models/generate",
-                json={
-                    "prompt": final_prompt,
-                    "model": model_to_use,
-                    "max_tokens": 4096,
-                    "temperature": 0.3
-                }
-            )
+        response = requests.post(
+            f"{MODEL_INFERENCER_URL}/models/generate",
+            json={
+                "prompt": final_prompt,
+                "model": model_to_use,
+                "max_tokens": 4096,
+                "temperature": 0.3
+            },
+            timeout=timeout_seconds  # Extended timeout for quality models
+        )
         
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail=f"LLM service error: {response.text}")
@@ -555,7 +552,7 @@ Sadece JSON çıktısı ver:
         logger.error(f"Failed to parse LLM JSON output: {e}")
         logger.error(f"LLM output was: {llm_output[:1000]}")  # Log first 1000 chars
         raise HTTPException(status_code=500, detail="LLM returned invalid JSON")
-    except (httpx.RequestError, httpx.HTTPStatusError) as e:
+    except requests.exceptions.RequestException as e:
         logger.error(f"Request error in topic extraction: {e}")
         logger.error(f"MODEL_INFERENCER_URL: {MODEL_INFERENCER_URL}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to model service: {str(e)}")
@@ -583,6 +580,8 @@ def get_session_model(session_id: str) -> Optional[str]:
         
     try:
         import os
+        import requests
+        from requests.exceptions import RequestException
         
         # Get the main API URL from environment variables
         # Try to use the environment variable first, fall back to the service name in Docker network
@@ -600,11 +599,11 @@ def get_session_model(session_id: str) -> Optional[str]:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                with httpx.Client(timeout=30.0) as client:
-                    response = client.get(
-                        f"{api_gateway_url}/sessions/{session_id}",
-                        headers={"Content-Type": "application/json"}
-                    )
+                response = requests.get(
+                    f"{api_gateway_url}/sessions/{session_id}",
+                    timeout=30,  # Increased timeout to 30 seconds
+                    headers={"Content-Type": "application/json"}
+                )
                 
                 if response.status_code == 200:
                     session_data = response.json()
@@ -649,14 +648,14 @@ def get_session_model(session_id: str) -> Optional[str]:
                 else:
                     break  # Don't retry for 4xx errors
                     
-            except (httpx.RequestError, httpx.HTTPStatusError) as re:
+            except RequestException as re:
                 logger.warning(f"Request failed (attempt {attempt + 1}/{max_retries}): {str(re)}")
                 if attempt == max_retries - 1:
                     raise  # Re-raise on last attempt
                 import time
                 time.sleep(1 * (attempt + 1))  # Exponential backoff
         
-    except (httpx.RequestError, httpx.HTTPStatusError) as re:
+    except RequestException as re:
         logger.warning(f"Failed to get RAG settings from API for session {session_id}: {str(re)}")
     except Exception as e:
         logger.error(f"Error in get_session_model for {session_id}: {e}", exc_info=True)
@@ -929,16 +928,16 @@ Sadece JSON çıktısı ver."""
         try:
             # Call model inference service
             logger.info(f"Calling model inference service with model: {model_to_use}")
-            with httpx.Client(timeout=120.0) as client:
-                response = client.post(
-                    f"{MODEL_INFERENCER_URL}/models/generate",
-                    json={
-                        "prompt": prompt,
-                        "model": model_to_use,
-                        "max_tokens": 512,
-                        "temperature": 0.3
-                    }
-                )
+            response = requests.post(
+                f"{MODEL_INFERENCER_URL}/models/generate",
+                json={
+                    "prompt": prompt,
+                    "model": model_to_use,
+                    "max_tokens": 512,
+                    "temperature": 0.3
+                },
+                timeout=30  # Reduced timeout to fail faster
+            )
             
             if response.status_code != 200:
                 error_msg = f"LLM service error: {response.status_code} - {response.text}"
@@ -1279,20 +1278,6 @@ async def update_topic(topic_id: int, request: TopicUpdateRequest):
             params = []
             
             if request.topic_title is not None:
-                # Validate title quality
-                if not is_valid_topic_title(request.topic_title):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Invalid topic title: '{request.topic_title}'. Title must be meaningful and contain at least 3 characters with mostly letters."
-                    )
-                
-                # Check for duplicates (excluding current topic)
-                if check_duplicate_topic(request.topic_title, session_id, db, exclude_topic_id=topic_id):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Duplicate topic title: '{request.topic_title}'. A topic with this title already exists in this session."
-                    )
-                
                 updates.append("topic_title = ?")
                 params.append(request.topic_title)
             
@@ -1476,104 +1461,6 @@ async def delete_topic(topic_id: int):
         raise HTTPException(status_code=500, detail=f"Failed to delete topic: {str(e)}")
 
 
-@router.post("/delete-batch")
-async def delete_topics_batch(topic_ids: List[int]):
-    """
-    Delete multiple topics in batch
-    Returns count of successfully deleted topics
-    """
-    db = get_db()
-    
-    if not topic_ids:
-        raise HTTPException(status_code=400, detail="No topic IDs provided")
-    
-    deleted_count = 0
-    failed_topics = []
-    
-    for topic_id in topic_ids:
-        try:
-            # Get session_id from topic first to check APRAG status
-            with db.get_connection() as conn:
-                cursor = conn.execute("SELECT session_id, topic_title FROM course_topics WHERE topic_id = ?", (topic_id,))
-                topic = cursor.fetchone()
-                if not topic:
-                    failed_topics.append({"topic_id": topic_id, "error": "Topic not found"})
-                    continue
-                
-                topic_dict = dict(topic)
-                session_id = topic_dict["session_id"]
-                
-                # Check if APRAG is enabled
-                if not FeatureFlags.is_aprag_enabled(session_id):
-                    failed_topics.append({"topic_id": topic_id, "error": "APRAG module is disabled"})
-                    continue
-            
-            # Use the same deletion logic as single delete
-            import sqlite3
-            raw_conn = sqlite3.connect(db.db_path, timeout=30.0)
-            raw_conn.row_factory = sqlite3.Row
-            
-            try:
-                raw_conn.execute("PRAGMA foreign_keys = OFF")
-                cursor = raw_conn.cursor()
-                
-                # Delete related records
-                try:
-                    cursor.execute("DELETE FROM question_topic_mapping WHERE topic_id = ?", (topic_id,))
-                except Exception:
-                    pass
-                
-                try:
-                    raw_conn.execute("PRAGMA foreign_keys = OFF")
-                    cursor.execute("DELETE FROM topic_progress WHERE topic_id = ?", (topic_id,))
-                except Exception:
-                    pass
-                
-                try:
-                    cursor.execute("DELETE FROM topic_knowledge_base WHERE topic_id = ?", (topic_id,))
-                except Exception:
-                    pass
-                
-                try:
-                    cursor.execute("DELETE FROM topic_qa_pairs WHERE topic_id = ?", (topic_id,))
-                except Exception:
-                    pass
-                
-                try:
-                    cursor.execute("""
-                        UPDATE course_topics 
-                        SET parent_topic_id = NULL 
-                        WHERE parent_topic_id = ?
-                    """, (topic_id,))
-                except Exception:
-                    pass
-                
-                # Delete the topic itself
-                cursor.execute("DELETE FROM course_topics WHERE topic_id = ?", (topic_id,))
-                
-                if cursor.rowcount > 0:
-                    raw_conn.commit()
-                    deleted_count += 1
-                    logger.info(f"Topic {topic_id} deleted successfully in batch")
-                else:
-                    failed_topics.append({"topic_id": topic_id, "error": "Topic not found"})
-                
-            finally:
-                raw_conn.close()
-                
-        except Exception as e:
-            logger.error(f"Error deleting topic {topic_id} in batch: {e}")
-            failed_topics.append({"topic_id": topic_id, "error": str(e)})
-    
-    return {
-        "success": True,
-        "deleted_count": deleted_count,
-        "total_requested": len(topic_ids),
-        "failed_topics": failed_topics,
-        "message": f"Successfully deleted {deleted_count} out of {len(topic_ids)} topics"
-    }
-
-
 @router.post("/classify-question")
 async def classify_question(request: QuestionClassificationRequest):
     """
@@ -1649,92 +1536,66 @@ async def classify_question(request: QuestionClassificationRequest):
             if request.interaction_id:
                 try:
                     with db.get_connection() as conn:
-                        # First, verify that interaction_id exists in student_interactions table
-                        # This prevents FOREIGN KEY constraint errors
-                        cursor = conn.execute(
-                            "SELECT interaction_id, user_id FROM student_interactions WHERE interaction_id = ?",
-                            (request.interaction_id,)
-                        )
-                        interaction_result = cursor.fetchone()
-                        
-                        if not interaction_result:
-                            logger.warning(f"Interaction ID {request.interaction_id} not found in student_interactions table. Skipping question_topic_mapping insert.")
-                            # Don't fail the entire request, just skip the mapping
-                        else:
-                            # Get user_id from interaction if not provided
-                            if not request.user_id:
-                                user_id = interaction_result[1] if interaction_result[1] else "unknown_user"
-                                if not interaction_result[1]:
-                                    logger.warning(f"No user_id found for interaction_id {request.interaction_id}, using 'unknown_user'")
-                            else:
-                                user_id = request.user_id
-                            
-                            # Verify topic_id exists in course_topics table
-                            topic_cursor = conn.execute(
-                                "SELECT topic_id FROM course_topics WHERE topic_id = ? AND session_id = ? AND is_active = TRUE",
-                                (classification['topic_id'], request.session_id)
+                        # Get user_id from interaction if not provided
+                        if not request.user_id:
+                            cursor = conn.execute(
+                                "SELECT user_id FROM student_interactions WHERE interaction_id = ?",
+                                (request.interaction_id,)
                             )
-                            topic_result = topic_cursor.fetchone()
-                            
-                            if not topic_result:
-                                logger.warning(f"Topic ID {classification['topic_id']} not found in course_topics table for session {request.session_id}. Skipping question_topic_mapping insert.")
-                                # Don't fail the entire request, just skip the mapping
+                            result = cursor.fetchone()
+                            if result:
+                                user_id = result[0]
                             else:
-                                # Log values before insertion for debugging
-                                logger.info(f"Attempting to insert into question_topic_mapping with values:")
-                                logger.info(f"- interaction_id: {request.interaction_id} (type: {type(request.interaction_id)})")
-                                logger.info(f"- topic_id: {classification['topic_id']} (type: {type(classification['topic_id'])})")
-                                logger.info(f"- confidence_score: {classification['confidence_score']} (type: {type(classification['confidence_score'])})")
-                                
-                                # Ensure all required fields are present and valid
-                                if classification['topic_id'] is None:
-                                    raise ValueError("topic_id cannot be None")
-                                
-                                if not isinstance(classification['topic_id'], int):
-                                    try:
-                                        classification['topic_id'] = int(classification['topic_id'])
-                                    except (ValueError, TypeError) as e:
-                                        raise ValueError(f"Invalid topic_id format: {classification['topic_id']}")
-                                
-                                # Insert mapping with foreign key check disabled temporarily if needed
-                                try:
-                                    cursor = conn.execute("""
-                                        INSERT INTO question_topic_mapping (
-                                            interaction_id, 
-                                            topic_id, 
-                                            confidence_score, 
-                                            mapping_method,
-                                            question_complexity, 
-                                            question_type
-                                        ) VALUES (?, ?, ?, ?, ?, ?)
-                                    """, (
-                                        request.interaction_id,
-                                        classification["topic_id"],
-                                        float(classification["confidence_score"]),
-                                        "llm_classification",
-                                        classification["question_complexity"],
-                                        classification["question_type"]
-                                    ))
-                                    
-                                    mapping_id = cursor.lastrowid
-                                    conn.commit()
-                                    
-                                    logger.info(f"Successfully saved question-topic mapping with ID {mapping_id}")
-                                except sqlite3.IntegrityError as fk_error:
-                                    # Foreign key constraint failed - log and skip, don't fail entire request
-                                    error_msg = f"Foreign key constraint failed for question_topic_mapping: {str(fk_error)}"
-                                    logger.warning(f"⚠️ {error_msg}")
-                                    logger.warning(f"⚠️ interaction_id={request.interaction_id}, topic_id={classification['topic_id']}")
-                                    # Don't raise - just skip the mapping
+                                user_id = "unknown_user"
+                                logger.warning(f"No user_id found for interaction_id {request.interaction_id}, using 'unknown_user'")
+                        else:
+                            user_id = request.user_id
+                        
+                        # Log values before insertion for debugging
+                        logger.info(f"Attempting to insert into question_topic_mapping with values:")
+                        logger.info(f"- interaction_id: {request.interaction_id} (type: {type(request.interaction_id)})")
+                        logger.info(f"- topic_id: {classification['topic_id']} (type: {type(classification['topic_id'])})")
+                        logger.info(f"- confidence_score: {classification['confidence_score']} (type: {type(classification['confidence_score'])})")
+                        
+                        # Ensure all required fields are present and valid
+                        if classification['topic_id'] is None:
+                            raise ValueError("topic_id cannot be None")
+                        
+                        if not isinstance(classification['topic_id'], int):
+                            try:
+                                classification['topic_id'] = int(classification['topic_id'])
+                            except (ValueError, TypeError) as e:
+                                raise ValueError(f"Invalid topic_id format: {classification['topic_id']}")
+                        
+                        # Insert mapping
+                        cursor = conn.execute("""
+                            INSERT INTO question_topic_mapping (
+                                interaction_id, 
+                                topic_id, 
+                                confidence_score, 
+                                mapping_method,
+                                question_complexity, 
+                                question_type
+                            ) VALUES (?, ?, ?, ?, ?, ?)
+                        """, (
+                            request.interaction_id,
+                            classification["topic_id"],
+                            float(classification["confidence_score"]),
+                            "llm_classification",
+                            classification["question_complexity"],
+                            classification["question_type"]
+                        ))
+                        
+                        mapping_id = cursor.lastrowid
+                        conn.commit()
+                        
+                        logger.info(f"Successfully saved question-topic mapping with ID {mapping_id}")
                     
-                except HTTPException:
-                    raise
                 except Exception as e:
-                    # Log error but don't fail the entire request
                     error_msg = f"Error saving question-topic mapping: {str(e)}"
-                    logger.warning(f"⚠️ {error_msg}")
-                    logger.warning(f"⚠️ Traceback: {traceback.format_exc()}")
-                    # Don't raise HTTPException - classification was successful, mapping is optional
+                    logger.error(error_msg, exc_info=True)
+                    # Don't call conn.rollback() here - connection is already closed by context manager
+                    raise HTTPException(status_code=500, detail=error_msg)
             
             # Update topic progress if interaction_id is provided
             if request.interaction_id:
@@ -1838,13 +1699,13 @@ async def classify_question(request: QuestionClassificationRequest):
         except HTTPException:
             raise
         except Exception as e:
+            error_msg = f"Error in question classification: {str(e)}"
+            logger.error(error_msg)
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Error args: {e.args}")
             import traceback
-            error_detail = f"Error in question classification: {type(e).__name__}: {str(e)}"
-            logger.error(f"❌ {error_detail}")
-            logger.error(f"❌ Error args: {e.args}")
-            logger.error(f"❌ Full traceback:")
-            logger.error(traceback.format_exc())
-            raise HTTPException(status_code=500, detail=error_detail)
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise HTTPException(status_code=500, detail=error_msg)
         
         # Check if mastery is achieved and generate recommendation (only if APRAG is enabled)
         recommendation = None
@@ -1874,12 +1735,12 @@ async def classify_question(request: QuestionClassificationRequest):
         raise
     except Exception as e:
         import traceback
-        error_detail = f"Unexpected error in classify_question endpoint: {type(e).__name__}: {str(e)}"
-        logger.error(f"❌ {error_detail}")
-        logger.error(f"❌ Error args: {e.args}")
-        logger.error(f"❌ Full traceback:")
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=error_detail)
+        error_traceback = traceback.format_exc()
+        logger.error(f"Error classifying question: {e}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Error args: {e.args}")
+        logger.error(f"Full traceback:\n{error_traceback}")
+        raise HTTPException(status_code=500, detail=f"Question classification failed: {str(e)}")
 
 
 async def generate_topic_recommendation(
@@ -1992,17 +1853,11 @@ async def generate_topic_recommendation(
 
 import threading
 import uuid
-import asyncio
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import time
-from datetime import datetime
 
-# Global dict to track extraction jobs (similar to BATCH_KB_JOBS pattern)
+# Global dict to track extraction jobs
 extraction_jobs = {}
-# Lock for thread-safe job status updates
-job_status_lock = threading.Lock()
 
-async def run_extraction_in_background_async(job_id: str, session_id: str, method: str, system_prompt: Optional[str] = None):
+def run_extraction_in_background(job_id: str, session_id: str, method: str, system_prompt: Optional[str] = None):
     """
     Run extraction in background thread
     Updates job status in global dict
@@ -2136,38 +1991,25 @@ async def run_extraction_in_background_async(job_id: str, session_id: str, metho
             
             logger.info(f"Split into {len(batches)} batches")
             
-            # Extract topics from batches with PARALLEL PROCESSING for speed
-            # Use ThreadPoolExecutor to process multiple batches concurrently
+            # Extract topics from each batch with INCREMENTAL SAVES
             all_topics = []
-            completed_batches = 0
-            total_batches = len(batches)
-            
-            # Determine optimal worker count
-            # Docker container has 2 CPU cores and 3 uvicorn workers
-            # Each worker should use 2-3 threads to avoid context switching overhead
-            # Also consider API rate limits - max 4 parallel requests is safe
-            # Optimal: 3 threads per worker = 3 workers * 3 threads = 9 total parallel batches
-            # But for large jobs, we can use 4 threads per worker = 12 total
-            max_workers = min(4, total_batches)  # Max 4 parallel batches per worker (safe for 2 CPUs)
-            logger.info(f"🚀 [PARALLEL PROCESSING] Processing {total_batches} batches with {max_workers} parallel workers per uvicorn process")
-            
-            def process_single_batch(batch_index: int, batch: List[Dict]) -> tuple:
-                """Process a single batch and return (batch_index, topics, saved_count)"""
-                try:
-                    logger.info(f"🔄 [BATCH {batch_index+1}] Processing batch {batch_index+1}/{total_batches} ({len(batch)} chunks)")
-                    
-                    # Extract topics from batch
-                    topics_data = extract_topics_with_llm(batch, {"include_subtopics": True}, session_id, system_prompt)
-                    batch_topics = topics_data.get("topics", [])
-                    
-                    if not batch_topics:
-                        return (batch_index, [], 0)
-                    
-                    # Normalize topics
+            for i, batch in enumerate(batches):
+                extraction_jobs[job_id]["current_batch"] = i + 1
+                extraction_jobs[job_id]["message"] = f"Batch {i+1}/{len(batches)} işleniyor..."
+                
+                logger.info(f"🔄 Processing batch {i+1}/{len(batches)} ({len(batch)} chunks)")
+                topics_data = extract_topics_with_llm(batch, {"include_subtopics": True}, session_id, system_prompt)
+                batch_topics = topics_data.get("topics", [])
+                all_topics.extend(batch_topics)
+                
+                # INCREMENTAL SAVE - Save topics after each batch
+                if batch_topics:
+                    # Normalize topics first (handle "name" -> "topic_title" etc.)
                     normalized_batch_topics = []
-                    chunk_id_map = {chunk.get("chunk_id"): chunk for chunk in chunks if chunk.get("chunk_id")}
+                    current_topic_count = len(all_topics) - len(batch_topics)
                     
                     for j, topic in enumerate(batch_topics):
+                        # Use merge function's logic to normalize the topic
                         title = None
                         possible_title_keys = ["topic_title", "title", "name", "topic_name", "başlık", "konu"]
                         
@@ -2176,24 +2018,33 @@ async def run_extraction_in_background_async(job_id: str, session_id: str, metho
                                 title = str(topic[key]).strip()
                                 break
                         
-                        if title:
+                        if title:  # Only save if we found a valid title
+                            # Map LLM's related_chunks to actual chunk IDs
                             related_chunk_ids = []
                             llm_related = topic.get("related_chunks", topic.get("ilgili_chunklar", []))
                             
+                            # Create a map of chunk_id -> chunk for quick lookup
+                            chunk_id_map = {chunk.get("chunk_id"): chunk for chunk in chunks if chunk.get("chunk_id")}
+                            
+                            # Process LLM's related_chunks
                             for ref in llm_related:
                                 if isinstance(ref, int):
+                                    # First try: ref is a chunk ID (most likely if LLM followed instructions)
                                     if ref in chunk_id_map:
                                         if ref not in related_chunk_ids:
                                             related_chunk_ids.append(ref)
+                                    # Second try: ref is a 1-based index
                                     elif 1 <= ref <= len(chunks):
                                         chunk_id = chunks[ref - 1].get("chunk_id")
                                         if chunk_id and chunk_id not in related_chunk_ids:
                                             related_chunk_ids.append(chunk_id)
+                                    # Third try: ref is a 0-based index
                                     elif 0 <= ref < len(chunks):
                                         chunk_id = chunks[ref].get("chunk_id")
                                         if chunk_id and chunk_id not in related_chunk_ids:
                                             related_chunk_ids.append(chunk_id)
                                 else:
+                                    # Already an ID (string or other type), try to convert and use
                                     try:
                                         ref_id = int(ref) if isinstance(ref, str) and ref.isdigit() else ref
                                         if ref_id in chunk_id_map and ref_id not in related_chunk_ids:
@@ -2201,93 +2052,40 @@ async def run_extraction_in_background_async(job_id: str, session_id: str, metho
                                     except (ValueError, TypeError):
                                         pass
                             
+                            # If no related chunks found, try to match by keywords
                             if not related_chunk_ids:
                                 keywords = topic.get("keywords", topic.get("anahtar_kelimeler", []))
                                 if keywords:
                                     for chunk in chunks:
                                         chunk_text = (chunk.get("chunk_text") or chunk.get("content") or chunk.get("text", "")).lower()
+                                        # Check if any keyword appears in chunk
                                         if any(kw.lower() in chunk_text for kw in keywords):
                                             chunk_id = chunk.get("chunk_id")
                                             if chunk_id and chunk_id not in related_chunk_ids:
                                                 related_chunk_ids.append(chunk_id)
-                                                if len(related_chunk_ids) >= 5:
+                                                if len(related_chunk_ids) >= 5:  # Limit to 5 chunks
                                                     break
+                            
+                            logger.info(f"📝 [TOPIC EXTRACTION] Topic '{title}': LLM returned {llm_related}, mapped to chunk IDs: {related_chunk_ids}")
                             
                             normalized_topic = {
                                 "topic_title": title,
-                                "order": batch_index * 100 + j + 1,  # Temporary order, will be recalculated
+                                "order": current_topic_count + j + 1,
                                 "difficulty": topic.get("difficulty", topic.get("zorluk", topic.get("estimated_difficulty", "orta"))),
                                 "keywords": topic.get("keywords", topic.get("anahtar_kelimeler", [])),
                                 "prerequisites": topic.get("prerequisites", topic.get("on_koşullar", [])),
                                 "subtopics": topic.get("subtopics", topic.get("alt_konular", [])),
-                                "related_chunks": related_chunk_ids
+                                "related_chunks": related_chunk_ids  # Use mapped chunk IDs
                             }
                             normalized_batch_topics.append(normalized_topic)
                     
-                    # Save to database (thread-safe)
-                    saved_count = 0
+                    # Save normalized batch topics to database immediately
                     if normalized_batch_topics:
-                        saved_count = save_topics_to_db(normalized_batch_topics, session_id, db)
-                        logger.info(f"💾 [BATCH {batch_index+1}] Saved {saved_count} topics to database")
-                    
-                    return (batch_index, batch_topics, saved_count)
-                    
-                except Exception as e:
-                    logger.error(f"❌ [BATCH {batch_index+1}] Error processing batch: {e}")
-                    return (batch_index, [], 0)
-            
-            # Process batches in parallel
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Submit all batches
-                future_to_batch = {
-                    executor.submit(process_single_batch, i, batch): i 
-                    for i, batch in enumerate(batches)
-                }
-                
-                # Collect results as they complete
-                batch_results = {}
-                for future in as_completed(future_to_batch):
-                    batch_index, batch_topics, saved_count = future.result()
-                    batch_results[batch_index] = (batch_topics, saved_count)
-                    all_topics.extend(batch_topics)
-                    
-                    # Update progress (thread-safe)
-                    with job_status_lock:
-                        completed_batches += 1
-                        extraction_jobs[job_id]["current_batch"] = completed_batches
-                        extraction_jobs[job_id]["message"] = f"Batch {completed_batches}/{total_batches} tamamlandı ({saved_count} konu kaydedildi)"
-                    
-                    logger.info(f"✅ [PROGRESS] {completed_batches}/{total_batches} batches completed")
-            
-            # Reorder topics by batch order and fix topic order numbers
-            all_topics_ordered = []
-            topic_order_counter = 1
-            for i in range(total_batches):
-                if i in batch_results:
-                    batch_topics, _ = batch_results[i]
-                    all_topics_ordered.extend(batch_topics)
-            
-            all_topics = all_topics_ordered
-            
-            # Fix topic order numbers in database (they were saved with temporary order)
-            if all_topics:
-                with db.get_connection() as conn:
-                    # Get all topics for this session and reorder them
-                    topics_in_db = conn.execute("""
-                        SELECT topic_id, topic_title FROM course_topics 
-                        WHERE session_id = ? AND is_active = TRUE
-                        ORDER BY topic_order
-                    """, (session_id,)).fetchall()
-                    
-                    # Update order numbers sequentially
-                    for idx, topic_row in enumerate(topics_in_db, 1):
-                        conn.execute("""
-                            UPDATE course_topics 
-                            SET topic_order = ? 
-                            WHERE topic_id = ?
-                        """, (idx, topic_row[0]))
-                    conn.commit()
-                    logger.info(f"✅ [REORDER] Fixed topic order numbers for {len(topics_in_db)} topics")
+                        saved_batch_count = save_topics_to_db(normalized_batch_topics, session_id, db)
+                        logger.info(f"💾 [INCREMENTAL SAVE] Batch {i+1}: Saved {saved_batch_count} topics to database")
+                        extraction_jobs[job_id]["message"] = f"Batch {i+1}/{len(batches)} tamamlandı, {saved_batch_count} konu kaydedildi"
+                    else:
+                        logger.warning(f"⚠️ [INCREMENTAL SAVE] Batch {i+1}: No valid topics found to save")
             
             extraction_jobs[job_id]["message"] = "Tüm batch'ler tamamlandı! Son kontrolü yapılıyor..."
             
@@ -2299,7 +2097,6 @@ async def run_extraction_in_background_async(job_id: str, session_id: str, metho
             logger.info(f"✅ [FINAL] Total {saved_count} topics saved incrementally across {len(batches)} batches")
             
             extraction_jobs[job_id]["status"] = "completed"
-            extraction_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
             extraction_jobs[job_id]["message"] = "Tamamlandı!"
             extraction_jobs[job_id]["result"] = {
                 "batches_processed": len(batches),
@@ -2307,20 +2104,11 @@ async def run_extraction_in_background_async(job_id: str, session_id: str, metho
                 "saved_topics_count": saved_count,
                 "chunks_analyzed": len(chunks)
             }
-            logger.info(f"✅ [TOPIC EXTRACTION] Job {job_id} completed successfully")
             
     except Exception as e:
-        logger.error(f"❌ [TOPIC EXTRACTION] Background extraction error for job {job_id}: {e}")
-        import traceback
-        logger.error(f"❌ [TOPIC EXTRACTION] Full traceback: {traceback.format_exc()}")
-        
-        # Ensure job exists before updating
-        if job_id in extraction_jobs:
-            extraction_jobs[job_id]["status"] = "failed"
-            extraction_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
-            extraction_jobs[job_id]["error"] = str(e)
-        else:
-            logger.error(f"❌ [TOPIC EXTRACTION] Job {job_id} not found in extraction_jobs when trying to mark as failed!")
+        logger.error(f"Background extraction error: {e}")
+        extraction_jobs[job_id]["status"] = "failed"
+        extraction_jobs[job_id]["error"] = str(e)
 
 
 @router.post("/re-extract/{session_id}")
@@ -2352,16 +2140,14 @@ async def re_extract_topics_smart(
             except Exception as e:
                 logger.warning(f"Could not parse request body: {e}")
         
-        # Create job (similar to KB batch job structure)
+        # Create job
         job_id = str(uuid.uuid4())
         extraction_jobs[job_id] = {
             "job_id": job_id,
             "session_id": session_id,
             "method": method,
             "system_prompt": system_prompt,  # Store system prompt in job
-            "status": "starting",  # starting | processing | completed | failed
-            "started_at": datetime.utcnow().isoformat(),
-            "completed_at": None,
+            "status": "starting",
             "message": "İşlem başlatılıyor...",
             "current_batch": 0,
             "total_batches": 0,
@@ -2369,11 +2155,13 @@ async def re_extract_topics_smart(
             "error": None
         }
         
-        # Start background async task (similar to KB batch pattern)
-        logger.info(f"[TOPIC EXTRACTION] Starting background job {job_id} for session {session_id}")
-        task = asyncio.create_task(
-            run_extraction_in_background_async(job_id, session_id, method, system_prompt)
+        # Start background thread
+        thread = threading.Thread(
+            target=run_extraction_in_background,
+            args=(job_id, session_id, method, system_prompt),
+            daemon=True
         )
+        thread.start()
         
         logger.info(f"Started background extraction job: {job_id} for session {session_id}")
         
@@ -2396,42 +2184,21 @@ async def re_extract_topics_smart(
 async def get_extraction_status(job_id: str):
     """
     Get status of background extraction job
-    Similar to KB batch status endpoint
     """
     if job_id not in extraction_jobs:
-        # Job not found - might have been completed, failed, or service restarted
-        available_jobs = list(extraction_jobs.keys())
-        logger.warning(f"Job {job_id} not found in extraction_jobs. Available jobs: {available_jobs[:5]}{'...' if len(available_jobs) > 5 else ''}")
-        
-        # Return a more informative error (similar to KB batch)
-        raise HTTPException(
-            status_code=404, 
-            detail=f"Job {job_id} not found. It may have completed, failed, or the service was restarted. Available jobs: {len(available_jobs)}"
-        )
+        raise HTTPException(status_code=404, detail="Job not found")
     
     job = extraction_jobs[job_id]
-    
-    # Build response similar to KB batch status
-    response = {
+    return {
         "job_id": job_id,
-        "session_id": job.get("session_id"),
-        "status": job.get("status", "unknown"),  # starting, processing, completed, failed
-        "message": job.get("message", ""),
-        "current_batch": job.get("current_batch", 0),
-        "total_batches": job.get("total_batches", 0),
+        "session_id": job["session_id"],
+        "status": job["status"],  # starting, processing, completed, failed
+        "message": job["message"],
+        "current_batch": job["current_batch"],
+        "total_batches": job["total_batches"],
+        "result": job["result"],
+        "error": job["error"]
     }
-    
-    # Add optional fields if they exist
-    if "started_at" in job:
-        response["started_at"] = job["started_at"]
-    if "completed_at" in job:
-        response["completed_at"] = job["completed_at"]
-    if "result" in job:
-        response["result"] = job["result"]
-    if "error" in job:
-        response["error"] = job["error"]
-    
-    return response
 
 
 # Keep old sync implementation for backward compatibility
@@ -2671,81 +2438,9 @@ def merge_similar_topics(topics: List[Dict]) -> List[Dict]:
     return merged
 
 
-def is_valid_topic_title(title: str) -> bool:
-    """
-    Validate topic title - filter out meaningless titles
-    Returns False for titles that are:
-    - Too short (< 3 characters)
-    - Only numbers
-    - Only special characters
-    - Mostly numbers/special characters with minimal text
-    - Common meaningless patterns
-    """
-    if not title or len(title.strip()) < 3:
-        return False
-    
-    title_clean = title.strip()
-    
-    # Check if it's only numbers
-    if title_clean.isdigit():
-        return False
-    
-    # Check if it's only special characters or whitespace
-    if not any(c.isalnum() for c in title_clean):
-        return False
-    
-    # Count meaningful characters (letters, Turkish characters)
-    turkish_chars = "çğıöşüÇĞIİÖŞÜ"
-    meaningful_chars = sum(1 for c in title_clean if c.isalpha() or c in turkish_chars)
-    total_chars = len([c for c in title_clean if not c.isspace()])
-    
-    # If less than 50% of non-space characters are meaningful, reject
-    if total_chars > 0 and (meaningful_chars / total_chars) < 0.5:
-        return False
-    
-    # Check for common meaningless patterns
-    meaningless_patterns = [
-        "topic", "konu", "başlık", "title", "name",
-        "item", "element", "entry", "data", "content"
-    ]
-    title_lower = title_clean.lower()
-    if title_lower in meaningless_patterns:
-        return False
-    
-    # Check if it's mostly numbers with minimal text (e.g., "123abc", "456")
-    digits = sum(1 for c in title_clean if c.isdigit())
-    if digits > meaningful_chars and meaningful_chars < 3:
-        return False
-    
-    return True
-
-
-def check_duplicate_topic(title: str, session_id: str, db: DatabaseManager, exclude_topic_id: Optional[int] = None) -> bool:
-    """
-    Check if a topic with the same title already exists in the session
-    Returns True if duplicate exists, False otherwise
-    """
-    with db.get_connection() as conn:
-        title_lower = title.lower().strip()
-        if exclude_topic_id:
-            cursor = conn.execute("""
-                SELECT COUNT(*) as count FROM course_topics 
-                WHERE session_id = ? AND LOWER(TRIM(topic_title)) = ? AND topic_id != ?
-            """, (session_id, title_lower, exclude_topic_id))
-        else:
-            cursor = conn.execute("""
-                SELECT COUNT(*) as count FROM course_topics 
-                WHERE session_id = ? AND LOWER(TRIM(topic_title)) = ?
-            """, (session_id, title_lower))
-        
-        count = dict(cursor.fetchone())["count"]
-        return count > 0
-
-
 def save_topics_to_db(topics: List[Dict], session_id: str, db: DatabaseManager) -> int:
     """
     Save topics to database with proper Turkish difficulty level handling
-    Includes validation for title quality and duplicate checking
     Returns count of saved topics
     """
     
@@ -2784,16 +2479,6 @@ def save_topics_to_db(topics: List[Dict], session_id: str, db: DatabaseManager) 
             # Skip if no valid title found
             if not title:
                 logger.warning(f"💾 [TOPIC SAVE] Skipping topic with no valid title: {list(topic_data.keys())}")
-                continue
-            
-            # Validate title quality
-            if not is_valid_topic_title(title):
-                logger.warning(f"💾 [TOPIC SAVE] Skipping topic with invalid/meaningless title: '{title}'")
-                continue
-            
-            # Check for duplicates
-            if check_duplicate_topic(title, session_id, db):
-                logger.warning(f"💾 [TOPIC SAVE] Skipping duplicate topic: '{title}'")
                 continue
             
             # Normalize difficulty level
@@ -2842,16 +2527,6 @@ def save_topics_to_db(topics: List[Dict], session_id: str, db: DatabaseManager) 
                 # Skip if no valid subtopic title found
                 if not subtopic_title:
                     logger.warning(f"💾 [TOPIC SAVE] Skipping subtopic with no valid title: {list(subtopic_data.keys())}")
-                    continue
-                
-                # Validate subtopic title quality
-                if not is_valid_topic_title(subtopic_title):
-                    logger.warning(f"💾 [TOPIC SAVE] Skipping subtopic with invalid/meaningless title: '{subtopic_title}'")
-                    continue
-                
-                # Check for duplicate subtopic (within same parent)
-                if check_duplicate_topic(subtopic_title, session_id, db, exclude_topic_id=main_topic_id):
-                    logger.warning(f"💾 [TOPIC SAVE] Skipping duplicate subtopic: '{subtopic_title}'")
                     continue
                 
                 conn.execute("""
@@ -3070,16 +2745,16 @@ Sadece JSON çıktısı ver, başka açıklama yapma."""
         model_to_use = get_session_model(session_id) or "llama-3.1-8b-instant"
         
         # Call model inference service
-        with httpx.Client(timeout=120.0) as client:
-            response = client.post(
-                f"{MODEL_INFERENCER_URL}/models/generate",
-                json={
-                    "prompt": prompt,
-                    "model": model_to_use,
-                    "max_tokens": 2048,
-                    "temperature": 0.7
-                }
-            )
+        response = requests.post(
+            f"{MODEL_INFERENCER_URL}/models/generate",
+            json={
+                "prompt": prompt,
+                "model": model_to_use,
+                "max_tokens": 2048,
+                "temperature": 0.7
+            },
+            timeout=120
+        )
         
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail=f"LLM service error: {response.text}")
@@ -3111,7 +2786,7 @@ Sadece JSON çıktısı ver, başka açıklama yapma."""
         logger.error(f"Failed to parse LLM JSON output: {e}")
         logger.error(f"LLM output was: {llm_output[:1000]}")
         raise HTTPException(status_code=500, detail="LLM returned invalid JSON for question generation")
-    except (httpx.RequestError, httpx.HTTPStatusError) as e:
+    except requests.exceptions.RequestException as e:
         logger.error(f"Request error in question generation: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to model service: {str(e)}")
     except Exception as e:
@@ -3379,629 +3054,4 @@ async def get_student_progress(
         import traceback
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Failed to get student progress: {str(e)}")
-
-
-@router.post("/reorder/{session_id}")
-async def reorder_topics(session_id: str, sorting_criteria: Optional[str] = "cognitive"):
-    """
-    Reorder topics using LLM based on:
-    - cognitive: Cognitive learning order (Bloom's taxonomy, prerequisites)
-    - proximity: Topic proximity and relatedness
-    - hybrid: Both cognitive and proximity
-    """
-    # Check if APRAG is enabled
-    if not FeatureFlags.is_aprag_enabled(session_id):
-        raise HTTPException(
-            status_code=403,
-            detail="APRAG module is disabled. Please enable it from admin settings."
-        )
-    
-    db = get_db()
-    
-    try:
-        # Get all topics for the session
-        with db.get_connection() as conn:
-            cursor = conn.execute("""
-                SELECT 
-                    topic_id, topic_title, topic_order, description, keywords,
-                    estimated_difficulty, prerequisites
-                FROM course_topics
-                WHERE session_id = ? AND is_active = TRUE
-                ORDER BY topic_order, topic_id
-            """, (session_id,))
-            
-            topics = []
-            for row in cursor.fetchall():
-                topic = dict(row)
-                topic["keywords"] = json.loads(topic["keywords"]) if topic["keywords"] else []
-                topic["prerequisites"] = json.loads(topic["prerequisites"]) if topic["prerequisites"] else []
-                topics.append(topic)
-        
-        if len(topics) < 2:
-            raise HTTPException(status_code=400, detail="At least 2 topics are required for reordering")
-        
-        # Get session model
-        model_to_use = get_session_model(session_id)
-        logger.info(f"🔄 [TOPIC REORDER] Using model: {model_to_use} for reordering {len(topics)} topics")
-        
-        # Prepare topic list for LLM
-        topics_text = "\n".join([
-            f"{i+1}. {t['topic_title']} (ID: {t['topic_id']}, Order: {t['topic_order']})"
-            f"{' - Keywords: ' + ', '.join(t['keywords']) if t['keywords'] else ''}"
-            f"{' - Difficulty: ' + t['estimated_difficulty'] if t.get('estimated_difficulty') else ''}"
-            f"{' - Prerequisites: ' + str(t['prerequisites']) if t['prerequisites'] else ''}"
-            for i, t in enumerate(topics)
-        ])
-        
-        # Create prompt based on sorting criteria
-        if sorting_criteria == "cognitive":
-            prompt = f"""Sen bir eğitim uzmanısın. Aşağıdaki konuları BİLİŞSEL ÖĞRENME SIRASINA göre sırala.
-
-BİLİŞSEL SIRALAMA KRİTERLERİ:
-1. Bloom Taksonomisi: Hatırlama → Anlama → Uygulama → Analiz → Değerlendirme → Yaratma
-2. Önkoşul ilişkileri: Temel kavramlar önce, ileri kavramlar sonra
-3. Zorluk seviyesi: Kolaydan zora doğru
-4. Mantıksal akış: Bir konu diğerine temel oluşturmalı
-
-KONULAR:
-{topics_text}
-
-SADECE JSON çıktısı ver:
-{{
-  "ordered_topics": [
-    {{"topic_id": 1, "new_order": 1, "reason": "Temel kavram, önkoşul"}},
-    {{"topic_id": 2, "new_order": 2, "reason": "Birinci konuya dayalı"}},
-    ...
-  ]
-}}
-
-TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
-        
-        elif sorting_criteria == "proximity":
-            prompt = f"""Sen bir eğitim uzmanısın. Aşağıdaki konuları BİRBİRİNE YAKINLIK ve İLİŞKİLİLİK sırasına göre sırala.
-
-YAKINLIK KRİTERLERİ:
-1. İçerik benzerliği: Aynı kavramları içeren konular yan yana
-2. Konsept ilişkisi: Birbirini tamamlayan konular birlikte
-3. Uygulama alanı: Aynı bağlamda kullanılan konular yakın
-4. Teknik yakınlık: Aynı teknoloji/araç kullanan konular birlikte
-
-KONULAR:
-{topics_text}
-
-SADECE JSON çıktısı ver:
-{{
-  "ordered_topics": [
-    {{"topic_id": 1, "new_order": 1, "reason": "Benzer içerik"}},
-    {{"topic_id": 2, "new_order": 2, "reason": "İlişkili kavram"}},
-    ...
-  ]
-}}
-
-TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
-        
-        else:  # hybrid
-            prompt = f"""Sen bir eğitim uzmanısın. Aşağıdaki konuları HEM BİLİŞSEL SIRA HEM YAKINLIK kriterlerine göre sırala.
-
-HİBRİT SIRALAMA:
-1. Bilişsel sıra: Bloom Taksonomisi ve önkoşul ilişkileri
-2. Yakınlık: İçerik benzerliği ve konsept ilişkisi
-3. Dengeli yaklaşım: Her iki kriteri de dikkate al
-
-KONULAR:
-{topics_text}
-
-SADECE JSON çıktısı ver:
-{{
-  "ordered_topics": [
-    {{"topic_id": 1, "new_order": 1, "reason": "Temel ve yakın konular"}},
-    {{"topic_id": 2, "new_order": 2, "reason": "Bilişsel sıra ve yakınlık"}},
-    ...
-  ]
-}}
-
-TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
-        
-        # Call LLM
-        try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(
-                    f"{MODEL_INFERENCER_URL}/models/generate",
-                    json={
-                        "prompt": prompt,
-                        "model": model_to_use,
-                        "max_tokens": max(8000, len(topics) * 50),  # Dynamic: at least 50 tokens per topic
-                        "temperature": 0.3
-                    }
-                )
-                
-                if response.status_code != 200:
-                    raise HTTPException(status_code=500, detail=f"LLM service error: {response.status_code}")
-                
-                result = response.json()
-                llm_output = result.get("response", "")
-                
-                # Log the raw LLM output for debugging
-                logger.debug(f"🔍 [TOPIC REORDER] Raw LLM output (first 500 chars): {llm_output[:500]}")
-                
-                # Parse JSON with repair attempts
-                import re
-                data = None
-                parse_error = None
-                
-                
-                # First attempt: Try to extract and parse JSON directly
-                try:
-                    json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
-                    if json_match:
-                        data = json.loads(json_match.group())
-                        logger.info("✅ [TOPIC REORDER] JSON parsed successfully on first attempt")
-                    else:
-                        raise ValueError("No JSON object found in LLM response")
-                except (json.JSONDecodeError, ValueError) as e:
-                    parse_error = e
-                    # Log detailed error information
-                    if isinstance(e, json.JSONDecodeError):
-                        error_info = []
-                        if hasattr(e, 'pos'):
-                            error_info.append(f"pos={e.pos}")
-                        if hasattr(e, 'lineno'):
-                            error_info.append(f"line={e.lineno}")
-                        if hasattr(e, 'colno'):
-                            error_info.append(f"col={e.colno}")
-                        
-                        if error_info:
-                            logger.error(f"⚠️ [TOPIC REORDER] Initial JSON parse failed at {', '.join(error_info)}: {e}")
-                            
-                            # Show the problematic line
-                            if hasattr(e, 'lineno') and e.lineno:
-                                lines = llm_output.split('\n')
-                                if e.lineno <= len(lines):
-                                    problem_line = lines[e.lineno - 1]
-                                    logger.error(f"⚠️ [TOPIC REORDER] Problematic line {e.lineno}: {problem_line[:300]}")
-                        else:
-                            logger.error(f"⚠️ [TOPIC REORDER] Initial JSON parse failed: {e}. Attempting repair...")
-                    else:
-                        logger.error(f"⚠️ [TOPIC REORDER] Initial JSON parse failed: {e}. Attempting repair...")
-                    
-                    # Second attempt: Extract JSON with better boundaries
-                    try:
-                        # Find first { and last } to extract complete JSON
-                        first_brace = llm_output.find('{')
-                        last_brace = llm_output.rfind('}')
-                        
-                        if first_brace >= 0 and last_brace > first_brace:
-                            json_str = llm_output[first_brace:last_brace + 1]
-                            
-                            # Apply JSON repairs - MULTI-PASS approach for better results
-                            repaired_json = json_str
-                            
-                            # PASS 1: Fix trailing commas before closing braces/brackets (do this first)
-                            repaired_json = re.sub(r',(\s*[}\]])', r'\1', repaired_json)
-                            
-                            # PASS 2: Fix missing commas between objects in arrays (MOST COMMON ISSUE)
-                            # This is the #1 cause of "Expecting ',' delimiter" errors
-                            repaired_json = re.sub(r'}\s*{', r'}, {', repaired_json)
-                            
-                            # PASS 3: Fix missing commas after closing quotes when followed by opening quote (key)
-                            # Pattern: "value" "key": (missing comma)
-                            repaired_json = re.sub(r'"\s+"([a-zA-Z_][^"]*":)', r'", "\1', repaired_json)
-                            
-                            # PASS 4: Fix missing commas after numbers when followed by quote (key)
-                            repaired_json = re.sub(r'(\d+)\s+"([a-zA-Z_][^"]*":)', r'\1, "\2', repaired_json)
-                            
-                            # PASS 5: Fix missing commas after booleans/null when followed by quote (key)
-                            repaired_json = re.sub(r'(true|false|null)\s+"([a-zA-Z_][^"]*":)', r'\1, "\2', repaired_json)
-                            
-                            # Fix missing commas after values (be careful not to break valid JSON)
-                            # Only add comma if followed by a key (string with colon) or another value in array context
-                            repaired_json = re.sub(r'([0-9])\s*"([^"]*":)', r'\1, "\2', repaired_json)  # Number followed by key
-                            repaired_json = re.sub(r'([0-9])\s*{', r'\1, {', repaired_json)  # Number followed by object
-                            repaired_json = re.sub(r'(")\s*"([^"]*":)', r'\1, "\2', repaired_json)  # String value followed by key
-                            repaired_json = re.sub(r'(true|false|null)\s*"([^"]*":)', r'\1, "\2', repaired_json)  # Boolean/null followed by key
-                            repaired_json = re.sub(r'(true|false|null)\s*{', r'\1, {', repaired_json)  # Boolean/null followed by object
-                            repaired_json = re.sub(r'}\s*"([^"]*":)', r'}, "\1', repaired_json)  # Object followed by key
-                            repaired_json = re.sub(r']\s*"([^"]*":)', r'], "\1', repaired_json)  # Array followed by key
-                            repaired_json = re.sub(r']\s*{', r'], {', repaired_json)  # Array followed by object
-                            
-                            # Fix incomplete strings (strings that don't close)
-                            repaired_json = re.sub(r':\s*"[^"]*$', ': ""', repaired_json, flags=re.MULTILINE)
-                            
-                            # Remove leading/trailing commas in arrays
-                            repaired_json = re.sub(r'\[\s*,', '[', repaired_json)
-                            repaired_json = re.sub(r',\s*\]', ']', repaired_json)
-                            
-                            # Try parsing repaired JSON
-                            data = json.loads(repaired_json)
-                            logger.info("✅ [TOPIC REORDER] JSON successfully repaired and parsed")
-                        else:
-                            raise ValueError("Could not find JSON boundaries in LLM response")
-                    except (json.JSONDecodeError, ValueError) as e2:
-                        logger.warning(f"⚠️ [TOPIC REORDER] Standard JSON repair failed: {e2}. Attempting ultra-aggressive repair...")
-                        
-                        # Third attempt: ULTRA-AGGRESSIVE JSON REPAIR
-                        try:
-                            logger.info(f"🔧 [TOPIC REORDER] ULTRA-AGGRESSIVE JSON repair starting...")
-                            
-                            # Extract everything between first { and last }
-                            repair_text = llm_output.strip()
-                            first_brace = repair_text.find('{')
-                            last_brace = repair_text.rfind('}')
-                            
-                            if first_brace >= 0 and last_brace > first_brace:
-                                repair_text = repair_text[first_brace:last_brace + 1]
-                                
-                                # AGGRESSIVE FIXES (similar to topic extraction)
-                                # 1. Fix incomplete strings
-                                repair_text = re.sub(r':\s*"[^"]*$', ': ""', repair_text, flags=re.MULTILINE)
-                                
-                                # 2. Fix missing commas (ULTRA-AGGRESSIVE - multiple passes)
-                                # PASS 1: Most common - } followed by { (objects in array)
-                                repair_text = re.sub(r'}\s*{', '},{', repair_text)
-                                
-                                # PASS 2: ] followed by { or "
-                                repair_text = re.sub(r']\s*{', '],{', repair_text)
-                                repair_text = re.sub(r']\s*"', '],"', repair_text)
-                                
-                                # PASS 3: } followed by " (object end, next is key)
-                                repair_text = re.sub(r'}\s*"', '},"', repair_text)
-                                
-                                # PASS 4: Number followed by " (key)
-                                repair_text = re.sub(r'([0-9])\s*"', r'\1,"', repair_text)
-                                
-                                # PASS 5: String value followed by " (key) - VERY COMMON
-                                repair_text = re.sub(r'(")\s*"([a-zA-Z_][^"]*":)', r'\1, "\2', repair_text)
-                                
-                                # PASS 6: Boolean/null followed by " (key)
-                                repair_text = re.sub(r'(true|false|null)\s*"([a-zA-Z_][^"]*":)', r'\1, "\2', repair_text)
-                                
-                                # PASS 7: Boolean/null followed by {
-                                repair_text = re.sub(r'(true|false|null)\s*{', r'\1,{', repair_text)
-                                
-                                # PASS 8: Any closing quote followed by opening quote (if it looks like key:value)
-                                # This catches cases like: "value" "key": value
-                                repair_text = re.sub(r'"\s+"([a-zA-Z_][^"]*":)', r'", "\1', repair_text)
-                                
-                                # 3. Fix trailing commas
-                                repair_text = re.sub(r',(\s*[}\]])', r'\1', repair_text)
-                                
-                                # 4. Fix arrays with missing commas
-                                repair_text = re.sub(r'"\s*"([^"]*")', r'", "\1', repair_text)
-                                
-                                # 5. Fix missing commas in ordered_topics array (most common issue)
-                                # Pattern: } followed by { (missing comma between objects in array)
-                                repair_text = re.sub(r'}\s*{\s*"topic_id"', r'}, {"topic_id"', repair_text)
-                                repair_text = re.sub(r'}\s*{\s*"new_order"', r'}, {"new_order"', repair_text)
-                                repair_text = re.sub(r'}\s*{\s*"reason"', r'}, {"reason"', repair_text)
-                                
-                                # 6. Fix missing commas after closing quotes (very common)
-                                # Pattern: "value" followed by "key" (missing comma)
-                                repair_text = re.sub(r'"\s*"([a-zA-Z_][^"]*":)', r'", "\1', repair_text)
-                                
-                                # 7. Fix missing commas after numbers in object context
-                                # Pattern: number followed by "key" (missing comma)
-                                repair_text = re.sub(r'(\d+)\s*"([a-zA-Z_][^"]*":)', r'\1, "\2', repair_text)
-                                
-                                # 8. Fix missing commas after closing braces in arrays
-                                # Pattern: }"key" (missing comma)
-                                repair_text = re.sub(r'}\s*"([a-zA-Z_][^"]*":)', r'}, "\1', repair_text)
-                                
-                                # 9. Fix truncated JSON (if LLM output was cut off)
-                                # Count opening and closing braces/brackets
-                                open_braces = repair_text.count('{')
-                                close_braces = repair_text.count('}')
-                                open_brackets = repair_text.count('[')
-                                close_brackets = repair_text.count(']')
-                                
-                                # If JSON is incomplete, try to close it properly
-                                if open_braces > close_braces or open_brackets > close_brackets:
-                                    logger.warning(f"⚠️ [TOPIC REORDER] JSON appears truncated. Braces: {open_braces}/{close_braces}, Brackets: {open_brackets}/{close_brackets}")
-                                    
-                                    # Find the last complete object in ordered_topics array
-                                    # Look for the last complete } pattern that's followed by comma or end
-                                    last_complete_obj = -1
-                                    for i in range(len(repair_text) - 1, -1, -1):
-                                        if repair_text[i] == '}':
-                                            # Check if this is a complete object (followed by comma, ], or whitespace+comma)
-                                            remaining = repair_text[i+1:].strip()
-                                            if remaining.startswith(',') or remaining.startswith(']') or remaining == '':
-                                                last_complete_obj = i
-                                                break
-                                    
-                                    if last_complete_obj > 0:
-                                        # Extract up to last complete object (including the comma if present)
-                                        repair_text = repair_text[:last_complete_obj + 1]
-                                        # Remove trailing comma if exists
-                                        repair_text = repair_text.rstrip().rstrip(',')
-                                    
-                                    # Add missing closing brackets/braces
-                                    missing_brackets = open_brackets - close_brackets
-                                    missing_braces = open_braces - close_braces
-                                    
-                                    if missing_brackets > 0:
-                                        repair_text += ']' * missing_brackets
-                                    if missing_braces > 0:
-                                        repair_text += '}' * missing_braces
-                                
-                                # 9b. Fix incomplete last object (if JSON was cut off mid-object)
-                                # Look for patterns like: {"topic_id": 192, "new... (incomplete)
-                                # Find the last complete object and remove anything after it
-                                lines = repair_text.split('\n')
-                                fixed_lines = []
-                                found_incomplete = False
-                                for i, line in enumerate(lines):
-                                    # Check if line looks like start of object but doesn't end properly
-                                    if '"topic_id"' in line and '"new_order"' not in line and i > len(lines) - 3:
-                                        # This might be an incomplete object - skip it and everything after
-                                        found_incomplete = True
-                                        logger.warning(f"⚠️ [TOPIC REORDER] Found incomplete object at line {i+1}, truncating JSON here")
-                                        break
-                                    
-                                    # Check if line has incomplete string (ends with quote but no closing)
-                                    if line.strip().startswith('{"topic_id"') and not line.strip().endswith('},') and not line.strip().endswith('}'):
-                                        # Check if next line exists and continues
-                                        if i + 1 < len(lines):
-                                            next_line = lines[i + 1].strip()
-                                            # If next line doesn't look like continuation, this is incomplete
-                                            if not next_line.startswith('"') and not next_line.startswith('{'):
-                                                found_incomplete = True
-                                                logger.warning(f"⚠️ [TOPIC REORDER] Found incomplete object at line {i+1}, truncating JSON here")
-                                                break
-                                    
-                                    fixed_lines.append(line)
-                                
-                                if found_incomplete:
-                                    # Remove last incomplete line
-                                    if fixed_lines:
-                                        last_line = fixed_lines[-1].strip()
-                                        # If last line doesn't end with }, remove it
-                                        if not last_line.endswith('},') and not last_line.endswith('}'):
-                                            fixed_lines.pop()
-                                            # Make sure previous line ends properly
-                                            if fixed_lines:
-                                                prev_line = fixed_lines[-1].rstrip()
-                                                if prev_line.endswith(','):
-                                                    fixed_lines[-1] = prev_line.rstrip(',')
-                                    
-                                    repair_text = '\n'.join(fixed_lines)
-                                    # Ensure proper closing
-                                    repair_text = repair_text.rstrip().rstrip(',')
-                                    if not repair_text.endswith(']'):
-                                        repair_text += ']'
-                                    if not repair_text.endswith('}'):
-                                        repair_text += '}'
-                                
-                                # Ensure proper JSON ending
-                                if not repair_text.rstrip().endswith(']}') and not repair_text.rstrip().endswith('}'):
-                                    # Try to close properly
-                                    if '"ordered_topics"' in repair_text and not repair_text.rstrip().endswith(']}'):
-                                        repair_text = repair_text.rstrip(', \n\r\t')
-                                        if not repair_text.endswith(']'):
-                                            repair_text += ']'
-                                        if not repair_text.endswith('}'):
-                                            repair_text += '}'
-                                
-                                # 10. Fix malformed arrays
-                                repair_text = re.sub(r'\[\s*,', '[', repair_text)
-                                repair_text = re.sub(r',\s*\]', ']', repair_text)
-                                
-                                # 11. Fix escaped quotes that might break parsing
-                                # Ensure proper escaping
-                                repair_text = re.sub(r'\\([^"\\/bfnrt])', r'\\\\\1', repair_text)
-                                
-                                # 12. Fix unclosed strings (add closing quote at end of line if missing)
-                                # This is a last resort - be careful
-                                lines = repair_text.split('\n')
-                                fixed_lines = []
-                                for line in lines:
-                                    # Count unescaped quotes
-                                    quote_count = len([m for m in re.finditer(r'(?<!\\)"', line)])
-                                    if quote_count % 2 == 1 and ':' in line and line.strip().endswith('"') == False:
-                                        # Odd number of quotes, might be unclosed
-                                        if not line.rstrip().endswith('\\"'):
-                                            line = line.rstrip() + '"'
-                                    fixed_lines.append(line)
-                                repair_text = '\n'.join(fixed_lines)
-                                
-                                # 13. Log error location if JSONDecodeError has position info
-                                if isinstance(e2, json.JSONDecodeError):
-                                    error_info = []
-                                    if hasattr(e2, 'pos'):
-                                        error_info.append(f"pos={e2.pos}")
-                                    if hasattr(e2, 'lineno'):
-                                        error_info.append(f"line={e2.lineno}")
-                                    if hasattr(e2, 'colno'):
-                                        error_info.append(f"col={e2.colno}")
-                                    
-                                    if error_info:
-                                        logger.warning(f"🔍 [TOPIC REORDER] Previous error location: {', '.join(error_info)}")
-                                        
-                                        # Try to find the problematic line
-                                        if hasattr(e2, 'lineno') and e2.lineno:
-                                            lines = repair_text.split('\n')
-                                            if e2.lineno <= len(lines):
-                                                problem_line = lines[e2.lineno - 1]
-                                                logger.warning(f"🔍 [TOPIC REORDER] Problematic line {e2.lineno}: {problem_line[:200]}")
-                                
-                                logger.info(f"🔧 [TOPIC REORDER] Ultra-repaired JSON length: {len(repair_text)} chars")
-                                
-                                # Final check: If JSON still fails, try to extract only complete objects
-                                try:
-                                    data = json.loads(repair_text)
-                                    logger.info("✅ [TOPIC REORDER] JSON successfully repaired with ultra-aggressive method!")
-                                except json.JSONDecodeError as final_error:
-                                    logger.warning(f"⚠️ [TOPIC REORDER] Final parse attempt failed: {final_error}. Trying to extract only complete objects...")
-                                    
-                                    # Last resort: Extract only complete objects from ordered_topics array
-                                    # Find all complete objects (those ending with },)
-                                    import re as regex_module
-                                    complete_objects = regex_module.findall(r'\{[^}]*"topic_id"[^}]*"new_order"[^}]*"reason"[^}]*\},?', repair_text)
-                                    
-                                    if complete_objects:
-                                        logger.info(f"🔧 [TOPIC REORDER] Found {len(complete_objects)} complete objects, reconstructing JSON...")
-                                        
-                                        # Reconstruct JSON with only complete objects
-                                        reconstructed_json = '{\n  "ordered_topics": [\n'
-                                        for i, obj in enumerate(complete_objects):
-                                            # Ensure object ends with }
-                                            obj = obj.rstrip(',').rstrip()
-                                            if not obj.endswith('}'):
-                                                obj += '}'
-                                            reconstructed_json += f'    {obj}'
-                                            if i < len(complete_objects) - 1:
-                                                reconstructed_json += ','
-                                            reconstructed_json += '\n'
-                                        reconstructed_json += '  ]\n}'
-                                        
-                                        logger.info(f"🔧 [TOPIC REORDER] Reconstructed JSON with {len(complete_objects)} objects")
-                                        
-                                        # Try parsing reconstructed JSON
-                                        data = json.loads(reconstructed_json)
-                                        logger.info("✅ [TOPIC REORDER] JSON successfully reconstructed from complete objects!")
-                                    else:
-                                        # If no complete objects found, raise the original error
-                                        raise final_error
-                            else:
-                                raise ValueError("Could not find JSON boundaries in LLM response")
-                        except (json.JSONDecodeError, ValueError) as e3:
-                            logger.error(f"❌ [TOPIC REORDER] Ultra-aggressive JSON repair also failed: {e3}")
-                            logger.error(f"❌ [TOPIC REORDER] Original error: {parse_error}")
-                            logger.error(f"❌ [TOPIC REORDER] Standard repair error: {e2}")
-                            
-                            # Log the problematic area if we have position info
-                            if isinstance(e3, json.JSONDecodeError):
-                                error_info = []
-                                if hasattr(e3, 'pos'):
-                                    error_info.append(f"pos={e3.pos}")
-                                if hasattr(e3, 'lineno'):
-                                    error_info.append(f"line={e3.lineno}")
-                                if hasattr(e3, 'colno'):
-                                    error_info.append(f"col={e3.colno}")
-                                
-                                logger.error(f"❌ [TOPIC REORDER] Final error location: {', '.join(error_info)}")
-                                
-                                # Try to find the problematic line in original output
-                                if hasattr(e3, 'lineno') and e3.lineno:
-                                    lines = llm_output.split('\n')
-                                    if e3.lineno <= len(lines):
-                                        problem_line = lines[e3.lineno - 1]
-                                        logger.error(f"❌ [TOPIC REORDER] Problematic line {e3.lineno} in LLM output:")
-                                        logger.error(f"❌ [TOPIC REORDER] {problem_line}")
-                                        
-                                        # Show surrounding lines for context
-                                        start_line = max(0, e3.lineno - 3)
-                                        end_line = min(len(lines), e3.lineno + 2)
-                                        logger.error(f"❌ [TOPIC REORDER] Context (lines {start_line+1}-{end_line}):")
-                                        for i in range(start_line, end_line):
-                                            marker = ">>> " if i == e3.lineno - 1 else "    "
-                                            logger.error(f"❌ [TOPIC REORDER] {marker}{i+1}: {lines[i][:200]}")
-                                
-                                # Also try position-based context
-                                if hasattr(e3, 'pos'):
-                                    error_pos = e3.pos
-                                    start_pos = max(0, error_pos - 500)
-                                    end_pos = min(len(llm_output), error_pos + 500)
-                                    logger.error(f"❌ [TOPIC REORDER] Error at position {error_pos} in LLM output:")
-                                    logger.error(f"❌ [TOPIC REORDER] Context: ...{llm_output[start_pos:end_pos]}...")
-                            
-                            logger.error(f"❌ [TOPIC REORDER] LLM output length: {len(llm_output)} chars")
-                            logger.error(f"❌ [TOPIC REORDER] LLM output (first 2000 chars): {llm_output[:2000]}")
-                            
-                            raise HTTPException(
-                                status_code=500, 
-                                detail=f"Failed to parse LLM response as JSON after all repair attempts. Original: {str(parse_error)}, Standard repair: {str(e2)}, Ultra-aggressive: {str(e3)}"
-                            )
-                
-                if data is None:
-                    raise HTTPException(status_code=500, detail="Could not parse LLM response as JSON")
-                
-                ordered_topics = data.get("ordered_topics", [])
-                
-                if len(ordered_topics) != len(topics):
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"LLM returned {len(ordered_topics)} topics, expected {len(topics)}"
-                    )
-                
-                # Update topic_order in database
-                with db.get_connection() as conn:
-                    for item in ordered_topics:
-                        topic_id = item.get("topic_id")
-                        new_order = item.get("new_order")
-                        
-                        if topic_id is None or new_order is None:
-                            continue
-                        
-                        conn.execute("""
-                            UPDATE course_topics
-                            SET topic_order = ?, updated_at = CURRENT_TIMESTAMP
-                            WHERE topic_id = ? AND session_id = ?
-                        """, (new_order, topic_id, session_id))
-                    
-                    conn.commit()
-                
-                logger.info(f"✅ [TOPIC REORDER] Successfully reordered {len(ordered_topics)} topics using {sorting_criteria} criteria")
-                
-                return {
-                    "success": True,
-                    "message": f"Topics reordered successfully using {sorting_criteria} criteria",
-                    "total_topics": len(ordered_topics),
-                    "criteria": sorting_criteria
-                }
-                
-        except json.JSONDecodeError as e:
-            # Log detailed error information
-            error_info = []
-            if hasattr(e, 'pos'):
-                error_info.append(f"pos={e.pos}")
-            if hasattr(e, 'lineno'):
-                error_info.append(f"line={e.lineno}")
-            if hasattr(e, 'colno'):
-                error_info.append(f"col={e.colno}")
-            
-            logger.error(f"❌ [TOPIC REORDER] JSON parse error at {', '.join(error_info) if error_info else 'unknown location'}: {e}")
-            
-            # Show the problematic line
-            if hasattr(e, 'lineno') and e.lineno:
-                try:
-                    lines = llm_output.split('\n')
-                    if e.lineno <= len(lines):
-                        problem_line = lines[e.lineno - 1]
-                        logger.error(f"❌ [TOPIC REORDER] Problematic line {e.lineno}: {problem_line}")
-                        
-                        # Show surrounding lines for context
-                        start_line = max(0, e.lineno - 3)
-                        end_line = min(len(lines), e.lineno + 2)
-                        logger.error(f"❌ [TOPIC REORDER] Context (lines {start_line+1}-{end_line}):")
-                        for i in range(start_line, end_line):
-                            marker = ">>> " if i == e.lineno - 1 else "    "
-                            logger.error(f"❌ [TOPIC REORDER] {marker}{i+1}: {lines[i][:300]}")
-                except Exception as log_err:
-                    logger.error(f"❌ [TOPIC REORDER] Could not extract problematic line: {log_err}")
-            
-            # Also show position-based context
-            if hasattr(e, 'pos'):
-                try:
-                    error_pos = e.pos
-                    start_pos = max(0, error_pos - 500)
-                    end_pos = min(len(llm_output), error_pos + 500)
-                    logger.error(f"❌ [TOPIC REORDER] Error at position {error_pos}, context: ...{llm_output[start_pos:end_pos]}...")
-                except Exception as log_err:
-                    logger.error(f"❌ [TOPIC REORDER] Could not extract position context: {log_err}")
-            
-            logger.error(f"❌ [TOPIC REORDER] Full LLM output length: {len(llm_output)} chars")
-            logger.error(f"❌ [TOPIC REORDER] First 2000 chars: {llm_output[:2000]}")
-            
-            raise HTTPException(status_code=500, detail=f"Failed to parse LLM response: {str(e)}")
-        except Exception as e:
-            logger.error(f"LLM error: {e}")
-            raise HTTPException(status_code=500, detail=f"LLM service error: {str(e)}")
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error reordering topics: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Failed to reorder topics: {str(e)}")
 

@@ -75,7 +75,11 @@ origins = [
     "https://65.109.230.236:3000",
     "https://65.109.230.236:8000",
     "https://65.109.230.236:8006",
-    "https://65.109.230.236:8007"
+    "https://65.109.230.236:8007",
+    
+    # Domain-based access
+    "http://ebars.kodleon.com",
+    "https://ebars.kodleon.com"
 ]
 
 logger.info(f"[API GATEWAY CORS] Credentials-compatible origins: {origins}")
@@ -428,11 +432,11 @@ def list_sessions(created_by: Optional[str] = None, category: Optional[str] = No
                 if len(sessions) > 0:
                     logger.info(f"[SESSION LIST] Found {len(sessions)} sessions with case-insensitive matching")
         else:
-            # Students: show all active (or filter by provided status)
+            # Students: show only active sessions
             sessions = professional_session_manager.list_sessions(
-                created_by=None, category=category_enum, status=status_enum, limit=limit
+                created_by=None, category=category_enum, status=SessionStatus.ACTIVE, limit=limit
             )
-            logger.info(f"[SESSION LIST] Student user - returning {len(sessions)} sessions")
+            logger.info(f"[SESSION LIST] Student user - returning {len(sessions)} active sessions")
         return [_convert_metadata_to_response(session) for session in sessions]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list sessions: {str(e)}")
