@@ -1068,6 +1068,7 @@ const TopicManagementPanel: React.FC<TopicManagementPanelProps> = ({
         <div className="flex gap-2">
           <div className="relative">
             <select
+              defaultValue=""
               onChange={(e) => {
                 const value = e.target.value;
                 if (value === "extract-topics") {
