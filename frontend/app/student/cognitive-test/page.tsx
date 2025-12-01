@@ -71,7 +71,33 @@ export default function CognitiveTestPage() {
       return;
     }
 
-    loadTest(attempt);
+    // Check if EBARS is enabled for this session
+    const checkEbarsStatus = async () => {
+      try {
+        const response = await fetch(`/api/aprag/session-settings/${sessionId}`);
+        if (response.ok) {
+          const data = await response.json();
+          const ebarsEnabled = data?.settings?.enable_ebars || false;
+          
+          if (!ebarsEnabled) {
+            // EBARS not enabled, redirect back
+            router.push("/student/chat");
+            return;
+          }
+          
+          // EBARS enabled, proceed with test
+          loadTest(attempt);
+        } else {
+          // Failed to check EBARS status, redirect back
+          router.push("/student/chat");
+        }
+      } catch (err) {
+        console.error("Failed to check EBARS status:", err);
+        router.push("/student/chat");
+      }
+    };
+
+    checkEbarsStatus();
   }, [user, sessionId, router, attempt]);
 
   const loadTest = async (testAttempt: number = 1, autoReset: boolean = false) => {

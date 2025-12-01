@@ -386,7 +386,292 @@ Mevcut Chunk'lar → Yeni Embedding → UPDATE (Metadata Korunur) → ChromaDB
 
 ---
 
-## 8. Gelecek Çalışmalar
+## 8. eBARS Sistem Mimarisi ve Çalışma Prensibi
+
+### 8.1 eBARS Nedir?
+
+eBARS (Educational BARS - Educational Retrieval-Augmented System), bu çalışmada geliştirilen hafif Türkçe anlamsal parçalama sisteminin üzerine inşa edilmiş, kişiselleştirilmiş ve adaptif bir eğitim asistanı sistemidir. Sistem, öğrencilerin bireysel öğrenme profillerine göre içerik önerileri sunan, geri bildirim toplayan ve sürekli iyileşen bir yapıya sahiptir.
+
+### 8.2 Microservis Mimarisi
+
+eBARS sistemi, modern yazılım mimarisi prensiplerine uygun olarak **microservis mimarisi** ile tasarlanmıştır. Bu yaklaşım, sistemin ölçeklenebilirliğini, bakım kolaylığını ve hata toleransını artırmaktadır.
+
+#### 8.2.1 Servis Bileşenleri
+
+Sistem aşağıdaki bağımsız microservislerden oluşmaktadır:
+
+**1. API Gateway (Port: 8000)**
+- Tüm istemci isteklerinin tek giriş noktası
+- İstek yönlendirme ve yük dengeleme
+- Kimlik doğrulama ve yetkilendirme kontrolü
+- Rate limiting ve güvenlik politikaları
+- Session yönetimi
+
+**2. Authentication Service (Port: 8006)**
+- Kullanıcı kayıt ve giriş işlemleri
+- JWT token üretimi ve doğrulama
+- Rol tabanlı erişim kontrolü (RBAC)
+- Kullanıcı profil yönetimi
+- Session lifecycle yönetimi
+
+**3. Document Processing Service (Port: 8080)**
+- PDF/DOCX belgelerinin Markdown'a dönüştürülmesi
+- Hafif Türkçe anlamsal parçalama işlemi
+- Chunk kalite kontrolü ve doğrulama
+- LLM destekli iyileştirme koordinasyonu
+- Embedding üretimi ve vektörleştirme
+
+**4. APRAG Service (Port: 8007)**
+- Adaptif ve kişiselleştirilmiş RAG sorguları
+- Öğrenci profil yönetimi ve analizi
+- İçerik öneri sistemi
+- Geri bildirim toplama ve analizi
+- İlerleme takibi ve raporlama
+
+**5. Model Inference Service (Port: 8002)**
+- LLM model entegrasyonu (Groq, Ollama, Alibaba)
+- Embedding model yönetimi
+- Batch işleme desteği
+- Model cache yönetimi
+
+**6. Reranker Service (Port: 8008)**
+- Chunk sıralama ve filtreleme
+- Alibaba DashScope API entegrasyonu
+- Yerel reranker model desteği (opsiyonel)
+
+**7. ChromaDB Service (Port: 8000)**
+- Vektör veritabanı yönetimi
+- Semantic search işlemleri
+- Metadata indeksleme
+- Collection yönetimi
+
+**8. Frontend Service (Port: 3000)**
+- Next.js tabanlı kullanıcı arayüzü
+- React bileşenleri ve state yönetimi
+- Real-time güncellemeler
+- Responsive tasarım
+
+#### 8.2.2 Servisler Arası İletişim
+
+Microservisler arası iletişim **HTTP/REST API** protokolü üzerinden gerçekleşmektedir. Her servis bağımsız olarak çalışabilir ve Docker container'ları içinde izole edilmiştir. Servisler arası iletişim için Docker network (`rag-network`) kullanılmaktadır.
+
+### 8.3 eBARS Pipeline'ı
+
+eBARS sistemi, öğrenci sorgularından yanıt üretimine kadar olan süreci aşağıdaki pipeline ile gerçekleştirmektedir:
+
+#### 8.3.1 Doküman İşleme Pipeline'ı
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Doküman Yükleme (Frontend)                                │
+│    - PDF/DOCX dosyası seçimi                                 │
+│    - Session oluşturma                                       │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Format Dönüştürme (Docstrange Service)                   │
+│    - PDF → Markdown                                          │
+│    - Metadata çıkarımı                                       │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. Anlamsal Parçalama (Document Processing Service)          │
+│    - Türkçe cümle sınırı tespiti                             │
+│    - Adaptif boyutlandırma                                   │
+│    - Başlık-içerik bütünlüğü kontrolü                        │
+│    - Kalite skorlama                                         │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4. LLM İyileştirme (Opsiyonel - Model Inference Service)    │
+│    - Batch gruplama (5 chunk/batch)                          │
+│    - Paralel işleme                                          │
+│    - Kalite artırma                                          │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 5. Embedding Üretimi (Model Inference Service)                │
+│    - Vektörleştirme                                          │
+│    - Metadata ekleme                                         │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 6. Vektör Depolama (ChromaDB Service)                         │
+│    - Collection oluşturma                                    │
+│    - Chunk ve embedding kaydı                               │
+│    - Metadata indeksleme                                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 8.3.2 Sorgu İşleme Pipeline'ı
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Öğrenci Sorgusu (Frontend)                                │
+│    - Soru metni girişi                                       │
+│    - Session ID ile ilişkilendirme                           │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Profil Analizi (APRAG Service)                            │
+│    - Öğrenci profil çıkarımı                                 │
+│    - Öğrenme seviyesi tespiti                                │
+│    - İlgi alanları ve geçmiş etkileşimler                    │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. Query Embedding (Model Inference Service)                 │
+│    - Sorgu vektörleştirme                                    │
+│    - Kişiselleştirilmiş query genişletme                     │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4. Semantic Search (ChromaDB Service)                         │
+│    - Top-K chunk retrieval (K=10-20)                        │
+│    - Similarity scoring                                     │
+│    - Metadata filtreleme                                     │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 5. Reranking (Reranker Service)                              │
+│    - Chunk sıralama iyileştirme                              │
+│    - Relevance scoring                                      │
+│    - Top-N seçimi (N=5-7)                                    │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 6. Context Oluşturma (APRAG Service)                         │
+│    - Chunk birleştirme                                       │
+│    - Kişiselleştirilmiş prompt hazırlama                    │
+│    - Öğrenci seviyesine uygun dil kullanımı                 │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 7. LLM Yanıt Üretimi (Model Inference Service)               │
+│    - Context-aware generation                                │
+│    - Eğitsel ton ve yapı                                     │
+│    - Kaynak referansları                                     │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 8. Geri Bildirim Toplama (APRAG Service)                     │
+│    - Emoji feedback kaydı                                   │
+│    - Detaylı feedback analizi                                │
+│    - Profil güncelleme                                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 8.4 Mevcut Sisteme Entegrasyon
+
+eBARS sistemi, mevcut RAG altyapısına **ek bir servis katmanı** olarak entegre edilmiştir. Bu yaklaşımın avantajları:
+
+#### 8.4.1 Geriye Dönük Uyumluluk
+
+- Mevcut document processing pipeline'ı değiştirilmeden çalışır
+- Geleneksel RAG sorguları hala desteklenir
+- APRAG servisi opsiyonel olarak etkinleştirilebilir
+
+#### 8.4.2 Modüler Yapı
+
+- Her servis bağımsız olarak geliştirilebilir ve test edilebilir
+- Servis bazında ölçeklendirme yapılabilir
+- Hata izolasyonu sağlanır (bir servis çökerse diğerleri çalışmaya devam eder)
+
+#### 8.4.3 Servis Yapısında Kullanım
+
+eBARS sistemi, production ortamında **Docker Compose** ile orkestre edilen bir microservis mimarisi olarak çalışmaktadır:
+
+```yaml
+# docker-compose.yml yapısı
+services:
+  api-gateway:        # Merkezi yönlendirme
+  auth-service:       # Kimlik doğrulama
+  aprag-service:      # eBARS ana servisi
+  document-processing-service:  # Doküman işleme
+  model-inference-service:      # LLM entegrasyonu
+  reranker-service:   # Chunk sıralama
+  chromadb-service:   # Vektör veritabanı
+  frontend:          # Kullanıcı arayüzü
+```
+
+Her servis:
+- Kendi Docker container'ında çalışır
+- Bağımsız health check mekanizmasına sahiptir
+- Environment variable'lar ile yapılandırılır
+- Network üzerinden diğer servislerle iletişim kurar
+
+### 8.5 Sistem Özellikleri
+
+#### 8.5.1 Kişiselleştirme
+
+- **Öğrenci Profili:** Her öğrenci için öğrenme seviyesi, ilgi alanları ve geçmiş etkileşimler takip edilir
+- **Adaptif İçerik:** Sorgular öğrenci seviyesine göre uyarlanır
+- **Dinamik Öneriler:** Öğrenci ilerlemesine göre içerik önerileri sunulur
+
+#### 8.5.2 Geri Bildirim Sistemi
+
+- **Emoji Feedback:** Hızlı ve sezgisel geri bildirim toplama
+- **Detaylı Feedback:** Çok boyutlu geri bildirim analizi
+- **Sürekli İyileştirme:** Geri bildirimlere göre sistem adaptasyonu
+
+#### 8.5.3 Performans Optimizasyonu
+
+- **Paralel İşleme:** Birden fazla servis eş zamanlı çalışabilir
+- **Caching:** Sık kullanılan veriler önbelleğe alınır
+- **Batch Processing:** Toplu işlemler ile maliyet optimizasyonu
+
+### 8.6 Sistem Akış Diyagramı
+
+```
+                    ┌──────────────┐
+                    │   Frontend   │
+                    │  (Next.js)   │
+                    └──────┬───────┘
+                           │
+                           ▼
+              ┌────────────────────────┐
+              │    API Gateway        │
+              │  (Request Routing)    │
+              └──────┬────────────────┘
+                     │
+        ┌────────────┼────────────┐
+        │            │            │
+        ▼            ▼            ▼
+┌─────────────┐ ┌──────────┐ ┌──────────────┐
+│   Auth      │ │  APRAG   │ │  Document    │
+│  Service    │ │ Service  │ │ Processing   │
+└─────────────┘ └─────┬─────┘ └──────┬───────┘
+                     │              │
+                     │              ▼
+                     │      ┌──────────────┐
+                     │      │   ChromaDB    │
+                     │      │   Service     │
+                     │      └──────────────┘
+                     │
+        ┌────────────┼────────────┐
+        │            │            │
+        ▼            ▼            ▼
+┌─────────────┐ ┌──────────┐ ┌──────────────┐
+│   Model     │ │ Reranker │ │   ChromaDB   │
+│ Inference   │ │ Service  │ │   Service    │
+└─────────────┘ └──────────┘ └──────────────┘
+```
+
+---
+
+## 9. Gelecek Çalışmalar
 
 ### 8.1 Planlanan İyileştirmeler
 
@@ -404,7 +689,7 @@ Mevcut Chunk'lar → Yeni Embedding → UPDATE (Metadata Korunur) → ChromaDB
 
 ---
 
-## 9. Sonuç
+## 10. Sonuç
 
 Bu çalışmada sunulan hafif Türkçe anlamsal parçalama ve LLM destekli iyileştirme sistemi, eğitim içeriklerinin RAG sistemlerinde etkin kullanımı için kapsamlı bir çözüm sunmaktadır.
 

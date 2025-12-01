@@ -2522,3 +2522,145 @@ class DatabaseManager:
         except Exception as e:
             logger.warning(f"Failed to apply Initial Test Two-Stage migration (non-critical): {e}")
 
+    def ensure_survey_table(self):
+        """Ensure survey table exists"""
+        with self.get_connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS surveys (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    age TEXT,
+                    education TEXT,
+                    field TEXT,
+                    personalized_platform TEXT,
+                    platform_experience TEXT,
+                    ai_experience TEXT,
+                    expectations TEXT,
+                    concerns TEXT,
+                    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    UNIQUE(user_id)
+                )
+            """)
+            conn.commit()
+            logger.info("Survey table ensured")
+
+    def get_survey_status(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Get survey completion status for a user"""
+        with self.get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT user_id, completed_at
+                FROM surveys
+                WHERE user_id = ?
+            """, (user_id,))
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "user_id": row["user_id"],
+                    "completed_at": row["completed_at"]
+                }
+            return None
+
+    def save_survey(self, user_id: int, answers: Dict[str, Any]):
+        """Save survey answers"""
+        with self.get_connection() as conn:
+            conn.execute("""
+                INSERT INTO surveys (
+                    user_id, age, education, field,
+                    personalized_platform, platform_experience, ai_experience,
+                    expectations, concerns
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                user_id,
+                answers.get("age"),
+                answers.get("education"),
+                answers.get("field"),
+                answers.get("personalized_platform"),
+                answers.get("platform_experience"),
+                answers.get("ai_experience"),
+                answers.get("expectations"),
+                answers.get("concerns")
+            ))
+            conn.commit()
+            logger.info(f"Survey saved for user {user_id}")
+
+    def get_all_surveys(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        """Get all survey results"""
+        with self.get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT 
+                    s.id,
+                    s.user_id,
+                    u.username,
+                    u.email,
+                    s.age,
+                    s.education,
+                    s.field,
+                    s.personalized_platform,
+                    s.platform_experience,
+                    s.ai_experience,
+                    s.expectations,
+                    s.concerns,
+                    s.completed_at
+                FROM surveys s
+                LEFT JOIN users u ON s.user_id = u.id
+                ORDER BY s.completed_at DESC
+                LIMIT ? OFFSET ?
+            """, (limit, offset))
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+
+    def get_survey_count(self) -> int:
+        """Get total number of completed surveys"""
+        with self.get_connection() as conn:
+            cursor = conn.execute("SELECT COUNT(*) as count FROM surveys")
+            row = cursor.fetchone()
+            return row["count"] if row else 0
+
+    def get_survey_statistics(self) -> Dict[str, Any]:
+        """Get survey statistics"""
+        with self.get_connection() as conn:
+            stats = {}
+            
+            # Total count
+            cursor = conn.execute("SELECT COUNT(*) as count FROM surveys")
+            stats["total_surveys"] = cursor.fetchone()["count"]
+            
+            # Education distribution
+            cursor = conn.execute("""
+                SELECT education, COUNT(*) as count
+                FROM surveys
+                WHERE education IS NOT NULL
+                GROUP BY education
+            """)
+            stats["education_distribution"] = {row["education"]: row["count"] for row in cursor.fetchall()}
+            
+            # Platform experience distribution
+            cursor = conn.execute("""
+                SELECT platform_experience, COUNT(*) as count
+                FROM surveys
+                WHERE platform_experience IS NOT NULL
+                GROUP BY platform_experience
+            """)
+            stats["platform_experience_distribution"] = {row["platform_experience"]: row["count"] for row in cursor.fetchall()}
+            
+            # AI experience distribution
+            cursor = conn.execute("""
+                SELECT ai_experience, COUNT(*) as count
+                FROM surveys
+                WHERE ai_experience IS NOT NULL
+                GROUP BY ai_experience
+            """)
+            stats["ai_experience_distribution"] = {row["ai_experience"]: row["count"] for row in cursor.fetchall()}
+            
+            # Personalized platform usage
+            cursor = conn.execute("""
+                SELECT personalized_platform, COUNT(*) as count
+                FROM surveys
+                WHERE personalized_platform IS NOT NULL
+                GROUP BY personalized_platform
+            """)
+            stats["personalized_platform_usage"] = {row["personalized_platform"]: row["count"] for row in cursor.fetchall()}
+            
+            return stats
+

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { NotificationProvider } from "./NotificationProvider";
 import { useState } from "react";
+import { listSessions } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
 } from "lucide-react";
 
 interface AdminLayoutProps {
@@ -31,11 +33,13 @@ interface AdminLayoutProps {
   description?: string;
 }
 
-const sidebarItems = [
+// Sidebar items will be filtered based on EBARS status
+const getSidebarItems = (ebarsEnabled: boolean) => [
   { icon: BarChart3, label: "Dashboard", href: "/admin", active: true },
   { icon: Users, label: "Kullanıcılar", href: "/admin/users" },
   { icon: Shield, label: "Roller", href: "/admin/roles" },
   { icon: FileText, label: "Oturumlar", href: "/admin/sessions" },
+  ...(ebarsEnabled ? [{ icon: ClipboardList, label: "Anket Sonuçları", href: "/admin/survey-results" }] : []),
   { icon: FileText, label: "RAG Testleri", href: "/admin/rag-tests" },
   { icon: FileText, label: "Markdown", href: "/admin/markdown" },
   { icon: Settings, label: "Ayarlar", href: "/admin/settings" },
@@ -51,6 +55,7 @@ export default function ModernAdminLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [ebarsEnabled, setEbarsEnabled] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -67,6 +72,47 @@ export default function ModernAdminLayout({
       router.push("/dashboard");
     }
   }, [user, router]);
+
+  // Check if EBARS is enabled in any session
+  useEffect(() => {
+    const checkEbarsStatus = async () => {
+      try {
+        // Get all sessions
+        const sessions = await listSessions();
+        
+        // Check if any session has EBARS enabled
+        for (const session of sessions) {
+          try {
+            const settingsResponse = await fetch(
+              `/api/aprag/session-settings/${session.session_id}`,
+              {
+                credentials: "include",
+              }
+            );
+
+            if (settingsResponse.ok) {
+              const settingsData = await settingsResponse.json();
+              if (settingsData?.settings?.enable_ebars) {
+                setEbarsEnabled(true);
+                return; // Found at least one session with EBARS enabled
+              }
+            }
+          } catch (err) {
+            console.warn(`Failed to check EBARS for session ${session.session_id}:`, err);
+          }
+        }
+        
+        setEbarsEnabled(false);
+      } catch (err) {
+        console.error("Failed to check EBARS status:", err);
+        setEbarsEnabled(false);
+      }
+    };
+
+    if (user && user.role_name === "admin") {
+      checkEbarsStatus();
+    }
+  }, [user]);
 
   // Show loading while checking auth
   if (!user) {
@@ -147,7 +193,7 @@ export default function ModernAdminLayout({
 
             {/* Navigation */}
             <nav className="flex-1 px-4 py-4 space-y-2">
-              {sidebarItems.map((item, index) => (
+              {getSidebarItems(ebarsEnabled).map((item, index) => (
                 <Button
                   key={index}
                   variant="ghost"

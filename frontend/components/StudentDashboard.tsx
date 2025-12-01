@@ -58,6 +58,7 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
     null
   );
   const [topicPage, setTopicPage] = useState(1);
+  const [ebarsEnabled, setEbarsEnabled] = useState(false);
   const TOPICS_PER_PAGE = 8;
 
   // Topic detail modal states
@@ -77,10 +78,14 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
         // Auto-select first session
         if (sessionsList.length > 0 && !selectedSession) {
           setSelectedSession(sessionsList[0].session_id);
+        } else if (sessionsList.length === 0) {
+          // No sessions, disable EBARS links
+          setEbarsEnabled(false);
         }
       } catch (err) {
         console.error("Failed to load sessions:", err);
         setError("Oturumlar yüklenemedi");
+        setEbarsEnabled(false);
       }
     };
 
@@ -100,9 +105,10 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
         }
 
         const settingsData = await response.json();
-        const ebarsEnabled = settingsData?.settings?.enable_ebars || false;
+        const ebarsEnabledValue = settingsData?.settings?.enable_ebars || false;
+        setEbarsEnabled(ebarsEnabledValue);
 
-        if (!ebarsEnabled) {
+        if (!ebarsEnabledValue) {
           return; // EBARS not enabled, skip check
         }
 
@@ -142,6 +148,18 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
         // Check APRAG settings first
         const settings = await getAPRAGSettings(selectedSession);
         setApragSettings(settings);
+        
+        // Check EBARS status
+        try {
+          const ebarsResponse = await fetch(`/api/aprag/session-settings/${selectedSession}`);
+          if (ebarsResponse.ok) {
+            const ebarsData = await ebarsResponse.json();
+            setEbarsEnabled(ebarsData?.settings?.enable_ebars || false);
+          }
+        } catch (err) {
+          console.warn("Failed to check EBARS status:", err);
+          setEbarsEnabled(false);
+        }
 
         // Load student profile (always, even if APRAG is disabled)
         try {
@@ -360,6 +378,23 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
               >
                 Geçmiş Sorularım
               </a>
+              {ebarsEnabled && (
+                <>
+                  <a
+                    href="/survey"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700 transition-colors"
+                  >
+                    Anket
+                  </a>
+                  <a
+                    href="/system-info"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <Info className="w-3 h-3" />
+                    Sistem Hakkında
+                  </a>
+                </>
+              )}
             </div>
           </div>
         </div>
