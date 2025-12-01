@@ -3703,7 +3703,7 @@ TÜM topic_id'leri içermeli ve new_order 1'den başlayarak sıralı olmalı."""
                         
                         conn.execute("""
                             UPDATE course_topics
-                            SET topic_order = ?
+                            SET topic_order = ?, updated_at = CURRENT_TIMESTAMP
                             WHERE topic_id = ? AND session_id = ?
                         """, (new_order, topic_id, session_id))
                     

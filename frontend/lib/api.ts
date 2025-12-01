@@ -2441,11 +2441,23 @@ export async function reorderTopics(
   );
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: "Unknown error" }));
+    let error;
+    try {
+      error = await res.json();
+    } catch (e) {
+      // If response is not JSON, try to get text
+      const text = await res.text();
+      error = { detail: text || `Failed to reorder topics: ${res.statusText}` };
+    }
     throw new Error(error.detail || `Failed to reorder topics: ${res.statusText}`);
   }
 
-  return res.json();
+  const result = await res.json();
+  // Validate response structure
+  if (!result || typeof result !== 'object') {
+    throw new Error("Invalid response format from server");
+  }
+  return result;
 }
 
 // Delete a topic
