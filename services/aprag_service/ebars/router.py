@@ -920,12 +920,34 @@ async def extract_topics_from_correct_answers(
                     "question_object": q
                 })
         
-        logger.info(f"📚 Extracted {len(topics)} topics from {len(request.correct_question_indices)} correct answers")
+        # FALLBACK: If not enough topics (less than 2), use all questions
+        # This prevents errors when student has very few correct answers
+        if len(topics) < 2:
+            logger.warning(f"⚠️ Only {len(topics)} correct answers found, using all questions as fallback")
+            topics = []
+            for q in stored_questions:
+                topics.append({
+                    "question_index": q.get('index', q.get('question_index', -1)),
+                    "question": q.get('question', ''),
+                    "question_object": q
+                })
+            logger.info(f"📚 Using all {len(topics)} questions for answer preference stage")
+        else:
+            logger.info(f"📚 Extracted {len(topics)} topics from {len(request.correct_question_indices)} correct answers")
+        
+        # Final safety check: ensure we have at least 1 topic
+        if len(topics) == 0:
+            logger.error("❌ No topics available, cannot proceed to answer preference stage")
+            raise HTTPException(
+                status_code=400,
+                detail="Yeterli soru bulunamadı. Lütfen testi tekrar alın."
+            )
         
         return {
             "success": True,
             "topics": topics,
-            "total_topics": len(topics)
+            "total_topics": len(topics),
+            "used_fallback": len(topics) > len(request.correct_question_indices) if request.correct_question_indices else False
         }
         
     except HTTPException:
@@ -1502,16 +1524,16 @@ KRİTİK KURALLAR - MUTLAKA UYULMALI:
 2. İçerikte bahsedilmeyen hiçbir konudan soru SORMA - generic sorular YASAK
 3. Her soru içerikteki SPESİFİK bilgilere dayanmalı (örnek: "İçerikte bahsedilen X nedir?", "Y kavramı nasıl tanımlanmıştır?")
 4. Doğru cevap MUTLAKA içerikteki gerçek bilgiden olmalı
-5. 10 ÇOKTAN SEÇMELİ soru: 3 basit, 4 orta, 3 zor seviye
+5. {num_questions} ÇOKTAN SEÇMELİ soru: {max(1, num_questions // 3)} basit, {max(1, (num_questions * 2) // 3)} orta, {max(1, num_questions - (num_questions // 3) - ((num_questions * 2) // 3))} zor seviye (toplam {num_questions} soru)
 6. Her soru için 4 şık (A, B, C, D) - sadece BİR tanesi doğru
 7. Yanlış şıklar içerikte olmayan ama mantıklı görünen seçenekler olmalı
 
 SORU TİPLERİ (İÇERİKTEN ÇIKARILMALI):
-- Basit (3 soru): İçerikteki GERÇEK kavramlar, tanımlar, isimler, sayılar, tarihler
+- Basit ({max(1, num_questions // 3)} soru): İçerikteki GERÇEK kavramlar, tanımlar, isimler, sayılar, tarihler
   Örnek: "[X kavramı] nedir?" (X içerikte gerçekten bahsedilmiş olmalı, direkt sor)
-- Orta (4 soru): İçerikteki GERÇEK kavramların uygulanması, içerikteki örnekler, ilişkiler
+- Orta ({max(1, (num_questions * 2) // 3)} soru): İçerikteki GERÇEK kavramların uygulanması, içerikteki örnekler, ilişkiler
   Örnek: "[X kavramı] nasıl uygulanır?" (X içerikte gerçekten olmalı, direkt sor)
-- Zor (3 soru): İçerikteki GERÇEK bilgilerin analizi, sentezi, değerlendirmesi
+- Zor ({max(1, num_questions - (num_questions // 3) - ((num_questions * 2) // 3))} soru): İçerikteki GERÇEK bilgilerin analizi, sentezi, değerlendirmesi
   Örnek: "X ve Y arasındaki ilişki nedir?" (X ve Y içerikte bahsedilmiş olmalı, direkt sor)
 
 ÇIKTI FORMATI (JSON):
@@ -1605,17 +1627,37 @@ SADECE JSON çıktısı ver, başka açıklama yapma."""
                 
                 if len(valid_questions) < num_questions:
                     logger.warning(f"⚠️ Only {len(valid_questions)} valid questions generated (expected {num_questions})")
-                    # Don't fill with generic - raise error instead
-                    raise Exception(f"LLM generated only {len(valid_questions)} valid questions, expected {num_questions}. Cannot generate test without sufficient questions.")
+                    # If we have at least 3 questions, use them (better than failing)
+                    if len(valid_questions) >= 3:
+                        logger.info(f"✅ Using {len(valid_questions)} questions (minimum acceptable)")
+                        # Continue with available questions
+                    else:
+                        # Too few questions, try to retry with different chunks or raise error
+                        logger.error(f"❌ Too few questions generated: {len(valid_questions)} < 3")
+                        raise Exception(f"LLM generated only {len(valid_questions)} valid questions (minimum 3 required). Please try again or check session content.")
                 
                 # Take first num_questions if more than needed
                 if len(valid_questions) > num_questions:
                     valid_questions = valid_questions[:num_questions]
                 
-                # Ensure difficulty distribution
+                # Ensure difficulty distribution (flexible if fewer questions)
                 easy_count = sum(1 for q in valid_questions if q.get('difficulty') == 'easy')
                 medium_count = sum(1 for q in valid_questions if q.get('difficulty') == 'medium')
                 hard_count = sum(1 for q in valid_questions if q.get('difficulty') == 'hard')
+                unknown_count = sum(1 for q in valid_questions if q.get('difficulty') not in ['easy', 'medium', 'hard'])
+                
+                # If questions don't have difficulty labels, assign default
+                if unknown_count > 0:
+                    logger.warning(f"⚠️ {unknown_count} questions missing difficulty labels, assigning defaults")
+                    for i, q in enumerate(valid_questions):
+                        if q.get('difficulty') not in ['easy', 'medium', 'hard']:
+                            # Distribute evenly: first third easy, middle third medium, last third hard
+                            if i < len(valid_questions) // 3:
+                                q['difficulty'] = 'easy'
+                            elif i < (len(valid_questions) * 2) // 3:
+                                q['difficulty'] = 'medium'
+                            else:
+                                q['difficulty'] = 'hard'
                 
                 logger.info(f"✅ Generated {len(valid_questions)} questions: {easy_count} easy, {medium_count} medium, {hard_count} hard")
                 
