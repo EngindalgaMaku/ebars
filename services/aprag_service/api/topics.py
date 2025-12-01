@@ -57,10 +57,10 @@ def get_session_model(session_id: str) -> Optional[str]:
     try:
         # Use the correct endpoint - /sessions/{session_id} returns the full session data including rag_settings
         logger.info(f"Getting session model for {session_id} from {API_GATEWAY_URL}/sessions/{session_id}")
-        response = requests.get(
-            f"{API_GATEWAY_URL}/sessions/{session_id}",
-            timeout=30  # Increased timeout from 5 to 30 seconds
-        )
+        with httpx.Client(timeout=30.0) as client:
+            response = client.get(
+                f"{API_GATEWAY_URL}/sessions/{session_id}"
+            )
         logger.info(f"API Gateway response status: {response.status_code}")
         
         if response.status_code == 200:
@@ -116,7 +116,7 @@ def get_session_model(session_id: str) -> Optional[str]:
         
         # Default model if not found
         return "llama-3.1-8b-instant"
-    except requests.exceptions.RequestException as e:
+    except (httpx.RequestError, httpx.HTTPStatusError) as e:
         logger.error(f"Request error getting session model for {session_id}: {e}", exc_info=True)
         # Return default model on error
         return "llama-3.1-8b-instant"
@@ -206,11 +206,12 @@ def fetch_chunks_for_session(session_id: str) -> List[Dict[str, Any]]:
     """
     try:
         # Try to get chunks from document processing service
-        # If that doesn't work, we'll need to query ChromaDB directly
-        response = requests.get(
-            f"{DOCUMENT_PROCESSING_URL}/sessions/{session_id}/chunks",
-            timeout=30
-        )
+        # Use httpx (same as knowledge_extraction.py) instead of requests
+        import httpx
+        with httpx.Client(timeout=30.0) as client:
+            response = client.get(
+                f"{DOCUMENT_PROCESSING_URL}/sessions/{session_id}/chunks"
+            )
         
         if response.status_code == 200:
             chunks = response.json().get("chunks", [])
@@ -335,16 +336,16 @@ Sadece JSON çıktısı ver:
         timeout_seconds = 600 if "qwen" in model_to_use.lower() else 240  # 10 min for qwen, 4 min for others
         logger.info(f"⏰ [TIMEOUT] Using {timeout_seconds}s timeout for {model_to_use}")
         
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/models/generate",
-            json={
-                "prompt": final_prompt,
-                "model": model_to_use,
-                "max_tokens": 4096,
-                "temperature": 0.3
-            },
-            timeout=timeout_seconds  # Extended timeout for quality models
-        )
+        with httpx.Client(timeout=timeout_seconds) as client:
+            response = client.post(
+                f"{MODEL_INFERENCER_URL}/models/generate",
+                json={
+                    "prompt": final_prompt,
+                    "model": model_to_use,
+                    "max_tokens": 4096,
+                    "temperature": 0.3
+                }
+            )
         
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail=f"LLM service error: {response.text}")
@@ -554,7 +555,7 @@ Sadece JSON çıktısı ver:
         logger.error(f"Failed to parse LLM JSON output: {e}")
         logger.error(f"LLM output was: {llm_output[:1000]}")  # Log first 1000 chars
         raise HTTPException(status_code=500, detail="LLM returned invalid JSON")
-    except requests.exceptions.RequestException as e:
+    except (httpx.RequestError, httpx.HTTPStatusError) as e:
         logger.error(f"Request error in topic extraction: {e}")
         logger.error(f"MODEL_INFERENCER_URL: {MODEL_INFERENCER_URL}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to model service: {str(e)}")
@@ -582,8 +583,6 @@ def get_session_model(session_id: str) -> Optional[str]:
         
     try:
         import os
-        import requests
-        from requests.exceptions import RequestException
         
         # Get the main API URL from environment variables
         # Try to use the environment variable first, fall back to the service name in Docker network
@@ -601,11 +600,11 @@ def get_session_model(session_id: str) -> Optional[str]:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                response = requests.get(
-                    f"{api_gateway_url}/sessions/{session_id}",
-                    timeout=30,  # Increased timeout to 30 seconds
-                    headers={"Content-Type": "application/json"}
-                )
+                with httpx.Client(timeout=30.0) as client:
+                    response = client.get(
+                        f"{api_gateway_url}/sessions/{session_id}",
+                        headers={"Content-Type": "application/json"}
+                    )
                 
                 if response.status_code == 200:
                     session_data = response.json()
@@ -650,14 +649,14 @@ def get_session_model(session_id: str) -> Optional[str]:
                 else:
                     break  # Don't retry for 4xx errors
                     
-            except RequestException as re:
+            except (httpx.RequestError, httpx.HTTPStatusError) as re:
                 logger.warning(f"Request failed (attempt {attempt + 1}/{max_retries}): {str(re)}")
                 if attempt == max_retries - 1:
                     raise  # Re-raise on last attempt
                 import time
                 time.sleep(1 * (attempt + 1))  # Exponential backoff
         
-    except RequestException as re:
+    except (httpx.RequestError, httpx.HTTPStatusError) as re:
         logger.warning(f"Failed to get RAG settings from API for session {session_id}: {str(re)}")
     except Exception as e:
         logger.error(f"Error in get_session_model for {session_id}: {e}", exc_info=True)
@@ -930,16 +929,16 @@ Sadece JSON çıktısı ver."""
         try:
             # Call model inference service
             logger.info(f"Calling model inference service with model: {model_to_use}")
-            response = requests.post(
-                f"{MODEL_INFERENCER_URL}/models/generate",
-                json={
-                    "prompt": prompt,
-                    "model": model_to_use,
-                    "max_tokens": 512,
-                    "temperature": 0.3
-                },
-                timeout=30  # Reduced timeout to fail faster
-            )
+            with httpx.Client(timeout=120.0) as client:
+                response = client.post(
+                    f"{MODEL_INFERENCER_URL}/models/generate",
+                    json={
+                        "prompt": prompt,
+                        "model": model_to_use,
+                        "max_tokens": 512,
+                        "temperature": 0.3
+                    }
+                )
             
             if response.status_code != 200:
                 error_msg = f"LLM service error: {response.status_code} - {response.text}"
@@ -2867,16 +2866,16 @@ Sadece JSON çıktısı ver, başka açıklama yapma."""
         model_to_use = get_session_model(session_id) or "llama-3.1-8b-instant"
         
         # Call model inference service
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/models/generate",
-            json={
-                "prompt": prompt,
-                "model": model_to_use,
-                "max_tokens": 2048,
-                "temperature": 0.7
-            },
-            timeout=120
-        )
+        with httpx.Client(timeout=120.0) as client:
+            response = client.post(
+                f"{MODEL_INFERENCER_URL}/models/generate",
+                json={
+                    "prompt": prompt,
+                    "model": model_to_use,
+                    "max_tokens": 2048,
+                    "temperature": 0.7
+                }
+            )
         
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail=f"LLM service error: {response.text}")
@@ -2908,7 +2907,7 @@ Sadece JSON çıktısı ver, başka açıklama yapma."""
         logger.error(f"Failed to parse LLM JSON output: {e}")
         logger.error(f"LLM output was: {llm_output[:1000]}")
         raise HTTPException(status_code=500, detail="LLM returned invalid JSON for question generation")
-    except requests.exceptions.RequestException as e:
+    except (httpx.RequestError, httpx.HTTPStatusError) as e:
         logger.error(f"Request error in question generation: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to connect to model service: {str(e)}")
     except Exception as e:
