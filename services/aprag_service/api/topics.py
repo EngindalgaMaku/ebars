@@ -1881,15 +1881,17 @@ async def generate_topic_recommendation(
 
 import threading
 import uuid
+import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
+from datetime import datetime
 
-# Global dict to track extraction jobs
+# Global dict to track extraction jobs (similar to BATCH_KB_JOBS pattern)
 extraction_jobs = {}
 # Lock for thread-safe job status updates
 job_status_lock = threading.Lock()
 
-def run_extraction_in_background(job_id: str, session_id: str, method: str, system_prompt: Optional[str] = None):
+async def run_extraction_in_background_async(job_id: str, session_id: str, method: str, system_prompt: Optional[str] = None):
     """
     Run extraction in background thread
     Updates job status in global dict
@@ -2186,6 +2188,7 @@ def run_extraction_in_background(job_id: str, session_id: str, method: str, syst
             logger.info(f"✅ [FINAL] Total {saved_count} topics saved incrementally across {len(batches)} batches")
             
             extraction_jobs[job_id]["status"] = "completed"
+            extraction_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
             extraction_jobs[job_id]["message"] = "Tamamlandı!"
             extraction_jobs[job_id]["result"] = {
                 "batches_processed": len(batches),
@@ -2193,11 +2196,20 @@ def run_extraction_in_background(job_id: str, session_id: str, method: str, syst
                 "saved_topics_count": saved_count,
                 "chunks_analyzed": len(chunks)
             }
+            logger.info(f"✅ [TOPIC EXTRACTION] Job {job_id} completed successfully")
             
     except Exception as e:
-        logger.error(f"Background extraction error: {e}")
-        extraction_jobs[job_id]["status"] = "failed"
-        extraction_jobs[job_id]["error"] = str(e)
+        logger.error(f"❌ [TOPIC EXTRACTION] Background extraction error for job {job_id}: {e}")
+        import traceback
+        logger.error(f"❌ [TOPIC EXTRACTION] Full traceback: {traceback.format_exc()}")
+        
+        # Ensure job exists before updating
+        if job_id in extraction_jobs:
+            extraction_jobs[job_id]["status"] = "failed"
+            extraction_jobs[job_id]["completed_at"] = datetime.utcnow().isoformat()
+            extraction_jobs[job_id]["error"] = str(e)
+        else:
+            logger.error(f"❌ [TOPIC EXTRACTION] Job {job_id} not found in extraction_jobs when trying to mark as failed!")
 
 
 @router.post("/re-extract/{session_id}")
@@ -2229,14 +2241,16 @@ async def re_extract_topics_smart(
             except Exception as e:
                 logger.warning(f"Could not parse request body: {e}")
         
-        # Create job
+        # Create job (similar to KB batch job structure)
         job_id = str(uuid.uuid4())
         extraction_jobs[job_id] = {
             "job_id": job_id,
             "session_id": session_id,
             "method": method,
             "system_prompt": system_prompt,  # Store system prompt in job
-            "status": "starting",
+            "status": "starting",  # starting | processing | completed | failed
+            "started_at": datetime.utcnow().isoformat(),
+            "completed_at": None,
             "message": "İşlem başlatılıyor...",
             "current_batch": 0,
             "total_batches": 0,
@@ -2244,13 +2258,11 @@ async def re_extract_topics_smart(
             "error": None
         }
         
-        # Start background thread
-        thread = threading.Thread(
-            target=run_extraction_in_background,
-            args=(job_id, session_id, method, system_prompt),
-            daemon=True
+        # Start background async task (similar to KB batch pattern)
+        logger.info(f"[TOPIC EXTRACTION] Starting background job {job_id} for session {session_id}")
+        task = asyncio.create_task(
+            run_extraction_in_background_async(job_id, session_id, method, system_prompt)
         )
-        thread.start()
         
         logger.info(f"Started background extraction job: {job_id} for session {session_id}")
         
@@ -2273,26 +2285,42 @@ async def re_extract_topics_smart(
 async def get_extraction_status(job_id: str):
     """
     Get status of background extraction job
+    Similar to KB batch status endpoint
     """
     if job_id not in extraction_jobs:
         # Job not found - might have been completed, failed, or service restarted
-        logger.warning(f"Job {job_id} not found in extraction_jobs. Available jobs: {list(extraction_jobs.keys())}")
+        available_jobs = list(extraction_jobs.keys())
+        logger.warning(f"Job {job_id} not found in extraction_jobs. Available jobs: {available_jobs[:5]}{'...' if len(available_jobs) > 5 else ''}")
+        
+        # Return a more informative error (similar to KB batch)
         raise HTTPException(
             status_code=404, 
-            detail=f"Job {job_id} not found. It may have completed, failed, or the service was restarted."
+            detail=f"Job {job_id} not found. It may have completed, failed, or the service was restarted. Available jobs: {len(available_jobs)}"
         )
     
     job = extraction_jobs[job_id]
-    return {
+    
+    # Build response similar to KB batch status
+    response = {
         "job_id": job_id,
-        "session_id": job["session_id"],
-        "status": job["status"],  # starting, processing, completed, failed
-        "message": job["message"],
-        "current_batch": job["current_batch"],
-        "total_batches": job["total_batches"],
-        "result": job["result"],
-        "error": job["error"]
+        "session_id": job.get("session_id"),
+        "status": job.get("status", "unknown"),  # starting, processing, completed, failed
+        "message": job.get("message", ""),
+        "current_batch": job.get("current_batch", 0),
+        "total_batches": job.get("total_batches", 0),
     }
+    
+    # Add optional fields if they exist
+    if "started_at" in job:
+        response["started_at"] = job["started_at"]
+    if "completed_at" in job:
+        response["completed_at"] = job["completed_at"]
+    if "result" in job:
+        response["result"] = job["result"]
+    if "error" in job:
+        response["error"] = job["error"]
+    
+    return response
 
 
 # Keep old sync implementation for backward compatibility
