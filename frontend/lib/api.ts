@@ -1172,9 +1172,13 @@ export async function saveSessionRagSettings(
     reranker_type?: "bge" | "ms-marco";
   }
 ): Promise<{ success: boolean; session_id: string; rag_settings: any }> {
+  const token = tokenManager.getAccessToken?.() || null;
   const res = await fetch(`${getApiUrl()}/sessions/${sessionId}/rag-settings`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
     body: JSON.stringify(settings),
   });
   if (!res.ok) throw new Error(await res.text());

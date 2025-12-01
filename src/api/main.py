@@ -1594,16 +1594,37 @@ def _require_owner_or_admin(request: Request, session_id: str) -> SessionMetadat
     if not metadata:
         raise HTTPException(status_code=404, detail="Session not found")
     user = _get_current_user(request)
+    
+    # Check if user is authenticated
+    if not user:
+        logger.warning(f"[AUTH CHECK] Unauthenticated access attempt for session: {session_id}")
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Debug logging
+    user_id = user.get('id')
+    user_role = _get_role_name(user)
+    logger.info(f"[AUTH CHECK] Session: {session_id}, User ID: {user_id}, Role: {user_role}")
+    logger.info(f"[AUTH CHECK] Session created_by: {metadata.created_by}")
+    
     if _is_admin(user):
+        logger.info(f"[AUTH CHECK] Admin access granted")
         return metadata
     # Teachers must own the session
     if _is_teacher(user):
         owner_keys = set(_user_owner_keys(user))
-        if metadata.created_by not in owner_keys:
+        logger.info(f"[AUTH CHECK] Teacher owner_keys: {owner_keys}")
+        # Convert both to strings for comparison to handle int/str mismatches
+        created_by_str = str(metadata.created_by) if metadata.created_by else None
+        owner_keys_str = {str(k) for k in owner_keys}
+        
+        if created_by_str not in owner_keys_str:
+            logger.warning(f"[AUTH CHECK] Access denied: created_by '{created_by_str}' not in owner_keys {owner_keys_str}")
             raise HTTPException(status_code=403, detail="You do not have access to this session")
+        logger.info(f"[AUTH CHECK] Teacher access granted")
         return metadata
-    # Students cannot delete sessions
-    raise HTTPException(status_code=403, detail="Students cannot delete sessions. Only teachers and admins can delete sessions.")
+    # Not admin or teacher
+    logger.warning(f"[AUTH CHECK] Access denied: User role '{user_role}' is not admin or teacher")
+    raise HTTPException(status_code=403, detail="Access denied. Only teachers and admins can access this resource.")
 
 class RAGSettings(BaseModel):
     model: Optional[str] = None
