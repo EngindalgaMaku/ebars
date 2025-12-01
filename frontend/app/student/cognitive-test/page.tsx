@@ -64,6 +64,7 @@ export default function CognitiveTestPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [finalScore, setFinalScore] = useState<{ score: number; level: string } | null>(null);
+  const [showIntro, setShowIntro] = useState(true);
 
   useEffect(() => {
     if (!user || !sessionId) {
@@ -85,8 +86,9 @@ export default function CognitiveTestPage() {
             return;
           }
           
-          // EBARS enabled, proceed with test
-          loadTest(attempt);
+          // EBARS enabled, show intro first
+          setLoading(false);
+          setShowIntro(true);
         } else {
           // Failed to check EBARS status, redirect back
           router.push("/student/chat");
@@ -460,6 +462,83 @@ export default function CognitiveTestPage() {
     };
     return labels[level] || { label: level, color: "text-gray-600" };
   };
+
+  const handleStartTest = async () => {
+    setShowIntro(false);
+    setLoading(true);
+    await loadTest(attempt);
+  };
+
+  // Intro Screen
+  if (showIntro && !loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <div className="max-w-2xl mx-auto px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 sm:p-12 text-center">
+            {/* Icon */}
+            <div className="mb-6">
+              <div className="w-24 h-24 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto shadow-lg">
+                <span className="text-5xl">🧠</span>
+              </div>
+            </div>
+
+            {/* Title */}
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              EBARS Bilişsel Test
+            </h1>
+
+            {/* Description */}
+            <div className="space-y-4 mb-8">
+              <p className="text-lg sm:text-xl text-gray-700 leading-relaxed">
+                Size özel algı puanınızı belirlemek için <strong className="text-blue-600">2 aşamalı</strong> bir değerlendirme gerçekleştiriyoruz.
+              </p>
+              
+              <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-4 text-left mt-6">
+                <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                  <span className="text-xl">📋</span>
+                  <span>Test Süreci:</span>
+                </h3>
+                <ol className="space-y-2 text-gray-700 text-sm sm:text-base">
+                  <li className="flex items-start gap-2">
+                    <span className="font-bold text-blue-600 mt-0.5">1.</span>
+                    <span>İlk aşamada, konuyla ilgili soruları cevaplayacaksınız.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="font-bold text-blue-600 mt-0.5">2.</span>
+                    <span>İkinci aşamada, farklı zorluk seviyelerindeki cevaplardan size en uygun olanı seçeceksiniz.</span>
+                  </li>
+                </ol>
+              </div>
+
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mt-4">
+                <p className="text-sm text-indigo-800">
+                  <strong>💡 Not:</strong> Bu test, sistemin size en uygun zorluk seviyesinde cevaplar üretmesi için gereklidir. 
+                  Lütfen soruları dikkatlice okuyup, samimi cevaplar verin.
+                </p>
+              </div>
+            </div>
+
+            {/* Start Button */}
+            <button
+              onClick={handleStartTest}
+              className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white rounded-xl hover:from-blue-600 hover:via-indigo-600 hover:to-purple-700 transition-all duration-200 flex items-center justify-center gap-3 font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              <span>Teste Başla</span>
+              <ArrowRight className="w-5 h-5" />
+            </button>
+
+            {/* Back Button */}
+            <button
+              onClick={() => router.push(`/student/chat?sessionId=${sessionId}`)}
+              className="mt-4 text-gray-600 hover:text-gray-800 text-sm transition-colors"
+            >
+              ← Chat sayfasına dön
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && stage === "questions") {
     return (

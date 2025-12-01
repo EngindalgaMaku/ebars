@@ -139,9 +139,10 @@ export default function StudentChatPage() {
   }, [selectedSession, sessions]);
 
   // Check initial test status when EBARS is enabled and session is selected
+  // IMPORTANT: This check runs for EACH session separately
   useEffect(() => {
     const checkInitialTest = async () => {
-      console.log("🔍 Checking initial test:", {
+      console.log("🔍 Checking initial test for session:", {
         selectedSession,
         userId: user?.id,
         ebarsEnabled,
@@ -172,15 +173,15 @@ export default function StudentChatPage() {
 
         if (response.ok) {
           const data = await response.json();
-          console.log("📊 Test check data:", data);
+          console.log("📊 Test check data for session:", selectedSession, data);
           
-          // If test is needed and not completed, redirect to test page
+          // If test is needed and not completed for THIS session, redirect to test page
           if (data.needs_test && !data.has_completed) {
-            console.log("✅ Test needed, redirecting to test page");
+            console.log(`✅ Test needed for session ${selectedSession}, redirecting to test page`);
             router.push(`/student/cognitive-test?sessionId=${selectedSession}`);
             return;
           } else {
-            console.log("✅ Test already completed or not needed");
+            console.log(`✅ Test already completed or not needed for session ${selectedSession}`);
           }
         } else {
           const errorText = await response.text();
@@ -196,6 +197,7 @@ export default function StudentChatPage() {
 
     // Check when EBARS is enabled and session is selected
     // Wait a bit for session settings to be loaded
+    // IMPORTANT: This runs for EACH session change
     if (ebarsEnabled && selectedSession && user?.id) {
       const timeoutId = setTimeout(() => {
         checkInitialTest();
@@ -203,7 +205,7 @@ export default function StudentChatPage() {
       
       return () => clearTimeout(timeoutId);
     }
-  }, [ebarsEnabled, selectedSession, user?.id, router]);
+  }, [ebarsEnabled, selectedSession, user?.id, router]); // selectedSession dependency ensures it runs for each session
 
   // Pagination
   const totalPages = Math.ceil(messages.length / MESSAGES_PER_PAGE);
@@ -227,10 +229,20 @@ export default function StudentChatPage() {
       }
       try {
         const sessionsList = await listSessions();
-        setSessions(sessionsList);
+        
+        // Frontend'de de aktif olmayan session'ları filtrele (güvenlik için)
+        // Status case-insensitive kontrol et
+        const activeSessions = sessionsList.filter(
+          (session) => session.status && session.status.toLowerCase() === "active"
+        );
+        
+        console.log("[StudentChat] All sessions:", sessionsList.map(s => ({ name: s.name, status: s.status })));
+        console.log("[StudentChat] Filtered active sessions:", activeSessions.map(s => ({ name: s.name, status: s.status })));
+        
+        setSessions(activeSessions);
 
-        if (sessionsList.length > 0 && !selectedSession) {
-          setSelectedSession(sessionsList[0].session_id);
+        if (activeSessions.length > 0 && !selectedSession) {
+          setSelectedSession(activeSessions[0].session_id);
         }
       } catch (err) {
         console.error("Failed to load sessions:", err);

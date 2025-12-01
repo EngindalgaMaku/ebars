@@ -73,13 +73,23 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
     const loadSessions = async () => {
       try {
         const sessionsList = await listSessions();
-        setSessions(sessionsList);
+        
+        // Frontend'de de aktif olmayan session'ları filtrele (güvenlik için)
+        // Status case-insensitive kontrol et
+        const activeSessions = sessionsList.filter(
+          (session) => session.status && session.status.toLowerCase() === "active"
+        );
+        
+        console.log("[StudentDashboard] All sessions:", sessionsList.map(s => ({ name: s.name, status: s.status })));
+        console.log("[StudentDashboard] Filtered active sessions:", activeSessions.map(s => ({ name: s.name, status: s.status })));
+        
+        setSessions(activeSessions);
 
-        // Auto-select first session
-        if (sessionsList.length > 0 && !selectedSession) {
-          setSelectedSession(sessionsList[0].session_id);
-        } else if (sessionsList.length === 0) {
-          // No sessions, disable EBARS links
+        // Auto-select first active session
+        if (activeSessions.length > 0 && !selectedSession) {
+          setSelectedSession(activeSessions[0].session_id);
+        } else if (activeSessions.length === 0) {
+          // No active sessions, disable EBARS links
           setEbarsEnabled(false);
         }
       } catch (err) {

@@ -434,15 +434,26 @@ def list_sessions(created_by: Optional[str] = None, category: Optional[str] = No
         else:
             # Students: show only active sessions (ignore query parameter status)
             # Always force ACTIVE status for students regardless of query parameter
-            sessions = professional_session_manager.list_sessions(
-                created_by=None, category=category_enum, status=SessionStatus.ACTIVE, limit=limit
+            all_sessions = professional_session_manager.list_sessions(
+                created_by=None, category=category_enum, status=None, limit=limit * 2  # Get more to filter
             )
-            # Debug: Log session statuses to verify filtering
+            
+            # Double filter: backend filter + frontend safety filter
+            sessions = [
+                s for s in all_sessions 
+                if s.status == SessionStatus.ACTIVE
+            ]
+            
+            # Debug: Log all sessions and filtered results
+            if all_sessions:
+                all_statuses = [f"{s.name}: {s.status.value if hasattr(s.status, 'value') else s.status}" for s in all_sessions]
+                logger.info(f"[SESSION LIST] Student user - ALL sessions: {all_statuses}")
+            
             if sessions:
-                session_statuses = [f"{s.name}: {s.status.value}" for s in sessions]
-                logger.info(f"[SESSION LIST] Student user - returning {len(sessions)} sessions with statuses: {session_statuses}")
+                session_statuses = [f"{s.name}: {s.status.value if hasattr(s.status, 'value') else s.status}" for s in sessions]
+                logger.info(f"[SESSION LIST] Student user - FILTERED active sessions ({len(sessions)}): {session_statuses}")
             else:
-                logger.info(f"[SESSION LIST] Student user - no active sessions found")
+                logger.warning(f"[SESSION LIST] Student user - NO ACTIVE SESSIONS FOUND! Total sessions: {len(all_sessions)}")
         return [_convert_metadata_to_response(session) for session in sessions]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list sessions: {str(e)}")

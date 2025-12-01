@@ -198,14 +198,25 @@ export default function EBARSStatusPanel({
     }
   }, [userId, sessionId, lastQuery, lastContext]);
 
-  // Initial load
+  // Initial load - Reset state when session changes
   useEffect(() => {
     if (userId && sessionId) {
+      // Reset all state when session changes
       hasLoadedOnceRef.current = false;
       isInitialLoadRef.current = true;
+      setEbarsState(null);
+      setPreviousScore(null);
+      setPreviousDifficulty(null);
+      setScoreDelta(null);
+      setDifficultyChange(null);
+      setShowChangeAnimation(false);
+      setLoading(true);
+      setError(null);
+      
+      // Fetch new session's EBARS state
       fetchEBARSState();
     }
-  }, [userId, sessionId, fetchEBARSState]);
+  }, [userId, sessionId]); // Removed fetchEBARSState from deps to avoid infinite loop
 
   // Refresh when refreshTrigger changes (parent updates this when query/feedback happens)
   useEffect(() => {
