@@ -232,3 +232,5 @@ docker compose -f docker-compose.prod.yml build frontend
 
 **Not:** No-cache build yapmadan önce `.env.production` dosyasındaki `NEXT_PUBLIC_*` değişkenlerinin doğru olduğundan emin olun!
 
+
+

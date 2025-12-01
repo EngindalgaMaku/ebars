@@ -50,3 +50,5 @@ echo ""
 
 echo "=== KONTROL TAMAMLANDI ==="
 
+
+

@@ -177,3 +177,5 @@ docker system df -v
 
 **Not:** Image'ları silmek sadece image'ları siler, volume'lar ve diğer veriler korunur.
 
+
+

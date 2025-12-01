@@ -266,3 +266,5 @@ docker builder prune -a -f
 
 **Not:** IP adresinizi değiştirdiğinizde mutlaka frontend'i yeniden build etmeniz gerekir çünkü `NEXT_PUBLIC_*` değişkenleri build zamanında bundle'a gömülür.
 
+
+

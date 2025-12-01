@@ -32,3 +32,5 @@ docker compose -f docker-compose.prod.yml logs --tail 100 aprag-service | grep -
 echo ""
 echo "=== KONTROL TAMAMLANDI ==="
 
+
+

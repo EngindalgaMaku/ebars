@@ -21,3 +21,5 @@ docker compose -f docker-compose.prod.yml logs --tail 50 aprag-service 2>/dev/nu
 echo ""
 echo "=== KONTROL TAMAMLANDI ==="
 
+
+

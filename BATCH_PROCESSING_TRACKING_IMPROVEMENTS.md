@@ -101,3 +101,5 @@ Yeni durum kodları:
 - Session metadata kontrolü ile bu sorun kısmen çözüldü
 - Kullanıcı deneyimi önemli ölçüde iyileştirildi
 
+
+

@@ -82,3 +82,5 @@ echo ""
 echo "📝 Logları izlemek için:"
 echo "   docker compose -f docker-compose.prod.yml logs -f frontend"
 
+
+

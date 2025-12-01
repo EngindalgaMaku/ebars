@@ -2480,6 +2480,33 @@ export async function deleteTopic(
   return res.json();
 }
 
+// Delete multiple topics in batch
+export async function deleteTopicsBatch(
+  topicIds: number[]
+): Promise<{ 
+  success: boolean; 
+  deleted_count: number; 
+  total_requested: number;
+  failed_topics: Array<{ topic_id: number; error: string }>;
+  message: string;
+}> {
+  const token = tokenManager.getAccessToken?.() || null;
+  const res = await fetch(`${getApiUrl()}/aprag/topics/delete-batch`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(topicIds),
+  });
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+
+  return res.json();
+}
+
 // Classify a question to a topic
 export async function classifyQuestion(
   request: QuestionClassificationRequest

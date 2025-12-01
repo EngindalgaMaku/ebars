@@ -1279,6 +1279,20 @@ async def update_topic(topic_id: int, request: TopicUpdateRequest):
             params = []
             
             if request.topic_title is not None:
+                # Validate title quality
+                if not is_valid_topic_title(request.topic_title):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid topic title: '{request.topic_title}'. Title must be meaningful and contain at least 3 characters with mostly letters."
+                    )
+                
+                # Check for duplicates (excluding current topic)
+                if check_duplicate_topic(request.topic_title, session_id, db, exclude_topic_id=topic_id):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Duplicate topic title: '{request.topic_title}'. A topic with this title already exists in this session."
+                    )
+                
                 updates.append("topic_title = ?")
                 params.append(request.topic_title)
             
@@ -1460,6 +1474,104 @@ async def delete_topic(topic_id: int):
         import traceback
         logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to delete topic: {str(e)}")
+
+
+@router.post("/delete-batch")
+async def delete_topics_batch(topic_ids: List[int]):
+    """
+    Delete multiple topics in batch
+    Returns count of successfully deleted topics
+    """
+    db = get_db()
+    
+    if not topic_ids:
+        raise HTTPException(status_code=400, detail="No topic IDs provided")
+    
+    deleted_count = 0
+    failed_topics = []
+    
+    for topic_id in topic_ids:
+        try:
+            # Get session_id from topic first to check APRAG status
+            with db.get_connection() as conn:
+                cursor = conn.execute("SELECT session_id, topic_title FROM course_topics WHERE topic_id = ?", (topic_id,))
+                topic = cursor.fetchone()
+                if not topic:
+                    failed_topics.append({"topic_id": topic_id, "error": "Topic not found"})
+                    continue
+                
+                topic_dict = dict(topic)
+                session_id = topic_dict["session_id"]
+                
+                # Check if APRAG is enabled
+                if not FeatureFlags.is_aprag_enabled(session_id):
+                    failed_topics.append({"topic_id": topic_id, "error": "APRAG module is disabled"})
+                    continue
+            
+            # Use the same deletion logic as single delete
+            import sqlite3
+            raw_conn = sqlite3.connect(db.db_path, timeout=30.0)
+            raw_conn.row_factory = sqlite3.Row
+            
+            try:
+                raw_conn.execute("PRAGMA foreign_keys = OFF")
+                cursor = raw_conn.cursor()
+                
+                # Delete related records
+                try:
+                    cursor.execute("DELETE FROM question_topic_mapping WHERE topic_id = ?", (topic_id,))
+                except Exception:
+                    pass
+                
+                try:
+                    raw_conn.execute("PRAGMA foreign_keys = OFF")
+                    cursor.execute("DELETE FROM topic_progress WHERE topic_id = ?", (topic_id,))
+                except Exception:
+                    pass
+                
+                try:
+                    cursor.execute("DELETE FROM topic_knowledge_base WHERE topic_id = ?", (topic_id,))
+                except Exception:
+                    pass
+                
+                try:
+                    cursor.execute("DELETE FROM topic_qa_pairs WHERE topic_id = ?", (topic_id,))
+                except Exception:
+                    pass
+                
+                try:
+                    cursor.execute("""
+                        UPDATE course_topics 
+                        SET parent_topic_id = NULL 
+                        WHERE parent_topic_id = ?
+                    """, (topic_id,))
+                except Exception:
+                    pass
+                
+                # Delete the topic itself
+                cursor.execute("DELETE FROM course_topics WHERE topic_id = ?", (topic_id,))
+                
+                if cursor.rowcount > 0:
+                    raw_conn.commit()
+                    deleted_count += 1
+                    logger.info(f"Topic {topic_id} deleted successfully in batch")
+                else:
+                    failed_topics.append({"topic_id": topic_id, "error": "Topic not found"})
+                
+            finally:
+                raw_conn.close()
+                
+        except Exception as e:
+            logger.error(f"Error deleting topic {topic_id} in batch: {e}")
+            failed_topics.append({"topic_id": topic_id, "error": str(e)})
+    
+    return {
+        "success": True,
+        "deleted_count": deleted_count,
+        "total_requested": len(topic_ids),
+        "failed_topics": failed_topics,
+        "message": f"Successfully deleted {deleted_count} out of {len(topic_ids)} topics"
+    }
 
 
 @router.post("/classify-question")
@@ -2559,9 +2671,81 @@ def merge_similar_topics(topics: List[Dict]) -> List[Dict]:
     return merged
 
 
+def is_valid_topic_title(title: str) -> bool:
+    """
+    Validate topic title - filter out meaningless titles
+    Returns False for titles that are:
+    - Too short (< 3 characters)
+    - Only numbers
+    - Only special characters
+    - Mostly numbers/special characters with minimal text
+    - Common meaningless patterns
+    """
+    if not title or len(title.strip()) < 3:
+        return False
+    
+    title_clean = title.strip()
+    
+    # Check if it's only numbers
+    if title_clean.isdigit():
+        return False
+    
+    # Check if it's only special characters or whitespace
+    if not any(c.isalnum() for c in title_clean):
+        return False
+    
+    # Count meaningful characters (letters, Turkish characters)
+    turkish_chars = "çğıöşüÇĞIİÖŞÜ"
+    meaningful_chars = sum(1 for c in title_clean if c.isalpha() or c in turkish_chars)
+    total_chars = len([c for c in title_clean if not c.isspace()])
+    
+    # If less than 50% of non-space characters are meaningful, reject
+    if total_chars > 0 and (meaningful_chars / total_chars) < 0.5:
+        return False
+    
+    # Check for common meaningless patterns
+    meaningless_patterns = [
+        "topic", "konu", "başlık", "title", "name",
+        "item", "element", "entry", "data", "content"
+    ]
+    title_lower = title_clean.lower()
+    if title_lower in meaningless_patterns:
+        return False
+    
+    # Check if it's mostly numbers with minimal text (e.g., "123abc", "456")
+    digits = sum(1 for c in title_clean if c.isdigit())
+    if digits > meaningful_chars and meaningful_chars < 3:
+        return False
+    
+    return True
+
+
+def check_duplicate_topic(title: str, session_id: str, db: DatabaseManager, exclude_topic_id: Optional[int] = None) -> bool:
+    """
+    Check if a topic with the same title already exists in the session
+    Returns True if duplicate exists, False otherwise
+    """
+    with db.get_connection() as conn:
+        title_lower = title.lower().strip()
+        if exclude_topic_id:
+            cursor = conn.execute("""
+                SELECT COUNT(*) as count FROM course_topics 
+                WHERE session_id = ? AND LOWER(TRIM(topic_title)) = ? AND topic_id != ?
+            """, (session_id, title_lower, exclude_topic_id))
+        else:
+            cursor = conn.execute("""
+                SELECT COUNT(*) as count FROM course_topics 
+                WHERE session_id = ? AND LOWER(TRIM(topic_title)) = ?
+            """, (session_id, title_lower))
+        
+        count = dict(cursor.fetchone())["count"]
+        return count > 0
+
+
 def save_topics_to_db(topics: List[Dict], session_id: str, db: DatabaseManager) -> int:
     """
     Save topics to database with proper Turkish difficulty level handling
+    Includes validation for title quality and duplicate checking
     Returns count of saved topics
     """
     
@@ -2600,6 +2784,16 @@ def save_topics_to_db(topics: List[Dict], session_id: str, db: DatabaseManager) 
             # Skip if no valid title found
             if not title:
                 logger.warning(f"💾 [TOPIC SAVE] Skipping topic with no valid title: {list(topic_data.keys())}")
+                continue
+            
+            # Validate title quality
+            if not is_valid_topic_title(title):
+                logger.warning(f"💾 [TOPIC SAVE] Skipping topic with invalid/meaningless title: '{title}'")
+                continue
+            
+            # Check for duplicates
+            if check_duplicate_topic(title, session_id, db):
+                logger.warning(f"💾 [TOPIC SAVE] Skipping duplicate topic: '{title}'")
                 continue
             
             # Normalize difficulty level
@@ -2648,6 +2842,16 @@ def save_topics_to_db(topics: List[Dict], session_id: str, db: DatabaseManager) 
                 # Skip if no valid subtopic title found
                 if not subtopic_title:
                     logger.warning(f"💾 [TOPIC SAVE] Skipping subtopic with no valid title: {list(subtopic_data.keys())}")
+                    continue
+                
+                # Validate subtopic title quality
+                if not is_valid_topic_title(subtopic_title):
+                    logger.warning(f"💾 [TOPIC SAVE] Skipping subtopic with invalid/meaningless title: '{subtopic_title}'")
+                    continue
+                
+                # Check for duplicate subtopic (within same parent)
+                if check_duplicate_topic(subtopic_title, session_id, db, exclude_topic_id=main_topic_id):
+                    logger.warning(f"💾 [TOPIC SAVE] Skipping duplicate subtopic: '{subtopic_title}'")
                     continue
                 
                 conn.execute("""

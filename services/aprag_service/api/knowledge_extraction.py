@@ -2244,8 +2244,8 @@ async def generate_qa_pairs_endpoint(topic_id: int, request: QAGenerationRequest
                     qa["question"],
                     qa["answer"],
                     qa.get("explanation", ""),
-                    qa["difficulty"],
-                    qa["question_type"],
+                    qa.get("difficulty", "beginner"),
+                    qa.get("question_type", "factual"),
                     qa.get("bloom_level", "Hatırlama"),  # Türkçe default
                     json.dumps(qa.get("related_concepts", []), ensure_ascii=False),
                     "llm_generated",
