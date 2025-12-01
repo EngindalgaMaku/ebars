@@ -409,7 +409,7 @@ export default function StudentChatPage() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 hidden md:flex">
               <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
             <div className="min-w-0 flex-1 hidden md:block">
@@ -421,28 +421,30 @@ export default function StudentChatPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
-            <select
-              value={selectedSession || ""}
-              onChange={(e) => handleSessionChange(e.target.value)}
-              className="w-full sm:w-auto px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 font-medium text-sm sm:text-base"
-            >
-              {sessions.map((session) => (
-                <option key={session.session_id} value={session.session_id}>
-                  📚 {session.name}
-                </option>
-              ))}
-            </select>
-
-            {messages.length > 0 && (
-              <button
-                onClick={handleClearHistory}
-                className="w-full sm:w-auto px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
-                title="Sohbet geçmişini temizle"
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <select
+                value={selectedSession || ""}
+                onChange={(e) => handleSessionChange(e.target.value)}
+                className="flex-1 sm:flex-none sm:w-auto px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 font-medium text-sm sm:text-base"
               >
-                <Trash2 className="w-4 h-4" />
-                <span>Temizle</span>
-              </button>
-            )}
+                {sessions.map((session) => (
+                  <option key={session.session_id} value={session.session_id}>
+                    📚 {session.name}
+                  </option>
+                ))}
+              </select>
+
+              {messages.length > 0 && (
+                <button
+                  onClick={handleClearHistory}
+                  className="px-2 sm:px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center gap-1 sm:gap-2 text-sm sm:text-base flex-shrink-0"
+                  title="Sohbet geçmişini temizle"
+                >
+                  <Trash2 className="w-4 h-4 sm:w-4 sm:h-4" />
+                  <span className="hidden sm:inline">Temizle</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
