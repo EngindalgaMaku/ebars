@@ -1014,7 +1014,7 @@ Aynı soru için 5 farklı zorluk seviyesinde cevap üret:
 4. İyi (good): Zorlayıcı, öz, 0-1 örnek, derinlemesine
 5. Mükemmel (excellent): İleri seviye, kısa, örnek yok, teknik ve analitik
 
-ÇIKTI FORMATI (JSON):
+ÇIKTI FORMATI (JSON - MUTLAKA BU FORMATI KULLAN):
 {{
   "answers": {{
     "very_struggling": {{
@@ -1030,26 +1030,28 @@ Aynı soru için 5 farklı zorluk seviyesinde cevap üret:
       "characteristics": ["dengeli", "orta detay", "1-2 örnek", "standart"]
     }},
     "good": {{
-      "text": "Zorlayıcı ve derinlemesine cevap (0-1 örnek)",
-      "characteristics": ["zorlayıcı", "öz", "0-1 örnek", "derinlemesine"]
+      "text": "Zorlayıcı ve derinlemesine cevap (1-2 ileri seviye örnek)",
+      "characteristics": ["zorlayıcı", "öz", "1-2 ileri seviye örnek", "derinlemesine"]
     }},
     "excellent": {{
-      "text": "İleri seviye teknik cevap (örnek yok, analitik)",
-      "characteristics": ["ileri seviye", "kısa", "örnek yok", "teknik"]
+      "text": "İleri seviye teknik cevap (stratejik örnekler, analitik)",
+      "characteristics": ["ileri seviye", "kısa", "stratejik örnekler", "teknik"]
     }}
   }}
 }}
 
-SADECE JSON çıktısı ver, başka açıklama yapma."""
+⚠️ KRİTİK: SADECE geçerli JSON çıktısı ver. Markdown code block, açıklama veya ekstra metin EKLEME."""
         
-        # Call LLM
+        # Call LLM with structured JSON output
         response = requests.post(
             f"{MODEL_INFERENCER_URL}/models/generate",
             json={
                 "prompt": prompt,
                 "model": "llama-3.1-8b-instant",
                 "max_tokens": 3000,
-                "temperature": 0.7
+                "temperature": 0.7,
+                "json_mode": True,  # Force JSON output
+                "response_format": {"type": "json_object"}  # Structured output
             },
             timeout=120
         )
@@ -1536,7 +1538,7 @@ SORU TİPLERİ (İÇERİKTEN ÇIKARILMALI):
 - Zor ({max(1, num_questions - (num_questions // 3) - ((num_questions * 2) // 3))} soru): İçerikteki GERÇEK bilgilerin analizi, sentezi, değerlendirmesi
   Örnek: "X ve Y arasındaki ilişki nedir?" (X ve Y içerikte bahsedilmiş olmalı, direkt sor)
 
-ÇIKTI FORMATI (JSON):
+ÇIKTI FORMATI (JSON - MUTLAKA BU FORMATI KULLAN):
 {{
   "questions": [
     {{
@@ -1549,13 +1551,14 @@ SORU TİPLERİ (İÇERİKTEN ÇIKARILMALI):
         "D": "İçerikte olmayan ama mantıklı çeldirici"
       }},
       "correct_answer": "A",
-      "difficulty": "easy|medium|hard",
-      "type": "knowledge|comprehension|application|analysis|synthesis|evaluation",
+      "difficulty": "easy",
+      "type": "knowledge",
       "explanation": "Doğru cevabın açıklaması (içerikteki GERÇEK bilgiye dayalı)"
-    }},
-    ...
+    }}
   ]
 }}
+
+⚠️ KRİTİK: SADECE geçerli JSON çıktısı ver. Markdown code block, açıklama veya ekstra metin EKLEME.
 
 ÖNEMLİ ÖRNEKLER:
 - İÇERİKTE: "Python'da listeler mutable veri yapılarıdır"
@@ -1576,14 +1579,16 @@ YASAK:
 
 SADECE JSON çıktısı ver, başka açıklama yapma."""
 
-        # Call LLM - Use correct endpoint pattern
+        # Call LLM with structured JSON output
         response = requests.post(
             f"{MODEL_INFERENCER_URL}/models/generate",
             json={
                 "prompt": prompt,
                 "model": "llama-3.1-8b-instant",
                 "max_tokens": 4000,
-                "temperature": 0.7
+                "temperature": 0.7,
+                "json_mode": True,  # Force JSON output
+                "response_format": {"type": "json_object"}  # Structured output
             },
             timeout=120
         )
@@ -1747,22 +1752,24 @@ GÖREV:
    - Medium: Uygulama ve analiz yapabilmiş olması gerekli
    - Hard: Sentez ve değerlendirme yapabilmiş olması gerekli
 
-ÇIKTI FORMATI (JSON):
+ÇIKTI FORMATI (JSON - MUTLAKA BU FORMATI KULLAN):
 {{
-  "is_correct": true/false,
-  "score": 0-10,
+  "is_correct": true,
+  "score": 8,
   "feedback": "Kısa değerlendirme notu"
 }}
 
-SADECE JSON çıktısı ver, başka açıklama yapma."""
+⚠️ KRİTİK: SADECE geçerli JSON çıktısı ver. Markdown code block, açıklama veya ekstra metin EKLEME."""
 
         response = requests.post(
-            f"{MODEL_INFERENCER_URL}/generate",
+            f"{MODEL_INFERENCER_URL}/models/generate",
             json={
                 "prompt": prompt,
                 "model": "llama-3.1-8b-instant",
                 "max_tokens": 500,
-                "temperature": 0.3
+                "temperature": 0.3,
+                "json_mode": True,  # Force JSON output
+                "response_format": {"type": "json_object"}  # Structured output
             },
             timeout=30
         )

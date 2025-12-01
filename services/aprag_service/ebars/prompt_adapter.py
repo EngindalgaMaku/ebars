@@ -23,6 +23,9 @@ DIFFICULTY_PROMPT_PARAMS = {
         'step_by_step': True,
         'visual_aids': True,
         'analogy_usage': True,
+        'chunking': True,  # Bilgiyi parçalara böl
+        'progressive_disclosure': True,  # Kademeli açıklama
+        'max_concepts_per_response': 2,  # Her cevapta max 2 kavram
     },
     'struggling': {
         'difficulty': 'easy',
@@ -51,22 +54,24 @@ DIFFICULTY_PROMPT_PARAMS = {
     'good': {
         'difficulty': 'challenging',
         'detail_level': 'concise',
-        'example_count': 'minimal',  # 0-1 örnek
-        'explanation_style': 'direct',
+        'example_count': 'moderate_advanced',  # "minimal" yerine - 1-2 ileri seviye örnek
+        'explanation_style': 'direct_with_depth',  # "direct" yerine - direkt ama derinlemesine
         'technical_terms': 'normal',
         'sentence_length': 'medium_long',  # 20-25 kelime
         'concept_density': 'medium_high',
         'step_by_step': False,
         'visual_aids': False,
         'analogy_usage': False,
+        'concept_relationships': True,  # Kavramlar arası ilişkileri göster
+        'multiple_perspectives': True,  # Farklı perspektifler sun
     },
     'excellent': {
         'difficulty': 'advanced',
-        'detail_level': 'brief',
-        'example_count': 'none',  # Örnek yok
-        'explanation_style': 'concise',
+        'detail_level': 'concise',  # "brief" yerine "concise" - daha dengeli
+        'example_count': 'strategic',  # "none" yerine "strategic" - ileri seviye örnekler
+        'explanation_style': 'technical_with_context',  # "concise" yerine - teknik ama bağlamlı
         'technical_terms': 'technical',  # Teknik terimler kullan
-        'sentence_length': 'long',  # 25+ kelime
+        'sentence_length': 'medium_long',  # "long" yerine - 20-25 kelime (daha okunabilir)
         'concept_density': 'high',
         'step_by_step': False,
         'visual_aids': False,
@@ -199,15 +204,19 @@ class PromptAdapter:
    - Basit cümle yapıları
    - Karmaşık fikirleri parçalara böl
 
-3. **Adım Adım Açıklama:**
+3. **Adım Adım Açıklama (Chunking):**
    - Her adımı tek tek göster
    - Her adımı açıkla
    - Öğrencinin takip edebileceği şekilde ilerle
+   - ⚠️ ÖNEMLİ: Her cevapta maksimum 2 kavram işle (cognitive load kontrolü)
+   - Bilgiyi küçük parçalara böl (chunking)
+   - Kademeli açıklama yap (progressive disclosure)
 
-4. **Çok Örnek:**
+4. **Çok Örnek (Ama Kademeli):**
    - 3-5 somut örnek ver
    - Her örneği detaylı açıkla
    - Günlük hayattan örnekler kullan
+   - Örnekleri kademeli sun (hepsini aynı anda değil)
 
 5. **Görsel Yardımlar:**
    - Mümkünse görsel açıklamalar yap
@@ -278,7 +287,7 @@ class PromptAdapter:
 ⚠️ MUTLAKA UYGULA:
 1. **Teknik Dil:**
    - Teknik terimleri doğrudan kullan
-   - Açıklamaya gerek yok (öğrenci biliyor)
+   - Gerekirse kısa bağlam ver
    - Terimlerin doğru kullanımına odaklan
 
 2. **Uzun ve Karmaşık Cümleler:**
@@ -290,11 +299,13 @@ class PromptAdapter:
    - Kavramlar arası ilişkileri göster
    - İleri seviye detaylar ekle
    - Farklı perspektifler sun
+   - Disiplinler arası bağlantılar kur
 
-4. **Minimal Örnekler:**
-   - 0-1 örnek yeterli
-   - Örnekler varsa ileri seviye olsun
-   - Örneklerle derinleştir, basitleştirme
+4. **İleri Seviye Örnekler:**
+   - 1-2 ileri seviye örnek ver
+   - Örnekler karmaşık ve derinlemesine olsun
+   - Örneklerle kavramsal derinliği artır
+   - Basit örneklerden kaçın
 """,
             'excellent': """
 🔧 ZORLUK SEVİYESİ: İLERİ
@@ -302,23 +313,25 @@ class PromptAdapter:
 ⚠️ MUTLAKA UYGULA:
 1. **İleri Seviye Teknik Dil:**
    - Tüm teknik terimleri kullan
-   - Hiçbir açıklama yapma (öğrenci zaten biliyor)
    - Terimlerin doğru ve profesyonel kullanımı
+   - Gerekirse kısa bağlam ver (ama uzun açıklama yapma)
 
-2. **Çok Uzun ve Karmaşık Cümleler:**
-   - Her cümle 25+ kelime
-   - Çok karmaşık cümle yapıları
+2. **Uzun ve Karmaşık Cümleler (Ama Okunabilir):**
+   - Her cümle 20-25 kelime (25+ yerine - daha okunabilir)
+   - Karmaşık cümle yapıları kullan
    - Derinlemesine analiz ve sentez
+   - Okunabilirliği koru
 
 3. **Yüksek Kavram Yoğunluğu:**
    - Birden fazla kavramı birlikte işle
    - Kavramlar arası karmaşık ilişkiler
    - Disiplinler arası entegrasyon
 
-4. **Örnek Yok:**
-   - Örnek verme (öğrenci zaten anlıyor)
-   - Doğrudan kavramsal derinliğe gir
-   - Teorik ve soyut düzeyde kal
+4. **Stratejik Örnekler:**
+   - İleri seviye, karmaşık örnekler ver (basit örnekler değil)
+   - Örnekler kavramsal derinliği artırsın
+   - Teorik ve pratik entegrasyonu göster
+   - Örneklerle derinleştir, basitleştirme
 """,
         }
         
@@ -367,6 +380,20 @@ class PromptAdapter:
 - Örnek verme
 - Mümkün olduğunca kısa ol
 """,
+            'technical_with_context': """
+📋 DETAY SEVİYESİ: TEKNİK BAĞLAMLI
+- Teknik terimleri kullan ama kısa bağlam ver
+- Kritik noktaları vurgula
+- Gereksiz detayları atla
+- Kavramsal derinliği koru
+""",
+            'direct_with_depth': """
+📋 DETAY SEVİYESİ: DERİNLEMESİNE DİREKT
+- Direkt yaklaşım ama derinlemesine
+- Kavramlar arası ilişkileri göster
+- Farklı perspektifler sun
+- İleri seviye detaylar ekle
+""",
         }
         
         return instructions.get(detail_level, instructions['balanced'])
@@ -398,6 +425,19 @@ class PromptAdapter:
 - Örnek verme
 - Doğrudan kavramsal derinliğe gir
 - Teorik ve soyut düzeyde kal
+""",
+            'strategic': """
+📚 ÖRNEK KULLANIMI: STRATEJİK ÖRNEKLER
+- İleri seviye, karmaşık örnekler ver
+- Örnekler kavramsal derinliği artırsın
+- Teorik ve pratik entegrasyonu göster
+- Basit örneklerden kaçın
+""",
+            'moderate_advanced': """
+📚 ÖRNEK KULLANIMI: İLERİ SEVİYE ORTA ÖRNEK
+- 1-2 ileri seviye örnek ver
+- Örnekler karmaşık ve derinlemesine olsun
+- Kavramsal derinliği artırsın
 """,
         }
         

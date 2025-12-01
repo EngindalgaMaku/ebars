@@ -43,6 +43,8 @@ class GenerationRequest(BaseModel):
     # Optional parameters
     temperature: float = 0.7
     max_tokens: int = 1024
+    json_mode: bool = False  # Force JSON output if supported
+    response_format: Optional[dict] = None  # Structured output format (e.g., {"type": "json_object"})
 
 class GenerationResponse(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
@@ -461,16 +463,23 @@ async def generate_response(request: GenerationRequest):
                 raise HTTPException(status_code=503, detail="Alibaba client is not available. Check ALIBABA_API_KEY.")
 
             try:
-                chat_completion = alibaba_client.chat.completions.create(
-                    model=model_name,
-                    messages=[
+                # Prepare request parameters
+                request_params = {
+                    "model": model_name,
+                    "messages": [
                         {"role": "system", "content": "You are a helpful assistant."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=request.temperature,
-                    max_tokens=request.max_tokens,
-                    stream=False
-                )
+                    "temperature": request.temperature,
+                    "max_tokens": request.max_tokens,
+                    "stream": False
+                }
+                
+                # Add JSON mode if requested
+                if request.json_mode or request.response_format:
+                    request_params["response_format"] = request.response_format or {"type": "json_object"}
+                
+                chat_completion = alibaba_client.chat.completions.create(**request_params)
                 response_content = chat_completion.choices[0].message.content or ""
                 return GenerationResponse(response=response_content, model_used=model_name)
             except Exception as e:
@@ -490,16 +499,23 @@ async def generate_response(request: GenerationRequest):
                 raise HTTPException(status_code=503, detail="DeepSeek client is not available. Check DEEPSEEK_API_KEY.")
 
             try:
-                chat_completion = deepseek_client.chat.completions.create(
-                    model=model_name,
-                    messages=[
+                # Prepare request parameters
+                request_params = {
+                    "model": model_name,
+                    "messages": [
                         {"role": "system", "content": "You are a helpful assistant."},
                         {"role": "user", "content": prompt}
                     ],
-                    temperature=request.temperature,
-                    max_tokens=request.max_tokens,
-                    stream=False
-                )
+                    "temperature": request.temperature,
+                    "max_tokens": request.max_tokens,
+                    "stream": False
+                }
+                
+                # Add JSON mode if requested
+                if request.json_mode or request.response_format:
+                    request_params["response_format"] = request.response_format or {"type": "json_object"}
+                
+                chat_completion = deepseek_client.chat.completions.create(**request_params)
                 response_content = chat_completion.choices[0].message.content or ""
                 return GenerationResponse(response=response_content, model_used=model_name)
             except Exception as e:
@@ -536,6 +552,10 @@ async def generate_response(request: GenerationRequest):
                 "max_tokens": request.max_tokens
             }
             
+            # Add JSON mode if requested (OpenRouter supports it)
+            if request.json_mode or request.response_format:
+                payload["response_format"] = request.response_format or {"type": "json_object"}
+            
             try:
                 response = requests.post(
                     "https://openrouter.ai/api/v1/chat/completions",
@@ -565,15 +585,22 @@ async def generate_response(request: GenerationRequest):
                 raise HTTPException(status_code=503, detail="Groq client is not available. Check GROQ_API_KEY.")
 
             try:
-                chat_completion = groq_client.chat.completions.create(
-                    messages=[
+                # Prepare request parameters
+                request_params = {
+                    "messages": [
                         {"role": "system", "content": "You are a helpful assistant."},
                         {"role": "user", "content": prompt},
                     ],
-                    model=model_name,
-                    temperature=request.temperature,
-                    max_tokens=request.max_tokens,
-                )
+                    "model": model_name,
+                    "temperature": request.temperature,
+                    "max_tokens": request.max_tokens,
+                }
+                
+                # Add JSON mode if requested (Groq supports it for some models)
+                if request.json_mode or request.response_format:
+                    request_params["response_format"] = request.response_format or {"type": "json_object"}
+                
+                chat_completion = groq_client.chat.completions.create(**request_params)
                 response_content = chat_completion.choices[0].message.content or ""
                 return GenerationResponse(response=response_content, model_used=model_name)
             except Exception as e:
@@ -731,11 +758,21 @@ async def generate_response(request: GenerationRequest):
             print(f"Attempting to use model: {actual_model_name}")  # Debug print
             
             try:
-                response = client.chat(
-                    model=actual_model_name,
-                    messages=[{'role': 'user', 'content': prompt}],
-                    stream=False
-                )
+                # Prepare request parameters
+                request_params = {
+                    "model": actual_model_name,
+                    "messages": [{'role': 'user', 'content': prompt}],
+                    "stream": False
+                }
+                
+                # Ollama supports JSON mode via format parameter
+                if request.json_mode or request.response_format:
+                    request_params["format"] = "json"
+                    # Also add JSON instruction to prompt if not already present
+                    if "json" not in prompt.lower() and "JSON" not in prompt:
+                        request_params["messages"][0]["content"] = f"{prompt}\n\nIMPORTANT: Respond ONLY with valid JSON. No markdown, no explanations, just pure JSON."
+                
+                response = client.chat(**request_params)
                 response_content = response['message']['content'] if response.get('message') and response['message'].get('content') else ""
                 return GenerationResponse(response=response_content, model_used=actual_model_name)
             except Exception as ollama_error:
