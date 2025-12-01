@@ -21,14 +21,17 @@ function getApiUrl(): string {
 function getAuthUrl(): string {
   if (typeof window !== "undefined") {
     // Client-side: use /api/auth for auth service (Next.js rewrites)
+    // This will be rewritten to auth-service by Next.js (no port number in URL)
     return "/api/auth";
   }
   // Server-side: use default (for SSR)
   return URLS.AUTH_SERVICE;
 }
 
-const MAIN_GATEWAY_URL = getApiUrl();
-const AUTH_SERVICE_URL = getAuthUrl();
+// Use functions instead of constants to ensure client-side detection works correctly
+// This prevents issues where module is loaded server-side but used client-side
+const MAIN_GATEWAY_URL = () => getApiUrl();
+const AUTH_SERVICE_URL = () => getAuthUrl();
 
 // ===== TYPE DEFINITIONS =====
 
@@ -182,7 +185,7 @@ export async function getAdminStats(): Promise<AdminStats> {
     throw new Error("No access token found");
   }
 
-  const response = await fetch(`${AUTH_SERVICE_URL}/admin/stats`, {
+  const response = await fetch(`${AUTH_SERVICE_URL()}/admin/stats`, {
     method: "GET",
     credentials: "include",
     headers: {
@@ -212,7 +215,7 @@ export async function getActivityLogs(
   }
 
   const response = await fetch(
-    `${AUTH_SERVICE_URL}/admin/activity-logs?limit=${limit}`,
+    `${AUTH_SERVICE_URL()}/admin/activity-logs?limit=${limit}`,
     {
       method: "GET",
       credentials: "include",
@@ -239,8 +242,8 @@ export async function getSystemHealth(): Promise<SystemHealth> {
   try {
     // Check both services
     const [authCheck, gatewayCheck] = await Promise.allSettled([
-      fetch(`${AUTH_SERVICE_URL}/health`, { method: "GET" }),
-      fetch(`${MAIN_GATEWAY_URL}/health`, { method: "GET" }),
+      fetch(`${AUTH_SERVICE_URL()}/health`, { method: "GET" }),
+      fetch(`${MAIN_GATEWAY_URL()}/health`, { method: "GET" }),
     ]);
 
     const authHealthy = authCheck.status === "fulfilled" && authCheck.value.ok;
@@ -264,7 +267,7 @@ export async function getSystemHealth(): Promise<SystemHealth> {
     if (authHealthy) {
       try {
         const detailedHealth = await fetch(
-          `${AUTH_SERVICE_URL}/admin/system-health`,
+          `${AUTH_SERVICE_URL()}/admin/system-health`,
           {
             headers: {
               Authorization: `Bearer ${getAccessToken()}`,
@@ -308,7 +311,7 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
     throw new Error("No access token found");
   }
 
-  const response = await fetch(`${AUTH_SERVICE_URL}/admin/users`, {
+  const response = await fetch(`${AUTH_SERVICE_URL()}/admin/users`, {
     method: "GET",
     credentials: "include",
     headers: {
@@ -335,7 +338,7 @@ export async function createAdminUser(
     throw new Error("No access token found");
   }
 
-  const response = await fetch(`${AUTH_SERVICE_URL}/admin/users`, {
+  const response = await fetch(`${AUTH_SERVICE_URL()}/admin/users`, {
     method: "POST",
     credentials: "include",
     headers: {
@@ -366,7 +369,7 @@ export async function updateAdminUser(
   }
 
   const response = await fetch(
-    `${AUTH_SERVICE_URL}/admin/users/${userData.id}`,
+    `${AUTH_SERVICE_URL()}/admin/users/${userData.id}`,
     {
       method: "PUT",
       credentials: "include",
@@ -400,7 +403,7 @@ export async function changePassword(
   }
 
   const response = await fetch(
-    `${AUTH_SERVICE_URL}/admin/users/${userId}/password`,
+    `${AUTH_SERVICE_URL()}/admin/users/${userId}/password`,
     {
       method: "PATCH",
       credentials: "include",
@@ -428,7 +431,7 @@ export async function deleteAdminUser(userId: number): Promise<void> {
     throw new Error("No access token found");
   }
 
-  const response = await fetch(`${AUTH_SERVICE_URL}/admin/users/${userId}`, {
+  const response = await fetch(`${AUTH_SERVICE_URL()}/admin/users/${userId}`, {
     method: "DELETE",
     credentials: "include",
     headers: {
@@ -456,7 +459,7 @@ export async function bulkUpdateUsers(
     throw new Error("No access token found");
   }
 
-  const response = await fetch(`${AUTH_SERVICE_URL}/admin/users/bulk`, {
+  const response = await fetch(`${AUTH_SERVICE_URL()}/admin/users/bulk`, {
     method: "PATCH",
     credentials: "include",
     headers: {
@@ -487,7 +490,7 @@ export async function getAdminSessions(): Promise<AdminSession[]> {
     throw new Error("No access token found");
   }
 
-  const response = await fetch(`${AUTH_SERVICE_URL}/admin/sessions`, {
+  const response = await fetch(`${AUTH_SERVICE_URL()}/admin/sessions`, {
     method: "GET",
     credentials: "include",
     headers: {
@@ -513,7 +516,7 @@ export async function terminateSession(sessionId: number): Promise<void> {
   }
 
   const response = await fetch(
-    `${AUTH_SERVICE_URL}/admin/sessions/${sessionId}`,
+    `${AUTH_SERVICE_URL()}/admin/sessions/${sessionId}`,
     {
       method: "DELETE",
       credentials: "include",
@@ -541,7 +544,7 @@ export async function terminateUserSessions(userId: number): Promise<void> {
   }
 
   const response = await fetch(
-    `${AUTH_SERVICE_URL}/admin/users/${userId}/sessions`,
+    `${AUTH_SERVICE_URL()}/admin/users/${userId}/sessions`,
     {
       method: "DELETE",
       credentials: "include",
@@ -570,7 +573,7 @@ export async function getAdminRoles(): Promise<AdminRole[]> {
     throw new Error("No access token found");
   }
 
-  const response = await fetch(`${AUTH_SERVICE_URL}/admin/roles`, {
+  const response = await fetch(`${AUTH_SERVICE_URL()}/admin/roles`, {
     method: "GET",
     credentials: "include",
     headers: {
@@ -597,7 +600,7 @@ export async function createAdminRole(
     throw new Error("No access token found");
   }
 
-  const response = await fetch(`${AUTH_SERVICE_URL}/admin/roles`, {
+  const response = await fetch(`${AUTH_SERVICE_URL()}/admin/roles`, {
     method: "POST",
     credentials: "include",
     headers: {
@@ -628,7 +631,7 @@ export async function updateAdminRole(
   }
 
   const response = await fetch(
-    `${AUTH_SERVICE_URL}/admin/roles/${roleData.id}`,
+    `${AUTH_SERVICE_URL()}/admin/roles/${roleData.id}`,
     {
       method: "PUT",
       credentials: "include",
@@ -658,7 +661,7 @@ export async function deleteAdminRole(roleId: number): Promise<void> {
     throw new Error("No access token found");
   }
 
-  const response = await fetch(`${AUTH_SERVICE_URL}/admin/roles/${roleId}`, {
+  const response = await fetch(`${AUTH_SERVICE_URL()}/admin/roles/${roleId}`, {
     method: "DELETE",
     credentials: "include",
     headers: {
@@ -703,7 +706,7 @@ export async function getAdminLearningSessions(): Promise<LearningSession[]> {
     throw new Error("No access token found");
   }
 
-  const response = await fetch(`${MAIN_GATEWAY_URL}/sessions`, {
+  const response = await fetch(`${MAIN_GATEWAY_URL()}/sessions`, {
     method: "GET",
     credentials: "include",
     headers: {
@@ -730,7 +733,7 @@ export async function deleteAdminLearningSession(
     throw new Error("No access token found");
   }
 
-  const response = await fetch(`${MAIN_GATEWAY_URL}/sessions/${sessionId}`, {
+  const response = await fetch(`${MAIN_GATEWAY_URL()}/sessions/${sessionId}`, {
     method: "DELETE",
     credentials: "include",
     headers: {
@@ -759,7 +762,7 @@ export async function updateAdminLearningSessionStatus(
   }
 
   const response = await fetch(
-    `${MAIN_GATEWAY_URL}/sessions/${sessionId}/status`,
+    `${MAIN_GATEWAY_URL()}/sessions/${sessionId}/status`,
     {
       method: "PATCH",
       credentials: "include",
