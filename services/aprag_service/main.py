@@ -193,19 +193,20 @@ else:
         "http://frontend:3000",
         "http://api-gateway:8000",
         "http://auth-service:8006",
-        "http://46.62.254.131:3000",  # External IP frontend
-        "http://46.62.254.131:8000",  # External IP API gateway
-        "http://46.62.254.131:8006",  # External IP auth service
-        "http://46.62.254.131:8007",  # External IP aprag service (self)
-        "*"  # Allow all as last resort
+        # Hetzner server deployment origins (65.109.230.236)
+        "http://65.109.230.236:3000",  # External IP frontend
+        "http://65.109.230.236:8000",  # External IP API gateway
+        "http://65.109.230.236:8006",  # External IP auth service
+        "http://65.109.230.236:8007",  # External IP APRAG service
     ]
 
 # Ensure external server IP origins are always included for Docker deployment
 external_origins = [
-    "http://46.62.254.131:3000",
-    "http://46.62.254.131:8000",
-    "http://46.62.254.131:8006",
-    "http://46.62.254.131:8007"
+    # Hetzner server deployment origins (65.109.230.236)
+    "http://65.109.230.236:3000",
+    "http://65.109.230.236:8000",
+    "http://65.109.230.236:8006",
+    "http://65.109.230.236:8007"
 ]
 for origin in external_origins:
     if origin not in cors_origins:

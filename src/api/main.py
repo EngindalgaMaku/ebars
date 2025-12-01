@@ -8,6 +8,7 @@ import json
 import asyncio
 import uuid
 import logging
+import traceback
 from pathlib import Path
 from datetime import datetime
 import time
@@ -64,17 +65,17 @@ origins = [
     "http://frontend:3000",
     "http://api-gateway:8000",
     
-    # GUARANTEED server deployment origins (46.62.254.131)
-    "http://46.62.254.131:3000",
-    "http://46.62.254.131:8000",
-    "http://46.62.254.131:8006",
-    "http://46.62.254.131:8007",
+    # Hetzner server deployment origins (65.109.230.236)
+    "http://65.109.230.236:3000",
+    "http://65.109.230.236:8000",
+    "http://65.109.230.236:8006",
+    "http://65.109.230.236:8007",
     
-    # HTTPS variants
-    "https://46.62.254.131:3000",
-    "https://46.62.254.131:8000",
-    "https://46.62.254.131:8006",
-    "https://46.62.254.131:8007"
+    # HTTPS variants for Hetzner
+    "https://65.109.230.236:3000",
+    "https://65.109.230.236:8000",
+    "https://65.109.230.236:8006",
+    "https://65.109.230.236:8007"
 ]
 
 logger.info(f"[API GATEWAY CORS] Credentials-compatible origins: {origins}")
@@ -2113,6 +2114,9 @@ async def rag_query(req: RAGQueryRequest, request: Request):
         
     except requests.exceptions.RequestException as e:
         # Log failure interaction if possible
+        error_detail = f"RequestException: {str(e)}"
+        logger.error(f"❌ RAG Query RequestException: {error_detail}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         try:
             from src.analytics.database import ExperimentDatabase
             db = ExperimentDatabase()
@@ -2131,14 +2135,54 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                 feedback_requested=False,
                 processing_time_ms=None,
                 success=False,
-                error_message=str(e),
+                error_message=error_detail,
                 chain_type="direct_llm" if getattr(req, 'use_direct_llm', False) else "rag",
             )
         except Exception as _log_err:
             logger.warning(f"Failed to log failed interaction: {_log_err}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to communicate with service: {str(e)}"
+            detail=f"Failed to communicate with service: {error_detail}"
+        )
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is
+        raise
+    except Exception as e:
+        # Catch all other exceptions with detailed logging
+        error_type = type(e).__name__
+        error_detail = f"{error_type}: {str(e)}"
+        logger.error(f"❌ RAG Query unexpected error: {error_detail}")
+        logger.error(f"❌ Full traceback:")
+        logger.error(traceback.format_exc())
+        
+        # Try to log the failure
+        try:
+            from src.analytics.database import ExperimentDatabase
+            db = ExperimentDatabase()
+            rag_params = {"use_direct_llm": bool(getattr(req, 'use_direct_llm', False)), "model": req.model or ""}
+            config_hash = db.add_or_get_rag_configuration(rag_params)
+            current_user = _get_current_user(request)
+            user_identifier = str(current_user.get("id")) if current_user and current_user.get("id") is not None else (current_user.get("username") if current_user else "student")
+            db.add_interaction(
+                user_id=user_identifier,
+                query=req.query,
+                response="",
+                retrieved_context=[],
+                rag_config_hash=config_hash,
+                session_id=req.session_id,
+                uncertainty_score=None,
+                feedback_requested=False,
+                processing_time_ms=None,
+                success=False,
+                error_message=error_detail,
+                chain_type="direct_llm" if getattr(req, 'use_direct_llm', False) else "rag",
+            )
+        except Exception as _log_err:
+            logger.warning(f"Failed to log failed interaction: {_log_err}")
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error during RAG query: {error_detail}"
         )
 
 # Simple endpoints that don't require microservices
@@ -3514,6 +3558,46 @@ async def create_aprag_interaction_proxy(request: Request):
         logger.warning(f"Error in APRAG interaction proxy: {e}")
         # Return a fallback response so chat can continue
         return {"interaction_id": -1, "message": "Error logging interaction"}
+
+@app.post("/api/aprag/hybrid-rag/query")
+async def aprag_hybrid_rag_query_proxy(request: Request):
+    """Proxy to APRAG service for hybrid RAG query"""
+    try:
+        body = await request.json()
+        logger.info(f"🔗 APRAG hybrid RAG query for session {body.get('session_id', 'unknown')}")
+        
+        response = requests.post(
+            f"{APRAG_SERVICE_URL}/api/aprag/hybrid-rag/query",
+            json=body,
+            timeout=120  # Hybrid RAG query can take longer
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            error_detail = f"APRAG hybrid RAG query error: {response.status_code} - {response.text}"
+            logger.error(f"❌ {error_detail}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=error_detail
+            )
+    except HTTPException:
+        raise
+    except requests.exceptions.RequestException as e:
+        error_detail = f"APRAG service unavailable for hybrid RAG query: {str(e)}"
+        logger.error(f"❌ {error_detail}")
+        raise HTTPException(
+            status_code=503,
+            detail=error_detail
+        )
+    except Exception as e:
+        error_detail = f"Error in APRAG hybrid RAG query proxy: {str(e)}"
+        logger.error(f"❌ {error_detail}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=error_detail
+        )
 
 @app.post("/api/aprag/adaptive-query")
 async def aprag_adaptive_query_proxy(request: Request):
