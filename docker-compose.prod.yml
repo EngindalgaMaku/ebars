@@ -272,12 +272,8 @@ services:
       - ALIBABA_API_KEY=${ALIBABA_API_KEY:-${DASHSCOPE_API_KEY}}
       - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
       - ALIBABA_API_BASE=${ALIBABA_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
-      # Use Ollama service - host network'te port mapping üzerinden eriş
-      - OLLAMA_HOST=http://localhost:11434
-      - OLLAMA_SKIP_VERIFY=true
-    depends_on:
-      ollama-service:
-        condition: service_started
+      # Using cloud LLM APIs (Groq, Alibaba, DeepSeek, OpenRouter)
+      # Ollama not used - model-inference-service handles all LLM calls via cloud APIs
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -288,32 +284,6 @@ services:
           memory: 2G
         reservations:
           memory: 512M
-
-  ollama-service:
-    image: ollama/ollama:latest
-    container_name: ollama-service-prod
-    ports:
-      - "${OLLAMA_PORT:-11434}:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    environment:
-      - OLLAMA_HOST=0.0.0.0:11434
-    restart: unless-stopped
-    networks:
-      - rag-network
-    deploy:
-      resources:
-        limits:
-          cpus: '4'
-          memory: 8G
-        reservations:
-          memory: 2G
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
 
   reranker-service:
     build:
@@ -431,7 +401,6 @@ services:
           memory: 256M
 
 volumes:
-  ollama_data:
   chroma_data:
   session_data:
   markdown_data:

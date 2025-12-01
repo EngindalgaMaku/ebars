@@ -15,8 +15,13 @@
 - ✅ **Auth Service**: 1 CPU, 1GB RAM
 - ✅ **Document Processing**: 2 CPU, 3GB RAM
 - ✅ **Model Inference**: 2 CPU, 2GB RAM
-- ✅ **Ollama**: 4 CPU, 8GB RAM
+- ❌ **Ollama**: DISABLED (using cloud LLM APIs only)
 - ✅ **ChromaDB**: 1 CPU, 2GB RAM
+
+### 2.1. Gerçek RAM Kullanımı (Cloud LLM - Ollama YOK)
+- **Toplam Limit**: ~15GB
+- **Gerçek Kullanım**: ~5-7GB ✅
+- **8GB Sunucu**: ✅ **YETERLİ** (1-3GB buffer)
 
 ### 3. Rate Limiting
 - ✅ **Production**: 600 RPM (30 request/kullanıcı/dakika - yeterli)
