@@ -2617,7 +2617,7 @@ class DatabaseManager:
                     q12_difficulty_appropriate, q13_simplified, q14_difficultied,
                     q15_adaptive_helpful, q16_personalized,
                     q17_satisfied, q18_expectations, q19_enjoyable, q20_recommend
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 user_id,
                 answers.get("age"),

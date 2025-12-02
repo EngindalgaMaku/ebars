@@ -155,3 +155,4 @@ sudo systemctl status nginx
 **Sadece Nginx değiştiyse:**
 - ✅ Sadece Nginx reload yeterli, Docker build gerekmez
 
+

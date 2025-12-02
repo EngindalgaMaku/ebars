@@ -67,3 +67,4 @@ echo ""
 echo "🔍 Logları kontrol etmek için:"
 echo "   sudo tail -f /var/log/nginx/ebars-https-error.log"
 
+

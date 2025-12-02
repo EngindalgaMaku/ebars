@@ -187,3 +187,4 @@ Bu özellik **uygulanabilir** ve **geriye dönük uyumlu** şekilde eklenebilir.
 
 **Hazır olduğunuzda uygulamaya geçebiliriz!** 🚀
 
+
