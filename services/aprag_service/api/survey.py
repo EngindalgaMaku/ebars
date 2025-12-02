@@ -174,3 +174,40 @@ async def get_survey_stats(db: DatabaseManager = Depends(get_db)):
             detail=f"Anket istatistikleri alınamadı: {str(e)}"
         )
 
+
+@router.delete("/survey/{survey_id}")
+async def delete_survey(
+    survey_id: int,
+    db: DatabaseManager = Depends(get_db)
+):
+    """Delete a survey record (admin only)"""
+    try:
+        db.ensure_survey_table()
+        
+        # Check if survey exists
+        with db.get_connection() as conn:
+            cursor = conn.execute("SELECT id FROM surveys WHERE id = ?", (survey_id,))
+            if not cursor.fetchone():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Anket kaydı bulunamadı"
+                )
+            
+            # Delete the survey
+            conn.execute("DELETE FROM surveys WHERE id = ?", (survey_id,))
+            conn.commit()
+        
+        return {
+            "success": True,
+            "message": "Anket kaydı başarıyla silindi",
+            "survey_id": survey_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting survey: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Anket kaydı silinemedi: {str(e)}"
+        )
+

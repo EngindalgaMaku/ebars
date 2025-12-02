@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Download, RefreshCw, Users, TrendingUp, PieChart, LineChart, BarChart, Eye, ChevronLeft, ChevronRight, X, Calculator } from "lucide-react";
+import { BarChart3, Download, RefreshCw, Users, TrendingUp, PieChart, LineChart, BarChart, Eye, ChevronLeft, ChevronRight, X, Calculator, Trash2, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { getApiUrl } from "@/lib/api";
@@ -264,6 +264,9 @@ export default function SurveyResultsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedResult, setSelectedResult] = useState<SurveyResult | null>(null);
   const [showStatistics, setShowStatistics] = useState(false);
+  const [deletingSurveyId, setDeletingSurveyId] = useState<number | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [surveyToDelete, setSurveyToDelete] = useState<SurveyResult | null>(null);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -302,6 +305,54 @@ export default function SurveyResultsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteClick = (result: SurveyResult) => {
+    setSurveyToDelete(result);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!surveyToDelete) return;
+
+    setDeletingSurveyId(surveyToDelete.id);
+    try {
+      const response = await fetch(
+        `${getApiUrl()}/aprag/survey/${surveyToDelete.id}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+
+      if (response.ok) {
+        // Remove from results
+        setResults(results.filter((r) => r.id !== surveyToDelete.id));
+        // Reload stats
+        const statsResponse = await fetch(`${getApiUrl()}/aprag/survey/stats`, {
+          credentials: "include",
+        });
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setStats(statsData);
+        }
+        setShowDeleteConfirm(false);
+        setSurveyToDelete(null);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Anket kaydı silinemedi");
+      }
+    } catch (err) {
+      console.error("Error deleting survey:", err);
+      alert(err instanceof Error ? err.message : "Anket kaydı silinirken bir hata oluştu");
+    } finally {
+      setDeletingSurveyId(null);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setSurveyToDelete(null);
   };
 
   // Pagination
@@ -1137,14 +1188,27 @@ export default function SurveyResultsPage() {
                             {new Date(result.completed_at).toLocaleDateString("tr-TR")}
                           </td>
                           <td className="p-3">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setSelectedResult(result)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setSelectedResult(result)}
+                                className="h-8 w-8 p-0"
+                                title="Detayları Görüntüle"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteClick(result)}
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title="Sil"
+                                disabled={deletingSurveyId === result.id}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1210,6 +1274,43 @@ export default function SurveyResultsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && surveyToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Anket Kaydını Sil
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Bu işlem geri alınamaz. <strong>{surveyToDelete.username || surveyToDelete.email || `Kullanıcı ${surveyToDelete.user_id}`}</strong> kullanıcısının anket kaydı kalıcı olarak silinecek.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={handleDeleteCancel}
+                disabled={deletingSurveyId !== null}
+              >
+                İptal
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                disabled={deletingSurveyId !== null}
+              >
+                {deletingSurveyId === surveyToDelete.id ? "Siliniyor..." : "Sil"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Detail Modal */}
       {selectedResult && (
