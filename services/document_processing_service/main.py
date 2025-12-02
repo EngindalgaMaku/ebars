@@ -28,47 +28,9 @@ except ImportError as e:
 # Import langdetect for language detection
 from langdetect import detect, LangDetectException
 
-# Import BM25 for hybrid search
-try:
-    from rank_bm25 import BM25Okapi
-    BM25_AVAILABLE = True
-    logging.getLogger(__name__).info("✅ BM25 for hybrid search available")
-except ImportError:
-    BM25_AVAILABLE = False
-    BM25Okapi = None
-    logging.getLogger(__name__).warning("⚠️ BM25 not available - install rank-bm25")
-
 # Logging configuration
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Turkish stopwords for better keyword search
-TURKISH_STOPWORDS = {
-    'acaba', 'ama', 'aslında', 'az', 'bazı', 'belki', 'biri', 'birkaç', 'birşey', 'biz', 'bu', 'çok', 'çünkü',
-    'da', 'daha', 'de', 'defa', 'diye', 'eğer', 'en', 'gibi', 'hem', 'hep', 'hepsi', 'her', 'hiç', 'için',
-    'ile', 'ise', 'kez', 'ki', 'kim', 'mı', 'mi', 'mu', 'mü', 'nasıl', 'ne', 'neden', 'nerde', 'nerede',
-    'nereye', 'niçin', 'niye', 'o', 'sanki', 'şey', 'siz', 'şu', 'tüm', 've', 'veya', 'ya', 'yani'
-}
-
-def tokenize_turkish(text: str, remove_stopwords: bool = True) -> List[str]:
-    """
-    Tokenize Turkish text for BM25 search
-    - Lowercase conversion
-    - Remove punctuation
-    - Optional stopword removal
-    - Keep numbers and special characters (for product codes, dates, etc.)
-    """
-    # Lowercase
-    text = text.lower()
-    
-    # Split by whitespace and basic punctuation (but keep numbers intact)
-    tokens = re.findall(r'\b[\w\d]+\b', text)
-    
-    # Remove stopwords if requested
-    if remove_stopwords:
-        tokens = [t for t in tokens if t not in TURKISH_STOPWORDS and len(t) > 1]
-    
-    return tokens
 
 app = FastAPI(
     title="Document Processing Service",
@@ -107,8 +69,7 @@ class RAGQueryRequest(BaseModel):
     embedding_model: Optional[str] = None
     max_tokens: Optional[int] = 2048  # Answer length: 1024 (short), 2048 (normal), 4096 (detailed)
     conversation_history: Optional[List[Dict[str, str]]] = None  # [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
-    use_hybrid_search: Optional[bool] = True  # Enable hybrid search (semantic + BM25)
-    bm25_weight: Optional[float] = 0.3  # Weight for BM25 score (0.3 = 30% keyword, 70% semantic)
+    session_name: Optional[str] = None  # Session/lesson name for course scope validation
 
 class RAGQueryResponse(BaseModel):
     answer: str
@@ -1095,10 +1056,6 @@ async def rag_query(request: RAGQueryRequest):
                     n_results_fetch = max(request.top_k * 5, 25)
                     n_results_fetch = min(n_results_fetch, 50)  # Cap at 50 for performance
                     logger.info(f"🔄 Reranker enabled: fetching {n_results_fetch} documents (top_k={request.top_k})")
-                elif request.use_hybrid_search and BM25_AVAILABLE:
-                    # Hybrid search reranking: fetch 3x more
-                    n_results_fetch = request.top_k * 3
-                    logger.info(f"🔄 Hybrid search enabled: fetching {n_results_fetch} documents (top_k={request.top_k})")
                 else:
                     # No reranking: just fetch what we need
                     n_results_fetch = request.top_k
@@ -1116,113 +1073,6 @@ async def rag_query(request: RAGQueryRequest):
                 
                 total_found = len(documents)
                 logger.info(f"🔍 Semantic search: {total_found} documents found in collection '{collection_name}'")
-                
-                # 🔥 HYBRID SEARCH: Combine Semantic + BM25 Keyword Search
-                if request.use_hybrid_search and BM25_AVAILABLE and len(documents) > 0:
-                    try:
-                        logger.info("🔥 Applying HYBRID SEARCH: Semantic + BM25")
-                        
-                        # Tokenize query for BM25
-                        query_tokens = tokenize_turkish(request.query, remove_stopwords=True)
-                        logger.info(f"🔍 Query tokens (stopwords removed): {query_tokens}")
-                        
-                        # Tokenize all documents for BM25
-                        tokenized_docs = [tokenize_turkish(doc, remove_stopwords=True) for doc in documents]
-                        
-                        # Calculate BM25 scores
-                        bm25 = BM25Okapi(tokenized_docs)
-                        bm25_scores = bm25.get_scores(query_tokens)
-                        
-                        # Normalize BM25 scores to 0-1 range
-                        max_bm25 = max(bm25_scores) if max(bm25_scores) > 0 else 1.0
-                        normalized_bm25_scores = [score / max_bm25 for score in bm25_scores]
-                        
-                        # Calculate semantic similarity scores from distances
-                        semantic_scores = []
-                        for distance in distances:
-                            if distance == float('inf'):
-                                semantic_scores.append(0.0)
-                            else:
-                                semantic_scores.append(max(0.0, 1.0 - distance))
-                        
-                        # 2025 UPDATE: Reciprocal Rank Fusion (RRF) Logic implemented below
-                        # Previous weighted average logic removed for clarity
-
-                        
-                        # Sort by hybrid score (descending) and take top_k
-                        # 2025 UPDATE: Switched to Reciprocal Rank Fusion (RRF)
-                        # RRF is more robust than weighted average for combining scores with different distributions
-                        # Formula: score = 1 / (k + rank)
-                        
-                        # 1. Get Ranks for Semantic Scores
-                        # semantic_scores is already aligned with documents list
-                        # Create (index, score) pairs
-                        semantic_pairs = [(i, s) for i, s in enumerate(semantic_scores)]
-                        # Sort by score descending (higher is better)
-                        semantic_pairs.sort(key=lambda x: x[1], reverse=True)
-                        # Create rank map: index -> rank (0-based)
-                        semantic_ranks = {index: rank for rank, (index, _) in enumerate(semantic_pairs)}
-                        
-                        # 2. Get Ranks for BM25 Scores
-                        # bm25_scores is aligned with documents list
-                        bm25_pairs = [(i, s) for i, s in enumerate(bm25_scores)]
-                        bm25_pairs.sort(key=lambda x: x[1], reverse=True)
-                        bm25_ranks = {index: rank for rank, (index, _) in enumerate(bm25_pairs)}
-                        
-                        # 3. Calculate RRF Scores
-                        rrf_k = 60  # Standard constant for RRF
-                        hybrid_scores = []
-                        
-                        for i in range(len(documents)):
-                            sem_rank = semantic_ranks.get(i, len(documents))
-                            kw_rank = bm25_ranks.get(i, len(documents))
-                            
-                            # RRF Score calculation
-                            # Weighted RRF: We can still honor the weights by multiplying the RRF components
-                            # semantic_weight affects the semantic component
-                            # bm25_weight affects the keyword component
-                            
-                            rrf_sem = (1.0 / (rrf_k + sem_rank))
-                            rrf_bm25 = (1.0 / (rrf_k + kw_rank))
-                            
-                            # Apply weights (normalized)
-                            # Default request.bm25_weight is usually 0.3
-                            w_sem = 1.0 - request.bm25_weight
-                            w_bm25 = request.bm25_weight
-                            
-                            final_score = (w_sem * rrf_sem) + (w_bm25 * rrf_bm25)
-                            
-                            hybrid_scores.append({
-                                'index': i,
-                                'hybrid_score': final_score,
-                                'semantic_score': semantic_scores[i],
-                                'bm25_score': bm25_scores[i] if i < len(bm25_scores) else 0.0,
-                                'semantic_rank': sem_rank,
-                                'bm25_rank': kw_rank
-                            })
-                        
-                        # Sort by hybrid score (descending) and take top_k
-                        hybrid_scores.sort(key=lambda x: x['hybrid_score'], reverse=True)
-                        top_k_indices = [item['index'] for item in hybrid_scores[:request.top_k]]
-                        
-                        # Reorder documents, metadatas, distances based on hybrid ranking
-                        documents = [documents[i] for i in top_k_indices]
-                        metadatas = [metadatas[i] for i in top_k_indices]
-                        distances = [distances[i] for i in top_k_indices]
-                        
-                        # Update scores in hybrid_scores for logging
-                        hybrid_scores = hybrid_scores[:request.top_k]
-                        
-                        logger.info(f"✅ HYBRID SEARCH: Reranked to top {request.top_k} documents")
-                        logger.info(f"📊 Top 3 hybrid scores: {[(s['hybrid_score'], s['semantic_score'], s['bm25_score']) for s in hybrid_scores[:3]]}")
-                        
-                    except Exception as hybrid_error:
-                        logger.warning(f"⚠️ Hybrid search failed, falling back to semantic only: {hybrid_error}")
-                        # Continue with semantic-only results
-                else:
-                    if not BM25_AVAILABLE:
-                        logger.info("ℹ️ BM25 not available - using semantic search only")
-                    hybrid_scores = None
                 
                 # Format context for generation
                 context_docs = []
@@ -1325,8 +1175,22 @@ async def rag_query(request: RAGQueryRequest):
                         context_text = context_text[:max_length] + "..."
                     
                     # Create Turkish RAG prompt with INTERNAL VERIFICATION - NO VISIBLE ANALYSIS
+                    # Add course scope validation if session_name is provided
+                    course_scope_section = ""
+                    if request.session_name and request.session_name.strip():
+                        course_scope_section = (
+                            f"\n\nDERS KAPSAMI KONTROLÜ (EK GÜVENLİK KATMANI):\n"
+                            f"- ŞU ANDA '{request.session_name.strip()}' DERSİ İÇİN CEVAP VERİYORSUN.\n"
+                            f"- Öğrencinin sorusu '{request.session_name.strip()}' dersi kapsamında olmalıdır.\n"
+                            f"- Eğer soru ders kapsamı dışındaysa (örneğin farklı bir ders konusu), şu şekilde cevap ver:\n"
+                            f"  'Bu soru '{request.session_name.strip()}' dersi kapsamı dışındadır. Lütfen ders konularıyla ilgili sorular sorun.'\n"
+                            f"- Bu kontrol, RAG'ın bulduğu chunk'lara ek olarak yapılır. Chunk'lar olsa bile ders kapsamı dışındaysa bu cevabı ver.\n"
+                            f"- SADECE ders kapsamındaki sorulara normal cevap ver.\n"
+                        )
+                    
                     system_prompt = (
-                        "Sen yalnızca sağlanan BAĞLAM metnini kullanarak sorulara TÜRKÇE cevap veren bir yapay zeka asistanısın.\n\n"
+                        "Sen yalnızca sağlanan BAĞLAM metnini kullanarak sorulara TÜRKÇE cevap veren bir yapay zeka asistanısın.\n"
+                        f"{course_scope_section}\n"
                         "ÇALIŞMA PRENSİBİN:\n"
                         "Cevap vermeden önce zihninde şunları yap (ama çıktıda HİÇBİR ZAMAN gösterme):\n"
                         "• Bağlamdaki tüm sayısal verileri (yüzdeler, miktarlar, sayılar) tespit et\n"

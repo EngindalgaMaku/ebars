@@ -1927,6 +1927,9 @@ export interface APRAGSettings {
   enabled: boolean;
   global_enabled: boolean;
   session_enabled: boolean | null;
+  settings?: {
+    enable_ebars?: boolean;
+  };
   features: {
     feedback_collection: boolean;
     personalization: boolean;
@@ -2775,7 +2778,6 @@ export async function createModuleFromRAG(data: {
   module_description?: string;
   top_k?: number;
   similarity_threshold?: number;
-  use_hybrid_search?: boolean;
 }): Promise<{
   success: boolean;
   module_id: number;
@@ -2797,7 +2799,6 @@ export async function createModuleFromRAG(data: {
       module_description: data.module_description,
       top_k: data.top_k || 20,
       similarity_threshold: data.similarity_threshold || 0.6,
-      use_hybrid_search: data.use_hybrid_search !== false,
     }),
   });
 

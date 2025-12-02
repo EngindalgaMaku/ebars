@@ -18,6 +18,8 @@ class PromptTemplates:
     SYSTEM_PROMPTS = {
         'tr': (
             "Sen bir eğitim asistanısın. ÇOK ÖNEMLİ KURAL: KESINLIKLE genel bilginle cevap verme!\n\n"
+            "{session_context}\n"
+            "{course_scope_instruction}\n\n"
             "SADECE verilen kaynak metinleri kullan. Kaynaklarda olmayan hiçbir bilgi ekleme.\n"
             "TÜRKÇE DİL KURALLARI:\n"
             "- Düzgün, akıcı ve doğal Türkçe kullan\n"
@@ -33,6 +35,8 @@ class PromptTemplates:
         ),
         'en': (
             "You are an educational assistant. IMPORTANT RULE: NEVER answer with your general knowledge! "
+            "{session_context}\n"
+            "{course_scope_instruction}\n\n"
             "Use ONLY and EXCLUSIVELY the context texts provided below. "
             "Do not add any information not in the context, don't make up any book/source names. "
             "If there's insufficient information in the context, say 'This information is not found in the provided sources' and stop. "
@@ -159,13 +163,14 @@ class BilingualPromptManager:
     def __init__(self):
         self.templates = PromptTemplates()
     
-    def get_system_prompt(self, language: LanguageCode, prompt_type: str = 'rag') -> str:
+    def get_system_prompt(self, language: LanguageCode, prompt_type: str = 'rag', session_name: str = None) -> str:
         """
         Get system prompt for the specified language and type.
         
         Args:
             language: Language code ('tr' or 'en')
             prompt_type: Type of prompt ('rag' or 'direct')
+            session_name: Optional session/lesson name for course scope validation
             
         Returns:
             str: System prompt in the specified language
@@ -173,7 +178,43 @@ class BilingualPromptManager:
         if prompt_type == 'direct':
             return self.templates.DIRECT_SYSTEM_PROMPTS[language]
         else:
-            return self.templates.SYSTEM_PROMPTS[language]
+            base_prompt = self.templates.SYSTEM_PROMPTS[language]
+            
+            # Add session context if session name is provided
+            if session_name and session_name.strip():
+                if language == 'tr':
+                    session_context = f"ŞU ANDA '{session_name.strip()}' DERSİ İÇİN CEVAP VERİYORSUN.\n\n"
+                    course_scope_instruction = (
+                        "DERS KAPSAMI KONTROLÜ (EK GÜVENLİK KATMANI):\n"
+                        f"- Öğrencinin sorusu '{session_name.strip()}' dersi kapsamında olmalıdır.\n"
+                        "- Eğer soru ders kapsamı dışındaysa (örneğin farklı bir ders konusu), şu şekilde cevap ver:\n"
+                        f"  'Bu soru '{session_name.strip()}' dersi kapsamı dışındadır. Lütfen ders konularıyla ilgili sorular sorun.'\n"
+                        "- Bu kontrol, RAG'ın bulduğu chunk'lara ek olarak yapılır. Chunk'lar olsa bile ders kapsamı dışındaysa bu cevabı ver.\n"
+                        "- SADECE ders kapsamındaki sorulara normal cevap ver.\n"
+                    )
+                else:  # English
+                    session_context = f"You are currently answering for the course: '{session_name.strip()}'.\n\n"
+                    course_scope_instruction = (
+                        "COURSE SCOPE VALIDATION (ADDITIONAL SECURITY LAYER):\n"
+                        f"- The student's question must be within the scope of '{session_name.strip()}' course.\n"
+                        "- If the question is outside the course scope (e.g., a different subject), respond as follows:\n"
+                        f"  'This question is outside the scope of '{session_name.strip()}' course. Please ask questions related to the course topics.'\n"
+                        "- This check is performed in addition to the chunks found by RAG. Even if chunks exist, respond with this message if outside course scope.\n"
+                        "- ONLY answer normally to questions within the course scope.\n"
+                    )
+            else:
+                session_context = ""
+                course_scope_instruction = ""
+            
+            # Format the prompt with session context
+            try:
+                return base_prompt.format(
+                    session_context=session_context,
+                    course_scope_instruction=course_scope_instruction
+                )
+            except KeyError:
+                # Fallback if format fails (backward compatibility)
+                return base_prompt.replace("{session_context}\n", session_context).replace("{course_scope_instruction}\n\n", course_scope_instruction + "\n\n" if course_scope_instruction else "")
     
     def get_user_prompt(self, language: LanguageCode, query: str, context: str) -> str:
         """

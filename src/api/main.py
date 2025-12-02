@@ -2005,6 +2005,16 @@ async def rag_query(req: RAGQueryRequest, request: Request):
         # RAG Query with Reranking
         logger.info(f"🔍 Processing RAG query with reranking: '{req.query}'")
         
+        # Get session name for course scope validation
+        session_name = None
+        try:
+            session_metadata = professional_session_manager.get_session_metadata(req.session_id)
+            if session_metadata and session_metadata.name:
+                session_name = session_metadata.name
+                logger.info(f"📚 Session name retrieved: '{session_name}' for course scope validation")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not retrieve session name for scope validation: {e}")
+        
         # Step 1: Perform retrieval
         collection_name = f"session_{req.session_id}"
         try:
@@ -2040,6 +2050,7 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                 "model": effective["model"],
                 "chain_type": effective["chain_type"],
                 "embedding_model": effective["embedding_model"],
+                "session_name": session_name,  # Add session name for course scope validation
             }
             response = requests.post(
                 f"{DOCUMENT_PROCESSOR_URL}/query",
@@ -2066,6 +2077,7 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                 "model": effective["model"],
                 "chain_type": effective["chain_type"],
                 "embedding_model": effective["embedding_model"],
+                "session_name": session_name,  # Add session name for course scope validation
             }
             response = requests.post(
                 f"{DOCUMENT_PROCESSOR_URL}/query",

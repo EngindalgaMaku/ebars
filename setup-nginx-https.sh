@@ -250,3 +250,4 @@ echo "   sudo tail -f /var/log/nginx/ebars-https-access.log"
 echo "   sudo tail -f /var/log/nginx/ebars-https-error.log"
 
 
+

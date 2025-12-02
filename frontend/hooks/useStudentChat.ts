@@ -256,13 +256,18 @@ export function useStudentChat({
 
         if (user?.id) {
           try {
-            // Check APRAG status
+            // Check APRAG status and EBARS enabled
             const apragSettings = await getAPRAGSettings(sessionId);
-
-            if (apragSettings.enabled && apragSettings.features.cacs) {
+            
+            // Check if EBARS is enabled for this session
+            const ebarsEnabled = apragSettings.settings?.enable_ebars || false;
+            
+            // Use APRAG Adaptive Query if APRAG is enabled AND (CACS is enabled OR EBARS is enabled)
+            // EBARS uses adaptive query for personalized responses
+            if (apragSettings.enabled && (apragSettings.features.cacs || ebarsEnabled)) {
               // Use APRAG Adaptive Query for personalized learning
               console.log(
-                "🎓 Using APRAG Adaptive Query for personalized response..."
+                `🎓 Using APRAG Adaptive Query for personalized response... (EBARS: ${ebarsEnabled}, CACS: ${apragSettings.features.cacs})`
               );
 
               const adaptiveResult = await apragAdaptiveQuery({

@@ -280,7 +280,6 @@ const ModuleExtractionPanel: React.FC<ModuleExtractionPanelProps> = ({
         module_description: ragModuleDescription || undefined,
         top_k: 20,
         similarity_threshold: 0.6,
-        use_hybrid_search: true,
       });
 
       // Reset form

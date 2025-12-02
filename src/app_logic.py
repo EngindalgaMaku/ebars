@@ -297,6 +297,7 @@ def retrieve_and_answer(
     generation_model: str | None = None,
     embedding_model: str | None = None,
     track_performance: bool = False,
+    session_name: str | None = None,
 ) -> tuple[str, list[str], list[float], list[dict]]:
     """
     Enhanced retrieve_and_answer with optional performance tracking for academic experiments.
@@ -410,7 +411,7 @@ def retrieve_and_answer(
 
         # Generation phase with performance tracking
         with measure_performance('generation') if track_performance else nullcontext():
-            system_prompt = prompt_manager.get_system_prompt(detected_language, 'rag')
+            system_prompt = prompt_manager.get_system_prompt(detected_language, 'rag', session_name=session_name)
             user_prompt = prompt_manager.get_user_prompt(detected_language, query, context_str)
             model_to_use = generation_model or app_config.OLLAMA_GENERATION_MODEL
             
@@ -455,12 +456,12 @@ class nullcontext:
         pass
 
 
-def generate_answer_from_context(retrieved_texts: list[str], query: str, generation_model: str | None = None) -> str:
+def generate_answer_from_context(retrieved_texts: list[str], query: str, generation_model: str | None = None, session_name: str | None = None) -> str:
     # Detect query language
     detected_language = detect_query_language(query)
     
     context_str = "\n\n".join(retrieved_texts)
-    system_prompt = prompt_manager.get_system_prompt(detected_language, 'rag')
+    system_prompt = prompt_manager.get_system_prompt(detected_language, 'rag', session_name=session_name)
     user_prompt = prompt_manager.get_user_prompt(detected_language, query, context_str)
     model_to_use = generation_model or app_config.OLLAMA_GENERATION_MODEL
     

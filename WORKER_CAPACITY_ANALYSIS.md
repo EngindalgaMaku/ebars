@@ -186,3 +186,4 @@ api-gateway:
 - ⚠️ Long-running RAG queries (async ile çözüldü)
 
 
+

@@ -150,3 +150,4 @@ sudo systemctl restart nginx
 - [ ] Nginx error log'ları kontrol edildi mi?
 
 
+

@@ -105,16 +105,27 @@ async def get_status(session_id: Optional[str] = None):
                         cognitive_load_enabled = bool(row_dict['enable_cognitive_load'])
                     if 'enable_emoji_feedback' in row_dict and row_dict['enable_emoji_feedback'] is not None:
                         emoji_feedback_enabled = bool(row_dict['enable_emoji_feedback'])
-                    logger.info(f"[APRAG SETTINGS] Session-specific overrides loaded for {session_id}: cacs={cacs_enabled}, zpd={zpd_enabled}, bloom={bloom_enabled}")
+                    # Check EBARS enable status
+                    ebars_enabled = False
+                    if 'enable_ebars' in row_dict and row_dict['enable_ebars'] is not None:
+                        ebars_enabled = bool(row_dict['enable_ebars'])
+                    logger.info(f"[APRAG SETTINGS] Session-specific overrides loaded for {session_id}: cacs={cacs_enabled}, zpd={zpd_enabled}, bloom={bloom_enabled}, ebars={ebars_enabled}")
             except Exception as e:
                 logger.warning(f"[APRAG SETTINGS] Could not load session-specific settings: {e}")
         
-        logger.info(f"[APRAG SETTINGS] Feature flags: feedback={feedback_enabled}, personalization={personalization_enabled}, recommendations={recommendations_enabled}, analytics={analytics_enabled}, cacs={cacs_enabled}, zpd={zpd_enabled}, bloom={bloom_enabled}, cognitive_load={cognitive_load_enabled}, emoji_feedback={emoji_feedback_enabled}")
+        # Initialize EBARS enabled status (default to False if not loaded from session settings)
+        if 'ebars_enabled' not in locals():
+            ebars_enabled = False
+        
+        logger.info(f"[APRAG SETTINGS] Feature flags: feedback={feedback_enabled}, personalization={personalization_enabled}, recommendations={recommendations_enabled}, analytics={analytics_enabled}, cacs={cacs_enabled}, zpd={zpd_enabled}, bloom={bloom_enabled}, cognitive_load={cognitive_load_enabled}, emoji_feedback={emoji_feedback_enabled}, ebars={ebars_enabled}")
         
         return {
             "enabled": enabled,
             "global_enabled": global_enabled,
             "session_enabled": session_enabled,
+            "settings": {
+                "enable_ebars": ebars_enabled,
+            },
             "features": {
                 "feedback_collection": feedback_enabled,
                 "personalization": personalization_enabled,

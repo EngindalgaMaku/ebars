@@ -95,3 +95,4 @@ sudo nginx -t
 Uyarı kritik değil, Nginx çalışıyor. Ama düzeltmek daha iyi. Önce hangi dosyalarda conflict olduğunu bulun.
 
 
+

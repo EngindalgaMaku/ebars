@@ -170,3 +170,4 @@ docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}"
 - Veya **8GB + optimizasyon** (cloud LLM, düşük worker sayısı)
 
 
+

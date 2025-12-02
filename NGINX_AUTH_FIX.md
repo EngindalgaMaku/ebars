@@ -70,3 +70,4 @@ curl -k -X POST https://ebars.kodleon.com/api/auth/login \
 **Beklenen:** 401 Unauthorized (405 değil, bu doğru - credentials yanlış ama endpoint çalışıyor)
 
 
+

@@ -7,7 +7,6 @@ from fastapi import APIRouter, HTTPException
 from models.schemas import RAGQueryRequest, RAGQueryResponse, RetrieveRequest, RetrieveResponse
 from core.chromadb_client import get_chroma_client
 from core.embedding_service import get_embeddings_direct
-from services.hybrid_search import perform_hybrid_search
 from services.reranker import Reranker
 from utils.helpers import format_collection_name
 from utils.logger import logger
@@ -25,13 +24,13 @@ async def rag_query(request: RAGQueryRequest):
     Workflow:
     1. Generate query embedding
     2. Search ChromaDB (semantic)
-    3. Optional: Hybrid search (semantic + BM25)
+    3. Optional: Reranking
     4. Optional: CRAG evaluation
     5. Generate answer using LLM
     6. Optional: Self-correction
     
     Features:
-    - Hybrid search support
+    - Semantic search with reranking
     - CRAG quality evaluation
     - Conversation history
     - Multi-model fallback
@@ -169,7 +168,7 @@ async def rag_query(request: RAGQueryRequest):
         )
         
         # Step 3: Semantic search
-        n_results_fetch = request.top_k * 3 if request.use_hybrid_search else request.top_k
+        n_results_fetch = request.top_k
         search_results = collection.query(
             query_embeddings=query_embeddings,
             n_results=n_results_fetch
@@ -180,23 +179,6 @@ async def rag_query(request: RAGQueryRequest):
         distances = search_results.get('distances', [[]])[0]
         
         logger.info(f"🔍 Semantic search: {len(documents)} documents found")
-        
-        # Step 4: Hybrid search (optional)
-        if request.use_hybrid_search and len(documents) > 0:
-            hybrid_result = perform_hybrid_search(
-                query=request.query,
-                documents=documents,
-                distances=distances,
-                top_k=request.top_k,
-                bm25_weight=request.bm25_weight
-            )
-            
-            if hybrid_result["reranked_indices"]:
-                # Reorder results
-                indices = hybrid_result["reranked_indices"]
-                documents = [documents[i] for i in indices]
-                metadatas = [metadatas[i] for i in indices]
-                distances = [distances[i] for i in indices]
         
         # Step 5: Format context documents with keyword filtering and title boosting
         context_docs = _format_context_docs(documents, metadatas, distances, collection.name, query=request.query)

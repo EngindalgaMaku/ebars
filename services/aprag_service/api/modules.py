@@ -114,7 +114,6 @@ class CreateModuleFromRAGRequest(BaseModel):
     module_description: Optional[str] = None
     top_k: int = 20  # Number of chunks to retrieve via RAG
     similarity_threshold: float = 0.6  # Minimum similarity score for chunks
-    use_hybrid_search: bool = True  # Use hybrid search (semantic + BM25)
 
 
 class ModuleResponse(BaseModel):
@@ -1009,7 +1008,6 @@ async def create_module_from_rag(request: CreateModuleFromRAGRequest):
                 "query": request.module_title,
                 "session_id": request.session_id,
                 "top_k": request.top_k,
-                "use_hybrid_search": request.use_hybrid_search,
                 "use_rerank": False,  # We just need chunks, not LLM answer
                 "chain_type": "stuff"
             },

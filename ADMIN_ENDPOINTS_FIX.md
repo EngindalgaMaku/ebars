@@ -76,3 +76,4 @@ Nginx location'ları **en spesifikten en genele** doğru sıralanmalı:
 3. `/api/` → API Gateway (EN SON)
 
 
+
