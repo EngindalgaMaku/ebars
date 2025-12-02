@@ -100,3 +100,4 @@ Eğer hala sorun varsa:
 2. Nginx error log'larını kontrol et: `sudo tail -f /var/log/nginx/ebars-https-error.log`
 3. Auth Service'in çalıştığından emin ol: `curl http://localhost:8006/health`
 
+

@@ -129,3 +129,4 @@ curl http://localhost:8000/health
    - Response status code'larını kontrol et
    - CORS hatalarını kontrol et
 
+

@@ -185,3 +185,4 @@ api-gateway:
 - ⚠️ Database concurrent writes (WAL mode ile çözüldü)
 - ⚠️ Long-running RAG queries (async ile çözüldü)
 
+

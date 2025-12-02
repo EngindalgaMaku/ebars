@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, ArrowRight, ArrowLeft, Loader2, Info } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,17 +16,180 @@ interface SurveyAnswers {
   // Temel Bilgiler
   age?: string;
   education?: string;
-  field?: string;
+  profession?: string;
+  professionOther?: string;
   
-  // Deneyim
-  personalizedPlatform?: string;
-  platformExperience?: string;
-  aiExperience?: string;
+  // Likert Ölçeği Soruları (1-5: Kesinlikle Katılmıyorum -> Kesinlikle Katılıyorum)
+  // Sistem Kullanılabilirliği
+  q1_usability?: string; // Sistemin arayüzü kullanıcı dostu ve anlaşılır
+  q2_navigation?: string; // Sistemde gezinmek kolay ve sezgisel
+  q3_learning?: string; // Sistemi kullanmayı öğrenmek kolaydı
+  q4_speed?: string; // Sistem hızlı yanıt veriyor
   
-  // Beklentiler
-  expectations?: string;
-  concerns?: string;
+  // Sistem Etkinliği
+  q5_learning_contribution?: string; // Sistem öğrenmeme katkı sağladı
+  q6_useful_answers?: string; // Sistemin verdiği cevaplar yararlı ve bilgilendirici
+  q7_accurate_answers?: string; // Sistemin verdiği cevaplar doğru ve güvenilir
+  q8_clear_answers?: string; // Sistemin cevapları anlaşılır ve açıklayıcı
+  
+  // Emoji Geri Bildirim
+  q9_emoji_easy?: string; // Emoji geri bildirim vermek kolay ve hızlı
+  q10_emoji_response?: string; // Sistem emoji geri bildirimlerime anında tepki verdi
+  q11_emoji_noticed?: string; // Sistemin zorluk seviyesini değiştirdiğini fark ettim
+  
+  // Adaptif Özellikler
+  q12_difficulty_appropriate?: string; // Sistem cevaplarının zorluk seviyesi anlama seviyeme uygundu
+  q13_simplified?: string; // Sistem zorlandığımda cevapları basitleştirdi
+  q14_difficultied?: string; // Sistem başarılı olduğumda cevapları zorlaştırdı
+  q15_adaptive_helpful?: string; // Sistemin adaptif özelliği öğrenmeme yardımcı oldu
+  q16_personalized?: string; // Sistem benim için kişiselleştirilmiş cevaplar üretti
+  
+  // Kullanıcı Memnuniyeti
+  q17_satisfied?: string; // Sistemden genel olarak memnun kaldım
+  q18_expectations?: string; // Sistem beklentilerimi karşıladı
+  q19_enjoyable?: string; // Sistem kullanımı keyifliydi
+  q20_recommend?: string; // Bu sistemi arkadaşlarıma öneririm
 }
+
+const LIKERT_OPTIONS = [
+  { value: "1", label: "Kesinlikle Katılmıyorum" },
+  { value: "2", label: "Katılmıyorum" },
+  { value: "3", label: "Kararsızım" },
+  { value: "4", label: "Katılıyorum" },
+  { value: "5", label: "Kesinlikle Katılıyorum" },
+];
+
+const LIKERT_QUESTIONS = [
+  // Sistem Kullanılabilirliği (1-4)
+  {
+    id: "q1_usability",
+    category: "Sistem Kullanılabilirliği",
+    statement: "Sistemin arayüzü kullanıcı dostu ve anlaşılır.",
+    reverse: false,
+  },
+  {
+    id: "q2_navigation",
+    category: "Sistem Kullanılabilirliği",
+    statement: "Sistemde gezinmek kolay ve sezgisel.",
+    reverse: false,
+  },
+  {
+    id: "q3_learning",
+    category: "Sistem Kullanılabilirliği",
+    statement: "Sistemi kullanmayı öğrenmek zordu.",
+    reverse: true, // TERS SORU
+  },
+  {
+    id: "q4_speed",
+    category: "Sistem Kullanılabilirliği",
+    statement: "Sistem hızlı yanıt veriyor.",
+    reverse: false,
+  },
+  
+  // Sistem Etkinliği (5-8)
+  {
+    id: "q5_learning_contribution",
+    category: "Sistem Etkinliği",
+    statement: "Sistem öğrenmeme katkı sağladı.",
+    reverse: false,
+  },
+  {
+    id: "q6_useful_answers",
+    category: "Sistem Etkinliği",
+    statement: "Sistemin verdiği cevaplar yararlı ve bilgilendirici.",
+    reverse: false,
+  },
+  {
+    id: "q7_accurate_answers",
+    category: "Sistem Etkinliği",
+    statement: "Sistemin verdiği cevaplar yanlış veya güvenilir değil.",
+    reverse: true, // TERS SORU
+  },
+  {
+    id: "q8_clear_answers",
+    category: "Sistem Etkinliği",
+    statement: "Sistemin cevapları anlaşılır ve açıklayıcı.",
+    reverse: false,
+  },
+  
+  // Emoji Geri Bildirim (9-11)
+  {
+    id: "q9_emoji_easy",
+    category: "Emoji Geri Bildirim",
+    statement: "Emoji geri bildirim vermek kolay ve hızlı.",
+    reverse: false,
+  },
+  {
+    id: "q10_emoji_response",
+    category: "Emoji Geri Bildirim",
+    statement: "Sistem emoji geri bildirimlerime tepki vermedi.",
+    reverse: true, // TERS SORU
+  },
+  {
+    id: "q11_emoji_noticed",
+    category: "Emoji Geri Bildirim",
+    statement: "Sistemin zorluk seviyesini değiştirdiğini fark ettim.",
+    reverse: false,
+  },
+  
+  // Adaptif Özellikler (12-16)
+  {
+    id: "q12_difficulty_appropriate",
+    category: "Adaptif Özellikler",
+    statement: "Sistem cevaplarının zorluk seviyesi anlama seviyeme uygun değildi.",
+    reverse: true, // TERS SORU
+  },
+  {
+    id: "q13_simplified",
+    category: "Adaptif Özellikler",
+    statement: "Sistem zorlandığımda cevapları basitleştirdi.",
+    reverse: false,
+  },
+  {
+    id: "q14_difficultied",
+    category: "Adaptif Özellikler",
+    statement: "Sistem başarılı olduğumda cevapları zorlaştırdı.",
+    reverse: false,
+  },
+  {
+    id: "q15_adaptive_helpful",
+    category: "Adaptif Özellikler",
+    statement: "Sistemin adaptif özelliği öğrenmeme yardımcı oldu.",
+    reverse: false,
+  },
+  {
+    id: "q16_personalized",
+    category: "Adaptif Özellikler",
+    statement: "Sistem benim için kişiselleştirilmiş cevaplar üretti.",
+    reverse: false,
+  },
+  
+  // Kullanıcı Memnuniyeti (17-20)
+  {
+    id: "q17_satisfied",
+    category: "Kullanıcı Memnuniyeti",
+    statement: "Sistemden genel olarak memnun kaldım.",
+    reverse: false,
+  },
+  {
+    id: "q18_expectations",
+    category: "Kullanıcı Memnuniyeti",
+    statement: "Sistem beklentilerimi karşılamadı.",
+    reverse: true, // TERS SORU
+  },
+  {
+    id: "q19_enjoyable",
+    category: "Kullanıcı Memnuniyeti",
+    statement: "Sistem kullanımı keyifliydi.",
+    reverse: false,
+  },
+  {
+    id: "q20_recommend",
+    category: "Kullanıcı Memnuniyeti",
+    statement: "Bu sistemi arkadaşlarıma öneririm.",
+    reverse: false,
+  },
+];
 
 export default function SurveyPage() {
   const { user } = useAuth();
@@ -39,7 +201,9 @@ export default function SurveyPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasCompleted, setHasCompleted] = useState(false);
 
-  const totalSteps = 3;
+  // Adım 1: Temel Bilgiler, Adım 2-6: Likert soruları (her adımda 4 soru)
+  const totalSteps = 6;
+  const questionsPerStep = 4;
 
   // Check if user has already completed survey
   useEffect(() => {
@@ -108,16 +272,7 @@ export default function SurveyPage() {
           credentials: "include",
           body: JSON.stringify({
             user_id: user.id,
-            answers: {
-              age: answers.age,
-              education: answers.education,
-              field: answers.field,
-              personalized_platform: answers.personalizedPlatform,
-              platform_experience: answers.platformExperience,
-              ai_experience: answers.aiExperience,
-              expectations: answers.expectations,
-              concerns: answers.concerns,
-            },
+            answers: answers,
           }),
         }
       );
@@ -142,16 +297,32 @@ export default function SurveyPage() {
   };
 
   const isStepComplete = (step: number): boolean => {
-    switch (step) {
-      case 1:
-        return !!(answers.age && answers.education);
-      case 2:
-        return !!(answers.personalizedPlatform && answers.platformExperience);
-      case 3:
-        return true; // Son adım opsiyonel
-      default:
-        return false;
+    if (step === 1) {
+      return !!(answers.age && answers.education && answers.profession);
     }
+    
+    // Likert soruları için kontrol
+    const startIdx = (step - 2) * questionsPerStep;
+    const endIdx = Math.min(startIdx + questionsPerStep, LIKERT_QUESTIONS.length);
+    const stepQuestions = LIKERT_QUESTIONS.slice(startIdx, endIdx);
+    
+    return stepQuestions.every(q => answers[q.id as keyof SurveyAnswers]);
+  };
+
+  const getCurrentStepQuestions = () => {
+    if (currentStep === 1) return [];
+    const startIdx = (currentStep - 2) * questionsPerStep;
+    const endIdx = Math.min(startIdx + questionsPerStep, LIKERT_QUESTIONS.length);
+    return LIKERT_QUESTIONS.slice(startIdx, endIdx);
+  };
+
+  const getStepTitle = () => {
+    if (currentStep === 1) return "Temel Bilgiler";
+    const questions = getCurrentStepQuestions();
+    if (questions.length > 0) {
+      return questions[0].category;
+    }
+    return "Likert Ölçeği";
   };
 
   if (isLoading) {
@@ -219,14 +390,14 @@ export default function SurveyPage() {
         <Card className="shadow-xl">
           <CardHeader>
             <CardTitle className="text-2xl text-center">
-              {currentStep === 1 && "Temel Bilgiler"}
-              {currentStep === 2 && "Deneyim ve Geçmiş"}
-              {currentStep === 3 && "Beklentiler ve Görüşler"}
+              {getStepTitle()}
             </CardTitle>
             <CardDescription className="text-center">
-              {currentStep === 1 && "Sizinle ilgili temel bilgileri öğrenmek istiyoruz"}
-              {currentStep === 2 && "Daha önceki deneyimleriniz hakkında bilgi verin"}
-              {currentStep === 3 && "Sistemden beklentilerinizi paylaşın"}
+              {currentStep === 1 
+                ? "Sizinle ilgili temel bilgileri öğrenmek istiyoruz"
+                : currentStep === 2
+                ? "Lütfen aşağıdaki ifadelere ne kadar katıldığınızı belirtiniz"
+                : "Devam ediyoruz..."}
             </CardDescription>
           </CardHeader>
 
@@ -248,6 +419,29 @@ export default function SurveyPage() {
                 </div>
               </div>
             )}
+
+            {/* Likert Ölçeği Açıklaması */}
+            {currentStep === 2 && (
+              <div className="bg-purple-50 border-l-4 border-purple-500 p-4 rounded-r-lg -mt-2">
+                <div className="flex items-start gap-3">
+                  <Info className="h-5 w-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-purple-900 mb-2">Likert Ölçeği</h3>
+                    <p className="text-sm text-purple-800 leading-relaxed">
+                      Lütfen aşağıdaki ifadelere ne kadar katıldığınızı belirtmek için 5 noktalı ölçeği kullanınız:
+                    </p>
+                    <ul className="text-sm text-purple-800 mt-2 space-y-1 list-disc list-inside">
+                      <li><strong>1:</strong> Kesinlikle Katılmıyorum</li>
+                      <li><strong>2:</strong> Katılmıyorum</li>
+                      <li><strong>3:</strong> Kararsızım</li>
+                      <li><strong>4:</strong> Katılıyorum</li>
+                      <li><strong>5:</strong> Kesinlikle Katılıyorum</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Step 1: Temel Bilgiler */}
             {currentStep === 1 && (
               <div className="space-y-6">
@@ -301,146 +495,98 @@ export default function SurveyPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="field" className="text-base font-semibold">
-                    Çalıştığınız/Okuduğunuz Alan (Opsiyonel)
+                  <Label className="text-base font-semibold mb-3 block">
+                    Mesleğiniz
                   </Label>
-                  <Input
-                    id="field"
-                    placeholder="Örn: Bilgisayar Mühendisliği, Matematik, vb."
-                    value={answers.field || ""}
-                    onChange={(e) => handleAnswerChange("field", e.target.value)}
-                    className="mt-2"
-                  />
+                  <RadioGroup
+                    value={answers.profession || ""}
+                    onValueChange={(value) => handleAnswerChange("profession", value)}
+                  >
+                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
+                      <RadioGroupItem value="ogretmen" id="ogretmen" />
+                      <Label htmlFor="ogretmen" className="cursor-pointer font-normal">
+                        Öğretmen
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
+                      <RadioGroupItem value="ogrenci" id="ogrenci" />
+                      <Label htmlFor="ogrenci" className="cursor-pointer font-normal">
+                        Öğrenci
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
+                      <RadioGroupItem value="diger" id="diger" />
+                      <Label htmlFor="diger" className="cursor-pointer font-normal">
+                        Diğer
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                  {answers.profession === "diger" && (
+                    <div className="mt-3">
+                      <Input
+                        id="professionOther"
+                        placeholder="Mesleğinizi yazınız..."
+                        value={answers.professionOther || ""}
+                        onChange={(e) => handleAnswerChange("professionOther", e.target.value)}
+                        className="mt-2"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Step 2: Deneyim */}
-            {currentStep === 2 && (
-              <div className="space-y-6">
-                <div>
-                  <Label className="text-base font-semibold mb-3 block">
-                    Daha önce kişiselleştirilmiş bir eğitim platformu kullandınız mı?
-                  </Label>
-                  <RadioGroup
-                    value={answers.personalizedPlatform || ""}
-                    onValueChange={(value) => handleAnswerChange("personalizedPlatform", value)}
-                  >
-                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
-                      <RadioGroupItem value="evet" id="evet" />
-                      <Label htmlFor="evet" className="cursor-pointer font-normal">
-                        Evet, kullandım
-                      </Label>
+            {/* Likert Ölçeği Soruları (Adım 2-6) */}
+            {currentStep > 1 && (
+              <div className="space-y-8">
+                {getCurrentStepQuestions().map((question, idx) => (
+                  <div key={question.id} className="border-b border-gray-200 pb-6 last:border-0 last:pb-0">
+                    <div className="mb-4">
+                      <div className="flex items-start gap-2 mb-2">
+                        <Label className="text-base font-semibold text-gray-900 block flex-1">
+                          {((currentStep - 2) * questionsPerStep) + idx + 1}. {question.statement}
+                        </Label>
+                        {question.reverse && (
+                          <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-medium whitespace-nowrap">
+                            Ters Soru
+                          </span>
+                        )}
+                      </div>
+                      {question.reverse && (
+                        <div className="bg-orange-50 border-l-4 border-orange-400 p-3 mb-4 rounded-r">
+                          <p className="text-xs text-orange-800">
+                            <strong>Not:</strong> Bu soru ters kodlanmıştır. Analizde otomatik olarak tersine çevrilecektir.
+                          </p>
+                        </div>
+                      )}
+                      <p className="text-sm text-gray-500 mb-4">
+                        Lütfen bu ifadeye ne kadar katıldığınızı seçiniz:
+                      </p>
                     </div>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
-                      <RadioGroupItem value="hayir" id="hayir" />
-                      <Label htmlFor="hayir" className="cursor-pointer font-normal">
-                        Hayır, ilk kez kullanacağım
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-
-                <div>
-                  <Label className="text-base font-semibold mb-3 block">
-                    Eğitim teknolojileri konusundaki deneyiminiz nasıl?
-                  </Label>
-                  <RadioGroup
-                    value={answers.platformExperience || ""}
-                    onValueChange={(value) => handleAnswerChange("platformExperience", value)}
-                  >
-                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
-                      <RadioGroupItem value="cok_deneyimli" id="cok_deneyimli" />
-                      <Label htmlFor="cok_deneyimli" className="cursor-pointer font-normal">
-                        Çok deneyimliyim
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
-                      <RadioGroupItem value="orta" id="orta" />
-                      <Label htmlFor="orta" className="cursor-pointer font-normal">
-                        Orta seviyede
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
-                      <RadioGroupItem value="az" id="az" />
-                      <Label htmlFor="az" className="cursor-pointer font-normal">
-                        Az deneyimliyim
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
-                      <RadioGroupItem value="yok" id="yok" />
-                      <Label htmlFor="yok" className="cursor-pointer font-normal">
-                        Hiç deneyimim yok
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-
-                <div>
-                  <Label className="text-base font-semibold mb-3 block">
-                    Yapay zeka destekli sistemler hakkında ne düşünüyorsunuz?
-                  </Label>
-                  <RadioGroup
-                    value={answers.aiExperience || ""}
-                    onValueChange={(value) => handleAnswerChange("aiExperience", value)}
-                  >
-                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
-                      <RadioGroupItem value="cok_pozitif" id="cok_pozitif" />
-                      <Label htmlFor="cok_pozitif" className="cursor-pointer font-normal">
-                        Çok olumlu, heyecanlıyım
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
-                      <RadioGroupItem value="pozitif" id="pozitif" />
-                      <Label htmlFor="pozitif" className="cursor-pointer font-normal">
-                        Olumlu
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
-                      <RadioGroupItem value="tarafsiz" id="tarafsiz" />
-                      <Label htmlFor="tarafsiz" className="cursor-pointer font-normal">
-                        Tarafsızım
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
-                      <RadioGroupItem value="endiseli" id="endiseli" />
-                      <Label htmlFor="endiseli" className="cursor-pointer font-normal">
-                        Biraz endişeliyim
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Beklentiler */}
-            {currentStep === 3 && (
-              <div className="space-y-6">
-                <div>
-                  <Label htmlFor="expectations" className="text-base font-semibold">
-                    Bu sistemden en çok ne bekliyorsunuz? (Opsiyonel)
-                  </Label>
-                  <Textarea
-                    id="expectations"
-                    placeholder="Beklentilerinizi, umutlarınızı veya merak ettiğiniz özellikleri yazabilirsiniz..."
-                    value={answers.expectations || ""}
-                    onChange={(e) => handleAnswerChange("expectations", e.target.value)}
-                    className="mt-2 min-h-[100px]"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="concerns" className="text-base font-semibold">
-                    Herhangi bir endişeniz veya sormak istediğiniz bir şey var mı? (Opsiyonel)
-                  </Label>
-                  <Textarea
-                    id="concerns"
-                    placeholder="Endişelerinizi veya sorularınızı paylaşabilirsiniz..."
-                    value={answers.concerns || ""}
-                    onChange={(e) => handleAnswerChange("concerns", e.target.value)}
-                    className="mt-2 min-h-[100px]"
-                  />
-                </div>
+                    <RadioGroup
+                      value={answers[question.id as keyof SurveyAnswers] || ""}
+                      onValueChange={(value) => handleAnswerChange(question.id as keyof SurveyAnswers, value)}
+                    >
+                      <div className="grid grid-cols-1 gap-3">
+                        {LIKERT_OPTIONS.map((option) => (
+                          <div
+                            key={option.value}
+                            className="flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-blue-300 transition-colors"
+                          >
+                            <RadioGroupItem value={option.value} id={`${question.id}_${option.value}`} />
+                            <Label
+                              htmlFor={`${question.id}_${option.value}`}
+                              className="cursor-pointer font-normal flex-1 flex items-center gap-2"
+                            >
+                              <span className="font-semibold text-gray-700 w-6">{option.value}.</span>
+                              <span className="text-gray-700">{option.label}</span>
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </RadioGroup>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -498,4 +644,3 @@ export default function SurveyPage() {
     </div>
   );
 }
-

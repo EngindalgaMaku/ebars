@@ -149,3 +149,4 @@ sudo systemctl restart nginx
 - [ ] Browser cache temizlendi mi?
 - [ ] Nginx error log'ları kontrol edildi mi?
 
+

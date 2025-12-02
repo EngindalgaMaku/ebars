@@ -145,3 +145,4 @@ docker compose -f docker-compose.prod.yml logs model-inference-service --tail 10
 
 
 
+

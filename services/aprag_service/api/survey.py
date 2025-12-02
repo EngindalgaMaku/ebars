@@ -25,14 +25,33 @@ router = APIRouter()
 
 
 class SurveyAnswer(BaseModel):
+    # Temel Bilgiler
     age: Optional[str] = None
     education: Optional[str] = None
-    field: Optional[str] = None
-    personalized_platform: Optional[str] = None
-    platform_experience: Optional[str] = None
-    ai_experience: Optional[str] = None
-    expectations: Optional[str] = None
-    concerns: Optional[str] = None
+    profession: Optional[str] = None
+    profession_other: Optional[str] = None
+    
+    # Likert Ölçeği Soruları (1-5)
+    q1_usability: Optional[str] = None
+    q2_navigation: Optional[str] = None
+    q3_learning: Optional[str] = None
+    q4_speed: Optional[str] = None
+    q5_learning_contribution: Optional[str] = None
+    q6_useful_answers: Optional[str] = None
+    q7_accurate_answers: Optional[str] = None
+    q8_clear_answers: Optional[str] = None
+    q9_emoji_easy: Optional[str] = None
+    q10_emoji_response: Optional[str] = None
+    q11_emoji_noticed: Optional[str] = None
+    q12_difficulty_appropriate: Optional[str] = None
+    q13_simplified: Optional[str] = None
+    q14_difficultied: Optional[str] = None
+    q15_adaptive_helpful: Optional[str] = None
+    q16_personalized: Optional[str] = None
+    q17_satisfied: Optional[str] = None
+    q18_expectations: Optional[str] = None
+    q19_enjoyable: Optional[str] = None
+    q20_recommend: Optional[str] = None
 
 
 class SurveySubmission(BaseModel):

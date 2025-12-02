@@ -181,3 +181,4 @@ echo "   sudo tail -f /var/log/nginx/ebars-frontend-error.log"
 echo "   sudo tail -f /var/log/letsencrypt/letsencrypt.log"
 echo ""
 
+

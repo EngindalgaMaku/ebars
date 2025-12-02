@@ -57,3 +57,4 @@ echo "✅ Diagnostic tamamlandı!"
 
 
 
+

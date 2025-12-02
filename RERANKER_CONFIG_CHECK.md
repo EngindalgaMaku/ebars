@@ -71,3 +71,4 @@ RERANKER_TYPE=alibaba:8008  # ❌ Port numarası olmamalı
 RERANKER_TYPE=bge  # ❌ Cloud API kullanıyorsanız gereksiz
 ```
 
+

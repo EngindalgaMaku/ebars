@@ -169,3 +169,4 @@ docker stats --no-stream --format "table {{.Name}}\t{{.MemUsage}}"
 - **16GB RAM** (en güvenli)
 - Veya **8GB + optimizasyon** (cloud LLM, düşük worker sayısı)
 
+

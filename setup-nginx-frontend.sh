@@ -182,3 +182,4 @@ echo "   sudo tail -f /var/log/nginx/ebars-frontend-access.log"
 echo "   sudo tail -f /var/log/nginx/ebars-frontend-error.log"
 
 
+

@@ -150,3 +150,4 @@ docker compose -f docker-compose.prod.yml ps | grep Up
 
 **RAM yükseltmeye gerek YOK!** 🎉
 
+

@@ -2525,23 +2525,67 @@ class DatabaseManager:
     def ensure_survey_table(self):
         """Ensure survey table exists"""
         with self.get_connection() as conn:
+            # Create table if not exists
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS surveys (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
                     age TEXT,
                     education TEXT,
-                    field TEXT,
-                    personalized_platform TEXT,
-                    platform_experience TEXT,
-                    ai_experience TEXT,
-                    expectations TEXT,
-                    concerns TEXT,
+                    profession TEXT,
+                    profession_other TEXT,
+                    q1_usability TEXT,
+                    q2_navigation TEXT,
+                    q3_learning TEXT,
+                    q4_speed TEXT,
+                    q5_learning_contribution TEXT,
+                    q6_useful_answers TEXT,
+                    q7_accurate_answers TEXT,
+                    q8_clear_answers TEXT,
+                    q9_emoji_easy TEXT,
+                    q10_emoji_response TEXT,
+                    q11_emoji_noticed TEXT,
+                    q12_difficulty_appropriate TEXT,
+                    q13_simplified TEXT,
+                    q14_difficultied TEXT,
+                    q15_adaptive_helpful TEXT,
+                    q16_personalized TEXT,
+                    q17_satisfied TEXT,
+                    q18_expectations TEXT,
+                    q19_enjoyable TEXT,
+                    q20_recommend TEXT,
                     completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                     UNIQUE(user_id)
                 )
             """)
+            
+            # Add new columns if they don't exist (for existing tables)
+            likert_columns = [
+                "q1_usability", "q2_navigation", "q3_learning", "q4_speed",
+                "q5_learning_contribution", "q6_useful_answers", "q7_accurate_answers", "q8_clear_answers",
+                "q9_emoji_easy", "q10_emoji_response", "q11_emoji_noticed",
+                "q12_difficulty_appropriate", "q13_simplified", "q14_difficultied",
+                "q15_adaptive_helpful", "q16_personalized",
+                "q17_satisfied", "q18_expectations", "q19_enjoyable", "q20_recommend"
+            ]
+            
+            for col in likert_columns:
+                try:
+                    conn.execute(f"ALTER TABLE surveys ADD COLUMN {col} TEXT")
+                except:
+                    pass
+            
+            # Add profession columns if they don't exist
+            try:
+                conn.execute("ALTER TABLE surveys ADD COLUMN profession TEXT")
+            except:
+                pass
+            try:
+                conn.execute("ALTER TABLE surveys ADD COLUMN profession_other TEXT")
+            except:
+                pass
+            
             conn.commit()
             logger.info("Survey table ensured")
 
@@ -2566,20 +2610,40 @@ class DatabaseManager:
         with self.get_connection() as conn:
             conn.execute("""
                 INSERT INTO surveys (
-                    user_id, age, education, field,
-                    personalized_platform, platform_experience, ai_experience,
-                    expectations, concerns
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    user_id, age, education, profession, profession_other,
+                    q1_usability, q2_navigation, q3_learning, q4_speed,
+                    q5_learning_contribution, q6_useful_answers, q7_accurate_answers, q8_clear_answers,
+                    q9_emoji_easy, q10_emoji_response, q11_emoji_noticed,
+                    q12_difficulty_appropriate, q13_simplified, q14_difficultied,
+                    q15_adaptive_helpful, q16_personalized,
+                    q17_satisfied, q18_expectations, q19_enjoyable, q20_recommend
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 user_id,
                 answers.get("age"),
                 answers.get("education"),
-                answers.get("field"),
-                answers.get("personalized_platform"),
-                answers.get("platform_experience"),
-                answers.get("ai_experience"),
-                answers.get("expectations"),
-                answers.get("concerns")
+                answers.get("profession"),
+                answers.get("profession_other"),
+                answers.get("q1_usability"),
+                answers.get("q2_navigation"),
+                answers.get("q3_learning"),
+                answers.get("q4_speed"),
+                answers.get("q5_learning_contribution"),
+                answers.get("q6_useful_answers"),
+                answers.get("q7_accurate_answers"),
+                answers.get("q8_clear_answers"),
+                answers.get("q9_emoji_easy"),
+                answers.get("q10_emoji_response"),
+                answers.get("q11_emoji_noticed"),
+                answers.get("q12_difficulty_appropriate"),
+                answers.get("q13_simplified"),
+                answers.get("q14_difficultied"),
+                answers.get("q15_adaptive_helpful"),
+                answers.get("q16_personalized"),
+                answers.get("q17_satisfied"),
+                answers.get("q18_expectations"),
+                answers.get("q19_enjoyable"),
+                answers.get("q20_recommend")
             ))
             conn.commit()
             logger.info(f"Survey saved for user {user_id}")
@@ -2595,12 +2659,14 @@ class DatabaseManager:
                     u.email,
                     s.age,
                     s.education,
-                    s.field,
-                    s.personalized_platform,
-                    s.platform_experience,
-                    s.ai_experience,
-                    s.expectations,
-                    s.concerns,
+                    s.profession,
+                    s.profession_other,
+                    s.q1_usability, s.q2_navigation, s.q3_learning, s.q4_speed,
+                    s.q5_learning_contribution, s.q6_useful_answers, s.q7_accurate_answers, s.q8_clear_answers,
+                    s.q9_emoji_easy, s.q10_emoji_response, s.q11_emoji_noticed,
+                    s.q12_difficulty_appropriate, s.q13_simplified, s.q14_difficultied,
+                    s.q15_adaptive_helpful, s.q16_personalized,
+                    s.q17_satisfied, s.q18_expectations, s.q19_enjoyable, s.q20_recommend,
                     s.completed_at
                 FROM surveys s
                 LEFT JOIN users u ON s.user_id = u.id
@@ -2635,32 +2701,129 @@ class DatabaseManager:
             """)
             stats["education_distribution"] = {row["education"]: row["count"] for row in cursor.fetchall()}
             
-            # Platform experience distribution
+            # Profession distribution
             cursor = conn.execute("""
-                SELECT platform_experience, COUNT(*) as count
+                SELECT profession, COUNT(*) as count
                 FROM surveys
-                WHERE platform_experience IS NOT NULL
-                GROUP BY platform_experience
+                WHERE profession IS NOT NULL
+                GROUP BY profession
             """)
-            stats["platform_experience_distribution"] = {row["platform_experience"]: row["count"] for row in cursor.fetchall()}
+            stats["profession_distribution"] = {row["profession"]: row["count"] for row in cursor.fetchall()}
             
-            # AI experience distribution
-            cursor = conn.execute("""
-                SELECT ai_experience, COUNT(*) as count
-                FROM surveys
-                WHERE ai_experience IS NOT NULL
-                GROUP BY ai_experience
-            """)
-            stats["ai_experience_distribution"] = {row["ai_experience"]: row["count"] for row in cursor.fetchall()}
+            # Likert Questions - Calculate averages and distributions for each question
+            # Reverse coded questions (need to be inverted: 1->5, 2->4, 3->3, 4->2, 5->1)
+            reverse_questions = {
+                "q3_learning", "q7_accurate_answers", "q10_emoji_response", 
+                "q12_difficulty_appropriate", "q18_expectations"
+            }
             
-            # Personalized platform usage
+            likert_questions = [
+                "q1_usability", "q2_navigation", "q3_learning", "q4_speed",
+                "q5_learning_contribution", "q6_useful_answers", "q7_accurate_answers", "q8_clear_answers",
+                "q9_emoji_easy", "q10_emoji_response", "q11_emoji_noticed",
+                "q12_difficulty_appropriate", "q13_simplified", "q14_difficultied",
+                "q15_adaptive_helpful", "q16_personalized",
+                "q17_satisfied", "q18_expectations", "q19_enjoyable", "q20_recommend"
+            ]
+            
+            for q in likert_questions:
+                is_reverse = q in reverse_questions
+                
+                if is_reverse:
+                    # For reverse questions, calculate inverted average: 6 - original_score
+                    cursor = conn.execute(f"""
+                        SELECT AVG(6 - CAST({q} AS REAL)) as avg_score
+                        FROM surveys
+                        WHERE {q} IS NOT NULL AND {q} != ''
+                    """)
+                else:
+                    # Normal average
+                    cursor = conn.execute(f"""
+                        SELECT AVG(CAST({q} AS REAL)) as avg_score
+                        FROM surveys
+                        WHERE {q} IS NOT NULL AND {q} != ''
+                    """)
+                
+                row = cursor.fetchone()
+                stats[f"{q}_average"] = round(row["avg_score"], 2) if row and row["avg_score"] else None
+                
+                # Distribution (for reverse questions, invert the values)
+                cursor = conn.execute(f"""
+                    SELECT {q} as value, COUNT(*) as count
+                    FROM surveys
+                    WHERE {q} IS NOT NULL AND {q} != ''
+                    GROUP BY {q}
+                """)
+                if is_reverse:
+                    # Invert distribution: 1->5, 2->4, 3->3, 4->2, 5->1
+                    distribution = {}
+                    for row in cursor.fetchall():
+                        original_value = int(row["value"])
+                        inverted_value = 6 - original_value
+                        distribution[str(inverted_value)] = row["count"]
+                    stats[f"{q}_distribution"] = distribution
+                else:
+                    stats[f"{q}_distribution"] = {str(row["value"]): row["count"] for row in cursor.fetchall()}
+            
+            # Category averages (with reverse coding)
+            stats["usability_average"] = self._calculate_category_average(conn, ["q1_usability", "q2_navigation", "q3_learning", "q4_speed"], reverse_questions)
+            stats["effectiveness_average"] = self._calculate_category_average(conn, ["q5_learning_contribution", "q6_useful_answers", "q7_accurate_answers", "q8_clear_answers"], reverse_questions)
+            stats["emoji_feedback_average"] = self._calculate_category_average(conn, ["q9_emoji_easy", "q10_emoji_response", "q11_emoji_noticed"], reverse_questions)
+            stats["adaptive_average"] = self._calculate_category_average(conn, ["q12_difficulty_appropriate", "q13_simplified", "q14_difficultied", "q15_adaptive_helpful", "q16_personalized"], reverse_questions)
+            stats["satisfaction_average"] = self._calculate_category_average(conn, ["q17_satisfied", "q18_expectations", "q19_enjoyable", "q20_recommend"], reverse_questions)
+            
+            # Average age
             cursor = conn.execute("""
-                SELECT personalized_platform, COUNT(*) as count
+                SELECT AVG(CAST(age AS REAL)) as avg_age
                 FROM surveys
-                WHERE personalized_platform IS NOT NULL
-                GROUP BY personalized_platform
+                WHERE age IS NOT NULL AND age != ''
             """)
-            stats["personalized_platform_usage"] = {row["personalized_platform"]: row["count"] for row in cursor.fetchall()}
+            row = cursor.fetchone()
+            stats["average_age"] = round(row["avg_age"], 1) if row and row["avg_age"] else None
+            
+            # Completion by date
+            cursor = conn.execute("""
+                SELECT DATE(completed_at) as date, COUNT(*) as count
+                FROM surveys
+                WHERE completed_at IS NOT NULL
+                GROUP BY DATE(completed_at)
+                ORDER BY date DESC
+                LIMIT 30
+            """)
+            stats["completion_by_date"] = [{"date": row["date"], "count": row["count"]} for row in cursor.fetchall()]
             
             return stats
+    
+    def _calculate_category_average(self, conn, question_keys: List[str], reverse_questions: set) -> Optional[float]:
+        """Calculate average score for a category of questions (with reverse coding)"""
+        try:
+            total_sum = 0
+            total_count = 0
+            for q in question_keys:
+                is_reverse = q in reverse_questions
+                
+                if is_reverse:
+                    # For reverse questions, invert: 6 - original_score
+                    cursor = conn.execute(f"""
+                        SELECT SUM(6 - CAST({q} AS REAL)) as sum_score, COUNT(*) as count
+                        FROM surveys
+                        WHERE {q} IS NOT NULL AND {q} != ''
+                    """)
+                else:
+                    cursor = conn.execute(f"""
+                        SELECT SUM(CAST({q} AS REAL)) as sum_score, COUNT(*) as count
+                        FROM surveys
+                        WHERE {q} IS NOT NULL AND {q} != ''
+                    """)
+                
+                row = cursor.fetchone()
+                if row and row["sum_score"]:
+                    total_sum += row["sum_score"]
+                    total_count += row["count"]
+            
+            if total_count > 0:
+                return round(total_sum / total_count, 2)
+            return None
+        except:
+            return None
 

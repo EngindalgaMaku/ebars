@@ -153,3 +153,4 @@ sessions = professional_session_manager.list_sessions(...)
 - ❌ **HAYIR** - 20 kullanıcı için mevcut durum yeterli
 - ✅ **İSTEĞE BAĞLI** - Gelecekte `httpx`'e geçiş yapılabilir
 
+
