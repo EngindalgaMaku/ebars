@@ -723,8 +723,10 @@ export default function StudentChatPage() {
                           </div>
 
                           {/* İlgili Sorular (Suggestions) - Collapsed on mobile */}
+                          {/* Don't show suggestions if answer is "not found" message */}
                           {Array.isArray(message.suggestions) &&
-                            message.suggestions.length > 0 && (
+                            message.suggestions.length > 0 &&
+                            !message.bot?.includes("Bu bilgi ders dökümanlarında bulunamamıştır") && (
                               <div className="mt-6 pt-4 border-t border-gray-200">
                                 <details className="group">
                                   <summary className="cursor-pointer list-none flex items-center gap-2 mb-3 hover:text-indigo-700 transition-colors">
