@@ -38,3 +38,4 @@ echo "✅ Network hazır! Şimdi servisleri başlatabilirsiniz:"
 echo "   docker-compose -f docker-compose.prod.yml up -d"
 
 
+

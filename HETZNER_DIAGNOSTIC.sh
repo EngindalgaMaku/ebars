@@ -60,3 +60,4 @@ echo "✅ Diagnostic tamamlandı!"
 
 
 
+
