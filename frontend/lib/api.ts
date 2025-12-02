@@ -2440,6 +2440,52 @@ export async function deleteTopic(
   return res.json();
 }
 
+// Get topic details including knowledge base, Q&A pairs, and stats
+export async function getTopicDetails(topicId: number): Promise<{
+  topic_id: number;
+  knowledge_base: {
+    topic_summary?: string;
+    key_concepts?: string;
+    learning_objectives?: string;
+    definitions?: string;
+    formulas?: string;
+    examples?: string;
+    related_topics?: string;
+    prerequisite_concepts?: string;
+    real_world_applications?: string;
+    common_misconceptions?: string;
+    content_quality_score?: number;
+  } | null;
+  qa_pairs: Array<{
+    question: string;
+    answer: string;
+    explanation?: string;
+    difficulty_level: string;
+    question_type: string;
+    quality_score?: number;
+    times_asked?: number;
+  }>;
+  stats: {
+    qa_pairs: number;
+    chunks_linked: number;
+    difficulty_breakdown: Record<string, number>;
+  };
+}> {
+  const token = tokenManager.getAccessToken?.() || null;
+  const res = await fetch(`${getApiUrl()}/aprag/topics/${topicId}/details`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+
+  return res.json();
+}
+
 // Classify a question to a topic
 export async function classifyQuestion(
   request: QuestionClassificationRequest

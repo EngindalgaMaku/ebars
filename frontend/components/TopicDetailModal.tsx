@@ -6,6 +6,7 @@ import {
   TopicProgress,
   getSessionTopics,
   getStudentProgress,
+  getTopicDetails,
 } from "@/lib/api";
 import {
   X,
@@ -66,77 +67,55 @@ export default function TopicDetailModal({
 
       setLoading(true);
       try {
-        // Bu endpoint henüz yok, simulated data kullanacağız
-        // Gerçek implementasyonda APRAG service'den knowledge stats alınacak
-        const mockStats = {
-          qa_pairs: Math.floor(Math.random() * 50) + 10,
-          chunks_linked: Math.floor(Math.random() * 25) + 5,
-          difficulty_breakdown: {
-            basic: Math.floor(Math.random() * 15) + 5,
-            intermediate: Math.floor(Math.random() * 20) + 8,
-            advanced: Math.floor(Math.random() * 10) + 2,
-          },
-        };
-        setKnowledgeStats(mockStats);
+        // Get real data from API
+        const details = await getTopicDetails(topic.topic_id);
+        
+        // Set knowledge stats from real data
+        setKnowledgeStats({
+          qa_pairs: details.stats.qa_pairs,
+          chunks_linked: details.stats.chunks_linked,
+          difficulty_breakdown: details.stats.difficulty_breakdown,
+        });
 
-        // Mock topic summary
-        const mockSummary = `Bu konu ${topic.topic_title.toLowerCase()} ile ilgili temel kavramları kapsar. Öğrenciler bu konuda ${
-          topic.keywords?.join(", ") || "temel kavramları"
-        } öğrenecekler. Konu, ${
-          topic.estimated_difficulty || "orta"
-        } seviyede olup, öğrencilerin bu alandaki temel bilgilerini geliştirmelerine yardımcı olur.
+        // Set topic summary from knowledge base
+        if (details.knowledge_base?.topic_summary) {
+          setTopicSummary(details.knowledge_base.topic_summary);
+        } else if (topic.description) {
+          // Fallback to topic description if no summary available
+          setTopicSummary(topic.description);
+        } else {
+          setTopicSummary(null);
+        }
 
-Bu konuyu öğrenmek için öğrencilerin önceki konulardaki temel bilgilere sahip olmaları önerilir. Konu boyunca praktik örnekler ve interaktif sorularla öğrenme desteklenir.
-
-Öğrenim süreci boyunca öğrenciler:
-• Temel kavramları anlayacak
-• Pratik uygulamalar yapacak
-• Diğer konularla bağlantı kuracak
-• Kendi öğrenme hızında ilerleyecek`;
-        setTopicSummary(mockSummary);
-
-        // Mock content samples
-        const mockContent = {
-          chunks: [
-            {
-              content: `${topic.topic_title} konusunda temel bilgiler: Bu bölümde konunun temelleri açıklanmaktadır. Öğrenciler bu bilgileri kullanarak daha ileri seviye konuları öğrenebilirler. Konu, sistemli bir yaklaşımla ele alınmış olup, öğrencilerin kolayca anlayabileceği şekilde sunulmuştur.`,
-              score: 0.95,
-              source: "Ders Kitabı Bölüm 1",
-            },
-            {
-              content: `${topic.topic_title} ile ilgili önemli noktalar ve kavramlar burada detaylandırılmıştır. Bu bilgiler sınav ve ödevlerde kullanılacaktır. Konunun pratik uygulamaları da dahil olmak üzere gerçek hayat örnekleri ile zenginleştirilmiştir.`,
-              score: 0.88,
-              source: "Ders Notları",
-            },
-            {
-              content: `Praktik uygulamalar ve örnekler ile ${topic.topic_title} konusunun pekiştirilmesi için çeşitli alıştırmalar sunulmaktadır. Bu alıştırmalar öğrencilerin konuyu daha iyi anlamalarına yardımcı olur.`,
-              score: 0.82,
-              source: "Alıştırma Kitabı",
-            },
-          ],
-          qa_pairs: [
-            {
-              question: `${topic.topic_title} nedir ve neden önemlidir?`,
-              answer: `${topic.topic_title}, ${
-                topic.description ||
-                "önemli bir konudur ve öğrencilerin bu alandaki temel bilgilerini geliştirmelerine yardımcı olur."
-              } Bu konu, öğrencilerin akademik gelişimi açısından kritik önem taşır.`,
-            },
-            {
-              question: `${topic.topic_title} konusunun temel özellikleri nelerdir?`,
-              answer:
-                "Bu konu, öğrencilerin temel bilgilerini geliştirmek ve daha ileri seviye konulara hazırlık yapmak için kritik öneme sahiptir. Sistematik bir yaklaşımla öğretilir ve pratik uygulamalarla desteklenir.",
-            },
-            {
-              question: `${topic.topic_title} konusunu öğrenmek için hangi ön bilgiler gereklidir?`,
-              answer:
-                "Bu konuyu etkili şekilde öğrenebilmek için temel matematik ve fen bilgisi yeterlidir. Önceki konulardaki temel kavramların bilinmesi öğrenme sürecini hızlandırır.",
-            },
-          ],
-        };
-        setSampleContent(mockContent);
+        // Set Q&A pairs from real data
+        if (details.qa_pairs && details.qa_pairs.length > 0) {
+          setSampleContent({
+            chunks: [], // Chunks will be loaded separately if needed
+            qa_pairs: details.qa_pairs.map(qa => ({
+              question: qa.question,
+              answer: qa.answer,
+            })),
+          });
+        } else {
+          // No Q&A pairs available
+          setSampleContent({
+            chunks: [],
+            qa_pairs: [],
+          });
+        }
       } catch (error) {
         console.error("Failed to load topic data:", error);
+        // On error, set empty data instead of mock data
+        setKnowledgeStats({
+          qa_pairs: 0,
+          chunks_linked: 0,
+          difficulty_breakdown: {},
+        });
+        setTopicSummary(topic.description || null);
+        setSampleContent({
+          chunks: [],
+          qa_pairs: [],
+        });
       } finally {
         setLoading(false);
       }
@@ -552,9 +531,9 @@ Bu konuyu öğrenmek için öğrencilerin önceki konulardaki temel bilgilere sa
                       </div>
                     ))}
                   </div>
-                ) : (
+                ) : sampleContent?.qa_pairs && sampleContent.qa_pairs.length > 0 ? (
                   <div className="space-y-4">
-                    {sampleContent?.qa_pairs.map((qa, index) => (
+                    {sampleContent.qa_pairs.map((qa, index) => (
                       <div
                         key={index}
                         className="bg-purple-50 border border-purple-200 rounded-lg p-4"
@@ -577,6 +556,12 @@ Bu konuyu öğrenmek için öğrencilerin önceki konulardaki temel bilgilere sa
                         </div>
                       </div>
                     ))}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                    <p className="text-sm text-gray-600">
+                      Bu konu için henüz soru-cevap çifti bulunmuyor.
+                    </p>
                   </div>
                 )}
               </div>

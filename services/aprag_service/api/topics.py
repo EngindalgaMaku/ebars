@@ -1249,6 +1249,121 @@ async def get_session_topics(session_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to fetch topics: {str(e)}")
 
 
+@router.get("/{topic_id}/details")
+async def get_topic_details(topic_id: int):
+    """
+    Get detailed information about a topic including knowledge base, Q&A pairs, and chunks
+    """
+    db = get_db()
+    
+    try:
+        with db.get_connection() as conn:
+            # Get topic info
+            cursor = conn.execute("""
+                SELECT session_id FROM course_topics WHERE topic_id = ?
+            """, (topic_id,))
+            topic = cursor.fetchone()
+            if not topic:
+                raise HTTPException(status_code=404, detail="Topic not found")
+            
+            session_id = dict(topic)["session_id"]
+            
+            # Check if APRAG is enabled
+            if not FeatureFlags.is_aprag_enabled(session_id):
+                raise HTTPException(
+                    status_code=403,
+                    detail="APRAG module is disabled"
+                )
+            
+            # Get knowledge base info
+            kb_cursor = conn.execute("""
+                SELECT 
+                    topic_summary, key_concepts, learning_objectives,
+                    definitions, formulas, examples, related_topics,
+                    prerequisite_concepts, real_world_applications,
+                    common_misconceptions, content_quality_score
+                FROM topic_knowledge_base
+                WHERE topic_id = ?
+            """, (topic_id,))
+            kb_data = kb_cursor.fetchone()
+            
+            # Get Q&A pairs
+            qa_cursor = conn.execute("""
+                SELECT 
+                    question, answer, explanation, difficulty_level,
+                    question_type, quality_score, times_asked
+                FROM topic_qa_pairs
+                WHERE topic_id = ? AND is_active = TRUE
+                ORDER BY quality_score DESC, times_asked DESC
+                LIMIT 10
+            """, (topic_id,))
+            qa_pairs = [dict(row) for row in qa_cursor.fetchall()]
+            
+            # Count stats - simpler approach
+            qa_count_cursor = conn.execute("""
+                SELECT COUNT(*) as count FROM topic_qa_pairs WHERE topic_id = ? AND is_active = TRUE
+            """, (topic_id,))
+            qa_count_row = qa_count_cursor.fetchone()
+            qa_count = dict(qa_count_row)["count"] if qa_count_row else 0
+            
+            # Get difficulty breakdown from Q&A pairs
+            diff_cursor = conn.execute("""
+                SELECT difficulty_level, COUNT(*) as count
+                FROM topic_qa_pairs
+                WHERE topic_id = ? AND is_active = TRUE
+                GROUP BY difficulty_level
+            """, (topic_id,))
+            difficulty_breakdown = {row["difficulty_level"]: row["count"] for row in diff_cursor.fetchall()}
+            
+            result = {
+                "topic_id": topic_id,
+                "knowledge_base": dict(kb_data) if kb_data else None,
+                "qa_pairs": qa_pairs,
+                "stats": {
+                    "qa_pairs": qa_count,
+                    "chunks_linked": 0,  # Will be populated from ChromaDB if needed
+                    "difficulty_breakdown": difficulty_breakdown
+                }
+            }
+            
+            # Try to get chunks from ChromaDB if available
+            try:
+                # Get topic keywords to search ChromaDB
+                topic_cursor = conn.execute("""
+                    SELECT keywords FROM course_topics WHERE topic_id = ?
+                """, (topic_id,))
+                topic_row = topic_cursor.fetchone()
+                if topic_row:
+                    keywords = json.loads(topic_row["keywords"]) if topic_row["keywords"] else []
+                    if keywords:
+                        # Query ChromaDB for related chunks
+                        try:
+                            chroma_response = requests.get(
+                                f"{CHROMA_SERVICE_URL}/api/v1/collections/{session_id}/query",
+                                json={
+                                    "query_texts": keywords[:3],  # Use first 3 keywords
+                                    "n_results": 5
+                                },
+                                timeout=5
+                            )
+                            if chroma_response.status_code == 200:
+                                chroma_data = chroma_response.json()
+                                if chroma_data.get("ids") and len(chroma_data["ids"]) > 0:
+                                    result["stats"]["chunks_linked"] = len(chroma_data["ids"][0])
+                        except Exception as e:
+                            logger.warning(f"Could not fetch chunks from ChromaDB: {e}")
+            except Exception as e:
+                logger.warning(f"Could not get chunks info: {e}")
+            
+            return result
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching topic details: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch topic details: {str(e)}")
+
+
 @router.put("/{topic_id}")
 async def update_topic(topic_id: int, request: TopicUpdateRequest):
     """
