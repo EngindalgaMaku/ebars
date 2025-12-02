@@ -703,7 +703,19 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest):
             except Exception as e:
                 logger.warning(f"⚠️ Could not fetch RAG settings for min_score_threshold: {e}, using default: {min_score_threshold}")
             
-            max_score = max([m.get("score", 0.0) for m in merged_results], default=0.0)
+            # Check both 'score' (similarity), 'final_score', and 'rerank_score' if available
+            # Use the highest score for threshold check
+            max_score = 0.0
+            for m in merged_results:
+                similarity_score = m.get("score", 0.0)
+                final_score = m.get("final_score", 0.0)
+                rerank_score = m.get("rerank_score", 0.0)
+                # Normalize rerank_score if it's in 0-10 range (ms-marco) to 0-1 range
+                if rerank_score > 1.0:
+                    rerank_score = rerank_score / 10.0  # Normalize ms-marco scores (0-10) to 0-1
+                doc_max = max(similarity_score, final_score, rerank_score)
+                max_score = max(max_score, doc_max)
+            
             logger.info(f"📊 Source score check: max_score={max_score:.4f}, threshold={min_score_threshold:.4f}")
             
             if max_score < min_score_threshold:

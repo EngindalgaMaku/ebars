@@ -1183,7 +1183,18 @@ async def rag_query(request: RAGQueryRequest):
                     except Exception as e:
                         logger.warning(f"⚠️ Could not fetch RAG settings for min_score_threshold: {e}, using default: {min_score_threshold}")
                     
-                    max_score = max([doc.get("score", 0.0) for doc in context_docs], default=0.0)
+                    # Check both 'score' (similarity) and 'crag_score' (rerank score) if available
+                    # Use the higher of the two scores for threshold check
+                    max_score = 0.0
+                    for doc in context_docs:
+                        similarity_score = doc.get("score", 0.0)
+                        crag_score = doc.get("crag_score", 0.0)
+                        # Normalize crag_score if it's in 0-10 range (ms-marco) to 0-1 range
+                        if crag_score > 1.0:
+                            crag_score = crag_score / 10.0  # Normalize ms-marco scores (0-10) to 0-1
+                        doc_max = max(similarity_score, crag_score)
+                        max_score = max(max_score, doc_max)
+                    
                     logger.info(f"📊 Source score check: max_score={max_score:.4f}, threshold={min_score_threshold:.4f}")
                     
                     if max_score < min_score_threshold:
