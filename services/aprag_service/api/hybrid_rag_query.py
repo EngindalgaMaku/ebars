@@ -263,7 +263,11 @@ YANIT KURALLARI (ÇOK ÖNEMLİ):
 3. Yanıtın toplam uzunluğunu en fazla 3 paragraf ve yaklaşık 5–8 cümle ile sınırla.
 4. Gerekirse en fazla 1 tane kısa gerçek hayat örneği ver; uzun anlatımlardan kaçın.
 5. Bilgiyi mutlaka yukarıdaki ders materyali ve bilgi tabanından al; emin olmadığın şeyleri yazma, uydurma.
-6. Önemli kavramları gerektiğinde **kalın** yazarak vurgulayabilirsin ama liste/rapor formatına dönüştürme.
+6. 🔴 ÇOK ÖNEMLİ - Eğer sorunun cevabı ders materyallerinde yoksa veya materyaller soruyla ilgili değilse:
+   - SADECE şu cümleyi yaz: 'Bu bilgi ders dökümanlarında bulunamamıştır.'
+   - BAŞKA HİÇBİR ŞEY EKLEME, açıklama yapma, örnek verme, başka bilgi verme
+   - SADECE bu cümleyi yaz ve bitir
+7. Önemli kavramları gerektiğinde **kalın** yazarak vurgulayabilirsin ama liste/rapor formatına dönüştürme.
 
 ✍️ YANIT (sadece cevabı yaz, başlık veya madde listesi ekleme):"""
 

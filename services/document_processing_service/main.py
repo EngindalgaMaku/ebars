@@ -1264,9 +1264,13 @@ async def rag_query(request: RAGQueryRequest):
                         "1. KESINLIKLE SADECE TÜRKÇE cevap ver\n"
                         "2. Zihninde doğruladığın sayısal verileri AYNEN kullan\n"
                         "3. Kendi bilgini kullanma, sadece bağlamdaki bilgileri kullan\n"
-                        "4. Sorunun cevabı bağlamda yoksa: 'Bu bilgi ders dökümanlarında bulunamamıştır.'\n"
+                        "4. 🔴 ÇOK ÖNEMLİ - Sorunun cevabı bağlamda yoksa veya bağlam soruyla ilgili değilse:\n"
+                        "   - SADECE şu cümleyi yaz: 'Bu bilgi ders dökümanlarında bulunamamıştır.'\n"
+                        "   - BAŞKA HİÇBİR ŞEY EKLEME, açıklama yapma, örnek verme, başka bilgi verme\n"
+                        "   - SADECE bu cümleyi yaz ve bitir\n"
                         "5. SADECE NİHAİ CEVABI YAZ - analiz sürecini, adımları, düşünceleri gösterme\n\n"
-                        "Örnek: Bağlamda 'azot %78' yazıyorsa kesinlikle %78 yaz, başka değer yazma."
+                        "Örnek: Bağlamda 'azot %78' yazıyorsa kesinlikle %78 yaz, başka değer yazma.\n"
+                        "Örnek: Bağlamda sorunun cevabı yoksa SADECE 'Bu bilgi ders dökümanlarında bulunamamıştır.' yaz, başka hiçbir şey ekleme."
                     )
                     
                     # ---------------------------------------------------------
