@@ -170,13 +170,41 @@ class EBARSStateRequest(BaseModel):
 async def get_ebars_state_post(
     user_id: str,
     session_id: str,
-    request: Optional[EBARSStateRequest] = None,
+    request_body: Optional[EBARSStateRequest] = None,
     db: DatabaseManager = Depends(get_db)
 ):
     """POST endpoint for EBARS state (to avoid 414 URI Too Large error)"""
-    query = request.query if request else None
-    context = request.context if request else None
-    return await get_ebars_state(user_id, session_id, query, context, db)
+    try:
+        # Check if EBARS is enabled
+        if not check_ebars_enabled(session_id):
+            raise HTTPException(
+                status_code=403,
+                detail="EBARS feature is disabled for this session"
+            )
+        
+        handler = FeedbackHandler(db)
+        state = handler.get_current_state(user_id, session_id)
+        
+        # If query and context provided in POST body, generate complete prompt
+        if request_body and request_body.query and request_body.context:
+            complete_prompt = handler.generate_complete_prompt(
+                user_id=user_id,
+                session_id=session_id,
+                query=request_body.query,
+                context=request_body.context
+            )
+            state['complete_prompt'] = complete_prompt
+        
+        return {
+            "success": True,
+            "data": state
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting EBARS state (POST): {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/state/{user_id}/{session_id}")
 async def get_ebars_state(
