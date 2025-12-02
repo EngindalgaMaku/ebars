@@ -218,6 +218,7 @@ async def generate_answer_with_llm(
     query: str,
     context: str,
     topic_title: Optional[str] = None,
+    session_name: Optional[str] = None,
     model: str = "llama-3.1-8b-instant",
     max_tokens: int = 768,
     temperature: float = 0.6,
@@ -229,8 +230,24 @@ async def generate_answer_with_llm(
         tuple: (answer, debug_info) if return_debug=True, else (answer, None)
     """
     
+    # Add course scope validation if session_name is provided
+    course_scope_section = ""
+    if session_name and session_name.strip():
+        course_scope_section = (
+            f"⚠️ ÇOK ÖNEMLİ - İLK KONTROL (DERS KAPSAMI):\n"
+            f"ŞU ANDA '{session_name.strip()}' DERSİ İÇİN CEVAP VERİYORSUN.\n\n"
+            f"🔴 KRİTİK KURAL - MUTLAKA UYGULA:\n"
+            f"- Öğrencinin sorusu '{session_name.strip()}' dersi kapsamında olmalıdır.\n"
+            f"- Eğer soru ders kapsamı dışındaysa (örneğin: tarih, matematik, coğrafya, farklı bir ders konusu), HEMEN şu cevabı ver:\n"
+            f"  'Bu soru '{session_name.strip()}' dersi kapsamı dışındadır. Lütfen ders konularıyla ilgili sorular sorun.'\n"
+            f"- Bu kontrol, ders materyallerine BAKMADAN ÖNCE yapılır.\n"
+            f"- Materyaller olsa bile, eğer soru ders kapsamı dışındaysa MUTLAKA yukarıdaki cevabı ver.\n"
+            f"- SADECE '{session_name.strip()}' dersi konularıyla ilgili sorulara normal cevap ver.\n"
+            f"- ÖRNEK: Eğer soru 'Roma'yı kim yaktı?' gibi bir tarih sorusuysa ve ders 'Bilişim Teknolojilerinin Temelleri' ise, MUTLAKA 'Bu soru Bilişim Teknolojilerinin Temelleri dersi kapsamı dışındadır' cevabını ver.\n\n"
+        )
+    
     # Focused, Turkish-only prompt with topic context
-    prompt = f"""Sen bir eğitim asistanısın. Aşağıdaki ders materyallerini kullanarak ÖĞRENCİ SORUSUNU kısa, net ve konu dışına çıkmadan yanıtla.
+    prompt = f"""{course_scope_section}Sen bir eğitim asistanısın. Aşağıdaki ders materyallerini kullanarak ÖĞRENCİ SORUSUNU kısa, net ve konu dışına çıkmadan yanıtla.
 
 {f"📚 KONU: {topic_title}" if topic_title else ""}
 
@@ -438,8 +455,9 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest):
     db = get_db()
     
     try:
-        # Get session RAG settings from API Gateway to use correct model
+        # Get session RAG settings and metadata from API Gateway to use correct model
         session_rag_settings = {}
+        session_name = None
         try:
             session_response = requests.get(
                 f"{API_GATEWAY_URL}/sessions/{request.session_id}",
@@ -448,7 +466,11 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest):
             if session_response.status_code == 200:
                 session_data = session_response.json()
                 session_rag_settings = session_data.get("rag_settings", {}) or {}
+                # Get session name for course scope validation
+                session_name = session_data.get("name") or session_data.get("session_name")
                 logger.info(f"✅ Loaded session RAG settings: model={session_rag_settings.get('model')}, embedding_model={session_rag_settings.get('embedding_model')}")
+                if session_name:
+                    logger.info(f"📚 Session name retrieved for course scope validation: '{session_name}'")
             else:
                 logger.warning(f"⚠️ Could not load session settings: {session_response.status_code}")
         except Exception as settings_err:
@@ -805,6 +827,7 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest):
             query=request.query,
             context=context,
             topic_title=topic_title,
+            session_name=session_name,  # Pass session name for course scope validation
             model=effective_model,  # Use effective model from session settings
             max_tokens=request.max_tokens,
             temperature=request.temperature,

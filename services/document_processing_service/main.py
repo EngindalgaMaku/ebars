@@ -1179,18 +1179,24 @@ async def rag_query(request: RAGQueryRequest):
                     course_scope_section = ""
                     if request.session_name and request.session_name.strip():
                         course_scope_section = (
-                            f"\n\nDERS KAPSAMI KONTROLÜ (EK GÜVENLİK KATMANI):\n"
-                            f"- ŞU ANDA '{request.session_name.strip()}' DERSİ İÇİN CEVAP VERİYORSUN.\n"
+                            f"⚠️ ÇOK ÖNEMLİ - İLK KONTROL (DERS KAPSAMI):\n"
+                            f"ŞU ANDA '{request.session_name.strip()}' DERSİ İÇİN CEVAP VERİYORSUN.\n\n"
+                            f"🔴 KRİTİK KURAL - MUTLAKA UYGULA:\n"
                             f"- Öğrencinin sorusu '{request.session_name.strip()}' dersi kapsamında olmalıdır.\n"
-                            f"- Eğer soru ders kapsamı dışındaysa (örneğin farklı bir ders konusu), şu şekilde cevap ver:\n"
+                            f"- Eğer soru ders kapsamı dışındaysa (örneğin: tarih, matematik, coğrafya, farklı bir ders konusu), HEMEN şu cevabı ver:\n"
                             f"  'Bu soru '{request.session_name.strip()}' dersi kapsamı dışındadır. Lütfen ders konularıyla ilgili sorular sorun.'\n"
-                            f"- Bu kontrol, RAG'ın bulduğu chunk'lara ek olarak yapılır. Chunk'lar olsa bile ders kapsamı dışındaysa bu cevabı ver.\n"
-                            f"- SADECE ders kapsamındaki sorulara normal cevap ver.\n"
+                            f"- Bu kontrol, RAG'ın bulduğu chunk'lara BAKMADAN ÖNCE yapılır.\n"
+                            f"- Chunk'lar olsa bile, eğer soru ders kapsamı dışındaysa MUTLAKA yukarıdaki cevabı ver.\n"
+                            f"- SADECE '{request.session_name.strip()}' dersi konularıyla ilgili sorulara normal cevap ver.\n"
+                            f"- ÖRNEK: Eğer soru 'Roma'yı kim yaktı?' gibi bir tarih sorusuysa ve ders 'Bilişim Teknolojilerinin Temelleri' ise, MUTLAKA 'Bu soru Bilişim Teknolojilerinin Temelleri dersi kapsamı dışındadır' cevabını ver.\n\n"
                         )
+                        logger.info(f"📚 Course scope validation enabled for session: '{request.session_name.strip()}'")
+                    else:
+                        logger.warning("⚠️ Session name not provided - course scope validation disabled")
                     
                     system_prompt = (
+                        f"{course_scope_section}"
                         "Sen yalnızca sağlanan BAĞLAM metnini kullanarak sorulara TÜRKÇE cevap veren bir yapay zeka asistanısın.\n"
-                        f"{course_scope_section}\n"
                         "ÇALIŞMA PRENSİBİN:\n"
                         "Cevap vermeden önce zihninde şunları yap (ama çıktıda HİÇBİR ZAMAN gösterme):\n"
                         "• Bağlamdaki tüm sayısal verileri (yüzdeler, miktarlar, sayılar) tespit et\n"
@@ -1231,7 +1237,12 @@ async def rag_query(request: RAGQueryRequest):
                         context_parts.append("\n")
                     
                     # Enhanced prompt - direct answer only
-                    context_parts.append(f"User: Bağlam Metni:\n{context_text}\n\n")
+                    # Add course scope reminder in user prompt if session_name is provided
+                    course_reminder = ""
+                    if request.session_name and request.session_name.strip():
+                        course_reminder = f"⚠️ HATIRLATMA: Bu soru '{request.session_name.strip()}' dersi kapsamında mı? Değilse, 'Bu soru '{request.session_name.strip()}' dersi kapsamı dışındadır. Lütfen ders konularıyla ilgili sorular sorun.' cevabını ver.\n\n"
+                    
+                    context_parts.append(f"User: {course_reminder}Bağlam Metni:\n{context_text}\n\n")
                     context_parts.append(f"Soru: {request.query}\n\n")
                     context_parts.append("Cevap (içsel analizden sonra sadece nihai cevabı yaz):")
                     full_prompt = "".join(context_parts)
