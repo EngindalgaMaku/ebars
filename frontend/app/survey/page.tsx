@@ -262,6 +262,14 @@ export default function SurveyPage() {
 
     setIsSubmitting(true);
     try {
+      // Convert camelCase to snake_case for backend compatibility
+      const answersForBackend = {
+        ...answers,
+        profession_other: answers.professionOther, // Convert professionOther to profession_other
+      };
+      // Remove professionOther if it exists (to avoid duplicate)
+      delete (answersForBackend as any).professionOther;
+
       const response = await fetch(
         `${getApiUrl()}/aprag/survey/submit`,
         {
@@ -272,7 +280,7 @@ export default function SurveyPage() {
           credentials: "include",
           body: JSON.stringify({
             user_id: user.id,
-            answers: answers,
+            answers: answersForBackend,
           }),
         }
       );
