@@ -68,6 +68,7 @@ export interface RagSettings {
   use_rerank: boolean;
   min_score: number;
   max_context_chars: number;
+  min_score_threshold?: number; // Minimum score threshold for source filtering (default: 0.4)
 }
 
 export interface SessionInteraction {
