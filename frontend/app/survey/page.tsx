@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { CheckCircle2, ArrowRight, ArrowLeft, Loader2, Info } from "lucide-react";
+import { CheckCircle2, ArrowRight, ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -326,11 +326,7 @@ export default function SurveyPage() {
 
   const getStepTitle = () => {
     if (currentStep === 1) return "Temel Bilgiler";
-    const questions = getCurrentStepQuestions();
-    if (questions.length > 0) {
-      return questions[0].category;
-    }
-    return "Likert Ölçeği";
+    return "Anket";
   };
 
   if (isLoading) {
@@ -400,56 +396,9 @@ export default function SurveyPage() {
             <CardTitle className="text-2xl text-center">
               {getStepTitle()}
             </CardTitle>
-            <CardDescription className="text-center">
-              {currentStep === 1 
-                ? "Sizinle ilgili temel bilgileri öğrenmek istiyoruz"
-                : currentStep === 2
-                ? "Lütfen aşağıdaki ifadelere ne kadar katıldığınızı belirtiniz"
-                : "Devam ediyoruz..."}
-            </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {/* Bilimsel Araştırma Bilgilendirmesi */}
-            {currentStep === 1 && (
-              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg -mt-2">
-                <div className="flex items-start gap-3">
-                  <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-blue-900 mb-2">Bilimsel Araştırma Hakkında</h3>
-                    <p className="text-sm text-blue-800 leading-relaxed">
-                      Bu anket, <strong>Burdur Mehmet Akif Ersoy Üniversitesi Fen Bilimleri Enstitüsü Yazılım Mühendisliği</strong> alanında 
-                      <strong> Engin DALGA</strong> tarafından yürütülen bilimsel bir araştırmanın parçasıdır. 
-                      Toplanan veriler yalnızca bilimsel araştırma amaçlı kullanılacak olup, kişisel bilgileriniz gizli tutulacaktır. 
-                      Katılımınız için teşekkür ederiz.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Likert Ölçeği Açıklaması */}
-            {currentStep === 2 && (
-              <div className="bg-purple-50 border-l-4 border-purple-500 p-4 rounded-r-lg -mt-2">
-                <div className="flex items-start gap-3">
-                  <Info className="h-5 w-5 text-purple-600 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-purple-900 mb-2">Likert Ölçeği</h3>
-                    <p className="text-sm text-purple-800 leading-relaxed">
-                      Lütfen aşağıdaki ifadelere ne kadar katıldığınızı belirtmek için 5 noktalı ölçeği kullanınız:
-                    </p>
-                    <ul className="text-sm text-purple-800 mt-2 space-y-1 list-disc list-inside">
-                      <li><strong>1:</strong> Kesinlikle Katılmıyorum</li>
-                      <li><strong>2:</strong> Katılmıyorum</li>
-                      <li><strong>3:</strong> Kararsızım</li>
-                      <li><strong>4:</strong> Katılıyorum</li>
-                      <li><strong>5:</strong> Kesinlikle Katılıyorum</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Step 1: Temel Bilgiler */}
             {currentStep === 1 && (
               <div className="space-y-6">
@@ -550,26 +499,9 @@ export default function SurveyPage() {
                 {getCurrentStepQuestions().map((question, idx) => (
                   <div key={question.id} className="border-b border-gray-200 pb-6 last:border-0 last:pb-0">
                     <div className="mb-4">
-                      <div className="flex items-start gap-2 mb-2">
-                        <Label className="text-base font-semibold text-gray-900 block flex-1">
-                          {((currentStep - 2) * questionsPerStep) + idx + 1}. {question.statement}
-                        </Label>
-                        {question.reverse && (
-                          <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded font-medium whitespace-nowrap">
-                            Ters Soru
-                          </span>
-                        )}
-                      </div>
-                      {question.reverse && (
-                        <div className="bg-orange-50 border-l-4 border-orange-400 p-3 mb-4 rounded-r">
-                          <p className="text-xs text-orange-800">
-                            <strong>Not:</strong> Bu soru ters kodlanmıştır. Analizde otomatik olarak tersine çevrilecektir.
-                          </p>
-                        </div>
-                      )}
-                      <p className="text-sm text-gray-500 mb-4">
-                        Lütfen bu ifadeye ne kadar katıldığınızı seçiniz:
-                      </p>
+                      <Label className="text-base font-semibold text-gray-900 block mb-4">
+                        {((currentStep - 2) * questionsPerStep) + idx + 1}. {question.statement}
+                      </Label>
                     </div>
                     <RadioGroup
                       value={answers[question.id as keyof SurveyAnswers] || ""}

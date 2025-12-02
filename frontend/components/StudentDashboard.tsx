@@ -398,7 +398,7 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
                   </a>
                   <a
                     href="/system-info"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
                   >
                     <Info className="w-3 h-3" />
                     Sistem Hakkında
@@ -411,24 +411,24 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {/* Total Questions - Use student profile data */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between mb-3">
-            <BookOpen className="w-8 h-8 opacity-80" />
-            <span className="text-3xl font-bold">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-4 sm:p-6 text-white">
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 opacity-80" />
+            <span className="text-2xl sm:text-3xl font-bold">
               {studentProfile?.total_interactions || analytics?.total_interactions || 0}
             </span>
           </div>
-          <h3 className="text-sm font-medium opacity-90">Toplam Soru</h3>
-          <p className="text-xs opacity-75 mt-1">Sorduğun soru sayısı</p>
+          <h3 className="text-xs sm:text-sm font-medium opacity-90">Toplam Soru</h3>
+          <p className="text-xs opacity-75 mt-1 hidden sm:block">Sorduğun soru sayısı</p>
         </div>
 
         {/* Average Understanding - Use student profile data */}
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between mb-3">
-            <Brain className="w-8 h-8 opacity-80" />
-            <span className="text-3xl font-bold">
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-4 sm:p-6 text-white">
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <Brain className="w-6 h-6 sm:w-8 sm:h-8 opacity-80" />
+            <span className="text-2xl sm:text-3xl font-bold">
               {studentProfile?.average_understanding
                 ? studentProfile.average_understanding.toFixed(1)
                 : analytics?.average_understanding
@@ -436,18 +436,18 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
                 : "-"}
             </span>
           </div>
-          <h3 className="text-sm font-medium opacity-90">Anlama Düzeyi</h3>
-          <p className="text-xs opacity-75 mt-1">5 üzerinden ortalama</p>
+          <h3 className="text-xs sm:text-sm font-medium opacity-90">Anlama Düzeyi</h3>
+          <p className="text-xs opacity-75 mt-1 hidden sm:block">5 üzerinden ortalama</p>
         </div>
 
         {/* Mastery Progress */}
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between mb-3">
-            <Award className="w-8 h-8 opacity-80" />
-            <span className="text-3xl font-bold">{calculateMastery()}%</span>
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-4 sm:p-6 text-white">
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <Award className="w-6 h-6 sm:w-8 sm:h-8 opacity-80" />
+            <span className="text-2xl sm:text-3xl font-bold">{calculateMastery()}%</span>
           </div>
-          <h3 className="text-sm font-medium opacity-90">Hakimiyet</h3>
-          <p className="text-xs opacity-75 mt-1">
+          <h3 className="text-xs sm:text-sm font-medium opacity-90">Hakimiyet</h3>
+          <p className="text-xs opacity-75 mt-1 hidden sm:block">
             {progress?.progress.filter((p) => p.mastery_level === "mastered")
               .length || 0}{" "}
             / {progress?.progress.length || 0} konu tamamlandı
@@ -455,17 +455,17 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
         </div>
 
         {/* Satisfaction Level - Use student profile data ONLY */}
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between mb-3">
-            <Eye className="w-8 h-8 opacity-80" />
-            <span className="text-3xl font-bold">
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-lg p-4 sm:p-6 text-white">
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <Eye className="w-6 h-6 sm:w-8 sm:h-8 opacity-80" />
+            <span className="text-2xl sm:text-3xl font-bold">
               {studentProfile?.average_satisfaction !== null && studentProfile?.average_satisfaction !== undefined
                 ? studentProfile.average_satisfaction.toFixed(1)
                 : "-"}
             </span>
           </div>
-          <h3 className="text-sm font-medium opacity-90">Memnuniyet Düzeyi</h3>
-          <p className="text-xs opacity-75 mt-1">5 üzerinden ortalama</p>
+          <h3 className="text-xs sm:text-sm font-medium opacity-90">Memnuniyet Düzeyi</h3>
+          <p className="text-xs opacity-75 mt-1 hidden sm:block">5 üzerinden ortalama</p>
         </div>
       </div>
 
@@ -476,7 +476,7 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
             <Info className="w-5 h-5 text-blue-500" />
             <h2 className="text-xl font-bold text-gray-900">Öğrenci Profil Bilgileri</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="text-sm text-gray-600 mb-1">Toplam Etkileşim</div>
               <div className="text-2xl font-bold text-gray-900">
@@ -720,120 +720,69 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
           </div>
           <div className="space-y-3">
             {paginatedMainTopics.map(
-              ({ mainTopic, mainProgress, subtopics }) => (
+              ({ mainTopic, mainProgress, subtopics }, index) => {
+                // Renk paleti - her kart için farklı renk
+                const colorSchemes = [
+                  { bg: "from-blue-500 to-blue-600", border: "border-blue-300", hover: "hover:border-blue-400", text: "text-blue-600", icon: "text-blue-500" },
+                  { bg: "from-green-500 to-green-600", border: "border-green-300", hover: "hover:border-green-400", text: "text-green-600", icon: "text-green-500" },
+                  { bg: "from-purple-500 to-purple-600", border: "border-purple-300", hover: "hover:border-purple-400", text: "text-purple-600", icon: "text-purple-500" },
+                  { bg: "from-orange-500 to-orange-600", border: "border-orange-300", hover: "hover:border-orange-400", text: "text-orange-600", icon: "text-orange-500" },
+                  { bg: "from-pink-500 to-pink-600", border: "border-pink-300", hover: "hover:border-pink-400", text: "text-pink-600", icon: "text-pink-500" },
+                  { bg: "from-cyan-500 to-cyan-600", border: "border-cyan-300", hover: "hover:border-cyan-400", text: "text-cyan-600", icon: "text-cyan-500" },
+                  { bg: "from-indigo-500 to-indigo-600", border: "border-indigo-300", hover: "hover:border-indigo-400", text: "text-indigo-600", icon: "text-indigo-500" },
+                  { bg: "from-teal-500 to-teal-600", border: "border-teal-300", hover: "hover:border-teal-400", text: "text-teal-600", icon: "text-teal-500" },
+                ];
+                const colorScheme = colorSchemes[index % colorSchemes.length];
+                
+                return (
                 <div
                   key={mainTopic.topic_id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group"
+                  className={`flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gradient-to-br ${colorScheme.bg} rounded-lg border-2 ${colorScheme.border} ${colorScheme.hover} hover:shadow-lg transition-all cursor-pointer group`}
                   onClick={() => {
                     setSelectedTopicForDetail(mainTopic);
                     setSelectedTopicProgress(mainProgress || null);
                     setIsTopicDetailModalOpen(true);
                   }}
                 >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                  <div className="flex-1 text-white">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                      <h3 className="font-semibold text-sm sm:text-base group-hover:opacity-90 transition-opacity">
                         {mainTopic.topic_title}
                       </h3>
                       {mainProgress?.mastery_level === "mastered" && (
-                        <CheckCircle className="w-5 h-5 text-green-500" />
+                        <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-white bg-green-500 rounded-full p-0.5" />
                       )}
-                      <Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
                     </div>
 
-                    {/* Short description or keywords preview */}
-                    {(mainTopic.description ||
-                      (mainTopic.keywords &&
-                        mainTopic.keywords.length > 0)) && (
-                      <div className="mt-1 text-xs text-gray-500">
-                        {mainTopic.description
-                          ? mainTopic.description.length > 80
-                            ? `${mainTopic.description.substring(0, 80)}...`
-                            : mainTopic.description
-                          : mainTopic.keywords?.slice(0, 3).join(", ")}
-                      </div>
-                    )}
-
-                    <div className="flex gap-4 mt-2 text-sm text-gray-600">
-                      <span className="flex items-center gap-1">
+                    <div className="flex flex-wrap gap-2 sm:gap-3 mt-2 text-xs sm:text-sm text-white/90">
+                      <span className="flex items-center gap-1 bg-white/20 px-2 py-1 rounded-full">
                         <BookOpen className="w-3 h-3" />
-                        {mainProgress?.questions_asked ?? 0} soru
+                        {mainProgress?.questions_asked ?? 0}
                       </span>
                       {mainProgress?.average_understanding && (
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 bg-white/20 px-2 py-1 rounded-full">
                           <Brain className="w-3 h-3" />
-                          Anlama:{" "}
                           {mainProgress.average_understanding.toFixed(1)}/5.0
                         </span>
                       )}
                       {mainProgress?.time_spent_minutes && (
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 bg-white/20 px-2 py-1 rounded-full">
                           <Clock className="w-3 h-3" />
-                          {mainProgress.time_spent_minutes} dk
-                        </span>
-                      )}
-                      {mainTopic.keywords && mainTopic.keywords.length > 0 && (
-                        <span className="flex items-center gap-1 text-purple-600">
-                          <span className="w-2 h-2 bg-purple-400 rounded-full"></span>
-                          {mainTopic.keywords.length} anahtar kelime
+                          {mainProgress.time_spent_minutes}dk
                         </span>
                       )}
                     </div>
 
-                    {/* Alt konular */}
-                    {subtopics.length > 0 && (
-                      <div className="mt-3 pl-3 border-l border-gray-300 space-y-1">
-                        <div className="text-xs text-gray-500 mb-1 font-medium">
-                          Alt Konular:
-                        </div>
-                        {subtopics.slice(0, 3).map(({ topic, progress }) => (
-                          <div
-                            key={topic.topic_id}
-                            className="flex items-center justify-between text-xs text-gray-700"
-                          >
-                            <span className="truncate flex-1">
-                              • {topic.topic_title}
-                            </span>
-                            <div className="flex items-center gap-2 ml-2">
-                              <span className="text-gray-500">
-                                {progress?.questions_asked ?? 0} soru
-                              </span>
-                              {progress?.mastery_score !== null &&
-                                progress?.mastery_score !== undefined && (
-                                  <div className="w-12">
-                                    <div className="w-full bg-gray-200 rounded-full h-1">
-                                      <div
-                                        className="bg-blue-400 h-1 rounded-full"
-                                        style={{
-                                          width: `${Math.min(
-                                            progress.mastery_score * 100,
-                                            100
-                                          )}%`,
-                                        }}
-                                      ></div>
-                                    </div>
-                                  </div>
-                                )}
-                            </div>
-                          </div>
-                        ))}
-                        {subtopics.length > 3 && (
-                          <div className="text-xs text-gray-500 italic">
-                            +{subtopics.length - 3} alt konu daha...
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
 
                   {/* Progress Bar and Detail Button */}
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 mt-2 sm:mt-0">
                     {mainProgress?.mastery_score !== null &&
                       mainProgress?.mastery_score !== undefined && (
-                        <div className="w-24 text-right">
-                          <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                        <div className="flex-1 sm:w-24 sm:flex-none">
+                          <div className="w-full bg-white/30 rounded-full h-2 mb-1">
                             <div
-                              className="bg-blue-500 h-2 rounded-full transition-all"
+                              className="bg-white h-2 rounded-full transition-all shadow-sm"
                               style={{
                                 width: `${Math.min(
                                   mainProgress.mastery_score * 100,
@@ -842,21 +791,21 @@ export default function StudentDashboard({ userId }: StudentDashboardProps) {
                               }}
                             ></div>
                           </div>
-                          <p className="text-xs text-gray-600">
+                          <p className="text-xs text-white/90 hidden sm:block">
                             {Math.round(
                               (mainProgress.mastery_score || 0) * 100
                             )}
-                            % tamamlandı
+                            %
                           </p>
                         </div>
                       )}
 
-                    <button className="p-2 bg-white rounded-full shadow-sm border border-gray-200 hover:bg-blue-50 hover:border-blue-300 transition-all group-hover:scale-105">
-                      <Info className="w-4 h-4 text-gray-500 group-hover:text-blue-500" />
+                    <button className="p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 rounded-full transition-all group-hover:scale-105">
+                      <Info className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
                     </button>
                   </div>
                 </div>
-              )
+              )}
             )}
           </div>
         </div>
