@@ -312,18 +312,23 @@ export default function SurveyResultsPage() {
     return results.slice(start, end);
   }, [results, currentPage, itemsPerPage]);
 
+  // Helper function to get question value with reverse coding
+  const getQuestionValue = (result: SurveyResult, questionId: string, isReverse: boolean): number | null => {
+    const val = result[questionId as keyof SurveyResult] as string | null | undefined;
+    if (!val || val === "") return null;
+    const num = parseFloat(val);
+    if (isNaN(num)) return null;
+    // Apply reverse coding: 6 - value (1->5, 2->4, 3->3, 4->2, 5->1)
+    return isReverse ? 6 - num : num;
+  };
+
   // Calculate detailed statistics
   const questionStats = useMemo((): Record<string, QuestionStats> => {
     const statsMap: Record<string, QuestionStats> = {};
     
     LIKERT_QUESTIONS.forEach((question) => {
       const values = results
-        .map((r) => {
-          const val = r[question.id as keyof SurveyResult] as string | null | undefined;
-          if (!val || val === "") return null;
-          const num = parseFloat(val);
-          return isNaN(num) ? null : num;
-        })
+        .map((r) => getQuestionValue(r, question.id, question.reverse || false))
         .filter((v): v is number => v !== null);
       
       if (values.length > 0) {
@@ -346,23 +351,58 @@ export default function SurveyResultsPage() {
   // Calculate category correlations
   const categoryCorrelations = useMemo((): CategoryCorrelation[] => {
     const categories = [
-      { name: "Kullanılabilirlik", questions: ["q1_usability", "q2_navigation", "q3_learning", "q4_speed"] },
-      { name: "Etkinlik", questions: ["q5_learning_contribution", "q6_useful_answers", "q7_accurate_answers", "q8_clear_answers"] },
-      { name: "Emoji Geri Bildirim", questions: ["q9_emoji_easy", "q10_emoji_response", "q11_emoji_noticed"] },
-      { name: "Adaptif Özellikler", questions: ["q12_difficulty_appropriate", "q13_simplified", "q14_difficultied", "q15_adaptive_helpful", "q16_personalized"] },
-      { name: "Memnuniyet", questions: ["q17_satisfied", "q18_expectations", "q19_enjoyable", "q20_recommend"] },
+      { 
+        name: "Kullanılabilirlik", 
+        questions: [
+          { id: "q1_usability", reverse: false },
+          { id: "q2_navigation", reverse: false },
+          { id: "q3_learning", reverse: true },
+          { id: "q4_speed", reverse: false }
+        ]
+      },
+      { 
+        name: "Etkinlik", 
+        questions: [
+          { id: "q5_learning_contribution", reverse: false },
+          { id: "q6_useful_answers", reverse: false },
+          { id: "q7_accurate_answers", reverse: true },
+          { id: "q8_clear_answers", reverse: false }
+        ]
+      },
+      { 
+        name: "Emoji Geri Bildirim", 
+        questions: [
+          { id: "q9_emoji_easy", reverse: false },
+          { id: "q10_emoji_response", reverse: true },
+          { id: "q11_emoji_noticed", reverse: false }
+        ]
+      },
+      { 
+        name: "Adaptif Özellikler", 
+        questions: [
+          { id: "q12_difficulty_appropriate", reverse: true },
+          { id: "q13_simplified", reverse: false },
+          { id: "q14_difficultied", reverse: false },
+          { id: "q15_adaptive_helpful", reverse: false },
+          { id: "q16_personalized", reverse: false }
+        ]
+      },
+      { 
+        name: "Memnuniyet", 
+        questions: [
+          { id: "q17_satisfied", reverse: false },
+          { id: "q18_expectations", reverse: true },
+          { id: "q19_enjoyable", reverse: false },
+          { id: "q20_recommend", reverse: false }
+        ]
+      },
     ];
 
     const categoryScores: Record<string, number[]> = {};
     categories.forEach((cat) => {
       categoryScores[cat.name] = results.map((r) => {
         const scores = cat.questions
-          .map((qId) => {
-            const val = r[qId as keyof SurveyResult] as string | null | undefined;
-            if (!val || val === "") return null;
-            const num = parseFloat(val);
-            return isNaN(num) ? null : num;
-          })
+          .map((q) => getQuestionValue(r, q.id, q.reverse))
           .filter((v): v is number => v !== null);
         return scores.length > 0 ? calculateMean(scores) : 0;
       });
@@ -386,23 +426,58 @@ export default function SurveyResultsPage() {
   // Calculate Cronbach's Alpha for each category
   const cronbachAlphas = useMemo((): Record<string, number> => {
     const categories = [
-      { name: "Kullanılabilirlik", questions: ["q1_usability", "q2_navigation", "q3_learning", "q4_speed"] },
-      { name: "Etkinlik", questions: ["q5_learning_contribution", "q6_useful_answers", "q7_accurate_answers", "q8_clear_answers"] },
-      { name: "Emoji Geri Bildirim", questions: ["q9_emoji_easy", "q10_emoji_response", "q11_emoji_noticed"] },
-      { name: "Adaptif Özellikler", questions: ["q12_difficulty_appropriate", "q13_simplified", "q14_difficultied", "q15_adaptive_helpful", "q16_personalized"] },
-      { name: "Memnuniyet", questions: ["q17_satisfied", "q18_expectations", "q19_enjoyable", "q20_recommend"] },
+      { 
+        name: "Kullanılabilirlik", 
+        questions: [
+          { id: "q1_usability", reverse: false },
+          { id: "q2_navigation", reverse: false },
+          { id: "q3_learning", reverse: true },
+          { id: "q4_speed", reverse: false }
+        ]
+      },
+      { 
+        name: "Etkinlik", 
+        questions: [
+          { id: "q5_learning_contribution", reverse: false },
+          { id: "q6_useful_answers", reverse: false },
+          { id: "q7_accurate_answers", reverse: true },
+          { id: "q8_clear_answers", reverse: false }
+        ]
+      },
+      { 
+        name: "Emoji Geri Bildirim", 
+        questions: [
+          { id: "q9_emoji_easy", reverse: false },
+          { id: "q10_emoji_response", reverse: true },
+          { id: "q11_emoji_noticed", reverse: false }
+        ]
+      },
+      { 
+        name: "Adaptif Özellikler", 
+        questions: [
+          { id: "q12_difficulty_appropriate", reverse: true },
+          { id: "q13_simplified", reverse: false },
+          { id: "q14_difficultied", reverse: false },
+          { id: "q15_adaptive_helpful", reverse: false },
+          { id: "q16_personalized", reverse: false }
+        ]
+      },
+      { 
+        name: "Memnuniyet", 
+        questions: [
+          { id: "q17_satisfied", reverse: false },
+          { id: "q18_expectations", reverse: true },
+          { id: "q19_enjoyable", reverse: false },
+          { id: "q20_recommend", reverse: false }
+        ]
+      },
     ];
 
     const alphas: Record<string, number> = {};
     categories.forEach((cat) => {
-      const items: number[][] = cat.questions.map((qId) =>
+      const items: number[][] = cat.questions.map((q) =>
         results
-          .map((r) => {
-            const val = r[qId as keyof SurveyResult] as string | null | undefined;
-            if (!val || val === "") return null;
-            const num = parseFloat(val);
-            return isNaN(num) ? null : num;
-          })
+          .map((r) => getQuestionValue(r, q.id, q.reverse))
           .filter((v): v is number => v !== null)
       );
       
@@ -415,8 +490,11 @@ export default function SurveyResultsPage() {
     return alphas;
   }, [results]);
 
-  const exportToCSV = () => {
+  const exportToExcel = async () => {
     if (results.length === 0) return;
+
+    // Dynamic import for xlsx library
+    const XLSX = await import("xlsx");
 
     const headers = [
       "ID", "Kullanıcı ID", "Kullanıcı Adı", "E-posta", "Yaş", "Eğitim Durumu",
@@ -437,20 +515,44 @@ export default function SurveyResultsPage() {
       r.completed_at
     ]);
 
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
-    ].join("\n");
+    // Create worksheet
+    const worksheetData = [headers, ...rows];
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    // Set column widths for better readability
+    const columnWidths = headers.map((_, index) => {
+      const maxLength = Math.max(
+        headers[index]?.length || 0,
+        ...rows.map(row => String(row[index] || "").length)
+      );
+      return { wch: Math.min(Math.max(maxLength + 2, 10), 50) };
+    });
+    worksheet["!cols"] = columnWidths;
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Anket Sonuçları");
+
+    // Generate Excel file
+    const excelBuffer = XLSX.write(workbook, { 
+      type: "array", 
+      bookType: "xlsx",
+      cellStyles: true
+    });
+
+    // Download file
+    const blob = new Blob([excelBuffer], { 
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
+    });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `anket-sonuclari-${new Date().toISOString().split("T")[0]}.csv`);
+    link.setAttribute("download", `anket-sonuclari-${new Date().toISOString().split("T")[0]}.xlsx`);
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const prepareChartData = (distribution: Record<string, number>) => {
@@ -472,7 +574,7 @@ export default function SurveyResultsPage() {
       }));
   };
 
-  const getQuestionValue = (result: SurveyResult, questionId: string): string => {
+  const getQuestionDisplayValue = (result: SurveyResult, questionId: string): string => {
     const value = result[questionId as keyof SurveyResult] as string | null | undefined;
     if (!value || value === "") return "-";
     const num = parseFloat(value);
@@ -520,9 +622,9 @@ export default function SurveyResultsPage() {
             <RefreshCw className="w-4 h-4 mr-2" />
             Yenile
           </Button>
-          <Button onClick={exportToCSV} disabled={results.length === 0}>
+          <Button onClick={exportToExcel} disabled={results.length === 0}>
             <Download className="w-4 h-4 mr-2" />
-            CSV İndir
+            Excel İndir
           </Button>
         </div>
       </div>
@@ -664,49 +766,98 @@ export default function SurveyResultsPage() {
             </CardContent>
           </Card>
 
-          {/* Question Statistics Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Soru Bazlı İstatistikler</CardTitle>
-              <CardDescription>Her soru için tanımlayıcı istatistikler</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="text-left p-3 font-semibold text-gray-700">Soru</th>
-                      <th className="text-right p-3 font-semibold text-gray-700">Ortalama</th>
-                      <th className="text-right p-3 font-semibold text-gray-700">Medyan</th>
-                      <th className="text-right p-3 font-semibold text-gray-700">Mod</th>
-                      <th className="text-right p-3 font-semibold text-gray-700">Std. Sapma</th>
-                      <th className="text-right p-3 font-semibold text-gray-700">Varyans</th>
-                      <th className="text-right p-3 font-semibold text-gray-700">Min</th>
-                      <th className="text-right p-3 font-semibold text-gray-700">Max</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {LIKERT_QUESTIONS.map((question) => {
-                      const stat = questionStats[question.id];
-                      if (!stat) return null;
-                      return (
-                        <tr key={question.id} className="border-b border-gray-100">
-                          <td className="p-3 text-gray-900 text-xs">{question.label}</td>
-                          <td className="p-3 text-right text-gray-700 font-mono">{stat.mean.toFixed(2)}</td>
-                          <td className="p-3 text-right text-gray-700 font-mono">{stat.median.toFixed(2)}</td>
-                          <td className="p-3 text-right text-gray-700 font-mono">{stat.mode.toFixed(2)}</td>
-                          <td className="p-3 text-right text-gray-700 font-mono">{stat.stdDev.toFixed(2)}</td>
-                          <td className="p-3 text-right text-gray-700 font-mono">{stat.variance.toFixed(2)}</td>
-                          <td className="p-3 text-right text-gray-700 font-mono">{stat.min.toFixed(0)}</td>
-                          <td className="p-3 text-right text-gray-700 font-mono">{stat.max.toFixed(0)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Question Statistics - Detailed Cards */}
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Soru Bazlı Detaylı İstatistikler</CardTitle>
+                <CardDescription>Her soru için kapsamlı istatistiksel analiz ve dağılım grafikleri</CardDescription>
+              </CardHeader>
+            </Card>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {LIKERT_QUESTIONS.map((question) => {
+                const stat = questionStats[question.id];
+                if (!stat) return null;
+                
+                // Get distribution for this question
+                const distribution: Record<string, number> = {};
+                results.forEach((r) => {
+                  const val = getQuestionValue(r, question.id, question.reverse || false);
+                  if (val !== null) {
+                    const key = val.toFixed(0);
+                    distribution[key] = (distribution[key] || 0) + 1;
+                  }
+                });
+                
+                const chartData = Object.entries(distribution)
+                  .sort(([a], [b]) => parseFloat(a) - parseFloat(b))
+                  .map(([key, value]) => ({
+                    name: LIKERT_LABELS[key] || key,
+                    value: value,
+                    count: value,
+                  }));
+
+                return (
+                  <Card key={question.id} className="overflow-hidden">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold text-gray-900">
+                        {question.label}
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        {question.category} {question.reverse && "(Ters Kodlanmış)"}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Statistics Grid */}
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="bg-blue-50 p-2 rounded">
+                          <div className="text-xs text-gray-600">Ortalama</div>
+                          <div className="text-lg font-bold text-blue-700">{stat.mean.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-green-50 p-2 rounded">
+                          <div className="text-xs text-gray-600">Medyan</div>
+                          <div className="text-lg font-bold text-green-700">{stat.median.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-purple-50 p-2 rounded">
+                          <div className="text-xs text-gray-600">Mod</div>
+                          <div className="text-lg font-bold text-purple-700">{stat.mode.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-orange-50 p-2 rounded">
+                          <div className="text-xs text-gray-600">Std. Sapma</div>
+                          <div className="text-lg font-bold text-orange-700">{stat.stdDev.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-gray-50 p-2 rounded">
+                          <div className="text-xs text-gray-600">Varyans</div>
+                          <div className="text-lg font-bold text-gray-700">{stat.variance.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-gray-50 p-2 rounded">
+                          <div className="text-xs text-gray-600">Aralık</div>
+                          <div className="text-lg font-bold text-gray-700">{stat.min.toFixed(0)} - {stat.max.toFixed(0)}</div>
+                        </div>
+                      </div>
+                      
+                      {/* Distribution Chart */}
+                      {chartData.length > 0 && (
+                        <div className="mt-4">
+                          <div className="text-xs font-medium text-gray-600 mb-2">Dağılım</div>
+                          <ResponsiveContainer width="100%" height={150}>
+                            <RechartsBarChart data={chartData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" angle={-45} textAnchor="end" height={60} fontSize={10} />
+                              <YAxis />
+                              <Tooltip />
+                              <Bar dataKey="count" fill="#8884d8" />
+                            </RechartsBarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Category Correlations */}
           <Card>
@@ -930,35 +1081,36 @@ export default function SurveyResultsPage() {
                   </thead>
                   <tbody>
                     {paginatedResults.map((result) => {
-                      const usabilityAvg = [
-                        result.q1_usability,
-                        result.q2_navigation,
-                        result.q3_learning,
-                        result.q4_speed,
-                      ]
-                        .filter((v) => v && v !== "")
-                        .map((v) => parseFloat(v || "0"))
-                        .reduce((a, b, _, arr) => a + b / arr.length, 0);
+                      // Calculate category averages with reverse coding
+                      const usabilityScores = [
+                        getQuestionValue(result, "q1_usability", false),
+                        getQuestionValue(result, "q2_navigation", false),
+                        getQuestionValue(result, "q3_learning", true),
+                        getQuestionValue(result, "q4_speed", false),
+                      ].filter((v): v is number => v !== null);
+                      const usabilityAvg = usabilityScores.length > 0 
+                        ? calculateMean(usabilityScores) 
+                        : 0;
 
-                      const effectivenessAvg = [
-                        result.q5_learning_contribution,
-                        result.q6_useful_answers,
-                        result.q7_accurate_answers,
-                        result.q8_clear_answers,
-                      ]
-                        .filter((v) => v && v !== "")
-                        .map((v) => parseFloat(v || "0"))
-                        .reduce((a, b, _, arr) => a + b / arr.length, 0);
+                      const effectivenessScores = [
+                        getQuestionValue(result, "q5_learning_contribution", false),
+                        getQuestionValue(result, "q6_useful_answers", false),
+                        getQuestionValue(result, "q7_accurate_answers", true),
+                        getQuestionValue(result, "q8_clear_answers", false),
+                      ].filter((v): v is number => v !== null);
+                      const effectivenessAvg = effectivenessScores.length > 0 
+                        ? calculateMean(effectivenessScores) 
+                        : 0;
 
-                      const satisfactionAvg = [
-                        result.q17_satisfied,
-                        result.q18_expectations,
-                        result.q19_enjoyable,
-                        result.q20_recommend,
-                      ]
-                        .filter((v) => v && v !== "")
-                        .map((v) => parseFloat(v || "0"))
-                        .reduce((a, b, _, arr) => a + b / arr.length, 0);
+                      const satisfactionScores = [
+                        getQuestionValue(result, "q17_satisfied", false),
+                        getQuestionValue(result, "q18_expectations", true),
+                        getQuestionValue(result, "q19_enjoyable", false),
+                        getQuestionValue(result, "q20_recommend", false),
+                      ].filter((v): v is number => v !== null);
+                      const satisfactionAvg = satisfactionScores.length > 0 
+                        ? calculateMean(satisfactionScores) 
+                        : 0;
 
                       return (
                         <tr key={result.id} className="border-b border-gray-100 hover:bg-gray-50">
@@ -1114,7 +1266,7 @@ export default function SurveyResultsPage() {
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold text-gray-900">Likert Ölçeği Yanıtları</h3>
                 {LIKERT_QUESTIONS.map((question) => {
-                  const value = getQuestionValue(selectedResult, question.id);
+                  const value = getQuestionDisplayValue(selectedResult, question.id);
                   return (
                     <Card key={question.id}>
                       <CardContent className="p-4">
