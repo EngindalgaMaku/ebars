@@ -633,7 +633,9 @@ export default function StudentChatPage() {
                           </div>
 
                           {/* High-level KB / QA usage summary */}
-                          {message.sources && message.sources.length > 0 && (
+                          {/* Don't show sources if answer is "not found" message */}
+                          {message.sources && message.sources.length > 0 && 
+                           !message.bot?.includes("Bu bilgi ders dökümanlarında bulunamamıştır") && (
                             <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
                               {(() => {
                                 const types = getSourceTypes(message.sources);
@@ -769,7 +771,9 @@ export default function StudentChatPage() {
                             )}
 
                           {/* Sources with Chunks */}
-                          {message.sources && message.sources.length > 0 && (() => {
+                          {/* Don't show sources if answer is "not found" message */}
+                          {message.sources && message.sources.length > 0 && 
+                           !message.bot?.includes("Bu bilgi ders dökümanlarında bulunamamıştır") && (() => {
                             // Get filtered sources count
                             const filteredSources = getUniqueSources(message.sources);
                             const totalFilteredChunks = filteredSources.reduce((sum, group) => sum + group.chunks.length, 0);
