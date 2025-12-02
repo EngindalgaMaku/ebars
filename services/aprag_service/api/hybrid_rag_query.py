@@ -685,6 +685,55 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest):
             
             logger.info(f"✅ Final merged_results (no rerank): {len([m for m in merged_results if m.get('source') == 'chunk'])} chunks, {len([m for m in merged_results if m.get('source') == 'knowledge_base'])} KB, {len([m for m in merged_results if m.get('source') == 'qa_pair'])} QA")
         
+        # Check source scores - get threshold from RAG settings (default: 0.4)
+        if merged_results:
+            # Get min_score_threshold from session RAG settings
+            min_score_threshold = 0.4  # Default
+            try:
+                session_response = requests.get(
+                    f"{API_GATEWAY_URL}/sessions/{request.session_id}",
+                    timeout=5
+                )
+                if session_response.status_code == 200:
+                    session_data = session_response.json()
+                    rag_settings = session_data.get('rag_settings', {})
+                    if rag_settings.get('min_score_threshold') is not None:
+                        min_score_threshold = float(rag_settings.get('min_score_threshold', 0.4))
+                        logger.info(f"📊 Using min_score_threshold from RAG settings: {min_score_threshold:.4f}")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not fetch RAG settings for min_score_threshold: {e}, using default: {min_score_threshold}")
+            
+            max_score = max([m.get("score", 0.0) for m in merged_results], default=0.0)
+            logger.info(f"📊 Source score check: max_score={max_score:.4f}, threshold={min_score_threshold:.4f}")
+            
+            if max_score < min_score_threshold:
+                logger.warning(f"❌ REJECTED: Max source score ({max_score:.4f}) is below threshold ({min_score_threshold:.4f})")
+                processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
+                
+                # Generate suggestions even for low score case
+                suggestions = []
+                try:
+                    suggestions = await _generate_followup_suggestions(
+                        question=request.query,
+                        answer="Bu bilgi ders dökümanlarında bulunamamıştır.",
+                        sources=[]
+                    )
+                except Exception as sugg_err:
+                    logger.warning(f"Failed to generate suggestions for low-score case: {sugg_err}")
+                
+                return HybridRAGQueryResponse(
+                    answer="Bu bilgi ders dökümanlarında bulunamamıştır.",
+                    confidence="low",
+                    retrieval_strategy="low_score_reject",
+                    sources_used={"chunks": 0, "kb": 0, "qa_pairs": 0},
+                    direct_qa_match=False,
+                    matched_topics=matched_topics,
+                    classification_confidence=classification_confidence,
+                    processing_time_ms=processing_time,
+                    sources=[],
+                    suggestions=suggestions
+                )
+        
         # BUILD CONTEXT from merged results
         context = retriever.build_context_from_merged_results(
             merged_results=merged_results,

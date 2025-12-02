@@ -31,6 +31,7 @@ import { EmbeddingSelector } from "./EmbeddingSelector";
 import { RerankerSelector } from "./RerankerSelector";
 import { SettingsSaveButton } from "./SettingsSaveButton";
 import { useRagSettings } from "../../hooks/useRagSettings";
+import { Target } from "lucide-react";
 
 interface RagSettingsTabProps {
   sessionId: string;
@@ -46,6 +47,8 @@ export const RagSettingsTab: React.FC<RagSettingsTabProps> = ({
     selectedEmbeddingModel,
     useRerankerService,
     selectedRerankerType,
+    minScoreThreshold,
+    setMinScoreThreshold,
     hasUnsavedChanges,
     validateSettings,
     error,
@@ -270,6 +273,55 @@ export const RagSettingsTab: React.FC<RagSettingsTabProps> = ({
           </Badge>
         </div>
         <RerankerSelector sessionId={sessionId} />
+      </div>
+
+      {/* Score Threshold Section */}
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Target className="w-4 h-4 text-primary" />
+              Kaynak Skor Eşiği
+            </CardTitle>
+            <CardDescription>
+              Kaynak skorları bu değerin altındaysa "Ders dökümanlarında bulunamadı" cevabı verilir
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">
+                  Minimum Skor Eşiği
+                </span>
+                <Badge variant="outline" className="text-sm font-mono">
+                  {(minScoreThreshold * 100).toFixed(0)}%
+                </Badge>
+              </div>
+              <div className="relative">
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={minScoreThreshold}
+                  onChange={(e) => setMinScoreThreshold(parseFloat(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
+                  style={{
+                    background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${minScoreThreshold * 100}%, rgb(229, 231, 235) ${minScoreThreshold * 100}%, rgb(229, 231, 235) 100%)`
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>0% (Çok Düşük)</span>
+                <span>50% (Orta)</span>
+                <span>100% (Çok Yüksek)</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Varsayılan: %40. Kaynak skorları bu değerin altındaysa, sistem "Bu bilgi ders dökümanlarında bulunamamıştır." cevabını verir.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Performance Notice */}

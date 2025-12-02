@@ -52,6 +52,7 @@ interface RagSettings {
   use_rerank?: boolean;
   min_score?: number;
   max_context_chars?: number;
+  min_score_threshold?: number; // Minimum score threshold for source filtering (default: 0.4)
 }
 
 export const useRagSettings = (sessionId: string) => {
@@ -76,6 +77,7 @@ export const useRagSettings = (sessionId: string) => {
   const [useRerankerService, setUseRerankerService] = useState<boolean>(false);
   const [selectedRerankerType, setSelectedRerankerType] =
     useState<string>("bge-reranker-v2-m3");
+  const [minScoreThreshold, setMinScoreThreshold] = useState<number>(0.4); // Default: 0.4 (40%)
 
   // Loading states
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -133,6 +135,10 @@ export const useRagSettings = (sessionId: string) => {
         setUseRerankerService(settings.use_reranker_service);
       if (settings.reranker_type)
         setSelectedRerankerType(settings.reranker_type);
+      if (settings.min_score_threshold !== undefined)
+        setMinScoreThreshold(settings.min_score_threshold);
+      else
+        setMinScoreThreshold(0.4); // Default if not set
 
       setHasUnsavedChanges(false);
     } else {
@@ -143,6 +149,7 @@ export const useRagSettings = (sessionId: string) => {
       setSelectedEmbeddingModel("");
       setUseRerankerService(false);
       setSelectedRerankerType("bge-reranker-v2-m3");
+      setMinScoreThreshold(0.4); // Default
       setHasUnsavedChanges(false);
     }
   }, [currentSession?.rag_settings]);
@@ -158,7 +165,8 @@ export const useRagSettings = (sessionId: string) => {
       currentSettings.embedding_provider !== selectedEmbeddingProvider ||
       currentSettings.embedding_model !== selectedEmbeddingModel ||
       currentSettings.use_reranker_service !== useRerankerService ||
-      currentSettings.reranker_type !== selectedRerankerType;
+      currentSettings.reranker_type !== selectedRerankerType ||
+      (currentSettings.min_score_threshold ?? 0.4) !== minScoreThreshold;
 
     setHasUnsavedChanges(hasChanges);
   }, [
@@ -168,6 +176,7 @@ export const useRagSettings = (sessionId: string) => {
     selectedEmbeddingModel,
     useRerankerService,
     selectedRerankerType,
+    minScoreThreshold,
     currentSession?.rag_settings,
   ]);
 
@@ -277,6 +286,9 @@ export const useRagSettings = (sessionId: string) => {
         settingsToSave.reranker_type =
           rerankerTypeMapping[selectedRerankerType] || "bge";
       }
+      if (minScoreThreshold !== undefined) {
+        settingsToSave.min_score_threshold = minScoreThreshold;
+      }
 
       const response = await saveSessionRagSettings(
         sessionId,
@@ -303,6 +315,7 @@ export const useRagSettings = (sessionId: string) => {
     setSelectedEmbeddingModel("");
     setUseRerankerService(false);
     setSelectedRerankerType("bge-reranker-v2-m3");
+    setMinScoreThreshold(0.4); // Reset to default
     setError(null);
     setSuccess(null);
   };
@@ -362,6 +375,7 @@ export const useRagSettings = (sessionId: string) => {
     selectedEmbeddingModel,
     useRerankerService,
     selectedRerankerType,
+    minScoreThreshold,
 
     // Loading states
     modelsLoading,
@@ -380,6 +394,7 @@ export const useRagSettings = (sessionId: string) => {
     setSelectedEmbeddingModel,
     setUseRerankerService,
     setSelectedRerankerType,
+    setMinScoreThreshold,
 
     // Operations
     saveSettings,

@@ -1165,6 +1165,35 @@ async def rag_query(request: RAGQueryRequest):
                     # No reranker: use all retrieved documents (already limited to top_k)
                     logger.info("✅ No reranker: using all retrieved documents")
                 
+                # Check source scores - get threshold from RAG settings (default: 0.4)
+                if context_docs:
+                    # Get min_score_threshold from session RAG settings
+                    min_score_threshold = 0.4  # Default
+                    try:
+                        session_response = requests.get(
+                            f"{os.getenv('API_GATEWAY_URL', 'http://api-gateway:8001')}/sessions/{request.session_id}",
+                            timeout=5
+                        )
+                        if session_response.status_code == 200:
+                            session_data = session_response.json()
+                            rag_settings = session_data.get('rag_settings', {})
+                            if rag_settings.get('min_score_threshold') is not None:
+                                min_score_threshold = float(rag_settings.get('min_score_threshold', 0.4))
+                                logger.info(f"📊 Using min_score_threshold from RAG settings: {min_score_threshold:.4f}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not fetch RAG settings for min_score_threshold: {e}, using default: {min_score_threshold}")
+                    
+                    max_score = max([doc.get("score", 0.0) for doc in context_docs], default=0.0)
+                    logger.info(f"📊 Source score check: max_score={max_score:.4f}, threshold={min_score_threshold:.4f}")
+                    
+                    if max_score < min_score_threshold:
+                        logger.warning(f"❌ REJECTED: Max source score ({max_score:.4f}) is below threshold ({min_score_threshold:.4f})")
+                        return RAGQueryResponse(
+                            answer="Bu bilgi ders dökümanlarında bulunamamıştır.",
+                            sources=[],
+                            chain_type=chain_type
+                        )
+                
                 # Generate answer using Model Inference Service
                 if context_docs:
                     context_text = "\n\n".join([doc["content"] for doc in context_docs])

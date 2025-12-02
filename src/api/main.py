@@ -1639,6 +1639,7 @@ class RAGSettings(BaseModel):
     embedding_provider: Optional[str] = None  # Embedding provider (ollama, huggingface)
     use_reranker_service: Optional[bool] = None
     reranker_type: Optional[str] = None
+    min_score_threshold: Optional[float] = None  # Minimum score threshold for source filtering (default: 0.4)
 
 @app.get("/sessions/{session_id}/rag-settings")
 def get_rag_settings(session_id: str, request: Request):
