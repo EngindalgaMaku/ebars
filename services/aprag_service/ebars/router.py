@@ -161,12 +161,27 @@ async def process_emoji_feedback(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class EBARSStateRequest(BaseModel):
+    """Request model for EBARS state with query and context (POST)"""
+    query: Optional[str] = None
+    context: Optional[str] = None
+
+@router.post("/state/{user_id}/{session_id}")
+async def get_ebars_state_post(
+    user_id: str,
+    session_id: str,
+    request: Optional[EBARSStateRequest] = None,
+    db: DatabaseManager = Depends(get_db)
+):
+    """POST endpoint for EBARS state (to avoid 414 URI Too Large error)"""
+    query = request.query if request else None
+    context = request.context if request else None
+    return await get_ebars_state(user_id, session_id, query, context, db)
+
 @router.get("/state/{user_id}/{session_id}")
 async def get_ebars_state(
     user_id: str,
     session_id: str,
-    query: Optional[str] = Query(None, description="Student question for complete prompt generation"),
-    context: Optional[str] = Query(None, description="RAG context/chunks for complete prompt generation"),
     db: DatabaseManager = Depends(get_db)
 ):
     """
@@ -200,15 +215,8 @@ async def get_ebars_state(
         handler = FeedbackHandler(db)
         state = handler.get_current_state(user_id, session_id)
         
-        # If query and context provided, generate complete prompt
-        if query and context:
-            complete_prompt = handler.generate_complete_prompt(
-                user_id=user_id,
-                session_id=session_id,
-                query=query,
-                context=context
-            )
-            state['complete_prompt'] = complete_prompt
+        # Note: query and context removed from GET endpoint to avoid 414 URI Too Large error
+        # Use POST endpoint for complete prompt generation
         
         return {
             "success": True,

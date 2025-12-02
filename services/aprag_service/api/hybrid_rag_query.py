@@ -706,20 +706,43 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest):
             # Check both 'score' (similarity), 'final_score', and 'rerank_score' if available
             # Use the highest score for threshold check
             max_score = 0.0
+            all_scores = []  # Debug için tüm skorları topla
             for m in merged_results:
                 similarity_score = m.get("score", 0.0)
                 final_score = m.get("final_score", 0.0)
                 rerank_score = m.get("rerank_score", 0.0)
-                # Normalize rerank_score if it's in 0-10 range (ms-marco) to 0-1 range
+                
+                # Normalize scores if they're in percentage format (0-100) to 0-1 range
+                if similarity_score > 1.0:
+                    similarity_score = similarity_score / 100.0  # 24.5% -> 0.245
+                if final_score > 1.0:
+                    if final_score <= 100.0:
+                        final_score = final_score / 100.0  # Percentage format
+                    else:
+                        final_score = final_score / 10.0  # ms-marco format (0-10)
                 if rerank_score > 1.0:
-                    rerank_score = rerank_score / 10.0  # Normalize ms-marco scores (0-10) to 0-1
+                    if rerank_score <= 100.0:
+                        rerank_score = rerank_score / 100.0  # Percentage format
+                    else:
+                        rerank_score = rerank_score / 10.0  # ms-marco format (0-10)
+                
                 doc_max = max(similarity_score, final_score, rerank_score)
                 max_score = max(max_score, doc_max)
+                all_scores.append({
+                    "similarity": similarity_score,
+                    "final": final_score,
+                    "rerank": rerank_score,
+                    "max": doc_max
+                })
+            
+            logger.info(f"📊 All scores (first 5): {all_scores[:5]}")  # İlk 5 skoru göster
             
             logger.info(f"📊 Source score check: max_score={max_score:.4f}, threshold={min_score_threshold:.4f}")
+            logger.info(f"📊 All scores (first 5): {all_scores[:5]}")  # İlk 5 skoru göster
             
             if max_score < min_score_threshold:
                 logger.warning(f"❌ REJECTED: Max source score ({max_score:.4f}) is below threshold ({min_score_threshold:.4f})")
+                logger.warning(f"📊 Score details: {all_scores[:3]}")  # İlk 3 skoru detaylı göster
                 processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
                 
                 # Generate suggestions even for low score case

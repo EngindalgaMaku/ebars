@@ -99,13 +99,26 @@ export default function EBARSStatusPanel({
       }
       setError(null);
 
-      // Build URL with query params if query and context are provided
-      let url = `/api/aprag/ebars/state/${userId}/${sessionId}`;
+      // Use POST for long query/context to avoid 414 URI Too Large error
+      const url = `/api/aprag/ebars/state/${userId}/${sessionId}`;
+      
+      let response;
       if (lastQuery && lastContext) {
-        url += `?query=${encodeURIComponent(lastQuery)}&context=${encodeURIComponent(lastContext)}`;
+        // POST request with body for long data
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: lastQuery,
+            context: lastContext,
+          }),
+        });
+      } else {
+        // GET request for simple state check
+        response = await fetch(url);
       }
-
-      const response = await fetch(url);
 
       if (!response.ok) {
         // EBARS might be disabled, that's okay

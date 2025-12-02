@@ -1186,16 +1186,31 @@ async def rag_query(request: RAGQueryRequest):
                     # Check both 'score' (similarity) and 'crag_score' (rerank score) if available
                     # Use the higher of the two scores for threshold check
                     max_score = 0.0
+                    all_scores = []  # Debug için tüm skorları topla
                     for doc in context_docs:
                         similarity_score = doc.get("score", 0.0)
                         crag_score = doc.get("crag_score", 0.0)
-                        # Normalize crag_score if it's in 0-10 range (ms-marco) to 0-1 range
+                        
+                        # Normalize scores if they're in percentage format (0-100) to 0-1 range
+                        if similarity_score > 1.0:
+                            similarity_score = similarity_score / 100.0  # 24.5% -> 0.245
                         if crag_score > 1.0:
-                            crag_score = crag_score / 10.0  # Normalize ms-marco scores (0-10) to 0-1
+                            # Check if it's percentage (0-100) or ms-marco (0-10)
+                            if crag_score <= 100.0:
+                                crag_score = crag_score / 100.0  # Percentage format
+                            else:
+                                crag_score = crag_score / 10.0  # ms-marco format (0-10)
+                        
                         doc_max = max(similarity_score, crag_score)
                         max_score = max(max_score, doc_max)
+                        all_scores.append({
+                            "similarity": similarity_score,
+                            "crag": crag_score,
+                            "max": doc_max
+                        })
                     
                     logger.info(f"📊 Source score check: max_score={max_score:.4f}, threshold={min_score_threshold:.4f}")
+                    logger.info(f"📊 All scores: {all_scores[:5]}")  # İlk 5 skoru göster
                     
                     if max_score < min_score_threshold:
                         logger.warning(f"❌ REJECTED: Max source score ({max_score:.4f}) is below threshold ({min_score_threshold:.4f})")
@@ -1204,6 +1219,8 @@ async def rag_query(request: RAGQueryRequest):
                             sources=[],
                             chain_type=chain_type
                         )
+                    else:
+                        logger.info(f"✅ ACCEPTED: Max source score ({max_score:.4f}) is above threshold ({min_score_threshold:.4f})")
                 
                 # Generate answer using Model Inference Service
                 if context_docs:
