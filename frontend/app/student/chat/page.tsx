@@ -323,12 +323,29 @@ export default function StudentChatPage() {
   };
 
   // Get unique sources (group by file, show all chunks)
+  // Filter sources by min_score_threshold from RAG settings
   const getUniqueSources = (sources: RAGSource[]) => {
     if (!sources || sources.length === 0) return [];
 
+    // Get min_score_threshold from session RAG settings (default: 0.4 = 40%)
+    const minScoreThreshold = sessionRagSettings?.min_score_threshold ?? 0.4;
+    
+    // Filter sources: only show sources with score >= threshold
+    // Normalize score if it's in percentage format (0-100) to 0-1 range
+    const filteredSources = sources.filter((source) => {
+      let score = source.score || 0;
+      // If score is in percentage format (0-100), normalize to 0-1
+      if (score > 1.0 && score <= 100.0) {
+        score = score / 100.0;
+      }
+      return score >= minScoreThreshold;
+    });
+
+    if (filteredSources.length === 0) return [];
+
     const sourceMap = new Map<string, RAGSource[]>();
 
-    sources.forEach((source) => {
+    filteredSources.forEach((source) => {
       const filename =
         source.metadata?.filename || source.metadata?.source_file || "unknown";
       if (!sourceMap.has(filename)) {
@@ -752,14 +769,22 @@ export default function StudentChatPage() {
                             )}
 
                           {/* Sources with Chunks */}
-                          {message.sources && message.sources.length > 0 && (
-                            <div className="mt-2 ml-4">
-                              <details className="text-xs">
-                                <summary className="cursor-pointer hover:text-gray-700 font-medium text-gray-600">
-                                  📚 {message.sources.length} kaynak kullanıldı
-                                </summary>
-                                <div className="mt-2 space-y-2">
-                                  {getUniqueSources(message.sources).map(
+                          {message.sources && message.sources.length > 0 && (() => {
+                            // Get filtered sources count
+                            const filteredSources = getUniqueSources(message.sources);
+                            const totalFilteredChunks = filteredSources.reduce((sum, group) => sum + group.chunks.length, 0);
+                            
+                            // Only show if there are filtered sources
+                            if (totalFilteredChunks === 0) return null;
+                            
+                            return (
+                              <div className="mt-2 ml-4">
+                                <details className="text-xs">
+                                  <summary className="cursor-pointer hover:text-gray-700 font-medium text-gray-600">
+                                    📚 {totalFilteredChunks} kaynak kullanıldı
+                                  </summary>
+                                  <div className="mt-2 space-y-2">
+                                    {filteredSources.map(
                                     (sourceGroup, idx) => {
                                       const filename = sourceGroup.filename || "unknown";
                                       const isKnowledgeBase = filename.toLowerCase() === "unknown" || filename.trim() === "";
@@ -802,9 +827,14 @@ export default function StudentChatPage() {
                                                       handleSourceClick(chunk)
                                                     }
                                                     className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors text-xs"
-                                                    title={`Parça ${chunkNumber} - Skor: ${(
-                                                      chunk.score * 100
-                                                    ).toFixed(0)}%`}
+                                                    title={`Parça ${chunkNumber} - Skor: ${(() => {
+                                                      let score = chunk.score || 0;
+                                                      // Normalize if in percentage format (0-100) to 0-1
+                                                      if (score > 1.0 && score <= 100.0) {
+                                                        score = score / 100.0;
+                                                      }
+                                                      return (score * 100).toFixed(0);
+                                                    })()}%`}
                                                   >
                                                     #{chunkNumber}
                                                     {chunk.metadata?.page_number &&
@@ -818,10 +848,11 @@ export default function StudentChatPage() {
                                       );
                                     }
                                   )}
-                                </div>
-                              </details>
-                            </div>
-                          )}
+                                  </div>
+                                </details>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
