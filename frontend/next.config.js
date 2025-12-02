@@ -182,7 +182,7 @@ const nextConfig = {
       },
       {
         source: "/api/:path*",
-        destination: `${apiUrl}/:path*`,  // /api prefix'ini kaldır (API Gateway'de prefix yok)
+        destination: `${apiUrl}/api/:path*`,  // /api prefix'ini koru (API Gateway'de /api prefix'i var)
       },
     ];
   },
