@@ -302,6 +302,14 @@ Orijinal cevabı aynen kopyalama! Seviyeye göre değiştir:
 - Orijinal cevabın içeriğini koru, sadece sunumunu değiştir
 - Emin olmadığın bilgileri uydurma veya tahmin etme
 
+🚨 KRİTİK TALİMAT - MUTLAKA UYGULA:
+- Orijinal cevabı AYNEN KOPYALAMA!
+- Cevabı {difficulty} seviyesine göre MUTLAKA DEĞİŞTİR
+- Daha basit seviye için: Daha uzun, daha açıklayıcı, daha fazla örnek, daha basit kelimeler
+- Daha ileri seviye için: Daha kısa, daha teknik, daha derinlemesine, daha az örnek
+- Cümle yapısını, kelime seçimini, detay seviyesini DEĞİŞTİR
+- Sadece içeriği koru, ama sunumunu TAMAMEN DEĞİŞTİR
+
 ✅ ÖNEMLİ: Kişiselleştirilmiş cevabı SADECE TÜRKÇE olarak ver. Orijinal cevabın içeriğini koru, ancak sunumunu, detay seviyesini ve zorluk seviyesini öğrenci algılama puanına göre ayarla.
 """
             else:

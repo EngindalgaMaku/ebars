@@ -382,35 +382,63 @@ async def preview_level_response(
         logger.info(f"🔍 Preview prompt generated for {request.direction} level:")
         logger.info(f"   Current: {current_difficulty} → Target: {target_difficulty}")
         logger.info(f"   Prompt length: {len(adaptive_prompt)} chars")
-        logger.debug(f"   Prompt preview (first 500 chars): {adaptive_prompt[:500]}")
+        logger.info(f"   Original response length: {len(request.rag_response)} chars")
+        logger.info(f"   Original response preview: {request.rag_response[:200]}")
+        logger.info(f"   Full prompt (first 1000 chars): {adaptive_prompt[:1000]}")
         
         # Call model inference to generate response with preview prompt
         try:
             # Use models/generate endpoint with higher temperature for more variation
             # Preview mode için daha yüksek temperature ve farklı parametreler
+            # ÖNEMLİ: Model'e direkt prompt gönderiyoruz, messages formatında değil
+            logger.info(f"📤 Sending request to model inference: {MODEL_INFERENCER_URL}/models/generate")
+            logger.info(f"   Model: qwen2.5-7b-instruct")
+            logger.info(f"   Temperature: 1.0, Top_p: 0.95")
+            
             model_response = requests.post(
                 f"{MODEL_INFERENCER_URL}/models/generate",
                 json={
                     "model": "qwen2.5-7b-instruct",  # Default model
                     "prompt": adaptive_prompt,
                     "max_tokens": 2000,
-                    "temperature": 1.0,  # Maximum variation for preview
-                    "top_p": 0.95,  # Nucleus sampling for diversity
-                    "frequency_penalty": 0.3,  # Avoid repetition
+                    "temperature": 1.0,  # Maximum variation for preview (0.7 default, 1.0 max)
                 },
                 timeout=90  # Preview için daha uzun timeout
             )
             
+            logger.info(f"📥 Model response status: {model_response.status_code}")
+            
             if model_response.status_code != 200:
-                logger.warning(f"Model inference error: {model_response.status_code}")
-                logger.warning(f"   Response: {model_response.text}")
-                # Fallback: use adaptive prompt to modify original response
-                preview_response = request.rag_response
-            else:
-                response_data = model_response.json()
-                preview_response = response_data.get("response") or response_data.get("content") or request.rag_response
-                logger.info(f"✅ Preview response generated: {len(preview_response)} chars")
-                logger.debug(f"   Response preview (first 200 chars): {preview_response[:200]}")
+                logger.error(f"❌ Model inference error: {model_response.status_code}")
+                logger.error(f"   Response: {model_response.text}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Model inference hatası: {model_response.status_code}"
+                )
+            
+            response_data = model_response.json()
+            preview_response = response_data.get("response") or response_data.get("content") or ""
+            
+            if not preview_response or preview_response.strip() == "":
+                logger.error("❌ Model boş cevap döndü!")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Model boş cevap döndü"
+                )
+            
+            logger.info(f"✅ Preview response generated: {len(preview_response)} chars")
+            logger.info(f"   Response preview (first 300 chars): {preview_response[:300]}")
+            
+            # Check if response is too similar to original
+            if preview_response.strip() == request.rag_response.strip():
+                logger.warning("⚠️ WARNING: Preview response is IDENTICAL to original!")
+                logger.warning(f"   Original: {request.rag_response[:100]}")
+                logger.warning(f"   Preview: {preview_response[:100]}")
+                # Don't return identical response, raise error instead
+                raise HTTPException(
+                    status_code=500,
+                    detail="Önizleme cevabı orijinal cevapla aynı. Model farklı bir cevap üretemedi."
+                )
             
         except Exception as e:
             logger.error(f"Error calling model inference: {e}", exc_info=True)
