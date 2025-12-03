@@ -432,16 +432,66 @@ async def personalize_response(
                 pedagogical_instructions=pedagogical_instructions if pedagogical_instructions else None
             )
         
-        # Generate personalization prompt (v1 + pedagogical enhancements)
-        personalization_prompt = _generate_personalization_prompt(
-            request.original_response,
-            request.query,
-            factors,
-            zpd_info=zpd_info,
-            bloom_info=bloom_info,
-            cognitive_load_info=cognitive_load_info,
-            pedagogical_instructions=pedagogical_instructions
-        )
+        # Check if EBARS is enabled - if so, use EBARS prompt adapter instead
+        ebars_enabled = False
+        try:
+            from ebars.router import check_ebars_enabled
+            ebars_enabled = check_ebars_enabled(request.session_id)
+            logger.info(f"🔍 EBARS enabled check: {ebars_enabled}")
+        except ImportError:
+            # EBARS module not available
+            logger.debug("EBARS module not available")
+        except Exception as e:
+            logger.debug(f"Could not check EBARS status: {e}")
+        
+        # Generate personalization prompt
+        if ebars_enabled:
+            # Use EBARS prompt adapter for better difficulty-based adaptation
+            try:
+                from ebars.feedback_handler import FeedbackHandler
+                from ebars.score_calculator import ComprehensionScoreCalculator
+                
+                handler = FeedbackHandler(db)
+                calculator = ComprehensionScoreCalculator(db)
+                
+                # Get EBARS difficulty level
+                ebars_difficulty = calculator.get_difficulty_level(request.user_id, request.session_id)
+                logger.info(f"🎯 Using EBARS prompt adapter with difficulty: {ebars_difficulty}")
+                
+                # Generate adaptive prompt using EBARS
+                personalization_prompt = handler.generate_adaptive_prompt(
+                    user_id=request.user_id,
+                    session_id=request.session_id,
+                    base_prompt=None,
+                    query=request.query,
+                    original_response=request.original_response,
+                    difficulty_override=None  # Use actual difficulty
+                )
+                
+                logger.info(f"✅ EBARS prompt generated: {len(personalization_prompt)} chars")
+            except Exception as e:
+                logger.warning(f"EBARS prompt generation failed, falling back to standard: {e}")
+                # Fallback to standard prompt
+                personalization_prompt = _generate_personalization_prompt(
+                    request.original_response,
+                    request.query,
+                    factors,
+                    zpd_info=zpd_info,
+                    bloom_info=bloom_info,
+                    cognitive_load_info=cognitive_load_info,
+                    pedagogical_instructions=pedagogical_instructions
+                )
+        else:
+            # Use standard personalization prompt (v1 + pedagogical enhancements)
+            personalization_prompt = _generate_personalization_prompt(
+                request.original_response,
+                request.query,
+                factors,
+                zpd_info=zpd_info,
+                bloom_info=bloom_info,
+                cognitive_load_info=cognitive_load_info,
+                pedagogical_instructions=pedagogical_instructions
+            )
         
         # Call model inference service to personalize
         try:
