@@ -24,8 +24,10 @@ import {
 } from "lucide-react";
 import { QuickEmojiFeedback } from "@/components/EmojiFeedback";
 import SourceModal from "@/components/SourceModal";
-import KBRAGPersonalizationDebugPanel from "@/components/KBRAGPersonalizationDebugPanel";
+// TODO: İleride kullanılmak üzere pasif yapıldı
+// import KBRAGPersonalizationDebugPanel from "@/components/KBRAGPersonalizationDebugPanel";
 import EBARSStatusPanel from "@/components/EBARSStatusPanel";
+import LevelComparisonButtons from "@/components/LevelComparisonButtons";
 
 const MESSAGES_PER_PAGE = 10;
 
@@ -49,6 +51,7 @@ export default function StudentChatPage() {
   const [ebarsEnabled, setEbarsEnabled] = useState(false);
   const [ebarsRefreshTrigger, setEbarsRefreshTrigger] = useState(0);
   const [checkingInitialTest, setCheckingInitialTest] = useState(false);
+  const [ebarsDifficulty, setEbarsDifficulty] = useState<string | null>(null);
 
   const {
     messages,
@@ -539,6 +542,9 @@ export default function StudentChatPage() {
                 // Refresh EBARS state after feedback
                 setEbarsRefreshTrigger((prev) => prev + 1);
               }}
+              onStateChange={(difficulty) => {
+                setEbarsDifficulty(difficulty);
+              }}
               lastQuery={(() => {
                 // Get last user question from messages
                 const lastUserMessage = [...messages]
@@ -794,6 +800,36 @@ export default function StudentChatPage() {
                                 />
                               )}
                           </div>
+
+                          {/* Level Comparison Buttons - Only show for assistant messages with EBARS enabled */}
+                          {ebarsEnabled &&
+                            user &&
+                            selectedSession &&
+                            message.bot &&
+                            message.bot !== "..." &&
+                            !message.bot.includes(
+                              "Bu bilgi ders dökümanlarında bulunamamıştır"
+                            ) &&
+                            message.sources &&
+                            message.sources.length > 0 && (
+                              <LevelComparisonButtons
+                                userId={user.id.toString()}
+                                sessionId={selectedSession}
+                                query={
+                                  messages[
+                                    Math.max(0, messages.indexOf(message) - 1)
+                                  ]?.user || ""
+                                }
+                                ragResponse={message.bot}
+                                ragDocuments={message.sources.map((s: RAGSource) => ({
+                                  doc_id: s.metadata?.source_file || s.metadata?.filename || "unknown",
+                                  content: s.content || "",
+                                  score: s.score || 0,
+                                  metadata: s.metadata || {},
+                                }))}
+                                currentDifficulty={ebarsDifficulty || undefined}
+                              />
+                            )}
 
                           {/* İlgili Sorular (Suggestions) - Collapsed on mobile */}
                           {/* Don't show suggestions if answer is "not found" message */}
@@ -1246,9 +1282,10 @@ export default function StudentChatPage() {
       />
 
       {/* KBRAG & Personalization Debug Panel - Hidden on mobile */}
-      <div className="hidden md:block">
+      {/* TODO: İleride kullanılmak üzere pasif yapıldı */}
+      {/* <div className="hidden md:block">
         <KBRAGPersonalizationDebugPanel debugData={debugData} />
-      </div>
+      </div> */}
     </div>
   );
 }

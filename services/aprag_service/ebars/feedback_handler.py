@@ -227,7 +227,8 @@ class FeedbackHandler:
         session_id: str,
         base_prompt: Optional[str] = None,
         query: Optional[str] = None,
-        original_response: Optional[str] = None
+        original_response: Optional[str] = None,
+        difficulty_override: Optional[str] = None
     ) -> str:
         """
         Generate adaptive prompt for LLM based on current comprehension score.
@@ -238,6 +239,7 @@ class FeedbackHandler:
             base_prompt: Optional base prompt
             query: Optional query text
             original_response: Optional original response to adapt
+            difficulty_override: Optional difficulty level override (for preview)
             
         Returns:
             Full adaptive prompt string
@@ -245,7 +247,7 @@ class FeedbackHandler:
         try:
             # Get current score and difficulty directly (avoid recursion)
             score = self.score_calculator.get_score(user_id, session_id)
-            difficulty = self.score_calculator.get_difficulty_level(user_id, session_id)
+            difficulty = difficulty_override or self.score_calculator.get_difficulty_level(user_id, session_id)
             params = self.prompt_adapter.get_prompt_parameters(
                 user_id=user_id,
                 session_id=session_id,

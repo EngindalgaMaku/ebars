@@ -10,6 +10,7 @@ interface EBARSStatusPanelProps {
   refreshTrigger?: number; // When this changes, refresh the state
   lastQuery?: string; // Last student question (for complete prompt generation)
   lastContext?: string; // Last RAG context/chunks (for complete prompt generation)
+  onStateChange?: (difficulty: string) => void; // Callback when state changes
 }
 
 interface EBARSState {
@@ -73,6 +74,7 @@ export default function EBARSStatusPanel({
   refreshTrigger,
   lastQuery,
   lastContext,
+  onStateChange,
 }: EBARSStatusPanelProps) {
   const router = useRouter();
   const [ebarsState, setEbarsState] = useState<EBARSState | null>(null);
@@ -214,6 +216,11 @@ export default function EBARSStatusPanel({
         setPreviousScore(newState.comprehension_score);
         setPreviousDifficulty(newState.difficulty_level);
         setEbarsState(newState); // Always update state if we got valid data
+        
+        // Notify parent of difficulty change
+        if (onStateChange) {
+          onStateChange(newState.difficulty_level);
+        }
       } else {
         // Only clear state if this is initial load and we haven't loaded before
         if (isInitialLoad && !hasLoadedOnceRef.current) {

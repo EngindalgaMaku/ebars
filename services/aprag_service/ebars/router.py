@@ -304,6 +304,134 @@ async def generate_adaptive_prompt(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class LevelPreviewRequest(BaseModel):
+    """Request model for level preview"""
+    user_id: str
+    session_id: str
+    query: str
+    rag_response: str
+    rag_documents: List[Dict[str, Any]]
+    direction: str  # "lower" or "higher"
+
+
+@router.post("/preview-level")
+async def preview_level_response(
+    request: LevelPreviewRequest,
+    db: DatabaseManager = Depends(get_db)
+):
+    """
+    Preview response at a different difficulty level (without changing student's score).
+    
+    This endpoint allows students to see how the system would respond at a different
+    difficulty level for comparison purposes. The student's actual comprehension score
+    and difficulty level remain unchanged.
+    """
+    try:
+        # Check if EBARS is enabled
+        if not check_ebars_enabled(request.session_id):
+            raise HTTPException(
+                status_code=403,
+                detail="EBARS feature is disabled for this session"
+            )
+        
+        # Get current difficulty level
+        calculator = ComprehensionScoreCalculator(db)
+        current_difficulty = calculator.get_difficulty_level(request.user_id, request.session_id)
+        
+        # Map difficulty levels
+        difficulty_levels = ['very_struggling', 'struggling', 'normal', 'good', 'excellent']
+        current_index = difficulty_levels.index(current_difficulty) if current_difficulty in difficulty_levels else 2
+        
+        # Calculate target difficulty
+        if request.direction == "lower":
+            target_index = max(0, current_index - 1)
+        elif request.direction == "higher":
+            target_index = min(len(difficulty_levels) - 1, current_index + 1)
+        else:
+            raise HTTPException(status_code=400, detail="Direction must be 'lower' or 'higher'")
+        
+        target_difficulty = difficulty_levels[target_index]
+        
+        # If already at limit, return error
+        if target_difficulty == current_difficulty:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Already at {'lowest' if request.direction == 'lower' else 'highest'} difficulty level"
+            )
+        
+        # Generate prompt with target difficulty (override)
+        prompt_adapter = PromptAdapter(db)
+        prompt_params = prompt_adapter.get_prompt_parameters(
+            request.user_id,
+            request.session_id,
+            difficulty_level=target_difficulty
+        )
+        
+        # Generate adaptive prompt with override
+        handler = FeedbackHandler(db)
+        adaptive_prompt = handler.generate_adaptive_prompt(
+            user_id=request.user_id,
+            session_id=request.session_id,
+            base_prompt=None,
+            query=request.query,
+            original_response=request.rag_response,
+            difficulty_override=target_difficulty
+        )
+        
+        # Call model inference to generate response with preview prompt
+        try:
+            # Use models/generate endpoint
+            model_response = requests.post(
+                f"{MODEL_INFERENCER_URL}/models/generate",
+                json={
+                    "model": "qwen2.5-7b-instruct",  # Default model
+                    "prompt": adaptive_prompt,
+                    "max_tokens": 2000,
+                    "temperature": 0.7,
+                },
+                timeout=60
+            )
+            
+            if model_response.status_code != 200:
+                logger.warning(f"Model inference error: {model_response.status_code}")
+                # Fallback: use adaptive prompt to modify original response
+                preview_response = request.rag_response
+            else:
+                response_data = model_response.json()
+                preview_response = response_data.get("response") or response_data.get("content") or request.rag_response
+            
+        except Exception as e:
+            logger.error(f"Error calling model inference: {e}")
+            # Fallback: return original response with note
+            preview_response = request.rag_response
+        
+        # Map difficulty to friendly labels
+        difficulty_labels = {
+            'very_struggling': 'Daha Açıklayıcı',
+            'struggling': 'Daha Detaylı',
+            'normal': 'Dengeli',
+            'good': 'Daha Derinlemesine',
+            'excellent': 'Daha Kapsamlı'
+        }
+        
+        return {
+            "success": True,
+            "preview_response": preview_response,
+            "target_difficulty": target_difficulty,
+            "target_difficulty_label": difficulty_labels.get(target_difficulty, target_difficulty),
+            "current_difficulty": current_difficulty,
+            "current_difficulty_label": difficulty_labels.get(current_difficulty, current_difficulty),
+            "direction": request.direction,
+            "note": "Bu sadece bir önizlemedir. Puanınız değişmeyecektir."
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating level preview: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/score/{user_id}/{session_id}")
 async def get_comprehension_score(
     user_id: str,

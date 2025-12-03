@@ -1919,6 +1919,53 @@ export async function getAPRAGAdaptiveStatus(): Promise<{
   return res.json();
 }
 
+// Preview level response (EBARS)
+export interface LevelPreviewRequest {
+  user_id: string;
+  session_id: string;
+  query: string;
+  rag_response: string;
+  rag_documents: Array<{
+    doc_id: string;
+    content: string;
+    score: number;
+    metadata?: any;
+  }>;
+  direction: "lower" | "higher";
+}
+
+export interface LevelPreviewResponse {
+  success: boolean;
+  preview_response: string;
+  target_difficulty: string;
+  target_difficulty_label: string;
+  current_difficulty: string;
+  current_difficulty_label: string;
+  direction: string;
+  note: string;
+}
+
+export async function previewLevelResponse(
+  request: LevelPreviewRequest
+): Promise<LevelPreviewResponse> {
+  const token = tokenManager.getAccessToken?.() || null;
+  const res = await fetch(`${getApiUrl()}/aprag/ebars/preview-level`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(error || "Level preview failed");
+  }
+
+  return res.json();
+}
+
 // ============================================================================
 // APRAG Feature Flags and Settings
 // ============================================================================
