@@ -388,18 +388,18 @@ async def preview_level_response(
         
         # Call model inference to generate response with preview prompt
         try:
-            # Use models/generate endpoint with higher temperature for more variation
-            # Preview mode için daha yüksek temperature ve farklı parametreler
-            # ÖNEMLİ: Model'e direkt prompt gönderiyoruz, messages formatında değil
+            # Use models/generate endpoint
+            # Model inference endpoint prompt'u direkt alıyor, messages formatına çeviriyor
             logger.info(f"📤 Sending request to model inference: {MODEL_INFERENCER_URL}/models/generate")
             logger.info(f"   Model: qwen2.5-7b-instruct")
-            logger.info(f"   Temperature: 1.0, Top_p: 0.95")
+            logger.info(f"   Temperature: 1.0 (max variation)")
+            logger.info(f"   Prompt length: {len(adaptive_prompt)} chars")
             
             model_response = requests.post(
                 f"{MODEL_INFERENCER_URL}/models/generate",
                 json={
                     "model": "qwen2.5-7b-instruct",  # Default model
-                    "prompt": adaptive_prompt,
+                    "prompt": adaptive_prompt,  # Model inference endpoint bunu messages formatına çeviriyor
                     "max_tokens": 2000,
                     "temperature": 1.0,  # Maximum variation for preview (0.7 default, 1.0 max)
                 },
@@ -429,16 +429,31 @@ async def preview_level_response(
             logger.info(f"✅ Preview response generated: {len(preview_response)} chars")
             logger.info(f"   Response preview (first 300 chars): {preview_response[:300]}")
             
-            # Check if response is too similar to original
-            if preview_response.strip() == request.rag_response.strip():
-                logger.warning("⚠️ WARNING: Preview response is IDENTICAL to original!")
-                logger.warning(f"   Original: {request.rag_response[:100]}")
-                logger.warning(f"   Preview: {preview_response[:100]}")
-                # Don't return identical response, raise error instead
+            # Check if response is too similar to original (more lenient check)
+            original_clean = request.rag_response.strip().lower()
+            preview_clean = preview_response.strip().lower()
+            
+            # Check if they're identical
+            if original_clean == preview_clean:
+                logger.error("❌ ERROR: Preview response is IDENTICAL to original!")
+                logger.error(f"   Original (first 200): {request.rag_response[:200]}")
+                logger.error(f"   Preview (first 200): {preview_response[:200]}")
+                logger.error(f"   Prompt was: {adaptive_prompt[:500]}...")
                 raise HTTPException(
                     status_code=500,
-                    detail="Önizleme cevabı orijinal cevapla aynı. Model farklı bir cevap üretemedi."
+                    detail="Önizleme cevabı orijinal cevapla aynı. Model farklı bir cevap üretemedi. Lütfen backend loglarını kontrol edin."
                 )
+            
+            # Check similarity (if more than 90% similar, it's too close)
+            # Simple word-based similarity check
+            original_words = set(original_clean.split())
+            preview_words = set(preview_clean.split())
+            if len(original_words) > 0:
+                similarity = len(original_words & preview_words) / len(original_words | preview_words)
+                logger.info(f"📊 Response similarity: {similarity:.2%}")
+                if similarity > 0.90:
+                    logger.warning(f"⚠️ WARNING: Responses are {similarity:.2%} similar (very close!)")
+                    # Still return it, but log warning
             
         except Exception as e:
             logger.error(f"Error calling model inference: {e}", exc_info=True)

@@ -311,6 +311,12 @@ Orijinal cevabı aynen kopyalama! Seviyeye göre değiştir:
 - Sadece içeriği koru, ama sunumunu TAMAMEN DEĞİŞTİR
 
 ✅ ÖNEMLİ: Kişiselleştirilmiş cevabı SADECE TÜRKÇE olarak ver. Orijinal cevabın içeriğini koru, ancak sunumunu, detay seviyesini ve zorluk seviyesini öğrenci algılama puanına göre ayarla.
+
+🚨 SON UYARI - MUTLAKA UYGULA:
+- Orijinal cevabı AYNEN KOPYALAMA!
+- Cevabı {difficulty} seviyesine göre MUTLAKA DEĞİŞTİR!
+- Eğer aynı cevabı verirsen, bu görev başarısız olur!
+- Cümle yapısını, kelime seçimini, detay seviyesini MUTLAKA DEĞİŞTİR!
 """
             else:
                 # Simple adaptive prompt

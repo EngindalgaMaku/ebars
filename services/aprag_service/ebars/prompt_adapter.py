@@ -229,33 +229,43 @@ class PromptAdapter:
    - Öğrencinin zorlandığını kabul et
 """,
             'struggling': """
-🔧 ZORLUK SEVİYESİ: ZORLANIYOR
+🔧 ZORLUK SEVİYESİ: ZORLANIYOR (ÖĞRENME SÜRECİNDE)
 
-⚠️ MUTLAKA UYGULA:
-1. **Açıklayıcı Dil:**
-   - Teknik terimleri basitleştir
-   - Her terimi açıkla
-   - Günlük hayattan örnekler kullan
+⚠️ MUTLAKA UYGULA - ÖĞRENCİ HENÜZ ÖĞRENİYOR:
+1. **ÇOK Açıklayıcı Dil:**
+   - Teknik terimleri MUTLAKA basitleştir
+   - Her terimi MUTLAKA açıkla
+   - Günlük hayattan somut örnekler kullan
+   - "Bilgisayar" yerine "evdeki bilgisayar", "yazıcı" yerine "evdeki yazıcı" gibi
 
-2. **Orta Uzunlukta Cümleler:**
-   - Her cümle 15-20 kelime
-   - Basit-orta cümle yapıları
-   - Karmaşık fikirleri basitleştir
+2. **Kısa-Orta Cümleler:**
+   - Her cümle 12-18 kelime (15-20 değil, daha kısa!)
+   - Basit cümle yapıları
+   - Karmaşık fikirleri MUTLAKA basitleştir
+   - Uzun cümleleri böl, parçalara ayır
 
-3. **Net Açıklama:**
-   - Kavramları net açıkla
+3. **Çok Net Açıklama:**
+   - Kavramları ADIM ADIM açıkla
    - Önemli noktaları vurgula
-   - Adım adım ilerle
+   - Her adımı tek tek göster
+   - "Önce şunu yap, sonra bunu yap" gibi
 
-4. **Orta Örnek:**
-   - 2-3 somut örnek ver
-   - Örnekleri açıkla
+4. **Çok Örnek (2-3 değil, 3-4):**
+   - 3-4 somut örnek MUTLAKA ver
+   - Her örneği detaylı açıkla
    - Günlük hayattan örnekler kullan
+   - "Örneğin evdeki internet ağı gibi..." gibi
 
-5. **Benzetmeler:**
-   - Benzetmeler kullan
+5. **Benzetmeler ve Görselleştirme:**
+   - Benzetmeler MUTLAKA kullan
    - Bilinen kavramlarla ilişkilendir
-   - Somut örnekler ver
+   - "İnternet ağı, evdeki elektrik kabloları gibidir" gibi
+   - Somut, elle tutulur örnekler ver
+
+6. **Destekleyici Dil:**
+   - "Anladın mı?", "Şimdi daha net oldu mu?" gibi kontrol soruları
+   - Cesaret verici ol
+   - "Bu normal, öğrenirken herkes böyle hisseder" gibi
 """,
             'normal': """
 🔧 ZORLUK SEVİYESİ: NORMAL
