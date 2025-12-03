@@ -19,6 +19,14 @@ interface LevelComparisonButtonsProps {
   currentDifficulty?: string;
 }
 
+// Cache for preview responses (session-based)
+const previewCache = new Map<string, LevelPreviewResponse>();
+
+// Generate cache key
+function getCacheKey(query: string, direction: string, currentDifficulty: string): string {
+  return `${query}:${direction}:${currentDifficulty}`;
+}
+
 export default function LevelComparisonButtons({
   userId,
   sessionId,
@@ -33,8 +41,23 @@ export default function LevelComparisonButtons({
   const [error, setError] = useState<string | null>(null);
 
   const handlePreview = async (direction: "lower" | "higher") => {
-    setLoading(direction);
     setError(null);
+
+    // Check cache first
+    if (currentDifficulty) {
+      const cacheKey = getCacheKey(query, direction, currentDifficulty);
+      const cached = previewCache.get(cacheKey);
+      
+      if (cached) {
+        console.log("✅ Using cached preview response");
+        setPreview(cached);
+        setShowModal(true);
+        return;
+      }
+    }
+
+    // Not in cache, fetch from API
+    setLoading(direction);
 
     try {
       const request: LevelPreviewRequest = {
@@ -47,6 +70,24 @@ export default function LevelComparisonButtons({
       };
 
       const response = await previewLevelResponse(request);
+      
+      // Cache the response
+      if (currentDifficulty) {
+        const cacheKey = getCacheKey(query, direction, currentDifficulty);
+        previewCache.set(cacheKey, response);
+        console.log("💾 Cached preview response for:", cacheKey);
+      }
+      
+      // Debug: Log response details
+      console.log("🔍 Level Preview Response:", {
+        direction,
+        current: response.current_difficulty_label,
+        target: response.target_difficulty_label,
+        responseLength: response.preview_response.length,
+        previewStart: response.preview_response.substring(0, 100),
+        cached: false,
+      });
+      
       setPreview(response);
       setShowModal(true);
     } catch (err: any) {
@@ -149,6 +190,18 @@ export default function LevelComparisonButtons({
                   Mevcut seviyeniz: <strong>{preview.current_difficulty_label}</strong> → Önizleme seviyesi:{" "}
                   <strong>{preview.target_difficulty_label}</strong>
                 </p>
+                {preview.debug_info && (
+                  <div className="mt-2 pt-2 border-t border-blue-300">
+                    <p className="text-xs text-blue-700">
+                      <strong>🔍 Debug:</strong> Orijinal: {preview.debug_info.original_length} karakter, 
+                      Önizleme: {preview.debug_info.preview_length} karakter 
+                      ({preview.debug_info.length_difference > 0 ? "+" : ""}{preview.debug_info.length_difference})
+                      {preview.debug_info.is_identical && (
+                        <span className="text-red-600 font-semibold ml-2">⚠️ Aynı cevap üretildi!</span>
+                      )}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Preview Response */}

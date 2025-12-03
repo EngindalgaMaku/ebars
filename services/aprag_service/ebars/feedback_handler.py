@@ -254,13 +254,29 @@ class FeedbackHandler:
                 difficulty_level=difficulty
             )
             
+            # If difficulty is overridden (preview mode), use a representative score for that level
+            if difficulty_override:
+                # Map difficulty to representative score for preview
+                difficulty_to_score = {
+                    'very_struggling': 25.0,
+                    'struggling': 38.0,
+                    'normal': 58.0,
+                    'good': 75.0,
+                    'excellent': 90.0
+                }
+                preview_score = difficulty_to_score.get(difficulty, score)
+                logger.info(f"🔍 Preview mode: Overriding difficulty to {difficulty} (score: {preview_score:.1f})")
+            else:
+                preview_score = score
+            
             # Build adaptive prompt
             if original_response:
                 # Full adaptive prompt with original response
                 prompt = f"""Sen bir eğitim asistanısın. Aşağıdaki cevabı öğrencinin anlama seviyesine göre kişiselleştir.
 
-🎯 ÖĞRENCİ ALGILAMA PUANI: {score:.1f}/100
+🎯 ÖĞRENCİ ALGILAMA PUANI: {preview_score:.1f}/100
 📊 ZORLUK SEVİYESİ: {difficulty}
+{f"⚠️ ÖNEMLİ: Bu bir önizleme modudur. Cevabı {difficulty} seviyesine göre adapte et." if difficulty_override else ""}
 
 {self.prompt_adapter._build_instructions(params)}
 

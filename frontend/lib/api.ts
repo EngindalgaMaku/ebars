@@ -1943,6 +1943,12 @@ export interface LevelPreviewResponse {
   current_difficulty_label: string;
   direction: string;
   note: string;
+  debug_info?: {
+    original_length: number;
+    preview_length: number;
+    length_difference: number;
+    is_identical: boolean;
+  };
 }
 
 export async function previewLevelResponse(

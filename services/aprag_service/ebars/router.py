@@ -378,32 +378,55 @@ async def preview_level_response(
             difficulty_override=target_difficulty
         )
         
+        # Log prompt for debugging
+        logger.info(f"🔍 Preview prompt generated for {request.direction} level:")
+        logger.info(f"   Current: {current_difficulty} → Target: {target_difficulty}")
+        logger.info(f"   Prompt length: {len(adaptive_prompt)} chars")
+        logger.debug(f"   Prompt preview (first 500 chars): {adaptive_prompt[:500]}")
+        
         # Call model inference to generate response with preview prompt
         try:
-            # Use models/generate endpoint
+            # Use models/generate endpoint with higher temperature for more variation
             model_response = requests.post(
                 f"{MODEL_INFERENCER_URL}/models/generate",
                 json={
                     "model": "qwen2.5-7b-instruct",  # Default model
                     "prompt": adaptive_prompt,
                     "max_tokens": 2000,
-                    "temperature": 0.7,
+                    "temperature": 0.9,  # Increased from 0.7 to 0.9 for more variation
                 },
                 timeout=60
             )
             
             if model_response.status_code != 200:
                 logger.warning(f"Model inference error: {model_response.status_code}")
+                logger.warning(f"   Response: {model_response.text}")
                 # Fallback: use adaptive prompt to modify original response
                 preview_response = request.rag_response
             else:
                 response_data = model_response.json()
                 preview_response = response_data.get("response") or response_data.get("content") or request.rag_response
+                logger.info(f"✅ Preview response generated: {len(preview_response)} chars")
+                logger.debug(f"   Response preview (first 200 chars): {preview_response[:200]}")
             
         except Exception as e:
-            logger.error(f"Error calling model inference: {e}")
+            logger.error(f"Error calling model inference: {e}", exc_info=True)
             # Fallback: return original response with note
             preview_response = request.rag_response
+        
+        # Compare response lengths for debugging
+        original_length = len(request.rag_response)
+        preview_length = len(preview_response)
+        length_diff = preview_length - original_length
+        
+        logger.info(f"📊 Response comparison:")
+        logger.info(f"   Original length: {original_length} chars")
+        logger.info(f"   Preview length: {preview_length} chars")
+        logger.info(f"   Difference: {length_diff:+d} chars")
+        
+        # Check if responses are identical (should not be)
+        if preview_response.strip() == request.rag_response.strip():
+            logger.warning("⚠️ WARNING: Preview response is identical to original! This should not happen.")
         
         # Map difficulty to friendly labels
         difficulty_labels = {
@@ -422,7 +445,13 @@ async def preview_level_response(
             "current_difficulty": current_difficulty,
             "current_difficulty_label": difficulty_labels.get(current_difficulty, current_difficulty),
             "direction": request.direction,
-            "note": "Bu sadece bir önizlemedir. Puanınız değişmeyecektir."
+            "note": "Bu sadece bir önizlemedir. Puanınız değişmeyecektir.",
+            "debug_info": {
+                "original_length": original_length,
+                "preview_length": preview_length,
+                "length_difference": length_diff,
+                "is_identical": preview_response.strip() == request.rag_response.strip()
+            }
         }
         
     except HTTPException:
