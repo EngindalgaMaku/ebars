@@ -88,6 +88,30 @@ def get_db() -> DatabaseManager:
     return db_manager
 
 
+def _map_ebars_to_legacy_difficulty(ebars_level: str) -> str:
+    """
+    Map EBARS difficulty levels to legacy difficulty levels.
+    
+    EBARS levels: very_struggling, struggling, normal, good, excellent
+    Legacy levels: beginner, intermediate, advanced
+    
+    Args:
+        ebars_level: EBARS difficulty level
+        
+    Returns:
+        Legacy difficulty level
+    """
+    mapping = {
+        'very_struggling': 'beginner',
+        'struggling': 'beginner',
+        'normal': 'intermediate',
+        'good': 'intermediate',
+        'excellent': 'advanced'
+    }
+    
+    return mapping.get(ebars_level, 'intermediate')  # Default to intermediate
+
+
 def _analyze_student_profile(profile: Dict[str, Any]) -> Dict[str, Any]:
     """
     Analyze student profile and extract personalization factors
@@ -332,8 +356,9 @@ async def personalize_response(
                         student_profile=profile_dict
                     )
                     
-                    # Update factors with ZPD recommendations
-                    factors['difficulty_level'] = zpd_info['recommended_level']
+                    # Update factors with ZPD recommendations (map EBARS to legacy levels)
+                    ebars_level = zpd_info['recommended_level']
+                    factors['difficulty_level'] = _map_ebars_to_legacy_difficulty(ebars_level)
                     
                     logger.info(f"ZPD: {zpd_info['current_level']} → {zpd_info['recommended_level']} "
                               f"(success: {zpd_info['success_rate']:.2f})")
@@ -620,7 +645,9 @@ async def personalize_response_endpoint(
                     zpd_calc = get_zpd_calculator()
                     zpd_result = zpd_calc.calculate_zpd_level(recent_interactions or [], profile_dict)
                     zpd_info = zpd_result
-                    factors["zpd_level"] = zpd_result.get("current_level", "intermediate")
+                    # Map EBARS level to legacy level for consistency
+                    ebars_current_level = zpd_result.get("current_level", "normal")
+                    factors["zpd_level"] = _map_ebars_to_legacy_difficulty(ebars_current_level)
                 except Exception as e:
                     logger.warning(f"ZPD calculation failed: {e}")
             
