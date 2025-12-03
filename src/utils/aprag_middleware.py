@@ -136,6 +136,7 @@ def log_interaction_sync(
     """
     Log interaction to APRAG service (synchronous version)
     Also classifies the question to a topic if topics are available
+    Supports eBars quality parameters logging
     
     Returns:
         Interaction ID if successful, None otherwise
@@ -144,6 +145,12 @@ def log_interaction_sync(
         return None
     
     try:
+        # Extract and log quality parameters if available
+        quality_params = None
+        if metadata and "quality_params" in metadata:
+            quality_params = metadata["quality_params"]
+            logger.info(f"📊 Logging interaction with quality parameters: {quality_params}")
+        
         payload = {
             "user_id": user_id,
             "session_id": session_id,
@@ -157,6 +164,10 @@ def log_interaction_sync(
             "metadata": metadata or {}
         }
         
+        # Add quality parameters to root level of payload for easier access by APRAG
+        if quality_params:
+            payload["quality_params"] = quality_params
+        
         # Non-blocking request with timeout
         response = requests.post(
             f"{APRAG_SERVICE_URL}/api/aprag/interactions",
@@ -169,6 +180,8 @@ def log_interaction_sync(
         if response.status_code == 201:
             result = response.json()
             interaction_id = result.get("interaction_id")
+            if quality_params:
+                logger.info(f"✅ Logged interaction {interaction_id} with quality params")
         
         # Classify question to topic (non-blocking, don't wait for result)
         if interaction_id:
@@ -234,6 +247,7 @@ def personalize_response_sync(
 ) -> Optional[str]:
     """
     Get personalized response from APRAG service (synchronous version)
+    Supports eBars quality parameters for adaptive response generation
     
     Returns:
         Personalized response if available, None otherwise
@@ -242,6 +256,12 @@ def personalize_response_sync(
         return None
     
     try:
+        # Extract quality parameters from context if available
+        quality_params = None
+        if context and "quality_params" in context:
+            quality_params = context["quality_params"]
+            logger.info(f"📝 Sending quality parameters to APRAG: {quality_params}")
+        
         payload = {
             "user_id": user_id,
             "session_id": session_id,
@@ -250,18 +270,26 @@ def personalize_response_sync(
             "context": context or {}
         }
         
+        # Add quality parameters to payload if available
+        if quality_params:
+            payload["quality_params"] = quality_params
+        
         # Blocking request with timeout (personalization should be fast)
         response = requests.post(
             f"{APRAG_SERVICE_URL}/api/aprag/personalize",
             json=payload,
-            timeout=3  # Short timeout
+            timeout=5,  # Increased timeout for quality parameter processing
+            headers={"Content-Type": "application/json"}
         )
         
         if response.status_code == 200:
             result = response.json()
-            return result.get("personalized_response")
+            personalized = result.get("personalized_response")
+            if personalized and quality_params:
+                logger.info(f"✅ APRAG personalized response with quality params for user {user_id}")
+            return personalized
         else:
-            logger.warning(f"Personalization failed: {response.status_code}")
+            logger.warning(f"Personalization failed: {response.status_code} - {response.text}")
             return None
             
     except requests.exceptions.RequestException as e:

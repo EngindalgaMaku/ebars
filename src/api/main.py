@@ -247,6 +247,15 @@ class RAGQueryRequest(BaseModel):
     embedding_model: Optional[str] = None
     max_tokens: Optional[int] = 2048  # Answer length: 1024 (short), 2048 (normal), 4096 (detailed)
     conversation_history: Optional[List[Dict[str, str]]] = None  # [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+    
+    # eBars Quality Parameters - Frontend'den gelen kalite parametreleri
+    aciklayici_dil: Optional[str] = None      # "basit", "orta", "karmaşık"
+    cumle_uzunlugu: Optional[str] = None      # "kısa", "orta", "uzun"
+    ornek_kullanimi: Optional[str] = None     # "az", "orta", "çok"
+    benzetmeler: Optional[str] = None         # "az", "orta", "çok"
+    
+    # Additional eBars parameters
+    use_ebars_personalization: Optional[bool] = True  # eBars kişiselleştirme kullan
 
 class RAGQueryResponse(BaseModel):
     answer: str
@@ -2165,15 +2174,24 @@ async def rag_query(req: RAGQueryRequest, request: Request):
         except Exception as log_err:
             logger.warning(f"Failed to log interaction: {log_err}")
         
-        # APRAG Integration: Personalization and Interaction Logging
+        # APRAG Integration: Personalization and Interaction Logging with Quality Parameters
         final_answer = result.get("answer", "")
         final_sources = result.get("sources", [])
         try:
             from src.utils.aprag_middleware import personalize_response_async, log_interaction_async, get_user_id_from_request
             user_id = get_user_id_from_request(request)
             
-            # Try personalization (non-blocking, with timeout)
-            if user_id != "anonymous":
+            # Extract quality parameters from request for APRAG/eBars integration
+            quality_params = {
+                "aciklayici_dil": req.aciklayici_dil,
+                "cumle_uzunlugu": req.cumle_uzunlugu,
+                "ornek_kullanimi": req.ornek_kullanimi,
+                "benzetmeler": req.benzetmeler,
+                "use_ebars_personalization": req.use_ebars_personalization
+            }
+            
+            # Try personalization with quality parameters (non-blocking, with timeout)
+            if user_id != "anonymous" and req.use_ebars_personalization:
                 try:
                     personalized = await personalize_response_async(
                         user_id=user_id,
@@ -2184,16 +2202,17 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                             "model": effective["model"],
                             "chain_type": result.get("chain_type") or effective["chain_type"],
                             "top_k": effective["top_k"],
-                            "sources_count": len(final_sources)
+                            "sources_count": len(final_sources),
+                            "quality_params": quality_params  # Add quality parameters to context
                         }
                     )
                     if personalized:
                         final_answer = personalized
-                        logger.info(f"APRAG: Personalized response for user {user_id}")
+                        logger.info(f"APRAG: Personalized response for user {user_id} with quality params: {quality_params}")
                 except Exception as pers_err:
                     logger.debug(f"APRAG personalization failed (non-critical): {pers_err}")
             
-            # Log interaction (async, non-blocking)
+            # Log interaction with quality parameters (async, non-blocking)
             asyncio.create_task(log_interaction_async(
                 user_id=user_id,
                 session_id=req.session_id,
@@ -2207,7 +2226,8 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                 metadata={
                     "top_k": effective["top_k"],
                     "use_rerank": effective["use_rerank"],
-                    "min_score": effective["min_score"]
+                    "min_score": effective["min_score"],
+                    "quality_params": quality_params  # Add quality parameters to metadata
                 }
             ))
         except Exception as aprag_err:
