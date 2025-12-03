@@ -3,7 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, CheckCircle, XCircle, ArrowRight, RefreshCw } from "lucide-react";
+import {
+  Loader2,
+  CheckCircle,
+  XCircle,
+  ArrowRight,
+  RefreshCw,
+} from "lucide-react";
 
 interface Question {
   index: number;
@@ -37,7 +43,12 @@ interface LeveledAnswers {
 }
 
 type TestStage = "questions" | "answer_preference" | "completed";
-type AnswerLevel = "very_struggling" | "struggling" | "normal" | "good" | "excellent";
+type AnswerLevel =
+  | "very_struggling"
+  | "struggling"
+  | "normal"
+  | "good"
+  | "excellent";
 
 export default function CognitiveTestPage() {
   const { user } = useAuth();
@@ -54,16 +65,25 @@ export default function CognitiveTestPage() {
 
   // Stage 2: Answer Preference
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [topicAnswers, setTopicAnswers] = useState<Record<number, LeveledAnswers>>({});
-  const [selectedLevels, setSelectedLevels] = useState<Record<number, AnswerLevel>>({});
-  const [loadingAnswers, setLoadingAnswers] = useState<Record<number, boolean>>({});
+  const [topicAnswers, setTopicAnswers] = useState<
+    Record<number, LeveledAnswers>
+  >({});
+  const [selectedLevels, setSelectedLevels] = useState<
+    Record<number, AnswerLevel>
+  >({});
+  const [loadingAnswers, setLoadingAnswers] = useState<Record<number, boolean>>(
+    {}
+  );
 
   // General state
   const [stage, setStage] = useState<TestStage>("questions");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [finalScore, setFinalScore] = useState<{ score: number; level: string } | null>(null);
+  const [finalScore, setFinalScore] = useState<{
+    score: number;
+    level: string;
+  } | null>(null);
   const [showIntro, setShowIntro] = useState(true);
 
   useEffect(() => {
@@ -75,17 +95,19 @@ export default function CognitiveTestPage() {
     // Check if EBARS is enabled for this session
     const checkEbarsStatus = async () => {
       try {
-        const response = await fetch(`/api/aprag/session-settings/${sessionId}`);
+        const response = await fetch(
+          `/api/aprag/session-settings/${sessionId}`
+        );
         if (response.ok) {
           const data = await response.json();
           const ebarsEnabled = data?.settings?.enable_ebars || false;
-          
+
           if (!ebarsEnabled) {
             // EBARS not enabled, redirect back
             router.push("/student/chat");
             return;
           }
-          
+
           // EBARS enabled, show intro first
           setLoading(false);
           setShowIntro(true);
@@ -102,7 +124,10 @@ export default function CognitiveTestPage() {
     checkEbarsStatus();
   }, [user, sessionId, router, attempt]);
 
-  const loadTest = async (testAttempt: number = 1, autoReset: boolean = false) => {
+  const loadTest = async (
+    testAttempt: number = 1,
+    autoReset: boolean = false
+  ) => {
     if (!user || !sessionId) {
       router.push("/student/chat");
       return;
@@ -125,21 +150,25 @@ export default function CognitiveTestPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        
+
         // If test already completed and we haven't tried resetting yet, reset and retry
-        if (errorData.detail && errorData.detail.includes("already been completed") && !autoReset) {
+        if (
+          errorData.detail &&
+          errorData.detail.includes("already been completed") &&
+          !autoReset
+        ) {
           if (!user || !sessionId) {
             router.push("/student/chat");
             return;
           }
-          
+
           try {
             // Reset the test first
             const resetResponse = await fetch(
               `/api/aprag/ebars/reset-initial-test/${user.id}/${sessionId}`,
               { method: "POST" }
             );
-            
+
             if (resetResponse.ok) {
               // Retry loading test after reset
               await loadTest(testAttempt, true);
@@ -149,10 +178,12 @@ export default function CognitiveTestPage() {
             }
           } catch (resetErr: any) {
             console.error("Error resetting test:", resetErr);
-            throw new Error("Test sıfırlanırken bir hata oluştu: " + resetErr.message);
+            throw new Error(
+              "Test sıfırlanırken bir hata oluştu: " + resetErr.message
+            );
           }
         }
-        
+
         throw new Error(errorData.detail || "Test yüklenemedi");
       }
 
@@ -224,7 +255,7 @@ export default function CognitiveTestPage() {
       }
 
       const data = await response.json();
-      
+
       if (data.needs_retry) {
         // Retry with new questions
         setNeedsRetry(true);
@@ -289,7 +320,7 @@ export default function CognitiveTestPage() {
       if (data.success && data.topics) {
         setTopics(data.topics);
         setStage("answer_preference");
-        
+
         // Load answers for each topic
         for (const topic of data.topics) {
           await loadLeveledAnswers(topic);
@@ -315,7 +346,7 @@ export default function CognitiveTestPage() {
 
       // Get chunk content for this topic from session chunks
       let topicContent = `Konu: ${topic.question}`;
-      
+
       // Try to fetch relevant chunk content
       try {
         const chunksResponse = await fetch(
@@ -324,35 +355,48 @@ export default function CognitiveTestPage() {
         if (chunksResponse.ok) {
           const chunksData = await chunksResponse.json();
           const chunks = chunksData.chunks || [];
-          
+
           // Find relevant chunk for this topic/question
           const relevantChunk = chunks.find((chunk: any) => {
-            const chunkText = chunk.chunk_text || chunk.content || chunk.text || '';
-            return chunkText.toLowerCase().includes(topic.question.toLowerCase().substring(0, 20));
+            const chunkText =
+              chunk.chunk_text || chunk.content || chunk.text || "";
+            return chunkText
+              .toLowerCase()
+              .includes(topic.question.toLowerCase().substring(0, 20));
           });
-          
+
           if (relevantChunk) {
-            const chunkText = relevantChunk.chunk_text || relevantChunk.content || relevantChunk.text || '';
+            const chunkText =
+              relevantChunk.chunk_text ||
+              relevantChunk.content ||
+              relevantChunk.text ||
+              "";
             topicContent = chunkText.substring(0, 2000); // Limit to 2000 chars
           }
         }
       } catch (e) {
         // Fallback to question text if chunk fetch fails
-        console.warn(`Could not fetch chunks for topic ${topic.question_index}:`, e);
+        console.warn(
+          `Could not fetch chunks for topic ${topic.question_index}:`,
+          e
+        );
       }
 
-      const response = await fetch(`/api/aprag/ebars/generate-leveled-answers`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user_id: user.id.toString(),
-          session_id: sessionId,
-          topic_question: topic.question_object,
-          topic_content: topicContent,
-        }),
-      });
+      const response = await fetch(
+        `/api/aprag/ebars/generate-leveled-answers`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: user.id.toString(),
+            session_id: sessionId,
+            topic_question: topic.question_object,
+            topic_content: topicContent,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -367,7 +411,10 @@ export default function CognitiveTestPage() {
         }));
       }
     } catch (err: any) {
-      console.error(`Error loading answers for topic ${topic.question_index}:`, err);
+      console.error(
+        `Error loading answers for topic ${topic.question_index}:`,
+        err
+      );
       setError(err.message || "Cevaplar yüklenirken bir hata oluştu");
     } finally {
       setLoadingAnswers((prev) => ({ ...prev, [topic.question_index]: false }));
@@ -402,17 +449,20 @@ export default function CognitiveTestPage() {
         selected_level: selectedLevels[topic.question_index] || "normal",
       }));
 
-      const response = await fetch(`/api/aprag/ebars/submit-answer-preference`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user_id: user.id.toString(),
-          session_id: sessionId,
-          topic_preferences: topicPreferences,
-        }),
-      });
+      const response = await fetch(
+        `/api/aprag/ebars/submit-answer-preference`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: user.id.toString(),
+            session_id: sessionId,
+            topic_preferences: topicPreferences,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -442,23 +492,49 @@ export default function CognitiveTestPage() {
   };
 
   const getLevelLabel = (level: AnswerLevel) => {
-    const labels: Record<AnswerLevel, { label: string; color: string; emoji: string }> = {
-      very_struggling: { label: "Çok Zorlanıyor", color: "text-red-600 bg-red-50 border-red-200", emoji: "😰" },
-      struggling: { label: "Zorlanıyor", color: "text-orange-600 bg-orange-50 border-orange-200", emoji: "😓" },
-      normal: { label: "Normal", color: "text-blue-600 bg-blue-50 border-blue-200", emoji: "😐" },
-      good: { label: "İyi", color: "text-green-600 bg-green-50 border-green-200", emoji: "😊" },
-      excellent: { label: "Mükemmel", color: "text-purple-600 bg-purple-50 border-purple-200", emoji: "🎯" },
+    const labels: Record<
+      AnswerLevel,
+      { label: string; color: string; emoji: string }
+    > = {
+      very_struggling: {
+        label: "Yeni Konular Keşfediyor",
+        color: "text-blue-600 bg-blue-50 border-blue-200",
+        emoji: "🌱",
+      },
+      struggling: {
+        label: "Öğrenme Sürecinde",
+        color: "text-indigo-600 bg-indigo-50 border-indigo-200",
+        emoji: "📚",
+      },
+      normal: {
+        label: "İyi İlerliyor",
+        color: "text-green-600 bg-green-50 border-green-200",
+        emoji: "😊",
+      },
+      good: {
+        label: "Başarıyla İlerliyor",
+        color: "text-emerald-600 bg-emerald-50 border-emerald-200",
+        emoji: "⭐",
+      },
+      excellent: {
+        label: "Harika İlerliyor",
+        color: "text-purple-600 bg-purple-50 border-purple-200",
+        emoji: "🎯",
+      },
     };
     return labels[level];
   };
 
   const getDifficultyLabel = (level: string) => {
     const labels: Record<string, { label: string; color: string }> = {
-      very_struggling: { label: "Çok Zorlanıyor", color: "text-red-600" },
-      struggling: { label: "Zorlanıyor", color: "text-orange-600" },
-      normal: { label: "Normal", color: "text-blue-600" },
-      good: { label: "İyi", color: "text-green-600" },
-      excellent: { label: "Mükemmel", color: "text-purple-600" },
+      very_struggling: {
+        label: "Yeni Konular Keşfediyor",
+        color: "text-blue-600",
+      },
+      struggling: { label: "Öğrenme Sürecinde", color: "text-indigo-600" },
+      normal: { label: "İyi İlerliyor", color: "text-green-600" },
+      good: { label: "Başarıyla İlerliyor", color: "text-emerald-600" },
+      excellent: { label: "Harika İlerliyor", color: "text-purple-600" },
     };
     return labels[level] || { label: level, color: "text-gray-600" };
   };
@@ -467,6 +543,44 @@ export default function CognitiveTestPage() {
     setShowIntro(false);
     setLoading(true);
     await loadTest(attempt);
+  };
+
+  const handleSkipTest = async () => {
+    if (!user || !sessionId) {
+      router.push("/student/chat");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // Set standard score of 50 and normal level
+      const response = await fetch(`/api/aprag/ebars/skip-initial-test`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_id: user.id.toString(),
+          session_id: sessionId,
+          default_score: 50,
+          default_level: "normal",
+        }),
+      });
+
+      if (response.ok) {
+        // Redirect directly to chat
+        router.push(`/student/chat?sessionId=${sessionId}`);
+      } else {
+        // Fallback: just redirect to chat
+        router.push(`/student/chat?sessionId=${sessionId}`);
+      }
+    } catch (err) {
+      console.error("Error skipping test:", err);
+      // Fallback: just redirect to chat
+      router.push(`/student/chat?sessionId=${sessionId}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Intro Screen
@@ -484,52 +598,81 @@ export default function CognitiveTestPage() {
 
             {/* Title */}
             <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              EBARS Bilişsel Test
+              Kişisel Öğrenme Tercihleri
             </h1>
 
             {/* Description */}
             <div className="space-y-4 mb-8">
               <p className="text-lg sm:text-xl text-gray-700 leading-relaxed">
-                Size özel algı puanınızı belirlemek için <strong className="text-blue-600">2 aşamalı</strong> bir değerlendirme gerçekleştiriyoruz.
+                Size en uygun öğrenme deneyimi sunmak için{" "}
+                <strong className="text-blue-600">
+                  kişisel tercihlerinizi
+                </strong>{" "}
+                öğrenmek istiyoruz.
               </p>
-              
-              <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-4 text-left mt-6">
-                <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                  <span className="text-xl">📋</span>
-                  <span>Test Süreci:</span>
+
+              <div className="bg-green-50 border-l-4 border-green-500 rounded-lg p-4 text-left mt-6">
+                <h3 className="font-semibold text-green-900 mb-3 flex items-center gap-2">
+                  <span className="text-xl">🌟</span>
+                  <span>Bu Süreç Hakkında:</span>
                 </h3>
-                <ol className="space-y-2 text-gray-700 text-sm sm:text-base">
+                <ul className="space-y-2 text-gray-700 text-sm sm:text-base">
                   <li className="flex items-start gap-2">
-                    <span className="font-bold text-blue-600 mt-0.5">1.</span>
-                    <span>İlk aşamada, konuyla ilgili soruları cevaplayacaksınız.</span>
+                    <span className="text-green-600 mt-0.5">•</span>
+                    <span>
+                      Bu bir başarı testi değil, sadece size uygun açıklama
+                      seviyesini bulmaya yardımcı oluyor
+                    </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="font-bold text-blue-600 mt-0.5">2.</span>
-                    <span>İkinci aşamada, farklı zorluk seviyelerindeki cevaplardan size en uygun olanı seçeceksiniz.</span>
+                    <span className="text-green-600 mt-0.5">•</span>
+                    <span>
+                      Doğru veya yanlış cevap yoktur - sadece kendi seviyenizi
+                      belirlemektedir
+                    </span>
                   </li>
-                </ol>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 mt-0.5">•</span>
+                    <span>
+                      Sistem bu bilgileri kullanarak size özel açıklamalar
+                      üretecek
+                    </span>
+                  </li>
+                </ul>
               </div>
 
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mt-4">
-                <p className="text-sm text-indigo-800">
-                  <strong>💡 Not:</strong> Bu test, sistemin size en uygun zorluk seviyesinde cevaplar üretmesi için gereklidir. 
-                  Lütfen soruları dikkatlice okuyup, samimi cevaplar verin.
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                <p className="text-sm text-blue-800">
+                  <strong>💝 Hatırlatma:</strong> Bu süreç tamamen sizin öğrenme
+                  deneyiminizi iyileştirmek için tasarlanmıştır. Rahatça
+                  cevaplayabilir, istediğiniz zaman atlayabilirsiniz.
                 </p>
               </div>
             </div>
 
-            {/* Start Button */}
-            <button
-              onClick={handleStartTest}
-              className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white rounded-xl hover:from-blue-600 hover:via-indigo-600 hover:to-purple-700 transition-all duration-200 flex items-center justify-center gap-3 font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-105"
-            >
-              <span>Teste Başla</span>
-              <ArrowRight className="w-5 h-5" />
-            </button>
+            {/* Buttons */}
+            <div className="space-y-3">
+              <button
+                onClick={handleStartTest}
+                className="w-full px-8 py-4 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-600 text-white rounded-xl hover:from-green-600 hover:via-emerald-600 hover:to-teal-700 transition-all duration-200 flex items-center justify-center gap-3 font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                <span>Tercihlerimi Belirle</span>
+                <ArrowRight className="w-5 h-5" />
+              </button>
+
+              <button
+                onClick={handleSkipTest}
+                className="w-full px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 flex items-center justify-center gap-2 font-medium border border-gray-300"
+              >
+                <span>Şimdilik Atla (Standart Seviye)</span>
+              </button>
+            </div>
 
             {/* Back Button */}
             <button
-              onClick={() => router.push(`/student/chat?sessionId=${sessionId}`)}
+              onClick={() =>
+                router.push(`/student/chat?sessionId=${sessionId}`)
+              }
               className="mt-4 text-gray-600 hover:text-gray-800 text-sm transition-colors"
             >
               ← Chat sayfasına dön
@@ -560,7 +703,9 @@ export default function CognitiveTestPage() {
             <h2 className="text-xl font-bold text-gray-900 mb-2">Hata</h2>
             <p className="text-gray-600 mb-4">{error}</p>
             <button
-              onClick={() => router.push(`/student/chat?sessionId=${sessionId}`)}
+              onClick={() =>
+                router.push(`/student/chat?sessionId=${sessionId}`)
+              }
               className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
             >
               Chat Sayfasına Dön
@@ -577,9 +722,12 @@ export default function CognitiveTestPage() {
         <div className="max-w-md w-full mx-4">
           <div className="bg-white rounded-xl shadow-lg p-6 text-center">
             <RefreshCw className="w-16 h-16 text-orange-500 mx-auto mb-4 animate-spin" />
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Yeni Sorular Hazırlanıyor</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">
+              Farklı Sorular Hazırlanıyor
+            </h2>
             <p className="text-gray-600 mb-4">
-              Hiçbir soruyu doğru cevaplayamadınız. Farklı konulardan yeni sorular üretiliyor...
+              Size daha uygun sorular hazırlıyoruz. Bu tamamen normal bir
+              süreç...
             </p>
             <p className="text-sm text-gray-500">Deneme: {attempt} / 3</p>
           </div>
@@ -590,56 +738,55 @@ export default function CognitiveTestPage() {
 
   if (stage === "completed" && finalScore) {
     const difficulty = getDifficultyLabel(finalScore.level);
-    const scoreColor =
-      finalScore.score >= 80
-        ? "text-green-600"
-        : finalScore.score >= 60
-        ? "text-blue-600"
-        : finalScore.score >= 40
-        ? "text-yellow-600"
-        : "text-red-600";
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 py-8 px-4">
         <div className="max-w-4xl mx-auto">
           <div className="bg-white rounded-xl shadow-lg p-8">
             <div className="text-center mb-8">
-              <CheckCircle className="w-20 h-20 text-green-500 mx-auto mb-4" />
+              <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-4xl">🎉</span>
+              </div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Test Tamamlandı!
+                Harika! Tercihleriniz Kaydedildi
               </h1>
               <p className="text-gray-600">
-                EBARS başlangıç puanınız belirlendi
+                Sistem artık size uygun açıklamalar üretmeye hazır
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border-2 border-blue-200">
-                <div className="text-sm text-gray-600 mb-1">EBARS Başlangıç Puanı</div>
-                <div className={`text-4xl font-bold ${scoreColor} mb-2`}>
-                  {finalScore.score.toFixed(1)}/100
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-6 border-2 border-green-200 mb-6">
+              <div className="text-center">
+                <div className="text-lg font-semibold text-gray-700 mb-2">
+                  Öğrenme Seviyeniz
                 </div>
-                <div className={`text-sm font-semibold ${difficulty.color}`}>
-                  {difficulty.label}
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-lg p-6 border-2 border-indigo-200">
-                <div className="text-sm text-gray-600 mb-1">Seviye</div>
-                <div className="text-4xl font-bold text-indigo-600 mb-2">
-                  {difficulty.label}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <span className="text-3xl">
+                    {difficulty.label === "Yeni Konular Keşfediyor"
+                      ? "🌱"
+                      : difficulty.label === "Öğrenme Sürecinde"
+                      ? "📚"
+                      : difficulty.label === "İyi İlerliyor"
+                      ? "😊"
+                      : difficulty.label === "Başarıyla İlerliyor"
+                      ? "⭐"
+                      : "🎯"}
+                  </span>
+                  <div className={`text-2xl font-bold ${difficulty.color}`}>
+                    {difficulty.label}
+                  </div>
                 </div>
                 <div className="text-sm text-gray-600">
-                  Sistem size bu seviyede cevaplar üretecek
+                  Sistem size bu seviyeye uygun açıklamalar sunacak
                 </div>
               </div>
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <p className="text-sm text-gray-700">
-                <strong>💡 Bilgi:</strong> EBARS sistemi, bu başlangıç puanınıza
-                göre size uygun zorluk seviyesinde cevaplar üretecek. Emoji
-                geri bildirimlerinizle bu puan zamanla güncellenecek.
+                <strong>🎯 Müjdeli Haber:</strong> Sistem artık size özel
+                açıklamalar üretmeye hazır! Geri bildirimlerinizle zaman içinde
+                daha da iyileşecek.
               </p>
             </div>
 
@@ -651,14 +798,16 @@ export default function CognitiveTestPage() {
                     return;
                   }
 
-                  if (confirm("Testi tekrar almak istediğinize emin misiniz? Mevcut puanınız sıfırlanacak.")) {
+                  if (
+                    confirm("Tercihlerinizi tekrar belirlemek istiyor musunuz?")
+                  ) {
                     try {
                       setLoading(true);
                       const response = await fetch(
                         `/api/aprag/ebars/reset-initial-test/${user.id}/${sessionId}`,
                         { method: "POST" }
                       );
-                      
+
                       if (response.ok) {
                         // Reload test
                         setStage("questions");
@@ -667,26 +816,29 @@ export default function CognitiveTestPage() {
                         await loadTest(1);
                       } else {
                         const errorData = await response.json();
-                        alert(errorData.detail || "Test sıfırlanırken bir hata oluştu");
+                        alert(
+                          errorData.detail ||
+                            "Tercihler sıfırlanırken bir hata oluştu"
+                        );
                       }
                     } catch (err) {
                       console.error("Error resetting test:", err);
-                      alert("Test sıfırlanırken bir hata oluştu");
+                      alert("Tercihler sıfırlanırken bir hata oluştu");
                     } finally {
                       setLoading(false);
                     }
                   }
                 }}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-lg hover:from-orange-600 hover:to-red-700 transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-gray-400 to-gray-500 text-white rounded-lg hover:from-gray-500 hover:to-gray-600 transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg"
               >
                 <RefreshCw className="w-5 h-5" />
-                <span>Testi Tekrar Al</span>
+                <span>Tercihlerimi Yeniden Belirle</span>
               </button>
               <button
                 onClick={handleContinue}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg"
               >
-                <span>Chat Sayfasına Geç</span>
+                <span>Öğrenmeye Başla</span>
                 <ArrowRight className="w-5 h-5" />
               </button>
             </div>
@@ -705,7 +857,8 @@ export default function CognitiveTestPage() {
               Size Uygun Cevabı Seçin
             </h1>
             <p className="text-gray-600">
-              Her konu için 5 farklı zorluk seviyesinde cevap gösteriliyor. Size en uygun olanı seçin.
+              Her konu için 5 farklı zorluk seviyesinde cevap gösteriliyor. Size
+              en uygun olanı seçin.
             </p>
           </div>
 
@@ -716,7 +869,10 @@ export default function CognitiveTestPage() {
               const isLoading = loadingAnswers[topic.question_index];
 
               return (
-                <div key={topic.question_index} className="bg-white rounded-xl shadow-lg p-6">
+                <div
+                  key={topic.question_index}
+                  className="bg-white rounded-xl shadow-lg p-6"
+                >
                   <h2 className="text-xl font-semibold text-gray-900 mb-4">
                     Konu {topicIdx + 1}: {topic.question}
                   </h2>
@@ -724,7 +880,9 @@ export default function CognitiveTestPage() {
                   {isLoading ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-                      <span className="ml-3 text-gray-600">Cevaplar hazırlanıyor...</span>
+                      <span className="ml-3 text-gray-600">
+                        Cevaplar hazırlanıyor...
+                      </span>
                     </div>
                   ) : answers ? (
                     <div className="space-y-4">
@@ -748,12 +906,19 @@ export default function CognitiveTestPage() {
                                 name={`topic-${topic.question_index}`}
                                 value={level}
                                 checked={isSelected}
-                                onChange={() => handleLevelSelect(topic.question_index, levelKey)}
+                                onChange={() =>
+                                  handleLevelSelect(
+                                    topic.question_index,
+                                    levelKey
+                                  )
+                                }
                                 className="mt-1 w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500"
                               />
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
-                                  <span className="text-2xl">{levelInfo.emoji}</span>
+                                  <span className="text-2xl">
+                                    {levelInfo.emoji}
+                                  </span>
                                   <span className="font-semibold text-gray-900">
                                     {levelInfo.label}
                                   </span>
@@ -761,18 +926,21 @@ export default function CognitiveTestPage() {
                                 <p className="text-gray-700 text-sm leading-relaxed">
                                   {answer.text}
                                 </p>
-                                {answer.characteristics && answer.characteristics.length > 0 && (
-                                  <div className="mt-2 flex flex-wrap gap-1">
-                                    {answer.characteristics.map((char: string, idx: number) => (
-                                      <span
-                                        key={idx}
-                                        className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded"
-                                      >
-                                        {char}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
+                                {answer.characteristics &&
+                                  answer.characteristics.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-1">
+                                      {answer.characteristics.map(
+                                        (char: string, idx: number) => (
+                                          <span
+                                            key={idx}
+                                            className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded"
+                                          >
+                                            {char}
+                                          </span>
+                                        )
+                                      )}
+                                    </div>
+                                  )}
                               </div>
                             </div>
                           </label>
@@ -792,11 +960,15 @@ export default function CognitiveTestPage() {
           <div className="mt-6 bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center justify-between">
               <div className="text-sm text-gray-600">
-                {Object.keys(selectedLevels).length} / {topics.length} konu için seçim yapıldı
+                {Object.keys(selectedLevels).length} / {topics.length} konu için
+                seçim yapıldı
               </div>
               <button
                 onClick={handleSubmitPreferences}
-                disabled={submitting || Object.keys(selectedLevels).length < topics.length}
+                disabled={
+                  submitting ||
+                  Object.keys(selectedLevels).length < topics.length
+                }
                 className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200 flex items-center gap-2 font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? (
@@ -829,7 +1001,7 @@ export default function CognitiveTestPage() {
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-gray-900">
-              Bilişsel Test
+              Kişisel Öğrenme Tercihleri
             </h1>
             <div className="text-sm text-gray-600">
               Soru {currentQuestionIndex + 1} / {questions.length}
@@ -885,31 +1057,40 @@ export default function CognitiveTestPage() {
             <div className="mb-6">
               {currentQuestion.options ? (
                 <div className="space-y-3">
-                  {Object.entries(currentQuestion.options).map(([key, value]) => (
-                    <label
-                      key={key}
-                      className={`flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        answers[currentQuestion.index] === key
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name={`question-${currentQuestion.index}`}
-                        value={key}
-                        checked={answers[currentQuestion.index] === key}
-                        onChange={(e) =>
-                          handleAnswerChange(currentQuestion.index, e.target.value)
-                        }
-                        className="mt-1 w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500"
-                      />
-                      <div className="flex-1">
-                        <span className="font-semibold text-gray-900 mr-2">{key}.</span>
-                        <span className="text-gray-700">{value as string}</span>
-                      </div>
-                    </label>
-                  ))}
+                  {Object.entries(currentQuestion.options).map(
+                    ([key, value]) => (
+                      <label
+                        key={key}
+                        className={`flex items-start gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                          answers[currentQuestion.index] === key
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name={`question-${currentQuestion.index}`}
+                          value={key}
+                          checked={answers[currentQuestion.index] === key}
+                          onChange={(e) =>
+                            handleAnswerChange(
+                              currentQuestion.index,
+                              e.target.value
+                            )
+                          }
+                          className="mt-1 w-5 h-5 text-blue-600 border-gray-300 focus:ring-blue-500"
+                        />
+                        <div className="flex-1">
+                          <span className="font-semibold text-gray-900 mr-2">
+                            {key}.
+                          </span>
+                          <span className="text-gray-700">
+                            {value as string}
+                          </span>
+                        </div>
+                      </label>
+                    )
+                  )}
                 </div>
               ) : (
                 <textarea
@@ -972,9 +1153,9 @@ export default function CognitiveTestPage() {
 
         <div className="bg-white rounded-xl shadow-lg p-4">
           <div className="text-sm text-gray-600">
-            <strong>💡 İpucu:</strong> Tüm soruları cevaplamaya çalışın. Test
-            sonunda size farklı zorluk seviyelerinde cevaplar gösterilecek ve
-            size uygun olanı seçeceksiniz.
+            <strong>💡 İpucu:</strong> Rahatça cevaplayın. Bu bir sınav değil,
+            sadece size uygun açıklama seviyesini bulmak için yapılıyor. Sonunda
+            farklı açıklama tarzlarından size uygun olanı seçeceksiniz.
           </div>
         </div>
       </div>

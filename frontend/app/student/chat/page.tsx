@@ -3,7 +3,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStudentChat } from "@/hooks/useStudentChat";
-import { listSessions, SessionMeta, RAGSource, getPedagogicalState, PedagogicalState, resetPedagogicalState } from "@/lib/api";
+import {
+  listSessions,
+  SessionMeta,
+  RAGSource,
+  getPedagogicalState,
+  PedagogicalState,
+  resetPedagogicalState,
+} from "@/lib/api";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import {
@@ -36,7 +43,8 @@ export default function StudentChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [sessionRagSettings, setSessionRagSettings] = useState<any>(null);
-  const [pedagogicalState, setPedagogicalState] = useState<PedagogicalState | null>(null);
+  const [pedagogicalState, setPedagogicalState] =
+    useState<PedagogicalState | null>(null);
   const [pedagogicalStateLoading, setPedagogicalStateLoading] = useState(false);
   const [ebarsEnabled, setEbarsEnabled] = useState(false);
   const [ebarsRefreshTrigger, setEbarsRefreshTrigger] = useState(0);
@@ -111,18 +119,32 @@ export default function StudentChatPage() {
         } else {
           setSessionRagSettings(null);
         }
-        
+
         // Check if EBARS is enabled for this session
         try {
-          const response = await fetch(`/api/aprag/session-settings/${selectedSession}`);
+          const response = await fetch(
+            `/api/aprag/session-settings/${selectedSession}`
+          );
           if (response.ok) {
             const data = await response.json();
             const enabled = data?.settings?.enable_ebars || false;
             setEbarsEnabled(enabled);
-            console.log("✅ EBARS enabled:", enabled, "for session:", selectedSession, "data:", data);
+            console.log(
+              "✅ EBARS enabled:",
+              enabled,
+              "for session:",
+              selectedSession,
+              "data:",
+              data
+            );
           } else {
             const errorText = await response.text();
-            console.warn("❌ Failed to load session settings, status:", response.status, "error:", errorText);
+            console.warn(
+              "❌ Failed to load session settings, status:",
+              response.status,
+              "error:",
+              errorText
+            );
             setEbarsEnabled(false);
           }
         } catch (err) {
@@ -147,7 +169,7 @@ export default function StudentChatPage() {
         userId: user?.id,
         ebarsEnabled,
         hasSession: !!selectedSession,
-        hasUser: !!user?.id
+        hasUser: !!user?.id,
       });
 
       if (!selectedSession || !user?.id) {
@@ -163,8 +185,10 @@ export default function StudentChatPage() {
 
       try {
         setCheckingInitialTest(true);
-        console.log(`📡 Checking test status for user ${user.id}, session ${selectedSession}`);
-        
+        console.log(
+          `📡 Checking test status for user ${user.id}, session ${selectedSession}`
+        );
+
         const response = await fetch(
           `/api/aprag/ebars/check-initial-test/${user.id}/${selectedSession}`
         );
@@ -174,14 +198,18 @@ export default function StudentChatPage() {
         if (response.ok) {
           const data = await response.json();
           console.log("📊 Test check data for session:", selectedSession, data);
-          
+
           // If test is needed and not completed for THIS session, redirect to test page
           if (data.needs_test && !data.has_completed) {
-            console.log(`✅ Test needed for session ${selectedSession}, redirecting to test page`);
+            console.log(
+              `✅ Test needed for session ${selectedSession}, redirecting to test page`
+            );
             router.push(`/student/cognitive-test?sessionId=${selectedSession}`);
             return;
           } else {
-            console.log(`✅ Test already completed or not needed for session ${selectedSession}`);
+            console.log(
+              `✅ Test already completed or not needed for session ${selectedSession}`
+            );
           }
         } else {
           const errorText = await response.text();
@@ -202,7 +230,7 @@ export default function StudentChatPage() {
       const timeoutId = setTimeout(() => {
         checkInitialTest();
       }, 300); // Wait 300ms for session settings to load
-      
+
       return () => clearTimeout(timeoutId);
     }
   }, [ebarsEnabled, selectedSession, user?.id, router]); // selectedSession dependency ensures it runs for each session
@@ -229,16 +257,23 @@ export default function StudentChatPage() {
       }
       try {
         const sessionsList = await listSessions();
-        
+
         // Frontend'de de aktif olmayan session'ları filtrele (güvenlik için)
         // Status case-insensitive kontrol et
         const activeSessions = sessionsList.filter(
-          (session) => session.status && session.status.toLowerCase() === "active"
+          (session) =>
+            session.status && session.status.toLowerCase() === "active"
         );
-        
-        console.log("[StudentChat] All sessions:", sessionsList.map(s => ({ name: s.name, status: s.status })));
-        console.log("[StudentChat] Filtered active sessions:", activeSessions.map(s => ({ name: s.name, status: s.status })));
-        
+
+        console.log(
+          "[StudentChat] All sessions:",
+          sessionsList.map((s) => ({ name: s.name, status: s.status }))
+        );
+        console.log(
+          "[StudentChat] Filtered active sessions:",
+          activeSessions.map((s) => ({ name: s.name, status: s.status }))
+        );
+
         setSessions(activeSessions);
 
         if (activeSessions.length > 0 && !selectedSession) {
@@ -267,10 +302,10 @@ export default function StudentChatPage() {
     const currentQuery = query;
     setQuery(""); // Clear input immediately for better UX
     await sendMessage(currentQuery, sessionRagSettings);
-    
+
     // Trigger EBARS refresh after query
     if (ebarsEnabled) {
-      setTimeout(() => setEbarsRefreshTrigger(prev => prev + 1), 1000);
+      setTimeout(() => setEbarsRefreshTrigger((prev) => prev + 1), 1000);
     }
   };
 
@@ -329,7 +364,7 @@ export default function StudentChatPage() {
 
     // Get min_score_threshold from session RAG settings (default: 0.4 = 40%)
     const minScoreThreshold = sessionRagSettings?.min_score_threshold ?? 0.4;
-    
+
     // Filter sources: only show sources with score >= threshold
     // Normalize score if it's in percentage format (0-100) to 0-1 range
     const filteredSources = sources.filter((source) => {
@@ -386,7 +421,9 @@ export default function StudentChatPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className="text-gray-600">
-            {checkingInitialTest ? "Test durumu kontrol ediliyor..." : "Yükleniyor..."}
+            {checkingInitialTest
+              ? "Test durumu kontrol ediliyor..."
+              : "Yükleniyor..."}
           </p>
         </div>
       </div>
@@ -421,7 +458,10 @@ export default function StudentChatPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 pb-4 sm:pb-6" style={{ minHeight: "calc(100vh - 100px)" }}>
+    <div
+      className="max-w-6xl mx-auto p-3 sm:p-4 pb-4 sm:pb-6"
+      style={{ minHeight: "calc(100vh - 100px)" }}
+    >
       {/* Header Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
@@ -430,7 +470,9 @@ export default function StudentChatPage() {
               <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
             <div className="min-w-0 flex-1 hidden md:block">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Akıllı Asistan</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">
+                Akıllı Asistan
+              </h2>
               <p className="text-xs sm:text-sm text-gray-500 truncate">
                 Seçili oturum hakkında sorularınızı sorun
               </p>
@@ -495,17 +537,30 @@ export default function StudentChatPage() {
               refreshTrigger={ebarsRefreshTrigger}
               onFeedbackSubmitted={() => {
                 // Refresh EBARS state after feedback
-                setEbarsRefreshTrigger(prev => prev + 1);
+                setEbarsRefreshTrigger((prev) => prev + 1);
               }}
               lastQuery={(() => {
                 // Get last user question from messages
-                const lastUserMessage = [...messages].reverse().find(m => m.user && m.user.trim() && m.user !== "...");
+                const lastUserMessage = [...messages]
+                  .reverse()
+                  .find((m) => m.user && m.user.trim() && m.user !== "...");
                 return lastUserMessage?.user || undefined;
               })()}
               lastContext={(() => {
                 // Get last context from message sources
-                const lastBotMessage = [...messages].reverse().find(m => m.bot && m.bot.trim() && m.bot !== "..." && !m.bot.startsWith("Hata:"));
-                if (lastBotMessage?.sources && lastBotMessage.sources.length > 0) {
+                const lastBotMessage = [...messages]
+                  .reverse()
+                  .find(
+                    (m) =>
+                      m.bot &&
+                      m.bot.trim() &&
+                      m.bot !== "..." &&
+                      !m.bot.startsWith("Hata:")
+                  );
+                if (
+                  lastBotMessage?.sources &&
+                  lastBotMessage.sources.length > 0
+                ) {
                   // Build context from sources
                   return lastBotMessage.sources
                     .map((s: RAGSource) => s.content || "")
@@ -516,19 +571,26 @@ export default function StudentChatPage() {
               })()}
             />
           ) : (
-            // Debug: Show why panel is not visible
-            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
-              <div className="flex items-center gap-2">
-                <span>⚠️</span>
-                <div>
-                  <strong>EBARS Panel Görünmüyor</strong>
-                  <div className="text-xs mt-1">
-                    EBARS aktif: {String(ebarsEnabled)} | 
-                    User: {user ? 'var' : 'yok'} | 
-                    Session: {selectedSession || 'yok'}
-                  </div>
-                  <div className="text-xs mt-1 text-yellow-700">
-                    EBARS'ı aktif etmek için oturum ayarlarından "EBARS (Adaptif Zorluk Ayarlama)" toggle'ını açın.
+            // Motivating message when EBARS is not active
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl text-sm">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-2xl">🎯</span>
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-blue-900 mb-1">
+                    💫 Kişisel Öğrenme Asistanınız Hazır!
+                  </h4>
+                  <p className="text-blue-800 text-sm leading-relaxed">
+                    Size özel açıklamalar almak için{" "}
+                    <strong>EBARS (Kişisel Öğrenme Sistemi)</strong>
+                    özelliğini aktif edebilirsiniz. Bu sistem, geri
+                    bildirimlerinize göre açıklamaları size en uygun seviyede
+                    hazırlar.
+                  </p>
+                  <div className="mt-2 text-xs text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
+                    <strong>✨ Nasıl Aktif Edebilirim?</strong> Öğretmeninizden
+                    bu özelliği açmasını isteyebilirsiniz!
                   </div>
                 </div>
               </div>
@@ -540,9 +602,9 @@ export default function StudentChatPage() {
       {/* Chat Container */}
       <div
         className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col relative"
-        style={{ 
-          height: "calc(100vh - 240px)", 
-          minHeight: "400px"
+        style={{
+          height: "calc(100vh - 240px)",
+          minHeight: "400px",
         }}
       >
         {/* Messages Area */}
@@ -601,7 +663,9 @@ export default function StudentChatPage() {
                             <ReactMarkdown
                               components={{
                                 p: ({ children }) => (
-                                  <p className="mb-2 last:mb-0 text-justify">{children}</p>
+                                  <p className="mb-2 last:mb-0 text-justify">
+                                    {children}
+                                  </p>
                                 ),
                                 ul: ({ children }) => (
                                   <ul className="ml-4 mb-2 list-disc">
@@ -634,37 +698,40 @@ export default function StudentChatPage() {
 
                           {/* High-level KB / QA usage summary */}
                           {/* Don't show sources if answer is "not found" message */}
-                          {message.sources && message.sources.length > 0 && 
-                           !message.bot?.includes("Bu bilgi ders dökümanlarında bulunamamıştır") && (
-                            <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
-                              {(() => {
-                                const types = getSourceTypes(message.sources);
-                                const hasKB = types.has("knowledge_base");
-                                const hasQA = types.has("qa_pair");
-                                const hasChunks =
-                                  types.has("chunk") || types.size === 0;
-                                return (
-                                  <>
-                                    {hasKB && (
-                                      <span className="px-2 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-700">
-                                        📚 Bilgi Tabanı Kullanıldı
-                                      </span>
-                                    )}
-                                    {hasQA && (
-                                      <span className="px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-green-700">
-                                        ❓ Soru Bankası
-                                      </span>
-                                    )}
-                                    {hasChunks && (
-                                      <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700">
-                                        📄 Döküman Parçaları
-                                      </span>
-                                    )}
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          )}
+                          {message.sources &&
+                            message.sources.length > 0 &&
+                            !message.bot?.includes(
+                              "Bu bilgi ders dökümanlarında bulunamamıştır"
+                            ) && (
+                              <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+                                {(() => {
+                                  const types = getSourceTypes(message.sources);
+                                  const hasKB = types.has("knowledge_base");
+                                  const hasQA = types.has("qa_pair");
+                                  const hasChunks =
+                                    types.has("chunk") || types.size === 0;
+                                  return (
+                                    <>
+                                      {hasKB && (
+                                        <span className="px-2 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-700">
+                                          📚 Bilgi Tabanı Kullanıldı
+                                        </span>
+                                      )}
+                                      {hasQA && (
+                                        <span className="px-2 py-0.5 rounded-full bg-green-50 border border-green-200 text-green-700">
+                                          ❓ Soru Bankası
+                                        </span>
+                                      )}
+                                      {hasChunks && (
+                                        <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700">
+                                          📄 Döküman Parçaları
+                                        </span>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            )}
 
                           {/* Correction Notice */}
                           {message.correction &&
@@ -704,29 +771,37 @@ export default function StudentChatPage() {
                                 formatTimestamp(message.timestamp)}
                             </span>
 
-            {/* Emoji Feedback */}
-            {message.aprag_interaction_id &&
-              user &&
-              selectedSession && (
-                <QuickEmojiFeedback
-                  interactionId={message.aprag_interaction_id}
-                  userId={user.id.toString()}
-                  sessionId={selectedSession}
-                  onFeedbackSubmitted={() => {
-                    // Trigger EBARS refresh after emoji feedback
-                    if (ebarsEnabled) {
-                      setTimeout(() => setEbarsRefreshTrigger(prev => prev + 1), 500);
-                    }
-                  }}
-                />
-              )}
+                            {/* Emoji Feedback */}
+                            {message.aprag_interaction_id &&
+                              user &&
+                              selectedSession && (
+                                <QuickEmojiFeedback
+                                  interactionId={message.aprag_interaction_id}
+                                  userId={user.id.toString()}
+                                  sessionId={selectedSession}
+                                  onFeedbackSubmitted={() => {
+                                    // Trigger EBARS refresh after emoji feedback
+                                    if (ebarsEnabled) {
+                                      setTimeout(
+                                        () =>
+                                          setEbarsRefreshTrigger(
+                                            (prev) => prev + 1
+                                          ),
+                                        500
+                                      );
+                                    }
+                                  }}
+                                />
+                              )}
                           </div>
 
                           {/* İlgili Sorular (Suggestions) - Collapsed on mobile */}
                           {/* Don't show suggestions if answer is "not found" message */}
                           {Array.isArray(message.suggestions) &&
                             message.suggestions.length > 0 &&
-                            !message.bot?.includes("Bu bilgi ders dökümanlarında bulunamamıştır") && (
+                            !message.bot?.includes(
+                              "Bu bilgi ders dökümanlarında bulunamamıştır"
+                            ) && (
                               <div className="mt-6 pt-4 border-t border-gray-200">
                                 <details className="group">
                                   <summary className="cursor-pointer list-none flex items-center gap-2 mb-3 hover:text-indigo-700 transition-colors">
@@ -751,22 +826,31 @@ export default function StudentChatPage() {
                                     </span>
                                   </summary>
                                   <div className="mt-3 space-y-2">
-                                    {message.suggestions.map((suggestion, i) => (
-                                      <button
-                                        key={i}
-                                        onClick={async () => {
-                                          setQuery(suggestion);
-                                          setTimeout(async () => {
-                                            await sendMessage(suggestion, sessionRagSettings);
-                                          }, 100);
-                                        }}
-                                        className="w-full text-left px-4 py-3 text-sm bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg hover:from-indigo-100 hover:to-purple-100 hover:border-indigo-300 hover:shadow-md transition-all duration-200 flex items-start gap-3 group"
-                                        title="Bu soruyu sor"
-                                      >
-                                        <span className="text-indigo-600 mt-0.5 flex-shrink-0">💡</span>
-                                        <span className="flex-1 text-gray-700 group-hover:text-indigo-700">{suggestion}</span>
-                                      </button>
-                                    ))}
+                                    {message.suggestions.map(
+                                      (suggestion, i) => (
+                                        <button
+                                          key={i}
+                                          onClick={async () => {
+                                            setQuery(suggestion);
+                                            setTimeout(async () => {
+                                              await sendMessage(
+                                                suggestion,
+                                                sessionRagSettings
+                                              );
+                                            }, 100);
+                                          }}
+                                          className="w-full text-left px-4 py-3 text-sm bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg hover:from-indigo-100 hover:to-purple-100 hover:border-indigo-300 hover:shadow-md transition-all duration-200 flex items-start gap-3 group"
+                                          title="Bu soruyu sor"
+                                        >
+                                          <span className="text-indigo-600 mt-0.5 flex-shrink-0">
+                                            💡
+                                          </span>
+                                          <span className="flex-1 text-gray-700 group-hover:text-indigo-700">
+                                            {suggestion}
+                                          </span>
+                                        </button>
+                                      )
+                                    )}
                                   </div>
                                 </details>
                               </div>
@@ -774,91 +858,122 @@ export default function StudentChatPage() {
 
                           {/* Sources with Chunks */}
                           {/* Don't show sources if answer is "not found" message */}
-                          {message.sources && message.sources.length > 0 && 
-                           !message.bot?.includes("Bu bilgi ders dökümanlarında bulunamamıştır") && (() => {
-                            // Get filtered sources count
-                            const filteredSources = getUniqueSources(message.sources);
-                            const totalFilteredChunks = filteredSources.reduce((sum, group) => sum + group.chunks.length, 0);
-                            
-                            // Only show if there are filtered sources
-                            if (totalFilteredChunks === 0) return null;
-                            
-                            return (
-                              <div className="mt-2 ml-4">
-                                <details className="text-xs">
-                                  <summary className="cursor-pointer hover:text-gray-700 font-medium text-gray-600">
-                                    📚 {totalFilteredChunks} kaynak kullanıldı
-                                  </summary>
-                                  <div className="mt-2 space-y-2">
-                                    {filteredSources.map(
-                                    (sourceGroup, idx) => {
-                                      const filename = sourceGroup.filename || "unknown";
-                                      const isKnowledgeBase = filename.toLowerCase() === "unknown" || filename.trim() === "";
-                                      const displayName = isKnowledgeBase ? "Bilgi Tabanı" : filename;
-                                      
-                                      return (
-                                        <div
-                                          key={idx}
-                                          className={`rounded-lg p-2 ${
-                                            isKnowledgeBase 
-                                              ? "bg-purple-50 border border-purple-200" 
-                                              : "bg-gray-50"
-                                          }`}
-                                        >
-                                          <div className={`font-medium mb-1 flex items-center gap-2 ${
-                                            isKnowledgeBase 
-                                              ? "text-purple-800" 
-                                              : "text-gray-700"
-                                          }`}>
-                                            {isKnowledgeBase ? (
-                                              <>
-                                                <span className="text-purple-600">📚</span>
-                                                <span>{displayName}</span>
-                                              </>
-                                            ) : (
-                                              <>
-                                                <span>📄</span>
-                                                <span>{displayName}</span>
-                                              </>
-                                            )}
-                                          </div>
-                                          <div className="flex flex-wrap gap-1">
-                                            {sourceGroup.chunks.map(
-                                              (chunk, chunkIdx) => {
-                                                const chunkNumber = chunkIdx + 1;
-                                                return (
-                                                  <button
-                                                    key={chunkIdx}
-                                                    onClick={() =>
-                                                      handleSourceClick(chunk)
-                                                    }
-                                                    className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors text-xs"
-                                                    title={`Parça ${chunkNumber} - Skor: ${(() => {
-                                                      let score = chunk.score || 0;
-                                                      // Normalize if in percentage format (0-100) to 0-1
-                                                      if (score > 1.0 && score <= 100.0) {
-                                                        score = score / 100.0;
-                                                      }
-                                                      return (score * 100).toFixed(0);
-                                                    })()}%`}
-                                                  >
-                                                    #{chunkNumber}
-                                                    {chunk.metadata?.page_number &&
-                                                      ` (s.${chunk.metadata.page_number})`}
-                                                  </button>
-                                                );
-                                              }
-                                            )}
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                  )}
-                                  </div>
-                                </details>
-                              </div>
-                            );
-                          })()}
+                          {message.sources &&
+                            message.sources.length > 0 &&
+                            !message.bot?.includes(
+                              "Bu bilgi ders dökümanlarında bulunamamıştır"
+                            ) &&
+                            (() => {
+                              // Get filtered sources count
+                              const filteredSources = getUniqueSources(
+                                message.sources
+                              );
+                              const totalFilteredChunks =
+                                filteredSources.reduce(
+                                  (sum, group) => sum + group.chunks.length,
+                                  0
+                                );
+
+                              // Only show if there are filtered sources
+                              if (totalFilteredChunks === 0) return null;
+
+                              return (
+                                <div className="mt-2 ml-4">
+                                  <details className="text-xs">
+                                    <summary className="cursor-pointer hover:text-gray-700 font-medium text-gray-600">
+                                      📚 {totalFilteredChunks} kaynak kullanıldı
+                                    </summary>
+                                    <div className="mt-2 space-y-2">
+                                      {filteredSources.map(
+                                        (sourceGroup, idx) => {
+                                          const filename =
+                                            sourceGroup.filename || "unknown";
+                                          const isKnowledgeBase =
+                                            filename.toLowerCase() ===
+                                              "unknown" ||
+                                            filename.trim() === "";
+                                          const displayName = isKnowledgeBase
+                                            ? "Bilgi Tabanı"
+                                            : filename;
+
+                                          return (
+                                            <div
+                                              key={idx}
+                                              className={`rounded-lg p-2 ${
+                                                isKnowledgeBase
+                                                  ? "bg-purple-50 border border-purple-200"
+                                                  : "bg-gray-50"
+                                              }`}
+                                            >
+                                              <div
+                                                className={`font-medium mb-1 flex items-center gap-2 ${
+                                                  isKnowledgeBase
+                                                    ? "text-purple-800"
+                                                    : "text-gray-700"
+                                                }`}
+                                              >
+                                                {isKnowledgeBase ? (
+                                                  <>
+                                                    <span className="text-purple-600">
+                                                      📚
+                                                    </span>
+                                                    <span>{displayName}</span>
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <span>📄</span>
+                                                    <span>{displayName}</span>
+                                                  </>
+                                                )}
+                                              </div>
+                                              <div className="flex flex-wrap gap-1">
+                                                {sourceGroup.chunks.map(
+                                                  (chunk, chunkIdx) => {
+                                                    const chunkNumber =
+                                                      chunkIdx + 1;
+                                                    return (
+                                                      <button
+                                                        key={chunkIdx}
+                                                        onClick={() =>
+                                                          handleSourceClick(
+                                                            chunk
+                                                          )
+                                                        }
+                                                        className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors text-xs"
+                                                        title={`Parça ${chunkNumber} - Skor: ${(() => {
+                                                          let score =
+                                                            chunk.score || 0;
+                                                          // Normalize if in percentage format (0-100) to 0-1
+                                                          if (
+                                                            score > 1.0 &&
+                                                            score <= 100.0
+                                                          ) {
+                                                            score =
+                                                              score / 100.0;
+                                                          }
+                                                          return (
+                                                            score * 100
+                                                          ).toFixed(0);
+                                                        })()}%`}
+                                                      >
+                                                        #{chunkNumber}
+                                                        {chunk.metadata
+                                                          ?.page_number &&
+                                                          ` (s.${chunk.metadata.page_number})`}
+                                                      </button>
+                                                    );
+                                                  }
+                                                )}
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+                                      )}
+                                    </div>
+                                  </details>
+                                </div>
+                              );
+                            })()}
                         </div>
                       </div>
                     </div>
@@ -867,130 +982,135 @@ export default function StudentChatPage() {
               ))}
 
               {/* Loading Indicator - AI Teacher Thinking with Async Progress */}
-              {isQuerying && messages.length > 0 && messages[messages.length - 1]?.bot === "..." && (
-                <div className="flex justify-start">
-                  <div className="relative bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 border-2 border-blue-300 rounded-2xl rounded-tl-sm px-6 py-5 shadow-2xl max-w-lg">
-                    {/* Animated background effect */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 via-purple-400/10 to-pink-400/10 rounded-2xl animate-pulse"></div>
+              {isQuerying &&
+                messages.length > 0 &&
+                messages[messages.length - 1]?.bot === "..." && (
+                  <div className="flex justify-start">
+                    <div className="relative bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 border-2 border-blue-300 rounded-2xl rounded-tl-sm px-6 py-5 shadow-2xl max-w-lg">
+                      {/* Animated background effect */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 via-purple-400/10 to-pink-400/10 rounded-2xl animate-pulse"></div>
 
-                    <div className="relative z-10">
-                      {/* Header with AI Icon */}
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="relative">
-                          {/* Main robot icon with glow */}
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg animate-ai-thinking">
-                            <span className="text-2xl">🤖</span>
+                      <div className="relative z-10">
+                        {/* Header with AI Icon */}
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="relative">
+                            {/* Main robot icon with glow */}
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-lg animate-ai-thinking">
+                              <span className="text-2xl">🤖</span>
+                            </div>
+                            {/* Pulsing ring effect */}
+                            <div className="absolute inset-0 rounded-full border-2 border-blue-400 animate-ping opacity-75"></div>
+                            {/* Status indicator */}
+                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white shadow-lg animate-glow">
+                              <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-60"></div>
+                            </div>
                           </div>
-                          {/* Pulsing ring effect */}
-                          <div className="absolute inset-0 rounded-full border-2 border-blue-400 animate-ping opacity-75"></div>
-                          {/* Status indicator */}
-                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white shadow-lg animate-glow">
-                            <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-60"></div>
-                          </div>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-base font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
-                            {asyncTaskProgress
-                              ? `🚀 ${asyncTaskProgress.currentStep}`
-                              : "🧠 AI Asistanı Cevap Hazırlıyor..."}
-                          </p>
-                          {/* Time estimate or animated dots */}
-                          {asyncTaskProgress ? (
-                            <p className="text-xs text-gray-600 mt-1">
-                              ⏱️ Tahmini süre:{" "}
-                              {Math.ceil(asyncTaskProgress.estimatedRemaining)}s
+                          <div className="flex-1">
+                            <p className="text-base font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+                              {asyncTaskProgress
+                                ? `🚀 ${asyncTaskProgress.currentStep}`
+                                : "🧠 AI Asistanı Cevap Hazırlıyor..."}
                             </p>
-                          ) : (
-                            <div className="flex items-center gap-1.5 mt-1.5">
-                              <span
-                                className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-dots-bounce shadow-md"
-                                style={{ animationDelay: "0ms" }}
-                              ></span>
-                              <span
-                                className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-dots-bounce shadow-md"
-                                style={{ animationDelay: "0.2s" }}
-                              ></span>
-                              <span
-                                className="w-2.5 h-2.5 bg-pink-500 rounded-full animate-dots-bounce shadow-md"
-                                style={{ animationDelay: "0.4s" }}
-                              ></span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Processing steps with dynamic progress or static steps */}
-                      <div className="space-y-3 text-sm">
-                        {asyncTaskProgress ? (
-                          // Dynamic async progress steps
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg backdrop-blur-sm">
-                              <div className="w-4 h-4 relative">
-                                <div className="absolute inset-0 bg-blue-500 rounded-full animate-pulse"></div>
-                                <div className="relative w-4 h-4 bg-blue-600 rounded-full"></div>
-                              </div>
-                              <span className="text-gray-700 font-medium text-xs">
-                                {asyncTaskProgress.currentStep}
-                              </span>
-                            </div>
-                            {asyncTaskProgress.progress > 0 && (
-                              <div className="text-center">
-                                <span className="text-xs text-gray-600 font-medium">
-                                  %{Math.round(asyncTaskProgress.progress)}{" "}
-                                  tamamlandı
-                                </span>
+                            {/* Time estimate or animated dots */}
+                            {asyncTaskProgress ? (
+                              <p className="text-xs text-gray-600 mt-1">
+                                ⏱️ Tahmini süre:{" "}
+                                {Math.ceil(
+                                  asyncTaskProgress.estimatedRemaining
+                                )}
+                                s
+                              </p>
+                            ) : (
+                              <div className="flex items-center gap-1.5 mt-1.5">
+                                <span
+                                  className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-dots-bounce shadow-md"
+                                  style={{ animationDelay: "0ms" }}
+                                ></span>
+                                <span
+                                  className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-dots-bounce shadow-md"
+                                  style={{ animationDelay: "0.2s" }}
+                                ></span>
+                                <span
+                                  className="w-2.5 h-2.5 bg-pink-500 rounded-full animate-dots-bounce shadow-md"
+                                  style={{ animationDelay: "0.4s" }}
+                                ></span>
                               </div>
                             )}
                           </div>
-                        ) : (
-                          // Static loading steps (for sync RAG)
-                          <>
-                            <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg backdrop-blur-sm">
-                              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                              <span className="text-gray-700 font-medium">
-                                📚 Dökümanlar analiz ediliyor...
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg backdrop-blur-sm">
-                              <div className="w-4 h-4 relative">
-                                <div className="absolute inset-0 bg-purple-500 rounded-full animate-ping opacity-75"></div>
-                                <div className="relative w-4 h-4 bg-purple-500 rounded-full animate-pulse"></div>
-                              </div>
-                              <span className="text-gray-700 font-medium">
-                                🎯 En uygun bilgiler seçiliyor...
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg backdrop-blur-sm">
-                              <div className="w-4 h-4 relative">
-                                <div className="absolute inset-0 bg-pink-500 rounded-full animate-ping opacity-75"></div>
-                                <div className="relative w-4 h-4 bg-pink-500 rounded-full animate-pulse"></div>
-                              </div>
-                              <span className="text-gray-700 font-medium">
-                                ✨ Senin için özel cevap oluşturuluyor...
-                              </span>
-                            </div>
-                          </>
-                        )}
-                      </div>
+                        </div>
 
-                      {/* Progress bar effect */}
-                      <div className="mt-4 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full"
-                          style={{
-                            width: asyncTaskProgress
-                              ? `${Math.min(
-                                  95,
-                                  Math.max(10, asyncTaskProgress.progress)
-                                )}%`
-                              : "85%",
-                          }}
-                        ></div>
+                        {/* Processing steps with dynamic progress or static steps */}
+                        <div className="space-y-3 text-sm">
+                          {asyncTaskProgress ? (
+                            // Dynamic async progress steps
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg backdrop-blur-sm">
+                                <div className="w-4 h-4 relative">
+                                  <div className="absolute inset-0 bg-blue-500 rounded-full animate-pulse"></div>
+                                  <div className="relative w-4 h-4 bg-blue-600 rounded-full"></div>
+                                </div>
+                                <span className="text-gray-700 font-medium text-xs">
+                                  {asyncTaskProgress.currentStep}
+                                </span>
+                              </div>
+                              {asyncTaskProgress.progress > 0 && (
+                                <div className="text-center">
+                                  <span className="text-xs text-gray-600 font-medium">
+                                    %{Math.round(asyncTaskProgress.progress)}{" "}
+                                    tamamlandı
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            // Static loading steps (for sync RAG)
+                            <>
+                              <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg backdrop-blur-sm">
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                                <span className="text-gray-700 font-medium">
+                                  📚 Dökümanlar analiz ediliyor...
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg backdrop-blur-sm">
+                                <div className="w-4 h-4 relative">
+                                  <div className="absolute inset-0 bg-purple-500 rounded-full animate-ping opacity-75"></div>
+                                  <div className="relative w-4 h-4 bg-purple-500 rounded-full animate-pulse"></div>
+                                </div>
+                                <span className="text-gray-700 font-medium">
+                                  🎯 En uygun bilgiler seçiliyor...
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 p-2 bg-white/50 rounded-lg backdrop-blur-sm">
+                                <div className="w-4 h-4 relative">
+                                  <div className="absolute inset-0 bg-pink-500 rounded-full animate-ping opacity-75"></div>
+                                  <div className="relative w-4 h-4 bg-pink-500 rounded-full animate-pulse"></div>
+                                </div>
+                                <span className="text-gray-700 font-medium">
+                                  ✨ Senin için özel cevap oluşturuluyor...
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Progress bar effect */}
+                        <div className="mt-4 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full"
+                            style={{
+                              width: asyncTaskProgress
+                                ? `${Math.min(
+                                    95,
+                                    Math.max(10, asyncTaskProgress.progress)
+                                  )}%`
+                                : "85%",
+                            }}
+                          ></div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Error Message */}
               {chatError && (
@@ -1070,15 +1190,18 @@ export default function StudentChatPage() {
 
           {/* Help Text */}
           <p className="text-xs text-gray-500 mt-2 text-center">
-            💡 Cevapları emojilerle değerlendirerek öğrenme deneyimini
-            iyileştirebilirsin
+            ✨ Cevapları emoji ile değerlendirerek sistemin sana daha uygun
+            açıklamalar hazırlamasını sağlayabilirsin
           </p>
         </div>
       </div>
 
       {/* Input Area - Fixed at Bottom for Mobile */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 sm:p-4 z-50 shadow-lg">
-        <form onSubmit={handleSendMessage} className="flex gap-2 sm:gap-3 max-w-6xl mx-auto">
+        <form
+          onSubmit={handleSendMessage}
+          className="flex gap-2 sm:gap-3 max-w-6xl mx-auto"
+        >
           <input
             type="text"
             value={query}
@@ -1110,8 +1233,8 @@ export default function StudentChatPage() {
 
         {/* Help Text */}
         <p className="text-xs text-gray-500 mt-2 text-center">
-          💡 Cevapları emojilerle değerlendirerek öğrenme deneyimini
-          iyileştirebilirsin
+          ✨ Cevapları emoji ile değerlendirerek sistemin sana daha uygun
+          açıklamalar hazırlamasını sağlayabilirsin
         </p>
       </div>
 
