@@ -24,9 +24,9 @@ fi
 
 echo "✅ Docker and auth-service-prod container are running"
 
-# Copy the production script to auth-service container
-echo "📁 Copying production script to container..."
-docker cp create_production_students.py auth-service-prod:/app/
+# Copy the automatic production script to auth-service container
+echo "📁 Copying automatic production script to container..."
+docker cp create_production_students_auto.py auth-service-prod:/app/
 if [ $? -ne 0 ]; then
     echo "❌ Error: Failed to copy script to container"
     exit 1
@@ -34,15 +34,12 @@ fi
 
 echo "✅ Script copied successfully"
 
-# Run the script inside the auth-service container
+# Run the automatic script inside the auth-service container (non-interactive)
 echo ""
-echo "🚀 Running student account creation script..."
+echo "🚀 Running automatic student account creation..."
 echo "============================================================="
 
-# Option 1: Automated creation (just create accounts)
-docker exec -it auth-service-prod python create_production_students.py << 'EOF'
-1
-EOF
+docker exec auth-service-prod python create_production_students_auto.py
 
 # Check if the script ran successfully
 if [ $? -eq 0 ]; then
@@ -67,7 +64,7 @@ fi
 # Cleanup - remove the script from container
 echo ""
 echo "🧹 Cleaning up..."
-docker exec auth-service-prod rm -f /app/create_production_students.py
+docker exec auth-service-prod rm -f /app/create_production_students_auto.py
 echo "✅ Cleanup completed"
 
 echo ""

@@ -37,15 +37,22 @@ chmod +x docs/hetzner/create_production_accounts.sh
 
 ## Adım 4: Manuel Hesap Oluşturma (Alternatif)
 
-```bash
-# Script'i auth-service container'ına kopyalayın
-docker cp create_production_students.py auth-service-prod:/app/
+### Seçenek A: Otomatik Script (TTY Problemi YOK)
 
-# Container içinde çalıştırın
-docker exec -it auth-service-prod python create_production_students.py
+```bash
+# Non-interactive script'i kopyala ve çalıştır
+docker cp create_production_students_auto.py auth-service-prod:/app/
+docker exec auth-service-prod python create_production_students_auto.py
 ```
 
-Container içinde menüde `1` seçeneğini seçin.
+### Seçenek B: Interactive Script (TTY Problemi olabilir)
+
+```bash
+# Script'i kopyala
+docker cp create_production_students.py auth-service-prod:/app/
+# Interactive mod ile çalıştır (terminal gerekli)
+docker exec -it auth-service-prod python create_production_students.py
+```
 
 ## Oluşturulan Hesaplar
 
