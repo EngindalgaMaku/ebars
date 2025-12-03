@@ -1,0 +1,24 @@
+# Cursor Workspace Rules
+
+## Quick Access Notes
+- SSH commands: `docs/SSH_COMMANDS.md`
+- Quick notes: `docs/QUICK_NOTES.md`
+- Snippets guide: `.vscode/README.md`
+
+## Project Structure
+- Frontend: `frontend/`
+- Backend services: `services/`
+- Docker configs: `docker-compose.yml`
+
+## Important Commands
+- Start project: `docker-compose up -d` (snippet: `dc-up`)
+- View logs: `docker-compose logs -f` (snippet: `dc-logs`)
+- SSH to server: `ssh ebars-kodleon` (snippet: `ssh-ebars`)
+
+## Snippets
+Sık kullanılan komutlar için snippets kullanın:
+- `ssh-ebars`, `ssh-rag3` - SSH bağlantıları
+- `dc-up`, `dc-down`, `dc-logs` - Docker Compose
+- `git-commit`, `git-status` - Git komutları
+- Daha fazlası için: `.vscode/README.md`
+

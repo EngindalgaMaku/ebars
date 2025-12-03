@@ -266,8 +266,18 @@ class FeedbackHandler:
                 }
                 preview_score = difficulty_to_score.get(difficulty, score)
                 logger.info(f"🔍 Preview mode: Overriding difficulty to {difficulty} (score: {preview_score:.1f})")
+                
+                # Preview mode için özel, daha güçlü prompt
+                preview_warning = f"""
+⚠️ ÖNEMLİ - ÖNİZLEME MODU:
+Bu bir önizleme modudur. Cevabı MUTLAKA {difficulty} seviyesine göre adapte et.
+Orijinal cevabı aynen kopyalama! Seviyeye göre değiştir:
+- Daha basit seviye için: Daha açıklayıcı, daha detaylı, daha fazla örnek
+- Daha ileri seviye için: Daha teknik, daha kısa, daha derinlemesine
+"""
             else:
                 preview_score = score
+                preview_warning = ""
             
             # Build adaptive prompt
             if original_response:
@@ -276,7 +286,7 @@ class FeedbackHandler:
 
 🎯 ÖĞRENCİ ALGILAMA PUANI: {preview_score:.1f}/100
 📊 ZORLUK SEVİYESİ: {difficulty}
-{f"⚠️ ÖNEMLİ: Bu bir önizleme modudur. Cevabı {difficulty} seviyesine göre adapte et." if difficulty_override else ""}
+{preview_warning}
 
 {self.prompt_adapter._build_instructions(params)}
 

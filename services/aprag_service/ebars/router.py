@@ -387,15 +387,18 @@ async def preview_level_response(
         # Call model inference to generate response with preview prompt
         try:
             # Use models/generate endpoint with higher temperature for more variation
+            # Preview mode için daha yüksek temperature ve farklı parametreler
             model_response = requests.post(
                 f"{MODEL_INFERENCER_URL}/models/generate",
                 json={
                     "model": "qwen2.5-7b-instruct",  # Default model
                     "prompt": adaptive_prompt,
                     "max_tokens": 2000,
-                    "temperature": 0.9,  # Increased from 0.7 to 0.9 for more variation
+                    "temperature": 1.0,  # Maximum variation for preview
+                    "top_p": 0.95,  # Nucleus sampling for diversity
+                    "frequency_penalty": 0.3,  # Avoid repetition
                 },
-                timeout=60
+                timeout=90  # Preview için daha uzun timeout
             )
             
             if model_response.status_code != 200:

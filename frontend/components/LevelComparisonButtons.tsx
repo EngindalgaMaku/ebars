@@ -19,14 +19,6 @@ interface LevelComparisonButtonsProps {
   currentDifficulty?: string;
 }
 
-// Cache for preview responses (session-based)
-const previewCache = new Map<string, LevelPreviewResponse>();
-
-// Generate cache key
-function getCacheKey(query: string, direction: string, currentDifficulty: string): string {
-  return `${query}:${direction}:${currentDifficulty}`;
-}
-
 export default function LevelComparisonButtons({
   userId,
   sessionId,
@@ -42,22 +34,8 @@ export default function LevelComparisonButtons({
 
   const handlePreview = async (direction: "lower" | "higher") => {
     setError(null);
-
-    // Check cache first
-    if (currentDifficulty) {
-      const cacheKey = getCacheKey(query, direction, currentDifficulty);
-      const cached = previewCache.get(cacheKey);
-      
-      if (cached) {
-        console.log("✅ Using cached preview response");
-        setPreview(cached);
-        setShowModal(true);
-        return;
-      }
-    }
-
-    // Not in cache, fetch from API
     setLoading(direction);
+    setShowModal(false); // Önce modal'ı kapat
 
     try {
       const request: LevelPreviewRequest = {
@@ -71,13 +49,6 @@ export default function LevelComparisonButtons({
 
       const response = await previewLevelResponse(request);
       
-      // Cache the response
-      if (currentDifficulty) {
-        const cacheKey = getCacheKey(query, direction, currentDifficulty);
-        previewCache.set(cacheKey, response);
-        console.log("💾 Cached preview response for:", cacheKey);
-      }
-      
       // Debug: Log response details
       console.log("🔍 Level Preview Response:", {
         direction,
@@ -85,8 +56,16 @@ export default function LevelComparisonButtons({
         target: response.target_difficulty_label,
         responseLength: response.preview_response.length,
         previewStart: response.preview_response.substring(0, 100),
-        cached: false,
+        originalLength: ragResponse.length,
+        isIdentical: response.preview_response.trim() === ragResponse.trim(),
       });
+      
+      // Check if response is identical to original
+      if (response.preview_response.trim() === ragResponse.trim()) {
+        console.warn("⚠️ WARNING: Preview response is identical to original!");
+        setError("Önizleme cevabı orijinal cevapla aynı. Lütfen tekrar deneyin.");
+        return;
+      }
       
       setPreview(response);
       setShowModal(true);
