@@ -447,6 +447,12 @@ async def get_session_model(session_id: str) -> str:
         
     try:
         api_gateway_url = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
+        
+        # Force internal Docker network URL if we detect external URL (prevents SSL errors)
+        if api_gateway_url.startswith("https://") or "kodleon.com" in api_gateway_url or ("localhost" not in api_gateway_url and "api-gateway" not in api_gateway_url):
+            logger.debug(f"Converting external URL ({api_gateway_url}) to internal Docker network URL")
+            api_gateway_url = "http://api-gateway:8000"
+        
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(f"{api_gateway_url}/sessions/{session_id}")
             

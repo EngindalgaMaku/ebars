@@ -31,6 +31,16 @@ MODEL_INFERENCER_URL = os.getenv("MODEL_INFERENCER_URL", "http://model-inference
 DOCUMENT_PROCESSING_URL = os.getenv("DOCUMENT_PROCESSING_URL", "http://document-processing-service:8080")
 API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
 
+def get_internal_api_gateway_url(url: str) -> str:
+    """
+    Convert external API Gateway URL to internal Docker network URL
+    Prevents SSL errors when calling from within Docker network
+    """
+    if url.startswith("https://") or "kodleon.com" in url or ("localhost" not in url and "api-gateway" not in url):
+        logger.debug(f"Converting external URL ({url}) to internal Docker network URL")
+        return "http://api-gateway:8000"
+    return url
+
 # Global task storage (Redis would be better in production)
 ASYNC_TASKS = {}
 
@@ -203,8 +213,10 @@ async def run_async_rag_task(task_id: str, request: AsyncHybridRAGRequest):
         # Get session RAG settings from API Gateway to use correct model
         session_rag_settings = {}
         try:
+            # Use internal Docker network URL to avoid SSL errors
+            api_gateway_url = get_internal_api_gateway_url(API_GATEWAY_URL)
             session_response = requests.get(
-                f"{API_GATEWAY_URL}/sessions/{request.session_id}",
+                f"{api_gateway_url}/sessions/{request.session_id}",
                 timeout=5
             )
             if session_response.status_code == 200:

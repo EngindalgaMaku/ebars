@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # API Gateway URL for fetching session metadata
-API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://api-gateway:8001")
+API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
 
 
 class SessionSettings(BaseModel):
@@ -131,9 +131,15 @@ async def get_session_settings(
             candidate_user_id = None
             
             try:
+                # Force internal Docker network URL if we detect external URL
+                api_gateway_url = API_GATEWAY_URL
+                if api_gateway_url.startswith("https://") or "kodleon.com" in api_gateway_url or ("localhost" not in api_gateway_url and "api-gateway" not in api_gateway_url):
+                    logger.info(f"⚠️ Detected external URL ({api_gateway_url}), using internal Docker network URL instead")
+                    api_gateway_url = "http://api-gateway:8000"
+                
                 # Fetch session metadata from API Gateway to get the teacher (created_by)
                 session_response = requests.get(
-                    f"{API_GATEWAY_URL}/sessions/{session_id}",
+                    f"{api_gateway_url}/sessions/{session_id}",
                     timeout=5
                 )
                 if session_response.status_code == 200:

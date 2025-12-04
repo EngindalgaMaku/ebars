@@ -54,9 +54,15 @@ def get_session_model(session_id: str) -> Optional[str]:
     """
     try:
         # Use the correct endpoint - /sessions/{session_id} returns the full session data including rag_settings
-        logger.info(f"Getting session model for {session_id} from {API_GATEWAY_URL}/sessions/{session_id}")
+        # Force internal Docker network URL if we detect external URL
+        api_gateway_url = API_GATEWAY_URL
+        if api_gateway_url.startswith("https://") or "kodleon.com" in api_gateway_url or ("localhost" not in api_gateway_url and "api-gateway" not in api_gateway_url):
+            logger.info(f"⚠️ Detected external URL ({api_gateway_url}), using internal Docker network URL instead")
+            api_gateway_url = "http://api-gateway:8000"
+        
+        logger.info(f"Getting session model for {session_id} from {api_gateway_url}/sessions/{session_id}")
         response = requests.get(
-            f"{API_GATEWAY_URL}/sessions/{session_id}",
+            f"{api_gateway_url}/sessions/{session_id}",
             timeout=30  # Increased timeout from 5 to 30 seconds
         )
         logger.info(f"API Gateway response status: {response.status_code}")
@@ -584,11 +590,17 @@ def get_session_model(session_id: str) -> Optional[str]:
         from requests.exceptions import RequestException
         
         # Get the main API URL from environment variables
-        # Try to use the environment variable first, fall back to the service name in Docker network
+        # For Docker internal network, always use HTTP and service name
         api_gateway_url = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
         
-        # For Docker Compose environment, use the service name
-        if os.getenv('DOCKER_COMPOSE'):
+        # Force internal Docker network URL if we detect external URL (https:// or external domain)
+        # This prevents SSL errors when calling from within Docker network
+        if api_gateway_url.startswith("https://") or "kodleon.com" in api_gateway_url or "localhost" not in api_gateway_url and "api-gateway" not in api_gateway_url:
+            logger.info(f"⚠️ Detected external URL ({api_gateway_url}), using internal Docker network URL instead")
+            api_gateway_url = "http://api-gateway:8000"
+        
+        # For Docker Compose environment, always use the service name
+        if os.getenv('DOCKER_COMPOSE') or os.getenv('DOCKER_ENV'):
             api_gateway_url = "http://api-gateway:8000"
         
         # Use /sessions/{session_id} endpoint which returns full session data including rag_settings
@@ -740,22 +752,28 @@ def calculate_mastery_score(topic_progress: Dict[str, Any], recent_interactions:
     """
     try:
         # 1. Understanding score (40% weight)
-        average_understanding = topic_progress.get("average_understanding") or 0.0
-        understanding_score = min(average_understanding / 5.0, 1.0)  # Normalize to 0-1
+        average_understanding = topic_progress.get("average_understanding")
+        if average_understanding is None:
+            average_understanding = 0.0
+        understanding_score = min(float(average_understanding) / 5.0, 1.0)  # Normalize to 0-1
         
         # 2. Engagement score (30% weight)
-        questions_asked = topic_progress.get("questions_asked", 0)
+        questions_asked = topic_progress.get("questions_asked")
+        if questions_asked is None:
+            questions_asked = 0
         # Normalize: 10 questions = full engagement
-        engagement_score = min(questions_asked / 10.0, 1.0)
+        engagement_score = min(float(questions_asked) / 10.0, 1.0)
         
         # 3. Recent success rate (30% weight)
         if recent_interactions:
             # Count interactions with positive feedback (>= 3 on 1-5 scale)
+            # Handle None values safely
             successful_interactions = sum(
                 1 for i in recent_interactions
-                if i.get("feedback_score", 0) >= 3 or i.get("emoji_feedback") in ["👍", "❤️", "😊"]
+                if (i.get("feedback_score") is not None and i.get("feedback_score", 0) >= 3) 
+                or i.get("emoji_feedback") in ["👍", "❤️", "😊"]
             )
-            recent_success = successful_interactions / len(recent_interactions)
+            recent_success = successful_interactions / len(recent_interactions) if recent_interactions else 0.0
         else:
             # If no recent interactions, use understanding as proxy
             recent_success = understanding_score
@@ -1787,14 +1805,27 @@ async def classify_question(request: QuestionClassificationRequest):
                             
                             # Update mastery fields if calculated
                             if mastery_score is not None and mastery_level is not None:
-                                # Verify topic_id exists in topics table before inserting
-                                topic_check = conn.execute(
-                                    "SELECT topic_id FROM topics WHERE topic_id = ?",
-                                    (classification["topic_id"],)
-                                ).fetchone()
+                                # Verify topic_id exists in course_topics table before inserting
+                                # Try course_topics first (correct table name), fallback to topics if exists
+                                topic_check = None
+                                try:
+                                    topic_check = conn.execute(
+                                        "SELECT topic_id FROM course_topics WHERE topic_id = ?",
+                                        (classification["topic_id"],)
+                                    ).fetchone()
+                                except Exception as e:
+                                    # If course_topics doesn't exist, try topics table
+                                    logger.debug(f"course_topics table not found, trying topics: {e}")
+                                    try:
+                                        topic_check = conn.execute(
+                                            "SELECT topic_id FROM topics WHERE topic_id = ?",
+                                            (classification["topic_id"],)
+                                        ).fetchone()
+                                    except Exception:
+                                        pass
                                 
                                 if not topic_check:
-                                    logger.warning(f"Topic ID {classification['topic_id']} does not exist in topics table. Skipping topic_progress update.")
+                                    logger.warning(f"Topic ID {classification['topic_id']} does not exist in course_topics/topics table. Skipping topic_progress update.")
                                 else:
                                     conn.execute("""
                                         INSERT OR REPLACE INTO topic_progress (
