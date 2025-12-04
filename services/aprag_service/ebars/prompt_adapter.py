@@ -175,6 +175,7 @@ class PromptAdapter:
         example_instructions = self._get_example_instructions(params.get('example_count', 'moderate'))
         
         # Combine all instructions
+        # IMPORTANT: These instructions are for the MODEL, NOT for the student response
         instructions = f"""
 {difficulty_instructions}
 
@@ -183,6 +184,10 @@ class PromptAdapter:
 {example_instructions}
 
 ⚠️ ÖNEMLİ: Yukarıdaki talimatları MUTLAKA uygula. Öğrencinin anlama seviyesine göre cevabı adapte et.
+
+🚫 ÇOK ÖNEMLİ: Bu talimatlar SENİN İÇİN (model). CEVABINA bu talimatları, başlıkları veya açıklamaları EKLEME!
+- "ZORLUK SEVİYESİ", "EĞİTİM AÇIKLAMASI", "ÖRNEKLER", "GÖRSEL YARDIMLAR", "DESTEKLEYİCİ DİL" gibi başlıklar EKLEME
+- Sadece cevabı ver, talimatları veya açıklamaları cevaba ekleme
 """
         
         return instructions.strip()
@@ -191,9 +196,7 @@ class PromptAdapter:
         """Get instructions for specific difficulty level"""
         instructions = {
             'very_struggling': """
-🔧 ZORLUK SEVİYESİ: ÇOK ZORLANIYOR
-
-⚠️ MUTLAKA UYGULA:
+⚠️ MUTLAKA UYGULA (SENİN İÇİN - CEVABA EKLEME):
 1. **Basit Dil:**
    - Her kelimeyi açıkla
    - Teknik terimlerden kaçın veya her birini detaylı açıkla
@@ -218,20 +221,18 @@ class PromptAdapter:
    - Günlük hayattan örnekler kullan
    - Örnekleri kademeli sun (hepsini aynı anda değil)
 
-5. **Görsel Yardımlar:**
-   - Mümkünse görsel açıklamalar yap
-   - Şekiller ve diyagramlar öner
-   - Somut örnekler kullan
+5. **Benzetmeler ve Somut Örnekler:**
+   - Benzetmeler kullan (görsel diyagram değil, sadece benzetme)
+   - Somut, elle tutulur örnekler ver
+   - Günlük hayattan örnekler kullan
 
-6. **Destekleyici Dil:**
-   - Cesaret verici ol
+6. **Destekleyici Ton:**
+   - Cesaret verici bir ton kullan
    - Sabırlı ve anlayışlı ol
-   - Öğrencinin zorlandığını kabul et
+   - Ama "destekleyici dil" veya "eğitim açıklaması" gibi başlıklar EKLEME
 """,
             'struggling': """
-🔧 ZORLUK SEVİYESİ: ZORLANIYOR (ÖĞRENME SÜRECİNDE)
-
-⚠️ MUTLAKA UYGULA - ÖĞRENCİ HENÜZ ÖĞRENİYOR:
+⚠️ MUTLAKA UYGULA (SENİN İÇİN - CEVABA EKLEME) - ÖĞRENCİ HENÜZ ÖĞRENİYOR:
 1. **ÇOK Açıklayıcı Dil:**
    - Teknik terimleri MUTLAKA basitleştir
    - Her terimi MUTLAKA açıkla
@@ -256,21 +257,19 @@ class PromptAdapter:
    - Günlük hayattan örnekler kullan
    - "Örneğin evdeki internet ağı gibi..." gibi
 
-5. **Benzetmeler ve Görselleştirme:**
+5. **Benzetmeler ve Somut Örnekler:**
    - Benzetmeler MUTLAKA kullan
    - Bilinen kavramlarla ilişkilendir
    - "İnternet ağı, evdeki elektrik kabloları gibidir" gibi
    - Somut, elle tutulur örnekler ver
 
-6. **Destekleyici Dil:**
-   - "Anladın mı?", "Şimdi daha net oldu mu?" gibi kontrol soruları
-   - Cesaret verici ol
-   - "Bu normal, öğrenirken herkes böyle hisseder" gibi
+6. **Destekleyici Ton:**
+   - Cesaret verici bir ton kullan
+   - Ama "destekleyici dil", "eğitim açıklaması" veya "görsel yardım" gibi başlıklar EKLEME
+   - Sadece cevabı ver, meta bilgi ekleme
 """,
             'normal': """
-🔧 ZORLUK SEVİYESİ: NORMAL
-
-⚠️ MUTLAKA UYGULA:
+⚠️ MUTLAKA UYGULA (SENİN İÇİN - CEVABA EKLEME):
 1. **Dengeli Dil:**
    - Teknik terimleri kullan ama açıkla
    - Normal akademik dil
@@ -292,9 +291,7 @@ class PromptAdapter:
    - Gerektiğinde örnek ver
 """,
             'good': """
-🔧 ZORLUK SEVİYESİ: ZORLAYICI
-
-⚠️ MUTLAKA UYGULA:
+⚠️ MUTLAKA UYGULA (SENİN İÇİN - CEVABA EKLEME):
 1. **Teknik Dil:**
    - Teknik terimleri doğrudan kullan
    - Gerekirse kısa bağlam ver
@@ -318,9 +315,7 @@ class PromptAdapter:
    - Basit örneklerden kaçın
 """,
             'excellent': """
-🔧 ZORLUK SEVİYESİ: İLERİ
-
-⚠️ MUTLAKA UYGULA:
+⚠️ MUTLAKA UYGULA (SENİN İÇİN - CEVABA EKLEME):
 1. **İleri Seviye Teknik Dil:**
    - Tüm teknik terimleri kullan
    - Terimlerin doğru ve profesyonel kullanımı

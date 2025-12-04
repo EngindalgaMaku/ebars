@@ -269,11 +269,13 @@ class FeedbackHandler:
                 
                 # Preview mode için özel, daha güçlü prompt
                 preview_warning = f"""
-⚠️ ÖNEMLİ - ÖNİZLEME MODU:
+⚠️ ÖNİZLEME MODU:
 Bu bir önizleme modudur. Cevabı MUTLAKA {difficulty} seviyesine göre adapte et.
 Orijinal cevabı aynen kopyalama! Seviyeye göre değiştir:
 - Daha basit seviye için: Daha açıklayıcı, daha detaylı, daha fazla örnek
 - Daha ileri seviye için: Daha teknik, daha kısa, daha derinlemesine
+
+ÖNEMLİ: Sadece cevabı ver. Puan, seviye, başlık veya açıklama ekleme.
 """
             else:
                 preview_score = score
@@ -282,15 +284,15 @@ Orijinal cevabı aynen kopyalama! Seviyeye göre değiştir:
             # Build adaptive prompt
             if original_response:
                 # Full adaptive prompt with original response
+                # IMPORTANT: Instructions are for YOU (the model), NOT for the student response
+                # DO NOT include instructions, headers, or metadata in your response
                 prompt = f"""Sen bir eğitim asistanısın. Aşağıdaki cevabı öğrencinin anlama seviyesine göre kişiselleştir.
 
-🎯 ÖĞRENCİ ALGILAMA PUANI: {preview_score:.1f}/100
-📊 ZORLUK SEVİYESİ: {difficulty}
 {preview_warning}
 
 {self.prompt_adapter._build_instructions(params)}
 
-📝 ORİJİNAL SORU:
+📝 SORU:
 {query or 'N/A'}
 
 📄 ORİJİNAL CEVAP:
@@ -310,13 +312,20 @@ Orijinal cevabı aynen kopyalama! Seviyeye göre değiştir:
 - Cümle yapısını, kelime seçimini, detay seviyesini DEĞİŞTİR
 - Sadece içeriği koru, ama sunumunu TAMAMEN DEĞİŞTİR
 
-✅ ÖNEMLİ: Kişiselleştirilmiş cevabı SADECE TÜRKÇE olarak ver. Orijinal cevabın içeriğini koru, ancak sunumunu, detay seviyesini ve zorluk seviyesini öğrenci algılama puanına göre ayarla.
+🚫 ÇOK ÖNEMLİ - CEVABINA ASLA EKLEME:
+- "Bu soruya X seviyesine göre cevap vereceğim" gibi meta ifadeler
+- "🔩 EĞİTİM AÇIKLAMASI", "📈 ÖRNEKLER", "🛸 GÖRSEL YARDIMLAR", "🤗 DESTEKLEYİCİ DİL" gibi başlıklar
+- "ZORLUK SEVİYESİ", "ÖĞRENCİ ALGILAMA PUANI" gibi bilgiler
+- Başlık, etiket, açıklama veya metadata
+- SADECE CEVABI VER - başka bir şey ekleme!
 
-🚨 SON UYARI - MUTLAKA UYGULA:
+✅ ÖNEMLİ: Kişiselleştirilmiş cevabı SADECE TÜRKÇE olarak ver. SADECE CEVABI VER - başlık, puan, seviye, açıklama veya metadata ekleme. Orijinal cevabın içeriğini koru, ancak sunumunu, detay seviyesini ve zorluk seviyesini {difficulty} seviyesine göre ayarla.
+
+🚨 SON UYARI - CEVABINA SADECE CEVABI YAZ:
 - Orijinal cevabı AYNEN KOPYALAMA!
 - Cevabı {difficulty} seviyesine göre MUTLAKA DEĞİŞTİR!
-- Eğer aynı cevabı verirsen, bu görev başarısız olur!
-- Cümle yapısını, kelime seçimini, detay seviyesini MUTLAKA DEĞİŞTİR!
+- CEVABINA SADECE CEVABI YAZ - başlık, açıklama, metadata YOK!
+- Yukarıdaki talimatlar SENİN İÇİN - öğrenciye gösterme!
 """
             else:
                 # Simple adaptive prompt
