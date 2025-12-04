@@ -2953,28 +2953,30 @@ def add_model_to_session(
     model: str = Body(...)
 ):
     """
-    Add a model to a provider's model list (Teacher/Session Owner only).
-    Allows dynamic model management for teachers in their own sessions.
+    Add a model to a session-specific provider (Teacher/Session Owner only).
+    Adds model only for this session, not globally.
     """
     # Verify session ownership (teacher must own the session)
     _require_owner_or_admin(request, session_id)
     
     try:
+        # Proxy to APRAG service for session-specific model management
         response = requests.post(
-            f"{MODEL_INFERENCE_URL}/models/add",
+            f"{APRAG_SERVICE_URL}/api/sessions/{session_id}/models/add",
             json={"provider": provider, "model": model},
             timeout=30
         )
         if response.status_code == 200:
             return response.json()
         else:
+            error_detail = response.json().get("detail", "Failed to add model") if response.headers.get("content-type", "").startswith("application/json") else response.text
             raise HTTPException(
                 status_code=response.status_code, 
-                detail=response.text or "Failed to add model"
+                detail=error_detail
             )
     except requests.RequestException as e:
         logger.error(f"Error adding model: {e}")
-        raise HTTPException(status_code=503, detail=f"Model inference service unavailable: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"APRAG service unavailable: {str(e)}")
 
 @app.post("/sessions/{session_id}/models/remove")
 def remove_model_from_session(
@@ -2984,40 +2986,46 @@ def remove_model_from_session(
     model: str = Body(...)
 ):
     """
-    Remove a model from a provider's model list (Teacher/Session Owner only).
-    Allows removing deprecated or unavailable models for teachers in their own sessions.
+    Remove a model from a session-specific provider (Teacher/Session Owner only).
+    Removes only session-specific models, not global ones.
     """
     # Verify session ownership (teacher must own the session)
     _require_owner_or_admin(request, session_id)
     
     try:
+        # Proxy to APRAG service for session-specific model management
         response = requests.post(
-            f"{MODEL_INFERENCE_URL}/models/remove",
+            f"{APRAG_SERVICE_URL}/api/sessions/{session_id}/models/remove",
             json={"provider": provider, "model": model},
             timeout=30
         )
         if response.status_code == 200:
             return response.json()
         else:
+            error_detail = response.json().get("detail", "Failed to remove model") if response.headers.get("content-type", "").startswith("application/json") else response.text
             raise HTTPException(
                 status_code=response.status_code, 
-                detail=response.text or "Failed to remove model"
+                detail=error_detail
             )
     except requests.RequestException as e:
         logger.error(f"Error removing model: {e}")
-        raise HTTPException(status_code=503, detail=f"Model inference service unavailable: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"APRAG service unavailable: {str(e)}")
 
 @app.get("/sessions/{session_id}/models/config")
 def get_session_models_config(request: Request, session_id: str):
     """
     Get the current model configuration for all providers (Teacher/Session Owner only).
-    Useful for viewing the current state of model lists in teacher's session.
+    Returns merged configuration: global models + session-specific models from APRAG service.
     """
     # Verify session ownership (teacher must own the session)
     _require_owner_or_admin(request, session_id)
     
     try:
-        response = requests.get(f"{MODEL_INFERENCE_URL}/models/config", timeout=30)
+        # Proxy to APRAG service for session-specific model management
+        response = requests.get(
+            f"{APRAG_SERVICE_URL}/api/sessions/{session_id}/models/config",
+            timeout=30
+        )
         if response.status_code == 200:
             return response.json()
         else:
@@ -3895,6 +3903,31 @@ def api_get_rag_settings(session_id: str, request: Request):
 def api_update_rag_settings(session_id: str, req: RAGSettings, request: Request):
     """Update RAG settings - API prefix version"""
     return update_rag_settings(session_id, req, request)
+
+@app.get("/api/sessions/{session_id}/models/config")
+def api_get_session_models_config(session_id: str, request: Request):
+    """Get session models config - API prefix version"""
+    return get_session_models_config(request, session_id)
+
+@app.post("/api/sessions/{session_id}/models/add")
+def api_add_model_to_session(
+    request: Request,
+    session_id: str,
+    provider: str = Body(...),
+    model: str = Body(...)
+):
+    """Add model to session - API prefix version"""
+    return add_model_to_session(request, session_id, provider, model)
+
+@app.post("/api/sessions/{session_id}/models/remove")
+def api_remove_model_from_session(
+    request: Request,
+    session_id: str,
+    provider: str = Body(...),
+    model: str = Body(...)
+):
+    """Remove model from session - API prefix version"""
+    return remove_model_from_session(request, session_id, provider, model)
 
 @app.get("/api/sessions/{session_id}/export")
 def api_export_session(session_id: str, format: str = "zip", request: Request = None):
