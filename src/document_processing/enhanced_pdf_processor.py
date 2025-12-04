@@ -619,13 +619,20 @@ class MarkerPDFProcessor:
                 # CRITICAL FIX: CID karakterlerini kontrol et ve gerekirse PyMuPDF ile fallback yap
                 # Marker bazen CID karakterlerini düzgün decode edemiyor
                 import re
-                cid_count = len(re.findall(r'\(cid:\s*\d+\s*\)', markdown_text))
+                cid_pattern = r'\(cid:\s*\d+\s*\)'
+                cid_count = len(re.findall(cid_pattern, markdown_text))
                 total_chars = len(markdown_text)
                 cid_ratio = cid_count / total_chars if total_chars > 0 else 0
                 
-                # Eğer CID oranı %5'ten fazlaysa, PyMuPDF ile fallback yap
-                if cid_ratio > 0.05:
-                    logger.warning(f"⚠️ Yüksek CID karakter oranı tespit edildi: {cid_ratio:.1%} ({cid_count}/{total_chars})")
+                # CID karakterlerinin satır bazında dağılımını kontrol et
+                lines = markdown_text.split('\n')
+                lines_with_cid = sum(1 for line in lines if re.search(cid_pattern, line))
+                line_cid_ratio = lines_with_cid / len(lines) if len(lines) > 0 else 0
+                
+                # Eğer HERHANGI BIR CID karakteri varsa, PyMuPDF ile fallback yap
+                # Marker'ın CID sorunu çok yaygın, bu yüzden agresif kontrol yapıyoruz
+                if cid_count > 0:
+                    logger.warning(f"⚠️ CID karakterleri tespit edildi: {cid_ratio:.1%} karakter oranı ({cid_count}/{total_chars}), {line_cid_ratio:.1%} satır oranı ({lines_with_cid}/{len(lines)})")
                     logger.info("🔄 PyMuPDF ile fallback yapılıyor (daha iyi font decoding)...")
                     
                     try:
