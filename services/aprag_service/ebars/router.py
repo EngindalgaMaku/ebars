@@ -386,19 +386,55 @@ async def preview_level_response(
         logger.info(f"   Original response preview: {request.rag_response[:200]}")
         logger.info(f"   Full prompt (first 1000 chars): {adaptive_prompt[:1000]}")
         
+        # Get model from session settings (same as main RAG response)
+        model_name = None
+        try:
+            # Get model from session RAG settings via API Gateway
+            # Force internal Docker network URL if we detect external URL
+            api_gateway_url = API_GATEWAY_URL
+            if api_gateway_url.startswith("https://") or "kodleon.com" in api_gateway_url or ("localhost" not in api_gateway_url and "api-gateway" not in api_gateway_url):
+                api_gateway_url = "http://api-gateway:8000"
+            
+            session_response = requests.get(
+                f"{api_gateway_url}/sessions/{request.session_id}",
+                timeout=10
+            )
+            if session_response.status_code == 200:
+                session_data = session_response.json()
+                rag_settings = session_data.get("rag_settings", {}) or {}
+                if isinstance(rag_settings, str):
+                    try:
+                        rag_settings = json.loads(rag_settings)
+                    except json.JSONDecodeError:
+                        rag_settings = {}
+                model_name = rag_settings.get("model")
+                if model_name:
+                    logger.info(f"📋 Using session model: {model_name}")
+                else:
+                    logger.warning("⚠️ No model in session RAG settings, using default")
+            else:
+                logger.warning(f"⚠️ Could not get session settings: {session_response.status_code}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not get session model, using default: {e}")
+        
+        # Fallback to default model if not found
+        if not model_name:
+            model_name = os.getenv("DEFAULT_MODEL", "llama-3.1-8b-instant")
+            logger.info(f"📋 Using default model: {model_name}")
+        
         # Call model inference to generate response with preview prompt
         try:
             # Use models/generate endpoint
             # Model inference endpoint prompt'u direkt alıyor, messages formatına çeviriyor
             logger.info(f"📤 Sending request to model inference: {MODEL_INFERENCER_URL}/models/generate")
-            logger.info(f"   Model: qwen2.5-7b-instruct")
+            logger.info(f"   Model: {model_name} (from session settings)")
             logger.info(f"   Temperature: 1.0 (max variation)")
             logger.info(f"   Prompt length: {len(adaptive_prompt)} chars")
             
             model_response = requests.post(
                 f"{MODEL_INFERENCER_URL}/models/generate",
                 json={
-                    "model": "qwen2.5-7b-instruct",  # Default model
+                    "model": model_name,  # Use session model, not hardcoded
                     "prompt": adaptive_prompt,  # Model inference endpoint bunu messages formatına çeviriyor
                     "max_tokens": 2000,
                     "temperature": 1.0,  # Maximum variation for preview (0.7 default, 1.0 max)
