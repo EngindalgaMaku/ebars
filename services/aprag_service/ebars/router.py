@@ -389,42 +389,21 @@ async def preview_level_response(
         logger.info(f"   Full prompt (first 1000 chars): {adaptive_prompt[:1000]}")
         
         # Get model from session settings (same as main RAG response)
-        # Use the existing get_session_model function from topics module
+        # First try database, then API Gateway
         model_name = None
         try:
             from api.topics import get_session_model
             model_name = get_session_model(request.session_id)
             if model_name:
-                logger.info(f"📋 Using session model from API Gateway: {model_name}")
+                logger.info(f"📋 Using session model: {model_name}")
             else:
-                logger.warning("⚠️ No model found in session RAG settings")
+                logger.warning(f"⚠️ No model found for session {request.session_id}")
         except Exception as e:
-            logger.error(f"❌ Failed to get session model from API Gateway: {e}")
-            # Try to get from database as fallback
-            try:
-                with db.get_connection() as conn:
-                    # Check if we have session RAG settings in database
-                    # This is a fallback - normally API Gateway should provide this
-                    cursor = conn.execute(
-                        "SELECT rag_settings FROM sessions WHERE session_id = ?",
-                        (request.session_id,)
-                    )
-                    result = cursor.fetchone()
-                    if result and result[0]:
-                        try:
-                            rag_settings = json.loads(result[0]) if isinstance(result[0], str) else result[0]
-                            if isinstance(rag_settings, dict):
-                                model_name = rag_settings.get("model")
-                                if model_name:
-                                    logger.info(f"📋 Using session model from database: {model_name}")
-                        except Exception as parse_error:
-                            logger.warning(f"Could not parse rag_settings from database: {parse_error}")
-            except Exception as db_error:
-                logger.error(f"❌ Failed to get session model from database: {db_error}")
+            logger.error(f"❌ Failed to get session model: {e}", exc_info=True)
         
         # If still no model found, raise error instead of using hardcoded default
         if not model_name:
-            error_msg = f"Could not determine model for session {request.session_id}. API Gateway returned error and database fallback failed."
+            error_msg = f"Could not determine model for session {request.session_id}. Database and API Gateway lookups failed."
             logger.error(f"❌ {error_msg}")
             raise HTTPException(
                 status_code=500,

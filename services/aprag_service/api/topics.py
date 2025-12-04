@@ -48,44 +48,70 @@ API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
 
 def get_session_model(session_id: str) -> Optional[str]:
     """
-    Get model configuration for a session from API Gateway
+    Get model configuration for a session from database (primary) or API Gateway (fallback)
     
-    Returns the model name or default if not found
+    Returns the model name or None if not found
     """
+    import os
+    from database.database import DatabaseManager
+    
+    # First try: Get from database (no API call needed)
     try:
-        # Use the correct endpoint - /sessions/{session_id} returns the full session data including rag_settings
+        db_path = os.getenv("APRAG_DB_PATH", os.getenv("DATABASE_PATH", "/app/data/rag_assistant.db"))
+        db = DatabaseManager(db_path)
+        
+        with db.get_connection() as conn:
+            # Try to get rag_settings from sessions table
+            cursor = conn.execute(
+                "SELECT rag_settings FROM sessions WHERE session_id = ?",
+                (session_id,)
+            )
+            result = cursor.fetchone()
+            
+            if result and result[0]:
+                try:
+                    rag_settings = json.loads(result[0]) if isinstance(result[0], str) else result[0]
+                    if isinstance(rag_settings, dict):
+                        model = rag_settings.get("model")
+                        if model:
+                            logger.info(f"✅ Found model in database: {model} for session {session_id}")
+                            return model
+                except Exception as e:
+                    logger.debug(f"Could not parse rag_settings from database: {e}")
+    except Exception as e:
+        logger.debug(f"Database lookup failed (table may not exist): {e}")
+    
+    # Second try: Get from API Gateway (fallback)
+    try:
         # Force internal Docker network URL if we detect external URL
         api_gateway_url = API_GATEWAY_URL
         if api_gateway_url.startswith("https://") or "kodleon.com" in api_gateway_url or ("localhost" not in api_gateway_url and "api-gateway" not in api_gateway_url):
-            logger.info(f"⚠️ Detected external URL ({api_gateway_url}), using internal Docker network URL instead")
+            logger.debug(f"Converting external URL to internal: {api_gateway_url}")
             api_gateway_url = "http://api-gateway:8000"
         
-        logger.info(f"Getting session model for {session_id} from {api_gateway_url}/sessions/{session_id}")
+        logger.info(f"Getting session model from API Gateway: {api_gateway_url}/sessions/{session_id}")
         response = requests.get(
             f"{api_gateway_url}/sessions/{session_id}",
-            timeout=30  # Increased timeout from 5 to 30 seconds
+            timeout=10,
+            headers={"X-Internal-Request": "true"}
         )
-        logger.info(f"API Gateway response status: {response.status_code}")
         
         if response.status_code == 200:
             session_data = response.json()
-            logger.info(f"Session data keys: {list(session_data.keys())}")
             
             # Try to get model from rag_settings (direct)
             rag_settings = session_data.get("rag_settings")
             if rag_settings:
-                # If it's a string, parse it as JSON
                 if isinstance(rag_settings, str):
                     try:
                         rag_settings = json.loads(rag_settings)
                     except json.JSONDecodeError:
-                        logger.warning(f"Could not parse rag_settings as JSON: {rag_settings}")
                         rag_settings = None
                 
                 if isinstance(rag_settings, dict):
                     model = rag_settings.get("model")
                     if model:
-                        logger.info(f"Found model in rag_settings: {model}")
+                        logger.info(f"✅ Found model from API Gateway: {model} for session {session_id}")
                         return model
             
             # Try metadata.rag_settings
@@ -95,7 +121,6 @@ def get_session_model(session_id: str) -> Optional[str]:
                     try:
                         metadata = json.loads(metadata)
                     except json.JSONDecodeError:
-                        logger.warning(f"Could not parse metadata as JSON: {metadata}")
                         metadata = None
                 
                 if isinstance(metadata, dict):
@@ -105,27 +130,23 @@ def get_session_model(session_id: str) -> Optional[str]:
                             try:
                                 rag_settings = json.loads(rag_settings)
                             except json.JSONDecodeError:
-                                logger.warning(f"Could not parse metadata.rag_settings as JSON: {rag_settings}")
                                 rag_settings = None
                         
                         if isinstance(rag_settings, dict):
                             model = rag_settings.get("model")
                             if model:
-                                logger.info(f"Found model in metadata.rag_settings: {model}")
+                                logger.info(f"✅ Found model from API Gateway metadata: {model} for session {session_id}")
                                 return model
-            
-            logger.warning(f"No model found in rag_settings for session {session_id}, using default")
+        elif response.status_code == 401:
+            logger.warning(f"API Gateway requires authentication (401) for session {session_id}")
         else:
-            logger.warning(f"Failed to get session {session_id}: HTTP {response.status_code}, Response: {response.text[:200]}")
-        
-        # Default model if not found
-        return "llama-3.1-8b-instant"
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Request error getting session model for {session_id}: {e}", exc_info=True)
-        # Return default model on error
-        return "llama-3.1-8b-instant"
+            logger.warning(f"API Gateway returned {response.status_code} for session {session_id}")
     except Exception as e:
-        import traceback
+        logger.warning(f"API Gateway lookup failed: {e}")
+    
+    # Not found in database or API Gateway
+    logger.warning(f"❌ Model not found for session {session_id} in database or API Gateway")
+    return None
         logger.error(f"Could not get session model for {session_id}: {e}")
         logger.error(f"Full traceback: {traceback.format_exc()}")
         # Return default model on error
