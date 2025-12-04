@@ -14,13 +14,6 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Plus,
@@ -205,18 +198,18 @@ export const ModelManagement: React.FC<ModelManagementProps> = ({
             <Label>Yeni Model Ekle</Label>
             <div className="flex gap-2">
               <div className="flex-1">
-                <Select value={addProvider} onValueChange={setAddProvider}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Provider seçin..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROVIDER_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.icon} {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select
+                  value={addProvider}
+                  onChange={(e) => setAddProvider(e.target.value)}
+                  className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-background"
+                >
+                  <option value="">Provider seçin...</option>
+                  {PROVIDER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.icon} {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex-1">
                 <Input
