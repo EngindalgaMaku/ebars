@@ -789,7 +789,8 @@ class TopicAwareChunker:
                 if not section.content or len(section.content) == 0:
                     import logging
                     logger = logging.getLogger(__name__)
-                    logger.warning(f"⚠️ Header section '{section.title}' has no content! This may cause issues.")
+                    # Debug level - this is often normal for document structure (e.g., page numbers, section markers)
+                    logger.debug(f"Header section '{section.title}' has no content (this may be normal for document structure)")
                 
                 # If header section itself is very large, it must stay together (like atomic)
                 if section_size_full > self.config.max_size:

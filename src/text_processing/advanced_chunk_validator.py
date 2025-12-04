@@ -28,6 +28,8 @@ from collections import Counter
 import math
 
 # Enhanced dependencies for Phase 1
+# NOTE: This module is deprecated - lightweight chunking system is now used instead
+# Keeping for backward compatibility only
 try:
     from sentence_transformers import SentenceTransformer
     from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
@@ -46,7 +48,10 @@ try:
         
 except ImportError as e:
     EMBEDDING_SUPPORT = False
-    print(f"Warning: Advanced validation features not available: {e}")
+    # Silent fallback - this module is deprecated, lightweight chunking is used instead
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug(f"Advanced validation features not available (deprecated module): {e}")
 
 
 @dataclass

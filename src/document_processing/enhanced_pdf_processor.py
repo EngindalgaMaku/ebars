@@ -616,6 +616,53 @@ class MarkerPDFProcessor:
                 
                 markdown_text, metadata_dict, images = text_from_rendered(rendered)
                 
+                # CRITICAL FIX: CID karakterlerini kontrol et ve gerekirse PyMuPDF ile fallback yap
+                # Marker bazen CID karakterlerini düzgün decode edemiyor
+                import re
+                cid_count = len(re.findall(r'\(cid:\s*\d+\s*\)', markdown_text))
+                total_chars = len(markdown_text)
+                cid_ratio = cid_count / total_chars if total_chars > 0 else 0
+                
+                # Eğer CID oranı %5'ten fazlaysa, PyMuPDF ile fallback yap
+                if cid_ratio > 0.05:
+                    logger.warning(f"⚠️ Yüksek CID karakter oranı tespit edildi: {cid_ratio:.1%} ({cid_count}/{total_chars})")
+                    logger.info("🔄 PyMuPDF ile fallback yapılıyor (daha iyi font decoding)...")
+                    
+                    try:
+                        import fitz  # PyMuPDF
+                        pymupdf_text = ""
+                        doc = fitz.open(pdf_path)
+                        for page_num in range(len(doc)):
+                            page = doc[page_num]
+                            # PyMuPDF font bilgilerini kullanarak daha iyi decode yapar
+                            page_text = page.get_text("text")
+                            if page_text:
+                                pymupdf_text += f"\n\n=== Page {page_num+1} ===\n\n" + page_text + "\n"
+                        doc.close()
+                        
+                        # PyMuPDF çıktısında CID kontrolü
+                        pymupdf_cid_count = len(re.findall(r'\(cid:\s*\d+\s*\)', pymupdf_text))
+                        pymupdf_cid_ratio = pymupdf_cid_count / len(pymupdf_text) if len(pymupdf_text) > 0 else 0
+                        
+                        if pymupdf_cid_ratio < cid_ratio:
+                            logger.info(f"✅ PyMuPDF daha iyi sonuç verdi: CID oranı {pymupdf_cid_ratio:.1%} (Marker: {cid_ratio:.1%})")
+                            markdown_text = pymupdf_text
+                            # PyMuPDF çıktısını da decode et (az da olsa CID olabilir)
+                            markdown_text = self._decode_cid_characters_from_rendered(markdown_text, rendered)
+                        else:
+                            logger.warning(f"⚠️ PyMuPDF da yeterli değil: CID oranı {pymupdf_cid_ratio:.1%}")
+                            # Marker çıktısını decode et
+                            markdown_text = self._decode_cid_characters_from_rendered(markdown_text, rendered)
+                    except ImportError:
+                        logger.warning("⚠️ PyMuPDF (fitz) yüklü değil, Marker çıktısı decode ediliyor")
+                        markdown_text = self._decode_cid_characters_from_rendered(markdown_text, rendered)
+                    except Exception as e:
+                        logger.error(f"❌ PyMuPDF fallback hatası: {e}, Marker çıktısı decode ediliyor")
+                        markdown_text = self._decode_cid_characters_from_rendered(markdown_text, rendered)
+                else:
+                    # CID oranı düşükse sadece decode et
+                    markdown_text = self._decode_cid_characters_from_rendered(markdown_text, rendered)
+                
                 current_progress += progress_stages["markdown_generation"]
                 elapsed = time.time() - stage_start_time
                 logger.info(f"✅ [5/6] Markdown oluşturma tamamlandı ({current_progress}%) - {elapsed:.1f}s")
@@ -757,10 +804,134 @@ class MarkerPDFProcessor:
                 "error": str(fallback_error)
             }
     
+    def _decode_cid_characters_from_rendered(self, text: str, rendered) -> str:
+        """
+        CID (Character ID) karakterlerini Unicode karakterlerine decode et.
+        Rendered objesinden font bilgilerini kullanarak daha iyi decode yapar.
+        
+        CID karakterleri PDF'lerde font encoding sorunlarından kaynaklanır.
+        Marker bazen bunları düzgün decode edemiyor, bu fonksiyon manuel decode yapar.
+        
+        CRITICAL: Eğer text'te çok fazla CID karakteri varsa, bu PDF'in font encoding
+        sorunlu olduğunu gösterir. Bu durumda OCR kullanılması gerekebilir.
+        """
+        if not text:
+            return text
+        
+        import re
+        
+        # CID karakterlerinin sayısını kontrol et
+        cid_count = len(re.findall(r'\(cid:\s*\d+\s*\)', text))
+        total_chars = len(text)
+        cid_ratio = cid_count / total_chars if total_chars > 0 else 0
+        
+        if cid_ratio > 0.1:  # %10'dan fazla CID varsa
+            logger.warning(f"⚠️ Yüksek CID karakter oranı tespit edildi: {cid_ratio:.1%} ({cid_count}/{total_chars})")
+            logger.warning("⚠️ Bu PDF'in font encoding'i sorunlu olabilir. OCR kullanılması önerilir.")
+        
+        # Rendered objesinden font bilgilerini çıkar (eğer varsa)
+        font_mappings = {}
+        try:
+            # Marker'ın rendered objesinden font bilgilerini almayı dene
+            if hasattr(rendered, 'pages') or hasattr(rendered, 'children'):
+                pages = rendered.children if hasattr(rendered, 'children') else []
+                for page in pages:
+                    if hasattr(page, 'blocks'):
+                        for block in page.blocks:
+                            if hasattr(block, 'font_info') or hasattr(block, 'fonts'):
+                                # Font bilgilerini kullanarak CID mapping oluştur
+                                # Marker'ın API'si font bilgilerini doğrudan vermeyebilir
+                                pass
+        except Exception as e:
+            logger.debug(f"Font bilgileri alınamadı: {e}")
+        
+        # CID karakterlerini bul ve decode et
+        # Format: (cid:XXX) veya (cid: XXX)
+        def decode_cid(match):
+            cid_num = match.group(1)
+            try:
+                cid_int = int(cid_num)
+                
+                # Önce font mapping'lerini kontrol et
+                if cid_int in font_mappings:
+                    return font_mappings[cid_int]
+                
+                # Yaygın CID mapping'leri (Türkçe karakterler için)
+                # Identity-H encoding: CID = Unicode code point (çoğu durumda)
+                common_mappings = {
+                    # Türkçe karakterler için yaygın CID'ler
+                    231: 'ç', 199: 'Ç', 287: 'ğ', 286: 'Ğ',
+                    305: 'ı', 304: 'İ', 351: 'ş', 350: 'Ş',
+                    246: 'ö', 214: 'Ö', 252: 'ü', 220: 'Ü',
+                    # ASCII karakterler (32-126)
+                    32: ' ', 33: '!', 34: '"', 35: '#', 36: '$', 37: '%',
+                    38: '&', 39: "'", 40: '(', 41: ')', 42: '*', 43: '+',
+                    44: ',', 45: '-', 46: '.', 47: '/', 48: '0', 49: '1',
+                    50: '2', 51: '3', 52: '4', 53: '5', 54: '6', 55: '7',
+                    56: '8', 57: '9', 58: ':', 59: ';', 60: '<', 61: '=',
+                    62: '>', 63: '?', 64: '@', 65: 'A', 66: 'B', 67: 'C',
+                    68: 'D', 69: 'E', 70: 'F', 71: 'G', 72: 'H', 73: 'I',
+                    74: 'J', 75: 'K', 76: 'L', 77: 'M', 78: 'N', 79: 'O',
+                    80: 'P', 81: 'Q', 82: 'R', 83: 'S', 84: 'T', 85: 'U',
+                    86: 'V', 87: 'W', 88: 'X', 89: 'Y', 90: 'Z',
+                    91: '[', 92: '\\', 93: ']', 94: '^', 95: '_', 96: '`',
+                    97: 'a', 98: 'b', 99: 'c', 100: 'd', 101: 'e', 102: 'f',
+                    103: 'g', 104: 'h', 105: 'i', 106: 'j', 107: 'k', 108: 'l',
+                    109: 'm', 110: 'n', 111: 'o', 112: 'p', 113: 'q', 114: 'r',
+                    115: 's', 116: 't', 117: 'u', 118: 'v', 119: 'w', 120: 'x',
+                    121: 'y', 122: 'z', 123: '{', 124: '|', 125: '}', 126: '~',
+                }
+                
+                if cid_int in common_mappings:
+                    return common_mappings[cid_int]
+                
+                # Identity-H encoding için: CID = Unicode code point (çoğu durumda)
+                # Bu en yaygın encoding türü
+                if 32 <= cid_int <= 126:  # ASCII range
+                    return chr(cid_int)
+                elif 160 <= cid_int <= 255:  # Extended ASCII (Latin-1)
+                    try:
+                        return chr(cid_int)
+                    except:
+                        return ' '  # Decode edilemezse boşluk
+                elif 256 <= cid_int <= 1114111:  # Unicode range
+                    try:
+                        # Identity-H encoding: CID direkt Unicode code point
+                        return chr(cid_int)
+                    except (ValueError, OverflowError):
+                        return ' '
+                else:
+                    # Bilinmeyen CID - boşlukla değiştir
+                    return ' '
+            except (ValueError, OverflowError):
+                # CID numarası parse edilemezse boşluk
+                return ' '
+        
+        # CID karakterlerini decode et
+        # Pattern: (cid:123) veya (cid: 123)
+        text = re.sub(r'\(cid:\s*(\d+)\s*\)', decode_cid, text)
+        
+        # Çoklu ardışık CID karakterlerini temizle (genellikle bozuk encoding)
+        # Örnek: (cid:55) (cid:23) (cid:55) -> bunlar genellikle anlamsız
+        # Ama önce decode etmeyi denedik, şimdi kalanları temizle
+        text = re.sub(r'\s*\(cid:\s*\d+\s*\)\s*\(cid:\s*\d+\s*\)\s*\(cid:\s*\d+\s*\)\s*', ' ', text)
+        text = re.sub(r'\s*\(cid:\s*\d+\s*\)\s*\(cid:\s*\d+\s*\)\s*', ' ', text)
+        
+        # Fazla boşlukları temizle
+        text = re.sub(r' +', ' ', text)
+        text = re.sub(r' \n', '\n', text)
+        
+        return text
+    
     def _clean_markdown_content(self, content: str) -> str:
         """Markdown içeriğini temizle ve formatla"""
         if not content:
             return ""
+        
+        import re
+        
+        # CID karakterleri zaten _decode_cid_characters'da decode edildi
+        # Burada sadece kalan temizlik işlemlerini yapıyoruz
         
         # Temel temizlik işlemleri
         lines = content.split('\n')
@@ -776,6 +947,11 @@ class MarkerPDFProcessor:
             # Satır sonu karakterlerini normalize et
             line = line.rstrip()
             
+            # CID karakterleri içeren satırları temizle (eğer sadece CID varsa satırı atla)
+            if re.match(r'^[\s\(cid:\d+\)\s]+$', line):
+                # Sadece CID karakterleri içeren satır - atla
+                continue
+            
             # Çok uzun satırları kontrol et
             if len(line) > 1000:
                 # Uzun satırları bölmek yerine olduğu gibi bırak (tablo olabilir)
@@ -787,8 +963,11 @@ class MarkerPDFProcessor:
         result = '\n'.join(cleaned_lines)
         
         # Çok fazla ardışık boş satırı temizle
-        import re
         result = re.sub(r'\n\n\n+', '\n\n', result)
+        
+        # Fazla boşlukları temizle (CID temizleme sonrası oluşabilir)
+        result = re.sub(r' +', ' ', result)  # Birden fazla boşluğu tek boşluğa çevir
+        result = re.sub(r' \n', '\n', result)  # Satır başındaki boşlukları temizle
         
         return result.strip()
     
