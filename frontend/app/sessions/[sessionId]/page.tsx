@@ -13,6 +13,7 @@ import {
   listAvailableModels,
   getSession,
 } from "@/lib/api";
+import { ModelManagement } from "./components/rag-settings-tab/ModelManagement";
 import TopicManagementPanel from "@/components/TopicManagementPanel";
 import SessionSettingsPanel from "@/components/SessionSettingsPanel";
 import { useParams, useRouter } from "next/navigation";
@@ -857,6 +858,33 @@ export default function SessionPage() {
                             Modelleri Yükle
                           </Button>
                         )}
+                      </div>
+
+                      {/* Model Management - Model Ekle/Çıkar */}
+                      <div className="lg:col-span-2 mt-4">
+                        <ModelManagement
+                          sessionId={sessionId}
+                          selectedProvider={selectedProvider}
+                          onModelListChange={async () => {
+                            // Model listesi değiştiğinde modelleri yenile
+                            setModelsLoading(true);
+                            try {
+                              const response = await listAvailableModels();
+                              const models = Array.isArray(response)
+                                ? response
+                                : response.models || [];
+                              const filtered = models.filter((m: any) => {
+                                const provider = m.provider || "";
+                                return provider.toLowerCase() === selectedProvider.toLowerCase();
+                              });
+                              setAvailableModels(filtered);
+                            } catch (e: any) {
+                              setError(e.message || "Modeller yüklenemedi");
+                            } finally {
+                              setModelsLoading(false);
+                            }
+                          }}
+                        />
                       </div>
 
                       {/* Embedding Provider */}
