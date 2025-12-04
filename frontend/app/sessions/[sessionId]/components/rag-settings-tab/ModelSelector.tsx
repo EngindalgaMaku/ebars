@@ -44,10 +44,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ sessionId }) => {
     setSelectedQueryModel(""); // Reset model when provider changes
   };
 
-  const handleModelListChange = () => {
+  const handleModelListChange = async () => {
     // Refresh models when model list changes
     if (selectedProvider) {
-      fetchModels();
+      await fetchModels();
     }
   };
 
@@ -254,22 +254,20 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ sessionId }) => {
 
           {/* Model Actions */}
           <div className="flex items-center gap-2">
-            {availableModels.length === 0 && !modelsLoading && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchModels}
-                className="gap-2"
-              >
-                <RefreshCw className="w-3 h-3" />
-                Modelleri Yükle
-              </Button>
-            )}
-            {modelsLoading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <RefreshCw className="w-3 h-3 animate-spin" />
-                Yükleniyor...
-              </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchModels}
+              disabled={modelsLoading || !selectedProvider}
+              className="gap-2"
+            >
+              <RefreshCw className={`w-3 h-3 ${modelsLoading ? "animate-spin" : ""}`} />
+              {modelsLoading ? "Yükleniyor..." : "Modelleri Yenile"}
+            </Button>
+            {availableModels.length === 0 && !modelsLoading && selectedProvider && (
+              <span className="text-sm text-muted-foreground">
+                Bu provider için model bulunamadı. Model Yönetimi bölümünden model ekleyebilirsiniz.
+              </span>
             )}
           </div>
 

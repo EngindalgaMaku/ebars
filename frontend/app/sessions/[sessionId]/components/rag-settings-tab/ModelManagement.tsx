@@ -15,6 +15,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import {
   Plus,
   Trash2,
@@ -52,7 +53,7 @@ export const ModelManagement: React.FC<ModelManagementProps> = ({
   selectedProvider,
   onModelListChange,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
   const [models, setModels] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +82,13 @@ export const ModelManagement: React.FC<ModelManagementProps> = ({
       fetchModels();
     }
   }, [isExpanded, sessionId]);
+
+  // Auto-refresh when selected provider changes
+  useEffect(() => {
+    if (selectedProvider && isExpanded) {
+      fetchModels();
+    }
+  }, [selectedProvider, isExpanded]);
 
   useEffect(() => {
     if (selectedProvider && !addProvider) {
@@ -128,8 +136,9 @@ export const ModelManagement: React.FC<ModelManagementProps> = ({
       await removeModelFromSession(sessionId, provider, model);
       setSuccess(`Model '${model}' ${provider} provider'ından kaldırıldı`);
       await fetchModels();
+      // Trigger parent refresh to update model list
       if (onModelListChange) {
-        onModelListChange();
+        await onModelListChange();
       }
     } catch (err: any) {
       setError(err.message || "Model kaldırılırken hata oluştu");
@@ -151,12 +160,15 @@ export const ModelManagement: React.FC<ModelManagementProps> = ({
   const currentProviderModels = models[selectedProvider] || [];
 
   return (
-    <Card className="mt-4">
-      <CardHeader>
+    <Card className="mt-4 border-2 border-primary/20">
+      <CardHeader className="bg-primary/5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Settings className="w-4 h-4 text-primary" />
-            <CardTitle className="text-base">Model Yönetimi</CardTitle>
+            <Settings className="w-5 h-5 text-primary" />
+            <CardTitle className="text-lg font-bold">Model Yönetimi</CardTitle>
+            <Badge variant="outline" className="ml-2">
+              Dinamik
+            </Badge>
           </div>
           <Button
             variant="ghost"
@@ -171,8 +183,8 @@ export const ModelManagement: React.FC<ModelManagementProps> = ({
             )}
           </Button>
         </div>
-        <CardDescription>
-          Provider'lara model ekleyip çıkarabilirsiniz
+        <CardDescription className="text-sm font-medium">
+          Provider'lara model ekleyip çıkarabilirsiniz. Değişiklikler anında yansır.
         </CardDescription>
       </CardHeader>
       {isExpanded && (
@@ -245,10 +257,12 @@ export const ModelManagement: React.FC<ModelManagementProps> = ({
 
           {/* Current Provider Models */}
           {selectedProvider && (
-            <div className="space-y-2">
-              <Label>
+            <div className="space-y-2 border-t border-border pt-4">
+              <Label className="text-base font-semibold">
                 {getProviderIcon(selectedProvider)} {getProviderLabel(selectedProvider)} Modelleri
-                ({currentProviderModels.length})
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  ({currentProviderModels.length} model)
+                </span>
               </Label>
               {currentProviderModels.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
