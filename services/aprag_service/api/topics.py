@@ -147,10 +147,6 @@ def get_session_model(session_id: str) -> Optional[str]:
     # Not found in database or API Gateway
     logger.warning(f"❌ Model not found for session {session_id} in database or API Gateway")
     return None
-        logger.error(f"Could not get session model for {session_id}: {e}")
-        logger.error(f"Full traceback: {traceback.format_exc()}")
-        # Return default model on error
-        return "llama-3.1-8b-instant"
 
 
 # ============================================================================
