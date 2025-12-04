@@ -3150,10 +3150,12 @@ export async function getSessionModelsConfig(sessionId: string): Promise<{
   models: Record<string, string[]>;
   providers: string[];
 }> {
+  const token = tokenManager.getAccessToken?.() || null;
   const res = await fetch(`${getApiUrl()}/sessions/${sessionId}/models/config`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     cache: "no-store",
   });
@@ -3174,10 +3176,12 @@ export async function addModelToSession(
   message: string;
   models?: Record<string, string[]>;
 }> {
+  const token = tokenManager.getAccessToken?.() || null;
   const res = await fetch(`${getApiUrl()}/sessions/${sessionId}/models/add`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ provider, model }),
   });
@@ -3199,10 +3203,12 @@ export async function removeModelFromSession(
   message: string;
   models?: Record<string, string[]>;
 }> {
+  const token = tokenManager.getAccessToken?.() || null;
   const res = await fetch(`${getApiUrl()}/sessions/${sessionId}/models/remove`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ provider, model }),
   });
