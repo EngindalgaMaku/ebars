@@ -2960,10 +2960,17 @@ def add_model_to_session(
     _require_owner_or_admin(request, session_id)
     
     try:
+        # Get Authorization header from request
+        auth_header = request.headers.get("Authorization")
+        headers = {"Content-Type": "application/json"}
+        if auth_header:
+            headers["Authorization"] = auth_header
+        
         # Proxy to APRAG service for session-specific model management
         response = requests.post(
             f"{APRAG_SERVICE_URL}/api/sessions/{session_id}/models/add",
             json={"provider": provider, "model": model},
+            headers=headers,
             timeout=30
         )
         if response.status_code == 200:
@@ -2993,10 +3000,17 @@ def remove_model_from_session(
     _require_owner_or_admin(request, session_id)
     
     try:
+        # Get Authorization header from request
+        auth_header = request.headers.get("Authorization")
+        headers = {"Content-Type": "application/json"}
+        if auth_header:
+            headers["Authorization"] = auth_header
+        
         # Proxy to APRAG service for session-specific model management
         response = requests.post(
             f"{APRAG_SERVICE_URL}/api/sessions/{session_id}/models/remove",
             json={"provider": provider, "model": model},
+            headers=headers,
             timeout=30
         )
         if response.status_code == 200:
@@ -3021,9 +3035,16 @@ def get_session_models_config(request: Request, session_id: str):
     _require_owner_or_admin(request, session_id)
     
     try:
+        # Get Authorization header from request
+        auth_header = request.headers.get("Authorization")
+        headers = {}
+        if auth_header:
+            headers["Authorization"] = auth_header
+        
         # Proxy to APRAG service for session-specific model management
         response = requests.get(
             f"{APRAG_SERVICE_URL}/api/sessions/{session_id}/models/config",
+            headers=headers,
             timeout=30
         )
         if response.status_code == 200:
