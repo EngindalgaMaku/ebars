@@ -30,7 +30,6 @@ import { ModelSelector } from "./ModelSelector";
 import { EmbeddingSelector } from "./EmbeddingSelector";
 import { RerankerSelector } from "./RerankerSelector";
 import { SettingsSaveButton } from "./SettingsSaveButton";
-import { ModelManagement } from "./ModelManagement";
 import { useRagSettings } from "../../hooks/useRagSettings";
 import { Target } from "lucide-react";
 
@@ -242,18 +241,6 @@ export const RagSettingsTab: React.FC<RagSettingsTabProps> = ({
           <h3 className="text-lg font-medium text-foreground">Model Seçimi</h3>
         </div>
         <ModelSelector sessionId={sessionId} />
-        
-        {/* Model Management - Model Ekle/Çıkar */}
-        <div className="mt-4">
-          <ModelManagement
-            sessionId={sessionId}
-            selectedProvider={selectedProvider}
-            onModelListChange={async () => {
-              // Model listesi değiştiğinde sayfayı yenile
-              window.location.reload();
-            }}
-          />
-        </div>
       </div>
 
       {/* Embedding Selection Section */}
