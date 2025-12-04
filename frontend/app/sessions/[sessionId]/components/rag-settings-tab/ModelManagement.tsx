@@ -70,8 +70,14 @@ export const ModelManagement: React.FC<ModelManagementProps> = ({
       const response = await getSessionModelsConfig(sessionId);
       setModels(response.models || {});
     } catch (err: any) {
-      setError(err.message || "Modeller yüklenirken hata oluştu");
+      const errorMessage = err.message || "Modeller yüklenirken hata oluştu";
+      setError(errorMessage);
       console.error("Error fetching models:", err);
+      // Log more details for debugging
+      if (err.response) {
+        console.error("Response status:", err.response.status);
+        console.error("Response data:", err.response.data);
+      }
     } finally {
       setLoading(false);
     }
