@@ -4,6 +4,8 @@ import requests
 import urllib3
 import traceback
 import re
+import json
+from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
@@ -28,6 +30,9 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 ALIBABA_API_KEY = os.getenv("ALIBABA_API_KEY", os.getenv("DASHSCOPE_API_KEY"))
 ALIBABA_API_BASE = os.getenv("ALIBABA_API_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+
+# --- Model Configuration File Path ---
+CONFIG_FILE_PATH = Path(__file__).parent / "models_config.json"
 
 # --- FastAPI App Initialization ---
 app = FastAPI(
@@ -103,6 +108,20 @@ class OutputCleanerResponse(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
     cleaned_answer: str
     model_used: str
+
+class AddModelRequest(BaseModel):
+    provider: str
+    model: str
+
+class RemoveModelRequest(BaseModel):
+    provider: str
+    model: str
+
+class ModelManagementResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+    success: bool
+    message: str
+    models: Optional[dict] = None
 
 # --- LLM Clients ---
 ollama_client = None
@@ -334,6 +353,59 @@ def clean_llm_output(raw_output: str, original_query: str = "") -> str:
         print(f"🔧 [CLEANER] ERROR: {e}")
         return raw_output.strip()
 
+
+# --- Model Configuration Management Functions ---
+def load_models_config() -> dict:
+    """Load models configuration from JSON file."""
+    try:
+        if CONFIG_FILE_PATH.exists():
+            with open(CONFIG_FILE_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            # Return default empty structure if file doesn't exist
+            return {
+                "groq": [], "ollama": [], "huggingface": [], 
+                "openrouter": [], "deepseek": [], "alibaba": [], "openai": []
+            }
+    except Exception as e:
+        print(f"⚠️ Error loading models config: {e}")
+        return {
+            "groq": [], "ollama": [], "huggingface": [], 
+            "openrouter": [], "deepseek": [], "alibaba": [], "openai": []
+        }
+
+def save_models_config(config: dict) -> bool:
+    """Save models configuration to JSON file."""
+    try:
+        with open(CONFIG_FILE_PATH, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"❌ Error saving models config: {e}")
+        return False
+
+def add_model_to_config(provider: str, model: str) -> bool:
+    """Add a model to the configuration for a specific provider."""
+    config = load_models_config()
+    provider_lower = provider.lower()
+    
+    if provider_lower not in config:
+        config[provider_lower] = []
+    
+    if model not in config[provider_lower]:
+        config[provider_lower].append(model)
+        return save_models_config(config)
+    return True  # Model already exists
+
+def remove_model_from_config(provider: str, model: str) -> bool:
+    """Remove a model from the configuration for a specific provider."""
+    config = load_models_config()
+    provider_lower = provider.lower()
+    
+    if provider_lower in config and model in config[provider_lower]:
+        config[provider_lower].remove(model)
+        return save_models_config(config)
+    return True  # Model doesn't exist
 
 # --- Helper Functions ---
 def is_groq_model(model_name: str) -> bool:
@@ -804,149 +876,37 @@ async def generate_response(request: GenerationRequest):
 @app.get("/models/available", summary="List Available Models")
 def get_available_models():
     """Returns a list of available models from all configured providers."""
-    models = {"groq": [], "ollama": [], "huggingface": [], "openrouter": [], "deepseek": [], "alibaba": []}
-
+    # Load models from config file
+    config_models = load_models_config()
+    
+    # Initialize models dict with all providers
+    models = {
+        "groq": [], "ollama": [], "huggingface": [], 
+        "openrouter": [], "deepseek": [], "alibaba": [], "openai": []
+    }
+    
+    # Load models from config file (only if provider is enabled)
     if groq_client:
-        # Only tested and confirmed working models
-        models["groq"] = [
-            "llama-3.1-8b-instant",
-            "llama-3.3-70b-versatile",
-            "openai/gpt-oss-20b",
-            "qwen/qwen3-32b",
-            # All 4 models above confirmed working via direct Groq API testing 2025-11-02
-            # Keep other models for future testing when they become stable
-            "groq/compound",
-            "groq/compound-mini",
-            "allam-2-7b",
-            "meta-llama/llama-4-maverick-17b-128e-instruct",
-            "meta-llama/llama-4-scout-17b-16e-instruct",
-            "openai/gpt-oss-120b",
-            "openai/gpt-oss-safeguard-20b",
-            "moonshotai/kimi-k2-instruct",
-            "moonshotai/kimi-k2-instruct-0905"
-        ]
-
+        models["groq"] = config_models.get("groq", [])
+    
     if openrouter_client and OPENROUTER_API_KEY:
-        # Free OpenRouter models - cost-effective and reliable
-        models["openrouter"] = [
-            "meta-llama/llama-3.1-8b-instruct:free",
-            "mistralai/mistral-7b-instruct:free",
-            "microsoft/phi-3-mini-4k-instruct:free",
-            "google/gemma-2-9b-it:free",
-            "google/gemini-2.5-flash-lite",
-            "nousresearch/hermes-3-llama-3.1-8b:free",
-            "qwen/qwen3-32b",
-            "x-ai/grok-4.1-fast:free"  # Grok 4.1 Fast - Free tier
-        ]
-
+        models["openrouter"] = config_models.get("openrouter", [])
+    
     if deepseek_client and DEEPSEEK_API_KEY:
-        # DeepSeek models - OpenAI-compatible API
-        models["deepseek"] = [
-            "deepseek-chat",  # Non-thinking mode (DeepSeek-V3.2-Exp)
-            "deepseek-reasoner"  # Thinking mode (DeepSeek-V3.2-Exp)
-        ]
-
-    # Try to get Ollama models with timeout (DISABLED - causes unnecessary connection attempts)
-    # Ollama models will be empty by default to avoid blocking and connection errors
-    # If Ollama is needed, it will be connected lazily on first use
-    models["ollama"] = []
-    # DISABLED: Ollama connection check to prevent unnecessary connection attempts
-    # client = get_ollama_client()
-    # if client is not None:
-    #     try:
-    #         # Use threading to add timeout to Ollama list() call
-    #         import threading
-    #         installed_models = None
-    #         exception_occurred = None
-    #         
-    #         def fetch_models():
-    #             nonlocal installed_models, exception_occurred
-    #             try:
-    #                 installed_models = client.list()
-    #             except Exception as e:
-    #                 exception_occurred = e
-    #         
-    #         thread = threading.Thread(target=fetch_models)
-    #         thread.daemon = True
-    #         thread.start()
-    #         thread.join(timeout=3)  # 3 second timeout
-    #         
-    #         if thread.is_alive():
-    #             print("⚠️ Ollama list() call timed out after 3 seconds")
-    #             models["ollama"] = []
-    #         elif exception_occurred:
-    #             print(f"Could not fetch Ollama models: {exception_occurred}")
-    #             models["ollama"] = []
-    #         elif installed_models:
-    #             print(f"Ollama list() response: {installed_models}")  # Debug print
-    #             # Fix the model name extraction
-    #             if 'models' in installed_models and isinstance(installed_models['models'], list):
-    #                 model_names = []
-    #                 for model in installed_models['models']:
-    #                     if isinstance(model, dict):
-    #                         # Check for both 'name' and 'model' fields for compatibility
-    #                         if 'name' in model:
-    #                             model_names.append(model['name'])
-    #                         elif 'model' in model:
-    #                             model_names.append(model['model'])
-    #                     elif isinstance(model, str):
-    #                         model_names.append(model)
-    #                     else:
-    #                         # Handle Model objects with 'model' attribute
-    #                         if hasattr(model, 'model'):
-    #                             model_names.append(model.model)
-    #                         elif hasattr(model, 'name'):
-    #                             model_names.append(model.name)
-    #                 models["ollama"] = model_names
-    #             else:
-    #                 # Handle case where the response format is different
-    #                 models["ollama"] = []
-    #                 print(f"Unexpected response format from Ollama list(): {installed_models}")
-    #         else:
-    #             models["ollama"] = []
-    #     except Exception as e:
-    #         print(f"Could not fetch Ollama models: {e}")
-    #         # Return empty list for ollama if it fails during the call
-    #         models["ollama"] = []
-
-    # HuggingFace models - Only models confirmed to work with Inference API
-    # Note: Meta Llama models are NOT available on Inference API (require local transformers)
-    # Note: Some models exist on HuggingFace but are only available via local transformers
-    models["huggingface"] = [
-        # Mistral models - Most reliable and confirmed working
-        "mistralai/Mistral-7B-Instruct-v0.2",
-        "mistralai/Mistral-7B-Instruct-v0.3",
-        # Microsoft models
-        "microsoft/Phi-3-mini-4k-instruct",
-        "microsoft/Phi-3-medium-4k-instruct",
-        # Qwen models
-        "Qwen/Qwen2-7B-Instruct",
-        "Qwen/Qwen2.5-7B-Instruct",
-        # Google models
-        "google/gemma-7b-it",
-        "google/gemma-2-7b-it",
-        # Other models
-        "tiiuae/falcon-7b-instruct",
-        "HuggingFaceH4/zephyr-7b-beta",
-        "NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO",
-        "Intel/neural-chat-7b-v3-1",
-        # Meta Llama models - REMOVED: Not available on Inference API
-        # Use mistralai/Mistral-7B-Instruct-v0.3 or Ollama llama3:8b as alternatives
-    ]
-
-    # Alibaba DashScope Qwen models - OpenAI-compatible API
-    # Always include models in list (API key check happens during actual usage)
-    # Alibaba DashScope Qwen models - OpenAI-compatible API (Güncel 2025 modelleri)
-    # Always include models in list (API key check happens during actual usage)
-    models["alibaba"] = [
-        # Güncel chat modelleri (2025)
-        "qwen-plus",              # Qwen Plus - Genel amaçlı
-        "qwen-turbo",             # Qwen Turbo - Hızlı yanıt
-        "qwen-flash",             # Qwen Flash - Çok hızlı yanıt
-        "qwen-max",               # Qwen Max - En güçlü model
-        "qwen-max-longcontext",   # Qwen Max Long Context - Uzun bağlam desteği
-        "qwen2.5-max",            # Qwen 2.5 Max - 2025 güncel model
-    ]
+        models["deepseek"] = config_models.get("deepseek", [])
+    
+    # Ollama models - empty by default (lazy loading)
+    models["ollama"] = config_models.get("ollama", [])
+    
+    # HuggingFace models - always available (free tier)
+    models["huggingface"] = config_models.get("huggingface", [])
+    
+    # Alibaba models - always include (API key check happens during usage)
+    models["alibaba"] = config_models.get("alibaba", [])
+    
+    # OpenAI models - if OpenAI client is configured
+    # Note: OpenAI client initialization would need to be added if needed
+    models["openai"] = config_models.get("openai", [])
 
     return models
 
@@ -1663,6 +1623,97 @@ CEVAP:"""
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to generate answer: {str(e)}")
 
+
+@app.post("/models/add", response_model=ModelManagementResponse, summary="Add Model to Provider")
+def add_model(request: AddModelRequest):
+    """
+    Add a model to a specific provider's model list.
+    This allows dynamic model management without code changes.
+    """
+    try:
+        provider = request.provider.lower()
+        model = request.model.strip()
+        
+        if not provider or not model:
+            raise HTTPException(status_code=400, detail="Provider and model are required")
+        
+        valid_providers = ["groq", "openrouter", "deepseek", "huggingface", "alibaba", "ollama", "openai"]
+        if provider not in valid_providers:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid provider. Valid providers: {', '.join(valid_providers)}"
+            )
+        
+        success = add_model_to_config(provider, model)
+        if success:
+            config = load_models_config()
+            return ModelManagementResponse(
+                success=True,
+                message=f"Model '{model}' added to {provider} provider",
+                models=config
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Failed to save model configuration")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error adding model: {e}")
+        raise HTTPException(status_code=500, detail=f"An error occurred while adding the model: {str(e)}")
+
+@app.post("/models/remove", response_model=ModelManagementResponse, summary="Remove Model from Provider")
+def remove_model(request: RemoveModelRequest):
+    """
+    Remove a model from a specific provider's model list.
+    This allows removing deprecated or unavailable models.
+    """
+    try:
+        provider = request.provider.lower()
+        model = request.model.strip()
+        
+        if not provider or not model:
+            raise HTTPException(status_code=400, detail="Provider and model are required")
+        
+        valid_providers = ["groq", "openrouter", "deepseek", "huggingface", "alibaba", "ollama", "openai"]
+        if provider not in valid_providers:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid provider. Valid providers: {', '.join(valid_providers)}"
+            )
+        
+        success = remove_model_from_config(provider, model)
+        if success:
+            config = load_models_config()
+            return ModelManagementResponse(
+                success=True,
+                message=f"Model '{model}' removed from {provider} provider",
+                models=config
+            )
+        else:
+            raise HTTPException(status_code=500, detail="Failed to save model configuration")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error removing model: {e}")
+        raise HTTPException(status_code=500, detail=f"An error occurred while removing the model: {str(e)}")
+
+@app.get("/models/config", summary="Get Model Configuration")
+def get_models_config():
+    """
+    Get the current model configuration for all providers.
+    Useful for viewing the current state of model lists.
+    """
+    try:
+        config = load_models_config()
+        return {
+            "success": True,
+            "models": config,
+            "providers": list(config.keys())
+        }
+    except Exception as e:
+        print(f"❌ Error getting models config: {e}")
+        raise HTTPException(status_code=500, detail=f"An error occurred while getting model configuration: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

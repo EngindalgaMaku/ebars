@@ -1,0 +1,56 @@
+{
+  "groq": [
+    "llama-3.1-8b-instant",
+    "llama-3.3-70b-versatile",
+    "openai/gpt-oss-20b",
+    "qwen/qwen3-32b",
+    "groq/compound",
+    "groq/compound-mini",
+    "allam-2-7b",
+    "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-safeguard-20b",
+    "moonshotai/kimi-k2-instruct",
+    "moonshotai/kimi-k2-instruct-0905"
+  ],
+  "openrouter": [
+    "meta-llama/llama-3.1-8b-instruct:free",
+    "mistralai/mistral-7b-instruct:free",
+    "microsoft/phi-3-mini-4k-instruct:free",
+    "google/gemma-2-9b-it:free",
+    "google/gemini-2.5-flash-lite",
+    "nousresearch/hermes-3-llama-3.1-8b:free",
+    "qwen/qwen3-32b",
+    "x-ai/grok-4.1-fast:free"
+  ],
+  "deepseek": [
+    "deepseek-chat",
+    "deepseek-reasoner"
+  ],
+  "huggingface": [
+    "mistralai/Mistral-7B-Instruct-v0.2",
+    "mistralai/Mistral-7B-Instruct-v0.3",
+    "microsoft/Phi-3-mini-4k-instruct",
+    "microsoft/Phi-3-medium-4k-instruct",
+    "Qwen/Qwen2-7B-Instruct",
+    "Qwen/Qwen2.5-7B-Instruct",
+    "google/gemma-7b-it",
+    "google/gemma-2-7b-it",
+    "tiiuae/falcon-7b-instruct",
+    "HuggingFaceH4/zephyr-7b-beta",
+    "NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO",
+    "Intel/neural-chat-7b-v3-1"
+  ],
+  "alibaba": [
+    "qwen-plus",
+    "qwen-turbo",
+    "qwen-flash",
+    "qwen-max",
+    "qwen-max-longcontext",
+    "qwen2.5-max"
+  ],
+  "ollama": [],
+  "openai": []
+}
+

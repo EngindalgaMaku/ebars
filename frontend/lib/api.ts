@@ -3144,6 +3144,77 @@ export async function markNotificationsAsRead(
   return res.json();
 }
 
+// Model Management API Functions (Teacher/Session Owner only)
+export async function getSessionModelsConfig(sessionId: string): Promise<{
+  success: boolean;
+  models: Record<string, string[]>;
+  providers: string[];
+}> {
+  const res = await fetch(`${getApiUrl()}/sessions/${sessionId}/models/config`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to fetch model configuration");
+  }
+
+  return res.json();
+}
+
+export async function addModelToSession(
+  sessionId: string,
+  provider: string,
+  model: string
+): Promise<{
+  success: boolean;
+  message: string;
+  models?: Record<string, string[]>;
+}> {
+  const res = await fetch(`${getApiUrl()}/sessions/${sessionId}/models/add`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ provider, model }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Failed to add model" }));
+    throw new Error(error.detail || "Failed to add model");
+  }
+
+  return res.json();
+}
+
+export async function removeModelFromSession(
+  sessionId: string,
+  provider: string,
+  model: string
+): Promise<{
+  success: boolean;
+  message: string;
+  models?: Record<string, string[]>;
+}> {
+  const res = await fetch(`${getApiUrl()}/sessions/${sessionId}/models/remove`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ provider, model }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Failed to remove model" }));
+    throw new Error(error.detail || "Failed to remove model");
+  }
+
+  return res.json();
+}
+
 // Delete notifications
 export async function deleteNotifications(notificationIds: string[]): Promise<{
   success: boolean;
