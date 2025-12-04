@@ -455,10 +455,18 @@ async def preview_level_response(
                     logger.warning(f"⚠️ WARNING: Responses are {similarity:.2%} similar (very close!)")
                     # Still return it, but log warning
             
+        except HTTPException:
+            # Re-raise HTTP exceptions (they already have proper error messages)
+            raise
         except Exception as e:
-            logger.error(f"Error calling model inference: {e}", exc_info=True)
-            # Fallback: return original response with note
-            preview_response = request.rag_response
+            logger.error(f"❌ Error calling model inference: {e}", exc_info=True)
+            logger.error(f"   Error type: {type(e).__name__}")
+            logger.error(f"   Error details: {str(e)}")
+            # Don't fallback to original - raise error instead
+            raise HTTPException(
+                status_code=500,
+                detail=f"Model inference hatası: {str(e)}"
+            )
         
         # Compare response lengths for debugging
         original_length = len(request.rag_response)

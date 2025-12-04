@@ -215,11 +215,23 @@ async def adaptive_query(
                     value = getattr(session_settings_dict, session_key)
                 
                 if value is not None:
-                    bool_value = bool(value)
-                    logger.info(f"  ✅ {feature_name}: session override = {bool_value} (from session_settings)")
+                    # Convert to bool - handle 0/1, True/False, "true"/"false", etc.
+                    if isinstance(value, bool):
+                        bool_value = value
+                    elif isinstance(value, (int, float)):
+                        bool_value = bool(value)
+                    elif isinstance(value, str):
+                        bool_value = value.lower() in ('true', '1', 'yes', 'on')
+                    else:
+                        bool_value = bool(value)
+                    
+                    logger.info(f"  ✅ {feature_name}: session override = {bool_value} (from session_settings, raw={value})")
                     return bool_value
+                else:
+                    # Session settings exists but this feature key is missing - use default
+                    logger.debug(f"  → {feature_name}: not in session_settings, using default")
             
-            # Fallback to default function
+            # Fallback to default function (defaults to True for zpd, bloom, cognitive_load)
             default_value = default_func()
             logger.info(f"  → {feature_name}: default = {default_value} (no session override)")
             return default_value
@@ -237,9 +249,11 @@ async def adaptive_query(
         logger.info(f"🔧 Components active: {components_active}")
         if session_settings_dict:
             logger.info(f"📋 Session settings values:")
-            for key in ['enable_cacs', 'enable_zpd', 'enable_bloom', 'enable_cognitive_load', 'enable_emoji_feedback']:
+            for key in ['enable_cacs', 'enable_zpd', 'enable_bloom', 'enable_cognitive_load', 'enable_emoji_feedback', 'enable_personalized_responses']:
                 value = session_settings_dict.get(key, 'N/A')
-                logger.info(f"   - {key}: {value}")
+                logger.info(f"   - {key}: {value} (type: {type(value).__name__})")
+        else:
+            logger.warning("⚠️ No session settings found - using default feature flags")
         
         # === 1. STUDENT PROFILE & HISTORY ===
         logger.info("1️⃣ Loading student profile and history...")
@@ -427,6 +441,10 @@ async def adaptive_query(
         
         # === 4. PERSONALIZED RESPONSE GENERATION ===
         logger.info("4️⃣ Generating personalized response...")
+        logger.info(f"   Personalized responses enabled: {components_active['personalized_responses']}")
+        logger.info(f"   ZPD enabled: {components_active['zpd']}")
+        logger.info(f"   Bloom enabled: {components_active['bloom']}")
+        logger.info(f"   Cognitive Load enabled: {components_active['cognitive_load']}")
         
         # Generate personalized response using LLM-based personalization
         personalized_response = request.rag_response

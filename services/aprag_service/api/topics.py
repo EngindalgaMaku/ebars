@@ -698,11 +698,12 @@ def get_recent_interactions_for_topic(
                     si.query,
                     si.feedback_score,
                     si.emoji_feedback,
-                    si.understanding_level,
-                    si.satisfaction_level,
+                    sf.understanding_level,
+                    sf.satisfaction_level,
                     si.created_at
                 FROM student_interactions si
                 INNER JOIN question_topic_mapping qtm ON si.interaction_id = qtm.interaction_id
+                LEFT JOIN student_feedback sf ON si.interaction_id = sf.interaction_id
                 WHERE si.user_id = ? 
                     AND si.session_id = ?
                     AND qtm.topic_id = ?
@@ -1786,23 +1787,32 @@ async def classify_question(request: QuestionClassificationRequest):
                             
                             # Update mastery fields if calculated
                             if mastery_score is not None and mastery_level is not None:
-                                conn.execute("""
-                                    INSERT OR REPLACE INTO topic_progress (
-                                        user_id, session_id, topic_id,
-                                        questions_asked, last_question_timestamp,
-                                        mastery_score, mastery_level, updated_at
-                                    ) VALUES (?, ?, ?, COALESCE((
-                                        SELECT questions_asked FROM topic_progress 
-                                        WHERE user_id = ? AND session_id = ? AND topic_id = ?
-                                    ), 0) + 1, CURRENT_TIMESTAMP, ?, ?, CURRENT_TIMESTAMP)
-                                """, (
-                                    user_id, request.session_id, classification["topic_id"],
-                                    user_id, request.session_id, classification["topic_id"],
-                                    mastery_score, mastery_level
-                                ))
+                                # Verify topic_id exists in topics table before inserting
+                                topic_check = conn.execute(
+                                    "SELECT topic_id FROM topics WHERE topic_id = ?",
+                                    (classification["topic_id"],)
+                                ).fetchone()
                                 
-                                conn.commit()
-                                logger.info(f"Updated topic progress for user {user_id}, topic {classification['topic_id']}")
+                                if not topic_check:
+                                    logger.warning(f"Topic ID {classification['topic_id']} does not exist in topics table. Skipping topic_progress update.")
+                                else:
+                                    conn.execute("""
+                                        INSERT OR REPLACE INTO topic_progress (
+                                            user_id, session_id, topic_id,
+                                            questions_asked, last_question_timestamp,
+                                            mastery_score, mastery_level, updated_at
+                                        ) VALUES (?, ?, ?, COALESCE((
+                                            SELECT questions_asked FROM topic_progress 
+                                            WHERE user_id = ? AND session_id = ? AND topic_id = ?
+                                        ), 0) + 1, CURRENT_TIMESTAMP, ?, ?, CURRENT_TIMESTAMP)
+                                    """, (
+                                        user_id, request.session_id, classification["topic_id"],
+                                        user_id, request.session_id, classification["topic_id"],
+                                        mastery_score, mastery_level
+                                    ))
+                                    
+                                    conn.commit()
+                                    logger.info(f"Updated topic progress for user {user_id}, topic {classification['topic_id']}")
                 
                 except Exception as e:
                     logger.error(f"Error updating topic progress: {e}")

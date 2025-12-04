@@ -244,11 +244,42 @@ def _generate_personalization_prompt(
         prompt += "- Pratik örnekler ekle\n"
         prompt += "- Günlük hayattan örnekler ver\n"
     
-    if factors["difficulty_level"] == "beginner" or (zpd_info and zpd_info.get('recommended_level') == 'elementary'):
-        prompt += "- Temel kavramları önce açıkla\n"
-        prompt += "- Teknik terimleri basit dille açıkla\n"
-        prompt += "- Daha basit kelimeler kullan\n"
-    elif factors["difficulty_level"] == "advanced" or (zpd_info and zpd_info.get('recommended_level') == 'advanced'):
+    # Map EBARS difficulty levels if available
+    ebars_difficulty = None
+    if zpd_info and 'recommended_level' in zpd_info:
+        recommended = zpd_info['recommended_level']
+        # Map legacy levels to EBARS levels
+        if recommended in ['very_struggling', 'struggling', 'normal', 'good', 'excellent']:
+            ebars_difficulty = recommended
+        elif recommended == 'elementary':
+            ebars_difficulty = 'struggling'
+        elif recommended == 'beginner':
+            ebars_difficulty = 'very_struggling'
+        elif recommended == 'intermediate':
+            ebars_difficulty = 'normal'
+        elif recommended == 'advanced':
+            ebars_difficulty = 'good'
+        elif recommended == 'expert':
+            ebars_difficulty = 'excellent'
+    
+    if factors["difficulty_level"] == "beginner" or ebars_difficulty in ['very_struggling', 'struggling']:
+        if ebars_difficulty == 'struggling':
+            prompt += """
+⚠️ ÖĞRENME SÜRECİNDE SEVİYESİ - MUTLAKA UYGULA:
+- Teknik terimleri MUTLAKA basitleştir ve açıkla
+- Her teknik terimi günlük hayattan örnekle açıkla
+- Cümleleri 12-18 kelime arasında tut (uzun cümlelerden kaçın!)
+- 3-4 somut örnek MUTLAKA ver
+- Benzetmeler kullan (örn: "harddisk, evdeki dolap gibidir")
+- Destekleyici dil kullan ("Anladın mı?", "Şimdi daha net oldu mu?")
+- Adım adım açıkla, her adımı tek tek göster
+- Günlük hayattan somut örnekler ver
+"""
+        else:
+            prompt += "- Temel kavramları önce açıkla\n"
+            prompt += "- Teknik terimleri basit dille açıkla\n"
+            prompt += "- Daha basit kelimeler kullan\n"
+    elif factors["difficulty_level"] == "advanced" or ebars_difficulty in ['good', 'excellent']:
         prompt += "- Daha derinlemesine bilgi ver\n"
         prompt += "- İleri seviye detaylar ekle\n"
     
@@ -469,6 +500,8 @@ async def personalize_response(
                 )
                 
                 logger.info(f"✅ EBARS prompt generated: {len(personalization_prompt)} chars")
+                logger.info(f"   EBARS difficulty: {ebars_difficulty}")
+                logger.debug(f"   Prompt preview (first 500 chars): {personalization_prompt[:500]}")
             except Exception as e:
                 logger.warning(f"EBARS prompt generation failed, falling back to standard: {e}")
                 # Fallback to standard prompt

@@ -34,7 +34,34 @@ docker-compose up -d
 ```
 
 ### Logları Görüntüleme
+
+#### Production Ortamında (Hetzner)
 ```bash
+# APRAG Service logları (en önemli)
+docker compose -f docker-compose.prod.yml logs -f aprag-service
+
+# Son 100 satır APRAG logları
+docker compose -f docker-compose.prod.yml logs --tail 100 aprag-service
+
+# Container adı ile direkt log (alternatif)
+docker logs aprag-service-prod -f
+
+# Tüm servislerin logları
+docker compose -f docker-compose.prod.yml logs -f
+
+# Belirli bir servisin logları
+docker compose -f docker-compose.prod.yml logs -f [servis-adı]
+
+# Hata loglarını filtrele
+docker compose -f docker-compose.prod.yml logs --tail 200 aprag-service | grep -i "error\|exception\|failed"
+```
+
+#### Development Ortamında (Local)
+```bash
+# APRAG Service logları
+docker-compose logs -f aprag-service
+
+# Tüm servislerin logları
 docker-compose logs -f
 ```
 
@@ -49,3 +76,5 @@ cp rag_assistant.db rag_assistant.db.backup
 Buraya önemli notlarınızı ekleyebilirsiniz.
 
 docker compose -f docker-compose.prod.yml --env-file .env.production up -d frontend api-gateway aprag-service model-inference-service
+
+docker compose -f docker-compose.prod.yml --env-file .env.production build --no-cache frontend api-gateway aprag-service model-inference-service

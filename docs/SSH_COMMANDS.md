@@ -11,6 +11,7 @@ ssh ebars-kodleon
 - Host: ebars.kodleon.com
 - User: root
 - Key: ~/.ssh/ebars_kodleon_key
+- **SSH Config Entry:** `~/.ssh/config` dosyasında tanımlı
 
 ### rag3-server
 ```bash
@@ -20,6 +21,27 @@ ssh rag3-server-key
 ```
 - Host: 46.62.254.131
 - User: root
+- **SSH Config Entry:** `~/.ssh/config` dosyasında tanımlı
+
+## SSH Config Dosyası Konumu
+
+SSH config dosyanız şu konumda olmalı:
+- **Windows:** `C:\Users\Engin\.ssh\config`
+- **Linux/Mac:** `~/.ssh/config`
+
+### Config Dosyası İçeriği (Örnek)
+```
+Host ebars-kodleon
+    HostName ebars.kodleon.com
+    User root
+    IdentityFile ~/.ssh/ebars_kodleon_key
+
+Host rag3-server
+    HostName 46.62.254.131
+    User root
+```
+
+**Not:** Config dosyası yoksa oluşturun: `notepad ~/.ssh/config` (Windows) veya `nano ~/.ssh/config` (Linux/Mac)
 
 ## Özel Komutlarınız
 
