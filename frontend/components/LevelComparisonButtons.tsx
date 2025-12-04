@@ -38,10 +38,18 @@ export default function LevelComparisonButtons({
     setShowModal(false); // Önce modal'ı kapat
 
     try {
+      // Log query to ensure it's correct
+      console.log("🔍 Preview request:", {
+        query,
+        queryLength: query?.length,
+        direction,
+        ragResponseLength: ragResponse?.length,
+      });
+
       const request: LevelPreviewRequest = {
         user_id: userId,
         session_id: sessionId,
-        query,
+        query, // Make sure we're using the current query
         rag_response: ragResponse,
         rag_documents: ragDocuments,
         direction,
@@ -160,30 +168,14 @@ export default function LevelComparisonButtons({
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
-              {/* Info Banner */}
+              {/* Simple Info Banner - No scores or debug info */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
                 <p className="text-sm text-blue-800">
-                  <strong>ℹ️ Bilgi:</strong> {preview.note}
+                  <strong>ℹ️ Bilgi:</strong> Bu sadece bir önizlemedir. Puanınız değişmeyecektir.
                 </p>
-                <p className="text-xs text-blue-600 mt-1">
-                  Mevcut seviyeniz: <strong>{preview.current_difficulty_label}</strong> → Önizleme seviyesi:{" "}
-                  <strong>{preview.target_difficulty_label}</strong>
-                </p>
-                {preview.debug_info && (
-                  <div className="mt-2 pt-2 border-t border-blue-300">
-                    <p className="text-xs text-blue-700">
-                      <strong>🔍 Debug:</strong> Orijinal: {preview.debug_info.original_length} karakter, 
-                      Önizleme: {preview.debug_info.preview_length} karakter 
-                      ({preview.debug_info.length_difference > 0 ? "+" : ""}{preview.debug_info.length_difference})
-                      {preview.debug_info.is_identical && (
-                        <span className="text-red-600 font-semibold ml-2">⚠️ Aynı cevap üretildi!</span>
-                      )}
-                    </p>
-                  </div>
-                )}
               </div>
 
-              {/* Preview Response */}
+              {/* Preview Response - Clean, no extra info */}
               <div className="prose prose-sm max-w-none">
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                   <ReactMarkdown>{preview.preview_response}</ReactMarkdown>

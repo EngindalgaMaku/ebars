@@ -816,9 +816,19 @@ export default function StudentChatPage() {
                                 userId={user.id.toString()}
                                 sessionId={selectedSession}
                                 query={
-                                  messages[
-                                    Math.max(0, messages.indexOf(message) - 1)
-                                  ]?.user || ""
+                                  (() => {
+                                    // Find the user message that corresponds to this bot message
+                                    // Bot messages are typically right after user messages
+                                    const messageIndex = messages.indexOf(message);
+                                    // Look backwards for the most recent user message
+                                    for (let i = messageIndex - 1; i >= 0; i--) {
+                                      if (messages[i]?.user && messages[i].user !== "...") {
+                                        return messages[i].user;
+                                      }
+                                    }
+                                    // Fallback: if no user message found, use empty string
+                                    return "";
+                                  })()
                                 }
                                 ragResponse={message.bot}
                                 ragDocuments={message.sources.map((s: RAGSource) => ({
