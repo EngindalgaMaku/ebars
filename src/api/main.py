@@ -2960,7 +2960,7 @@ def add_model_to_session(
     _require_owner_or_admin(request, session_id)
     
     try:
-        # Get Authorization header from request
+        # Get Authorization header from request and forward it
         auth_header = request.headers.get("Authorization")
         headers = {"Content-Type": "application/json"}
         if auth_header:
@@ -3000,7 +3000,7 @@ def remove_model_from_session(
     _require_owner_or_admin(request, session_id)
     
     try:
-        # Get Authorization header from request
+        # Get Authorization header from request and forward it
         auth_header = request.headers.get("Authorization")
         headers = {"Content-Type": "application/json"}
         if auth_header:
@@ -3035,7 +3035,7 @@ def get_session_models_config(request: Request, session_id: str):
     _require_owner_or_admin(request, session_id)
     
     try:
-        # Get Authorization header from request
+        # Get Authorization header from request and forward it
         auth_header = request.headers.get("Authorization")
         headers = {}
         if auth_header:
