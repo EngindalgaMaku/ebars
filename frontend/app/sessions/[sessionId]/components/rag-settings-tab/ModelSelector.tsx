@@ -20,7 +20,6 @@ import {
   Activity,
 } from "lucide-react";
 import { useRagSettings } from "../../hooks/useRagSettings";
-import { ModelManagement } from "./ModelManagement";
 
 interface ModelSelectorProps {
   sessionId: string;
@@ -44,12 +43,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ sessionId }) => {
     setSelectedQueryModel(""); // Reset model when provider changes
   };
 
-  const handleModelListChange = async () => {
-    // Refresh models when model list changes
-    if (selectedProvider) {
-      await fetchModels();
-    }
-  };
 
   const getProviderIcon = (provider: string) => {
     switch (provider) {
@@ -310,14 +303,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ sessionId }) => {
         </div>
       )}
 
-      {/* Model Management */}
-      <div className="md:col-span-2">
-        <ModelManagement
-          sessionId={sessionId}
-          selectedProvider={selectedProvider}
-          onModelListChange={handleModelListChange}
-        />
-      </div>
     </div>
   );
 };

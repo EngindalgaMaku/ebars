@@ -19,6 +19,7 @@ ENV PATH="/usr/local/bin:${PATH}"
 
 # Copy the main application
 COPY main.py .
+COPY models_config.json .
 
 # Direct startup - no Ollama installation or serve
 # Uses external Ollama running on host machine
