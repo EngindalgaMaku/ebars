@@ -3,7 +3,7 @@
  * Öğretmenler kendi ders oturumlarında modelleri yönetebilir
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,11 +63,12 @@ export const ModelManagement: React.FC<ModelManagementProps> = ({
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
 
-  const fetchModels = async () => {
+  const fetchModels = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const response = await getSessionModelsConfig(sessionId);
+      console.log("Fetched models config:", response.models);
       setModels(response.models || {});
     } catch (err: any) {
       const errorMessage = err.message || "Modeller yüklenirken hata oluştu";
@@ -81,25 +82,27 @@ export const ModelManagement: React.FC<ModelManagementProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionId]);
 
   useEffect(() => {
     if (isExpanded) {
       fetchModels();
     }
-  }, [isExpanded, sessionId]);
+  }, [isExpanded, fetchModels]);
 
   useEffect(() => {
-    if (selectedProvider && !addProvider) {
+    // Provider değiştiğinde addProvider'ı da güncelle ve model listesini güncelle
+    if (selectedProvider) {
+      console.log("Provider changed to:", selectedProvider);
       setAddProvider(selectedProvider);
+      // Provider değiştiğinde model listesini hemen güncelle
+      if (isExpanded) {
+        // Önce mevcut modelleri temizle (loading göster)
+        setModels({});
+        fetchModels();
+      }
     }
-  }, [selectedProvider, addProvider]);
-
-  useEffect(() => {
-    if (selectedProvider && isExpanded) {
-      fetchModels();
-    }
-  }, [selectedProvider, isExpanded]);
+  }, [selectedProvider, isExpanded, fetchModels]);
 
   const handleAddModel = async () => {
     if (!addProvider || !newModelName.trim()) {
@@ -161,7 +164,12 @@ export const ModelManagement: React.FC<ModelManagementProps> = ({
     return option?.label || provider;
   };
 
-  const currentProviderModels = models[selectedProvider] || [];
+  const currentProviderModels = useMemo(() => {
+    if (!selectedProvider) return [];
+    const providerModels = models[selectedProvider] || [];
+    console.log(`Current models for ${selectedProvider}:`, providerModels);
+    return providerModels;
+  }, [selectedProvider, models]);
 
   return (
     <Card className="mt-4 border-2 border-primary/20">

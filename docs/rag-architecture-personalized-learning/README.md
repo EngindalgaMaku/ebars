@@ -61,6 +61,11 @@ Bu dizin, sistemimizin temel RAG mimarisi ve kişiselleştirilmiş eğitim ortam
 - Makale yazım stratejisi
 - Hedef dergiler
 
+### 7. [Makale Taslağı](./makale-taslagi/) ⭐⭐ **ÇALIŞMA DİZİNİ**
+- [Türkçe Makale Taslağı](./makale-taslagi/01_MAKALE_TASLAGI_TURKCE.md)
+- [İngilizce Makale Taslağı](./makale-taslagi/02_MAKALE_TASLAGI_INGILIZCE.md)
+- [Makale Taslağı README](./makale-taslagi/README.md)
+
 ## 🎯 Hızlı Başlangıç
 
 ### RAG Mimarisi Hakkında Bilgi Almak İçin
@@ -80,6 +85,11 @@ Bu dizin, sistemimizin temel RAG mimarisi ve kişiselleştirilmiş eğitim ortam
 
 ### Makale Başlık ve Konu Önerileri İçin
 → [06_MAKALE_BASLIK_VE_KONU_ONERILERI.md](./06_MAKALE_BASLIK_VE_KONU_ONERILERI.md) ⭐ **ÖNERİLEN**
+
+### Makale Taslağı İçin
+→ [makale-taslagi/](./makale-taslagi/) ⭐⭐ **ÇALIŞMA DİZİNİ**
+  - [Türkçe Taslak](./makale-taslagi/01_MAKALE_TASLAGI_TURKCE.md)
+  - [İngilizce Taslak](./makale-taslagi/02_MAKALE_TASLAGI_INGILIZCE.md)
 
 ## 🔑 Önemli Kavramlar
 

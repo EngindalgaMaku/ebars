@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any, List
 import logging
 import requests
 import os
+import json
 
 # Import database and dependencies
 try:
@@ -84,6 +85,27 @@ def ensure_session_models_table(db: DatabaseManager):
         raise
 
 
+def ensure_hidden_models_table(db: DatabaseManager):
+    """Ensure hidden_models table exists (for hiding global models per session)"""
+    try:
+        with db.get_connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS hidden_models (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    model_name TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(session_id, provider, model_name)
+                )
+            """)
+            conn.commit()
+            logger.info("hidden_models table ensured")
+    except Exception as e:
+        logger.error(f"Error ensuring hidden_models table: {e}")
+        raise
+
+
 def get_global_models_config() -> Dict[str, List[str]]:
     """Get global models configuration from model inference service"""
     try:
@@ -96,14 +118,39 @@ def get_global_models_config() -> Dict[str, List[str]]:
             return data.get("models", {})
         else:
             logger.warning(f"Failed to fetch global models config: {response.status_code}")
-            return {}
+            # Fallback: try to read from models_config.json directly
+            return _get_models_config_from_file()
     except Exception as e:
         logger.error(f"Error fetching global models config: {e}")
+        # Fallback: try to read from models_config.json directly
+        return _get_models_config_from_file()
+
+
+def _get_models_config_from_file() -> Dict[str, List[str]]:
+    """Fallback: Read models_config.json file directly"""
+    try:
+        # Try multiple possible paths
+        possible_paths = [
+            "/app/models_config.json",  # Docker container path
+            "models_config.json",  # Relative path
+            "../model_inference_service/models_config.json",  # Relative from aprag_service
+            "services/model_inference_service/models_config.json",  # From project root
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        
+        logger.warning("models_config.json not found in any expected location")
+        return {}
+    except Exception as e:
+        logger.error(f"Error reading models_config.json: {e}")
         return {}
 
 
 def get_session_models(db: DatabaseManager, session_id: str) -> Dict[str, List[str]]:
-    """Get session-specific models from database"""
+    """Get session-specific models from database (models added to session)"""
     try:
         ensure_session_models_table(db)
         with db.get_connection() as conn:
@@ -128,13 +175,48 @@ def get_session_models(db: DatabaseManager, session_id: str) -> Dict[str, List[s
         return {}
 
 
-def merge_models(global_models: Dict[str, List[str]], session_models: Dict[str, List[str]]) -> Dict[str, List[str]]:
-    """Merge global models with session-specific models"""
+def get_hidden_models(db: DatabaseManager, session_id: str) -> Dict[str, List[str]]:
+    """Get hidden models from database (global models hidden per session)"""
+    try:
+        ensure_hidden_models_table(db)
+        with db.get_connection() as conn:
+            cursor = conn.execute("""
+                SELECT provider, model_name
+                FROM hidden_models
+                WHERE session_id = ?
+                ORDER BY provider, model_name
+            """, (session_id,))
+            
+            hidden_models: Dict[str, List[str]] = {}
+            for row in cursor.fetchall():
+                provider = row[0]
+                model_name = row[1]
+                if provider not in hidden_models:
+                    hidden_models[provider] = []
+                hidden_models[provider].append(model_name)
+            
+            return hidden_models
+    except Exception as e:
+        logger.error(f"Error getting hidden models: {e}")
+        return {}
+
+
+def merge_models(
+    global_models: Dict[str, List[str]], 
+    session_models: Dict[str, List[str]],
+    hidden_models: Dict[str, List[str]]
+) -> Dict[str, List[str]]:
+    """
+    Merge global models with session-specific models, excluding hidden models.
+    
+    Formula: (Global Models - Hidden Models) + Session-Specific Models
+    """
     merged = {}
     
-    # Start with global models
+    # Start with global models, excluding hidden ones
     for provider, models in global_models.items():
-        merged[provider] = models.copy()
+        hidden_for_provider = hidden_models.get(provider, [])
+        merged[provider] = [m for m in models if m not in hidden_for_provider]
     
     # Add session-specific models (they override/append to global)
     for provider, models in session_models.items():
@@ -164,11 +246,14 @@ async def get_session_models_config(
         # Get global models from model inference service
         global_models = get_global_models_config()
         
-        # Get session-specific models
+        # Get session-specific models (added models)
         session_models = get_session_models(db, session_id)
         
-        # Merge them
-        merged_models = merge_models(global_models, session_models)
+        # Get hidden models (hidden global models)
+        hidden_models = get_hidden_models(db, session_id)
+        
+        # Merge: (Global - Hidden) + Session-Specific
+        merged_models = merge_models(global_models, session_models, hidden_models)
         
         return ModelConfigResponse(
             success=True,
@@ -192,12 +277,15 @@ async def add_model_to_session(
     """
     Add a model to a session-specific provider.
     
-    This adds the model only for this session, not globally.
+    - If model is a global model that's hidden: unhide it (remove from hidden_models)
+    - If model is not in global models: add it to session_models (new model)
+    - If model already exists: return error
     """
     try:
         logger.info(f"Adding model {request.model} to provider {request.provider} for session {session_id}")
         
         ensure_session_models_table(db)
+        ensure_hidden_models_table(db)
         
         provider = request.provider.lower().strip()
         model = request.model.strip()
@@ -215,30 +303,69 @@ async def add_model_to_session(
                 detail=f"Invalid provider. Valid providers: {', '.join(valid_providers)}"
             )
         
-        # Check if model already exists for this session
+        # Get current state
+        global_models = get_global_models_config()
+        is_global_model = (
+            provider in global_models and 
+            model in global_models.get(provider, [])
+        )
+        
         with db.get_connection() as conn:
-            cursor = conn.execute("""
-                SELECT id FROM session_models
-                WHERE session_id = ? AND provider = ? AND model_name = ?
-            """, (session_id, provider, model))
-            
-            if cursor.fetchone():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Model '{model}' already exists for provider '{provider}' in this session"
-                )
-            
-            # Add model
-            conn.execute("""
-                INSERT INTO session_models (session_id, provider, model_name)
-                VALUES (?, ?, ?)
-            """, (session_id, provider, model))
-            conn.commit()
+            # Check if model is hidden (global model that's hidden)
+            if is_global_model:
+                cursor = conn.execute("""
+                    SELECT id FROM hidden_models
+                    WHERE session_id = ? AND provider = ? AND model_name = ?
+                """, (session_id, provider, model))
+                
+                if cursor.fetchone():
+                    # Model is hidden, unhide it
+                    conn.execute("""
+                        DELETE FROM hidden_models
+                        WHERE session_id = ? AND provider = ? AND model_name = ?
+                    """, (session_id, provider, model))
+                    conn.commit()
+                    
+                    # Get updated config
+                    session_models = get_session_models(db, session_id)
+                    hidden_models = get_hidden_models(db, session_id)
+                    merged_models = merge_models(global_models, session_models, hidden_models)
+                    
+                    return ModelManagementResponse(
+                        success=True,
+                        message=f"Model '{model}' is now visible for {provider} provider in this session",
+                        models=merged_models
+                    )
+                else:
+                    # Global model is already visible
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Model '{model}' is already available for provider '{provider}' in this session"
+                    )
+            else:
+                # Not a global model, check if it's already in session_models
+                cursor = conn.execute("""
+                    SELECT id FROM session_models
+                    WHERE session_id = ? AND provider = ? AND model_name = ?
+                """, (session_id, provider, model))
+                
+                if cursor.fetchone():
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Model '{model}' already exists for provider '{provider}' in this session"
+                    )
+                
+                # Add new model to session_models
+                conn.execute("""
+                    INSERT INTO session_models (session_id, provider, model_name)
+                    VALUES (?, ?, ?)
+                """, (session_id, provider, model))
+                conn.commit()
         
         # Get updated config
         session_models = get_session_models(db, session_id)
-        global_models = get_global_models_config()
-        merged_models = merge_models(global_models, session_models)
+        hidden_models = get_hidden_models(db, session_id)
+        merged_models = merge_models(global_models, session_models, hidden_models)
         
         return ModelManagementResponse(
             success=True,
@@ -262,14 +389,17 @@ async def remove_model_from_session(
     db: DatabaseManager = Depends(get_db)
 ):
     """
-    Remove a model from a session-specific provider.
+    Remove/hide a model from a session-specific provider.
     
-    This only removes session-specific models, not global ones.
+    - If model is in session_models (added model): remove it from session_models
+    - If model is a global model: hide it by adding to hidden_models
+    - If model doesn't exist: return error
     """
     try:
         logger.info(f"Removing model {request.model} from provider {request.provider} for session {session_id}")
         
         ensure_session_models_table(db)
+        ensure_hidden_models_table(db)
         
         provider = request.provider.lower().strip()
         model = request.model.strip()
@@ -280,46 +410,73 @@ async def remove_model_from_session(
                 detail="Provider and model are required"
             )
         
-        # Check if model exists in global models
+        # Get current state
         global_models = get_global_models_config()
         is_global_model = (
             provider in global_models and 
             model in global_models.get(provider, [])
         )
         
-        # Remove model from session
         with db.get_connection() as conn:
+            # First, try to remove from session_models (if it was added as a new model)
             cursor = conn.execute("""
                 DELETE FROM session_models
                 WHERE session_id = ? AND provider = ? AND model_name = ?
             """, (session_id, provider, model))
             
-            if cursor.rowcount == 0:
-                # Model not found in session_models
-                if is_global_model:
-                    # Model is a global model but not session-specific
+            if cursor.rowcount > 0:
+                # Successfully removed from session_models
+                conn.commit()
+                
+                # Get updated config
+                session_models = get_session_models(db, session_id)
+                hidden_models = get_hidden_models(db, session_id)
+                merged_models = merge_models(global_models, session_models, hidden_models)
+                
+                return ModelManagementResponse(
+                    success=True,
+                    message=f"Model '{model}' removed from {provider} provider for this session",
+                    models=merged_models
+                )
+            
+            # Not in session_models, check if it's a global model
+            if is_global_model:
+                # Check if already hidden
+                cursor = conn.execute("""
+                    SELECT id FROM hidden_models
+                    WHERE session_id = ? AND provider = ? AND model_name = ?
+                """, (session_id, provider, model))
+                
+                if cursor.fetchone():
+                    # Already hidden
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Model '{model}' is a global model for provider '{provider}' and was not added as a session-specific model. Global models cannot be removed from individual sessions. If you want to hide this model, you need to remove it from the global configuration."
+                        detail=f"Model '{model}' is already hidden for provider '{provider}' in this session"
                     )
-                else:
-                    # Model doesn't exist at all
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Model '{model}' not found for provider '{provider}' in this session"
-                    )
-            
-            conn.commit()
-        
-        # Get updated config
-        session_models = get_session_models(db, session_id)
-        merged_models = merge_models(global_models, session_models)
-        
-        return ModelManagementResponse(
-            success=True,
-            message=f"Model '{model}' removed from {provider} provider for this session",
-            models=merged_models
-        )
+                
+                # Hide the global model
+                conn.execute("""
+                    INSERT INTO hidden_models (session_id, provider, model_name)
+                    VALUES (?, ?, ?)
+                """, (session_id, provider, model))
+                conn.commit()
+                
+                # Get updated config
+                session_models = get_session_models(db, session_id)
+                hidden_models = get_hidden_models(db, session_id)
+                merged_models = merge_models(global_models, session_models, hidden_models)
+                
+                return ModelManagementResponse(
+                    success=True,
+                    message=f"Model '{model}' is now hidden for {provider} provider in this session",
+                    models=merged_models
+                )
+            else:
+                # Model doesn't exist at all
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Model '{model}' not found for provider '{provider}' in this session"
+                )
     except HTTPException:
         raise
     except Exception as e:
