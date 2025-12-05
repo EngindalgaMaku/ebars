@@ -37,19 +37,21 @@ LÜTFEN ŞUNLARI YAP:
 {{
   "questions": [
     {{
-      "question": "[KONUYA ÖZGÜ DOĞAL SORU]",
+      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez veya placeholder kullanma)",
       "options": {{
-        "A": "Doğru cevap",
-        "B": "Mantıklı çeldirici",
-        "C": "Mantıklı çeldirici",
-        "D": "Mantıklı çeldirici"
+        "A": "Doğru cevap seçeneği",
+        "B": "Mantıklı çeldirici seçenek",
+        "C": "Mantıklı çeldirici seçenek",
+        "D": "Mantıklı çeldirici seçenek"
       }},
       "correct_answer": "A",
-      "explanation": "Doğru cevabın açıklaması",
+      "explanation": "Doğru cevabın detaylı açıklaması",
       "bloom_level": "remember"
     }}
   ]
-}}"""
+}}
+
+⚠️ KRİTİK: Soru metninde köşeli parantez [ ] veya placeholder kullanma. Gerçek, tamamlanmış sorular üret."""
 
 
 UNDERSTAND_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için ANLAMA seviyesinde sorular üret.
@@ -81,12 +83,12 @@ LÜTFEN ŞUNLARI YAP:
 {{
   "questions": [
     {{
-      "question": "[KONUYA ÖZGÜ DOĞAL SORU]",
+      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez veya placeholder kullanma)",
       "options": {{
-        "A": "Doğru cevap",
-        "B": "Mantıklı çeldirici",
-        "C": "Mantıklı çeldirici",
-        "D": "Mantıklı çeldirici"
+        "A": "Doğru cevap seçeneği",
+        "B": "Mantıklı çeldirici seçenek",
+        "C": "Mantıklı çeldirici seçenek",
+        "D": "Mantıklı çeldirici seçenek"
       }},
       "correct_answer": "A",
       "explanation": "Doğru cevabın detaylı açıklaması",
@@ -95,7 +97,7 @@ LÜTFEN ŞUNLARI YAP:
   ]
 }}
 
-ÖNEMLİ: Sorularda "materyalde bahsedilen", "materyalde geçen" gibi ifadeler KULLANMA. Sorular doğal ve akıcı olmalı."""
+⚠️ KRİTİK: Soru metninde köşeli parantez [ ] veya placeholder kullanma. Gerçek, tamamlanmış sorular üret. "Materyalde bahsedilen" gibi ifadeler de kullanma."""
 
 
 APPLY_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için UYGULAMA seviyesinde sorular üret.
@@ -128,19 +130,21 @@ LÜTFEN ŞUNLARI YAP:
 {{
   "questions": [
     {{
-      "question": "[KONUYA ÖZGÜ DOĞAL SORU]",
+      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez veya placeholder kullanma)",
       "options": {{
-        "A": "Doğru cevap",
-        "B": "Mantıklı çeldirici",
-        "C": "Mantıklı çeldirici",
-        "D": "Mantıklı çeldirici"
+        "A": "Doğru cevap seçeneği",
+        "B": "Mantıklı çeldirici seçenek",
+        "C": "Mantıklı çeldirici seçenek",
+        "D": "Mantıklı çeldirici seçenek"
       }},
       "correct_answer": "A",
       "explanation": "Doğru cevabın açıklaması",
       "bloom_level": "apply"
     }}
   ]
-}}"""
+}}
+
+⚠️ KRİTİK: Soru metninde köşeli parantez [ ] veya placeholder kullanma. Gerçek, tamamlanmış sorular üret."""
 
 
 ANALYZE_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için ANALİZ seviyesinde sorular üret.
@@ -173,19 +177,21 @@ LÜTFEN ŞUNLARI YAP:
 {{
   "questions": [
     {{
-      "question": "[KONUYA ÖZGÜ DOĞAL SORU]",
+      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez veya placeholder kullanma)",
       "options": {{
-        "A": "Doğru cevap",
-        "B": "Mantıklı çeldirici",
-        "C": "Mantıklı çeldirici",
-        "D": "Mantıklı çeldirici"
+        "A": "Doğru cevap seçeneği",
+        "B": "Mantıklı çeldirici seçenek",
+        "C": "Mantıklı çeldirici seçenek",
+        "D": "Mantıklı çeldirici seçenek"
       }},
       "correct_answer": "A",
       "explanation": "Doğru cevabın açıklaması",
       "bloom_level": "analyze"
     }}
   ]
-}}"""
+}}
+
+⚠️ KRİTİK: Soru metninde köşeli parantez [ ] veya placeholder kullanma. Gerçek, tamamlanmış sorular üret."""
 
 
 EVALUATE_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için DEĞERLENDİRME seviyesinde sorular üret.
@@ -218,19 +224,21 @@ LÜTFEN ŞUNLARI YAP:
 {{
   "questions": [
     {{
-      "question": "[KONUYA ÖZGÜ DOĞAL SORU]",
+      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez veya placeholder kullanma)",
       "options": {{
-        "A": "Doğru cevap",
-        "B": "Mantıklı çeldirici",
-        "C": "Mantıklı çeldirici",
-        "D": "Mantıklı çeldirici"
+        "A": "Doğru cevap seçeneği",
+        "B": "Mantıklı çeldirici seçenek",
+        "C": "Mantıklı çeldirici seçenek",
+        "D": "Mantıklı çeldirici seçenek"
       }},
       "correct_answer": "A",
       "explanation": "Doğru cevabın açıklaması",
       "bloom_level": "evaluate"
     }}
   ]
-}}"""
+}}
+
+⚠️ KRİTİK: Soru metninde köşeli parantez [ ] veya placeholder kullanma. Gerçek, tamamlanmış sorular üret."""
 
 
 CREATE_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için YARATMA seviyesinde sorular üret.
@@ -263,19 +271,21 @@ LÜTFEN ŞUNLARI YAP:
 {{
   "questions": [
     {{
-      "question": "[KONUYA ÖZGÜ DOĞAL SORU]",
+      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez veya placeholder kullanma)",
       "options": {{
-        "A": "Doğru cevap",
-        "B": "Mantıklı çeldirici",
-        "C": "Mantıklı çeldirici",
-        "D": "Mantıklı çeldirici"
+        "A": "Doğru cevap seçeneği",
+        "B": "Mantıklı çeldirici seçenek",
+        "C": "Mantıklı çeldirici seçenek",
+        "D": "Mantıklı çeldirici seçenek"
       }},
       "correct_answer": "A",
       "explanation": "Doğru cevabın açıklaması",
       "bloom_level": "create"
     }}
   ]
-}}"""
+}}
+
+⚠️ KRİTİK: Soru metninde köşeli parantez [ ] veya placeholder kullanma. Gerçek, tamamlanmış sorular üret."""
 
 
 # ===========================================
@@ -384,7 +394,7 @@ REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 {{
   "questions": [
     {{
-      "question": "[KONUYA ÖZGÜ DOĞAL SORU - materyalde bahsedilen gibi ifadeler kullanma]",
+      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez, placeholder veya 'materyalde bahsedilen' gibi ifadeler kullanma)",
       "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}},
       "correct_answer": "A",
       "explanation": "...",
