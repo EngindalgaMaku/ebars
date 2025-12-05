@@ -5,6 +5,8 @@ import {
   listQuestionPool,
   exportQuestionPool,
   getBatchJobStatus,
+  deleteQuestion,
+  bulkDeleteQuestions,
   QuestionPoolQuestion,
   Topic,
   getSessionTopics,
@@ -26,6 +28,9 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  Trash2,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import BatchQuestionGenerationModal from "./BatchQuestionGenerationModal";
 import { Progress } from "@/components/ui/progress";
@@ -53,6 +58,8 @@ export default function QuestionPoolPanel({ sessionId }: QuestionPoolPanelProps)
     total: 0,
     has_more: false,
   });
+  const [selectedQuestions, setSelectedQuestions] = useState<Set<number>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   // Load topics
   useEffect(() => {
@@ -158,6 +165,65 @@ export default function QuestionPoolPanel({ sessionId }: QuestionPoolPanelProps)
     return colors[level || ""] || "bg-gray-100 text-gray-800";
   };
 
+  const handleDeleteQuestion = async (questionId: number) => {
+    if (!confirm("Bu soruyu silmek istediğinize emin misiniz?")) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await deleteQuestion(questionId, sessionId);
+      await loadQuestions();
+      setSelectedQuestions(new Set());
+    } catch (error) {
+      console.error("Error deleting question:", error);
+      alert("Soru silinirken hata oluştu: " + (error as Error).message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedQuestions.size === 0) {
+      alert("Lütfen silmek istediğiniz soruları seçin");
+      return;
+    }
+
+    if (!confirm(`${selectedQuestions.size} soruyu silmek istediğinize emin misiniz?`)) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await bulkDeleteQuestions(Array.from(selectedQuestions), sessionId);
+      await loadQuestions();
+      setSelectedQuestions(new Set());
+    } catch (error) {
+      console.error("Error bulk deleting questions:", error);
+      alert("Sorular silinirken hata oluştu: " + (error as Error).message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const toggleQuestionSelection = (questionId: number) => {
+    const newSelected = new Set(selectedQuestions);
+    if (newSelected.has(questionId)) {
+      newSelected.delete(questionId);
+    } else {
+      newSelected.add(questionId);
+    }
+    setSelectedQuestions(newSelected);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedQuestions.size === questions.length) {
+      setSelectedQuestions(new Set());
+    } else {
+      setSelectedQuestions(new Set(questions.map((q) => q.question_id)));
+    }
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -169,7 +235,7 @@ export default function QuestionPoolPanel({ sessionId }: QuestionPoolPanelProps)
         </CardHeader>
         <CardContent>
           {/* Action Buttons */}
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-2 mb-4 flex-wrap">
             <Button
               onClick={() => setShowBatchModal(true)}
               disabled={loading || (batchJobStatus?.status === "running")}
@@ -181,6 +247,16 @@ export default function QuestionPoolPanel({ sessionId }: QuestionPoolPanelProps)
               <Download className="mr-2 h-4 w-4" />
               JSON Export
             </Button>
+            {selectedQuestions.size > 0 && (
+              <Button
+                onClick={handleBulkDelete}
+                variant="destructive"
+                disabled={deleting}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Seçilenleri Sil ({selectedQuestions.size})
+              </Button>
+            )}
             <Button onClick={loadQuestions} variant="outline" disabled={loading}>
               <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               Yenile
@@ -280,23 +356,57 @@ export default function QuestionPoolPanel({ sessionId }: QuestionPoolPanelProps)
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="text-sm text-gray-600">
-                Toplam {pagination.total} soru (Sayfa {Math.floor(pagination.offset / pagination.limit) + 1})
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Toplam {pagination.total} soru (Sayfa {Math.floor(pagination.offset / pagination.limit) + 1})
+                </div>
+                {questions.length > 0 && (
+                  <Button
+                    onClick={toggleSelectAll}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {selectedQuestions.size === questions.length ? (
+                      <>
+                        <CheckSquare className="mr-2 h-4 w-4" />
+                        Tümünü Kaldır
+                      </>
+                    ) : (
+                      <>
+                        <Square className="mr-2 h-4 w-4" />
+                        Tümünü Seç
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
               {questions.map((question) => (
                 <Card key={question.question_id}>
                   <CardContent className="pt-4">
                     <div className="space-y-2">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="font-medium">{question.question_text}</div>
-                          {question.topic_title && (
-                            <div className="text-sm text-gray-500 mt-1">
-                              Konu: {question.topic_title}
-                            </div>
-                          )}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 flex-1">
+                          <button
+                            onClick={() => toggleQuestionSelection(question.question_id)}
+                            className="mt-1"
+                            type="button"
+                          >
+                            {selectedQuestions.has(question.question_id) ? (
+                              <CheckSquare className="h-5 w-5 text-blue-600" />
+                            ) : (
+                              <Square className="h-5 w-5 text-gray-400" />
+                            )}
+                          </button>
+                          <div className="flex-1">
+                            <div className="font-medium">{question.question_text}</div>
+                            {question.topic_title && (
+                              <div className="text-sm text-gray-500 mt-1">
+                                Konu: {question.topic_title}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-start">
                           {question.bloom_level && (
                             <span
                               className={`px-2 py-1 rounded text-xs ${getBloomLevelColor(
@@ -312,6 +422,15 @@ export default function QuestionPoolPanel({ sessionId }: QuestionPoolPanelProps)
                           {question.is_duplicate && (
                             <XCircle className="h-4 w-4 text-red-600" />
                           )}
+                          <Button
+                            onClick={() => handleDeleteQuestion(question.question_id)}
+                            variant="ghost"
+                            size="sm"
+                            disabled={deleting}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                       {question.options && (

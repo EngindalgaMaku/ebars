@@ -6,89 +6,105 @@ Bloom Taksonomisi seviyelerine özel soru üretim prompt şablonları
 # Bloom Taksonomisi Prompt Şablonları
 # ===========================================
 
-REMEMBER_PROMPT = """Sen bir eğitim uzmanısın. Aşağıdaki ders materyali bağlamında "{topic_title}" konusu için HATIRLAMA seviyesinde sorular üret.
+REMEMBER_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için HATIRLAMA seviyesinde sorular üret.
 
-⚠️ ÖNEMLİ: Aşağıdaki materyal SADECE "{topic_title}" konusuyla ilgilidir. Soruları SADECE bu konuya özel üret.
+⚠️ ÖNEMLİ: 
+- Aşağıdaki materyal SADECE "{topic_title}" konusuyla ilgilidir ve sadece REFERANS/REHBER olarak kullanılacaktır
+- Soruları KENDİ BİLGİN ve EĞİTİM DENEYİMİN ile üret, materyalden kopyalama
+- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+- Sorular doğal, akıcı ve eğitimsel olmalı
 
 BLOOM SEVİYESİ: REMEMBER (Hatırlama)
 Bu seviyede öğrenci:
 - Bilgileri hatırlamalı
 - Tanımları, isimleri, tarihleri, sayıları bilmeli
 - Temel kavramları ezberlemeli
-- Doğrudan materyalden bilgi almalı
 
 KONU BAŞLIĞI: {topic_title}
 ANAHTAR KELİMELER: {keywords}
-DERS MATERYALİ (SADECE "{topic_title}" KONUSUNA ÖZEL):
+REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 {chunks_text}
 
 LÜTFEN ŞUNLARI YAP:
-1. Materyaldeki SPESİFİK bilgilerden {count} adet çoktan seçmeli soru üret
-2. Sorular doğrudan materyaldeki GERÇEK bilgilere dayanmalı (örnek: "X nedir?", "Y kaçtır?", "Z kimdir?")
-3. Doğru cevap MUTLAKA materyaldeki gerçek bilgi olmalı
-4. Yanlış şıklar mantıklı çeldiriciler olmalı ama materyalde olmamalı
-5. Her soru için açıklama ekle (doğru cevabın neden doğru olduğunu)
-6. Sorular MUTLAKA "{topic_title}" konusuyla ilgili olmalı - başka konulardan soru üretme
+1. "{topic_title}" konusu için {count} adet çoktan seçmeli soru üret
+2. Sorular HATIRLAMA seviyesinde olmalı (örnek: "X nedir?", "Y kaçtır?", "Z kimdir?")
+3. Sorular doğal ve akıcı olmalı, "materyalde bahsedilen" gibi ifadeler kullanma
+4. Doğru cevap konuyla ilgili doğru bilgi olmalı
+5. Yanlış şıklar mantıklı çeldiriciler olmalı
+6. Her soru için açıklama ekle
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
   "questions": [
     {{
-      "question": "Materyalde bahsedilen [SPESİFİK KAVRAM] nedir?",
+      "question": "[KONUYA ÖZGÜ DOĞAL SORU]",
       "options": {{
-        "A": "Materyaldeki GERÇEK bilgi (doğru cevap)",
-        "B": "Mantıklı çeldirici (materyalde yok)",
-        "C": "Mantıklı çeldirici (materyalde yok)",
-        "D": "Mantıklı çeldirici (materyalde yok)"
+        "A": "Doğru cevap",
+        "B": "Mantıklı çeldirici",
+        "C": "Mantıklı çeldirici",
+        "D": "Mantıklı çeldirici"
       }},
       "correct_answer": "A",
-      "explanation": "Doğru cevabın açıklaması (materyaldeki gerçek bilgiye dayalı)",
+      "explanation": "Doğru cevabın açıklaması",
       "bloom_level": "remember"
     }}
   ]
 }}"""
 
 
-UNDERSTAND_PROMPT = """Sen bir eğitim uzmanısın. Aşağıdaki ders materyali bağlamında "{topic_title}" konusu için ANLAMA seviyesinde sorular üret.
+UNDERSTAND_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için ANLAMA seviyesinde sorular üret.
+
+⚠️ ÖNEMLİ: 
+- Aşağıdaki materyal sadece REFERANS/REHBER olarak kullanılacaktır
+- Soruları KENDİ BİLGİN ile üret, materyalden kopyalama
+- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+- Sorular doğal, akıcı ve eğitimsel olmalı
 
 BLOOM SEVİYESİ: UNDERSTAND (Anlama)
 Bu seviyede öğrenci:
 - Bilgiyi kendi kelimeleriyle açıklamalı
 - Kavramlar arası ilişkileri anlamalı
 - Örnekler vermeli veya örnekleri tanımalı
-- Materyaldeki bilgiyi yorumlamalı
 
 KONU BAŞLIĞI: {topic_title}
 ANAHTAR KELİMELER: {keywords}
-DERS MATERYALİ:
+REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 {chunks_text}
 
 LÜTFEN ŞUNLARI YAP:
-1. Materyaldeki kavramları ANLAMA seviyesinde test eden {count} adet soru üret
+1. "{topic_title}" konusu için {count} adet ANLAMA seviyesinde soru üret
 2. Sorular "neden", "nasıl", "açıkla", "karşılaştır" gibi anlama gerektiren sorular olmalı
-3. Doğru cevap materyaldeki bilginin yorumlanması olmalı
+3. Sorular doğal ve akıcı olmalı, "materyalde bahsedilen" gibi ifadeler kullanma
 4. Örnek: "X kavramı neden önemlidir?", "Y nasıl çalışır?", "Z ve W arasındaki fark nedir?"
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
   "questions": [
     {{
-      "question": "Materyalde bahsedilen [KAVRAM] nasıl çalışır?",
+      "question": "[KONUYA ÖZGÜ DOĞAL SORU]",
       "options": {{
-        "A": "Materyaldeki bilginin yorumlanması (doğru cevap)",
-        "B": "Yanlış yorumlama",
-        "C": "Yanlış yorumlama",
-        "D": "Yanlış yorumlama"
+        "A": "Doğru cevap",
+        "B": "Mantıklı çeldirici",
+        "C": "Mantıklı çeldirici",
+        "D": "Mantıklı çeldirici"
       }},
       "correct_answer": "A",
       "explanation": "Doğru cevabın detaylı açıklaması",
       "bloom_level": "understand"
     }}
   ]
-}}"""
+}}
+
+ÖNEMLİ: Sorularda "materyalde bahsedilen", "materyalde geçen" gibi ifadeler KULLANMA. Sorular doğal ve akıcı olmalı."""
 
 
-APPLY_PROMPT = """Sen bir eğitim uzmanısın. Aşağıdaki ders materyali bağlamında "{topic_title}" konusu için UYGULAMA seviyesinde sorular üret.
+APPLY_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için UYGULAMA seviyesinde sorular üret.
+
+⚠️ ÖNEMLİ: 
+- Aşağıdaki materyal sadece REFERANS/REHBER olarak kullanılacaktır
+- Soruları KENDİ BİLGİN ile üret, materyalden kopyalama
+- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+- Sorular doğal, akıcı ve eğitimsel olmalı
 
 BLOOM SEVİYESİ: APPLY (Uygulama)
 Bu seviyede öğrenci:
@@ -99,35 +115,41 @@ Bu seviyede öğrenci:
 
 KONU BAŞLIĞI: {topic_title}
 ANAHTAR KELİMELER: {keywords}
-DERS MATERYALİ:
+REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 {chunks_text}
 
 LÜTFEN ŞUNLARI YAP:
-1. Materyaldeki bilgileri YENİ DURUMLARA UYGULAMA gerektiren {count} adet soru üret
+1. "{topic_title}" konusu için {count} adet UYGULAMA seviyesinde soru üret
 2. Sorular problem çözme, uygulama, kullanım gerektirmeli
-3. Örnek: "X durumunda Y yöntemini nasıl kullanırsın?", "Z problemi için hangi çözüm uygundur?"
-4. Doğru cevap materyaldeki yöntem/kuralın doğru uygulanması olmalı
+3. Sorular doğal ve akıcı olmalı, "materyalde bahsedilen" gibi ifadeler kullanma
+4. Örnek: "X durumunda Y yöntemini nasıl kullanırsın?", "Z problemi için hangi çözüm uygundur?"
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
   "questions": [
     {{
-      "question": "[YENİ DURUM] için materyaldeki [YÖNTEM] nasıl uygulanır?",
+      "question": "[KONUYA ÖZGÜ DOĞAL SORU]",
       "options": {{
-        "A": "Doğru uygulama (materyaldeki yönteme uygun)",
-        "B": "Yanlış uygulama",
-        "C": "Yanlış uygulama",
-        "D": "Yanlış uygulama"
+        "A": "Doğru cevap",
+        "B": "Mantıklı çeldirici",
+        "C": "Mantıklı çeldirici",
+        "D": "Mantıklı çeldirici"
       }},
       "correct_answer": "A",
-      "explanation": "Neden bu uygulamanın doğru olduğu (materyaldeki yönteme dayalı)",
+      "explanation": "Doğru cevabın açıklaması",
       "bloom_level": "apply"
     }}
   ]
 }}"""
 
 
-ANALYZE_PROMPT = """Sen bir eğitim uzmanısın. Aşağıdaki ders materyali bağlamında "{topic_title}" konusu için ANALİZ seviyesinde sorular üret.
+ANALYZE_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için ANALİZ seviyesinde sorular üret.
+
+⚠️ ÖNEMLİ: 
+- Aşağıdaki materyal sadece REFERANS/REHBER olarak kullanılacaktır
+- Soruları KENDİ BİLGİN ile üret, materyalden kopyalama
+- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+- Sorular doğal, akıcı ve eğitimsel olmalı
 
 BLOOM SEVİYESİ: ANALYZE (Analiz)
 Bu seviyede öğrenci:
@@ -138,35 +160,41 @@ Bu seviyede öğrenci:
 
 KONU BAŞLIĞI: {topic_title}
 ANAHTAR KELİMELER: {keywords}
-DERS MATERYALİ:
+REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 {chunks_text}
 
 LÜTFEN ŞUNLARI YAP:
-1. Materyaldeki bilgileri ANALİZ gerektiren {count} adet soru üret
+1. "{topic_title}" konusu için {count} adet ANALİZ seviyesinde soru üret
 2. Sorular "neden", "nasıl ilişkili", "hangi parçalar", "yapı nedir" gibi analiz gerektirmeli
-3. Örnek: "X ve Y arasındaki ilişki nedir?", "Z'nin yapısı nasıldır?", "W'nun nedenleri nelerdir?"
-4. Doğru cevap materyaldeki bilgilerin analizine dayanmalı
+3. Sorular doğal ve akıcı olmalı, "materyalde bahsedilen" gibi ifadeler kullanma
+4. Örnek: "X ve Y arasındaki ilişki nedir?", "Z'nin yapısı nasıldır?", "W'nun nedenleri nelerdir?"
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
   "questions": [
     {{
-      "question": "Materyalde bahsedilen [KAVRAM1] ve [KAVRAM2] arasındaki ilişki nedir?",
+      "question": "[KONUYA ÖZGÜ DOĞAL SORU]",
       "options": {{
-        "A": "Doğru analiz (materyaldeki ilişkiye dayalı)",
-        "B": "Yanlış analiz",
-        "C": "Yanlış analiz",
-        "D": "Yanlış analiz"
+        "A": "Doğru cevap",
+        "B": "Mantıklı çeldirici",
+        "C": "Mantıklı çeldirici",
+        "D": "Mantıklı çeldirici"
       }},
       "correct_answer": "A",
-      "explanation": "İlişkinin detaylı analizi (materyaldeki bilgilere dayalı)",
+      "explanation": "Doğru cevabın açıklaması",
       "bloom_level": "analyze"
     }}
   ]
 }}"""
 
 
-EVALUATE_PROMPT = """Sen bir eğitim uzmanısın. Aşağıdaki ders materyali bağlamında "{topic_title}" konusu için DEĞERLENDİRME seviyesinde sorular üret.
+EVALUATE_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için DEĞERLENDİRME seviyesinde sorular üret.
+
+⚠️ ÖNEMLİ: 
+- Aşağıdaki materyal sadece REFERANS/REHBER olarak kullanılacaktır
+- Soruları KENDİ BİLGİN ile üret, materyalden kopyalama
+- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+- Sorular doğal, akıcı ve eğitimsel olmalı
 
 BLOOM SEVİYESİ: EVALUATE (Değerlendirme)
 Bu seviyede öğrenci:
@@ -177,35 +205,41 @@ Bu seviyede öğrenci:
 
 KONU BAŞLIĞI: {topic_title}
 ANAHTAR KELİMELER: {keywords}
-DERS MATERYALİ:
+REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 {chunks_text}
 
 LÜTFEN ŞUNLARI YAP:
-1. Materyaldeki bilgileri DEĞERLENDİRME gerektiren {count} adet soru üret
+1. "{topic_title}" konusu için {count} adet DEĞERLENDİRME seviyesinde soru üret
 2. Sorular "hangisi daha iyi", "neden uygun", "eleştir", "karşılaştır" gibi değerlendirme gerektirmeli
-3. Örnek: "X ve Y arasında hangisi daha etkilidir?", "Z yaklaşımının avantajları nelerdir?"
-4. Doğru cevap materyaldeki bilgilere dayalı mantıklı değerlendirme olmalı
+3. Sorular doğal ve akıcı olmalı, "materyalde bahsedilen" gibi ifadeler kullanma
+4. Örnek: "X ve Y arasında hangisi daha etkilidir?", "Z yaklaşımının avantajları nelerdir?"
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
   "questions": [
     {{
-      "question": "Materyalde bahsedilen [YAKLAŞIM1] ve [YAKLAŞIM2] arasında hangisi daha uygundur?",
+      "question": "[KONUYA ÖZGÜ DOĞAL SORU]",
       "options": {{
-        "A": "Mantıklı değerlendirme (materyaldeki bilgilere dayalı)",
-        "B": "Yanlış değerlendirme",
-        "C": "Yanlış değerlendirme",
-        "D": "Yanlış değerlendirme"
+        "A": "Doğru cevap",
+        "B": "Mantıklı çeldirici",
+        "C": "Mantıklı çeldirici",
+        "D": "Mantıklı çeldirici"
       }},
       "correct_answer": "A",
-      "explanation": "Değerlendirmenin gerekçesi (materyaldeki bilgilere dayalı)",
+      "explanation": "Doğru cevabın açıklaması",
       "bloom_level": "evaluate"
     }}
   ]
 }}"""
 
 
-CREATE_PROMPT = """Sen bir eğitim uzmanısın. Aşağıdaki ders materyali bağlamında "{topic_title}" konusu için YARATMA seviyesinde sorular üret.
+CREATE_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için YARATMA seviyesinde sorular üret.
+
+⚠️ ÖNEMLİ: 
+- Aşağıdaki materyal sadece REFERANS/REHBER olarak kullanılacaktır
+- Soruları KENDİ BİLGİN ile üret, materyalden kopyalama
+- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+- Sorular doğal, akıcı ve eğitimsel olmalı
 
 BLOOM SEVİYESİ: CREATE (Yaratma)
 Bu seviyede öğrenci:
@@ -216,28 +250,28 @@ Bu seviyede öğrenci:
 
 KONU BAŞLIĞI: {topic_title}
 ANAHTAR KELİMELER: {keywords}
-DERS MATERYALİ:
+REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 {chunks_text}
 
 LÜTFEN ŞUNLARI YAP:
-1. Materyaldeki bilgileri kullanarak YARATMA gerektiren {count} adet soru üret
+1. "{topic_title}" konusu için {count} adet YARATMA seviyesinde soru üret
 2. Sorular "oluştur", "tasarla", "geliştir", "sentezle" gibi yaratma gerektirmeli
-3. Örnek: "X durumu için Y çözümü nasıl tasarlarsın?", "Z problemini çözmek için hangi yaklaşımı oluşturursun?"
-4. Doğru cevap materyaldeki bilgilere dayalı mantıklı yaratım olmalı
+3. Sorular doğal ve akıcı olmalı, "materyalde bahsedilen" gibi ifadeler kullanma
+4. Örnek: "X durumu için Y çözümü nasıl tasarlarsın?", "Z problemini çözmek için hangi yaklaşımı oluşturursun?"
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
   "questions": [
     {{
-      "question": "Materyaldeki bilgileri kullanarak [DURUM] için [ÇÖZÜM TİPİ] nasıl tasarlarsın?",
+      "question": "[KONUYA ÖZGÜ DOĞAL SORU]",
       "options": {{
-        "A": "Mantıklı yaratım (materyaldeki bilgilere dayalı)",
-        "B": "Yanlış yaklaşım",
-        "C": "Yanlış yaklaşım",
-        "D": "Yanlış yaklaşım"
+        "A": "Doğru cevap",
+        "B": "Mantıklı çeldirici",
+        "C": "Mantıklı çeldirici",
+        "D": "Mantıklı çeldirici"
       }},
       "correct_answer": "A",
-      "explanation": "Yaratımın gerekçesi (materyaldeki bilgilere dayalı)",
+      "explanation": "Doğru cevabın açıklaması",
       "bloom_level": "create"
     }}
   ]
@@ -322,13 +356,19 @@ def build_question_generation_prompt(
             raise ValueError("use_default_prompts=False ise custom_prompt zorunludur")
         
         keywords_str = ", ".join(keywords) if keywords else ""
-        prompt = f"""Sen bir eğitim uzmanısın. Aşağıdaki ders materyali bağlamında "{topic_title}" konusu için sorular üret.
+        prompt = f"""Sen bir eğitim uzmanısın. "{topic_title}" konusu için sorular üret.
+
+⚠️ ÖNEMLİ: 
+- Aşağıdaki materyal sadece REFERANS/REHBER olarak kullanılacaktır
+- Soruları KENDİ BİLGİN ile üret, materyalden kopyalama
+- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+- Sorular doğal, akıcı ve eğitimsel olmalı
 
 KONU BAŞLIĞI: {topic_title}
 ANAHTAR KELİMELER: {keywords_str}
 BLOOM SEVİYESİ: {bloom_level.upper()}
 
-DERS MATERYALİ:
+REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 {chunks_text[:8000]}
 
 ÖZEL TALİMATLAR:
@@ -344,14 +384,16 @@ DERS MATERYALİ:
 {{
   "questions": [
     {{
-      "question": "...",
+      "question": "[KONUYA ÖZGÜ DOĞAL SORU - materyalde bahsedilen gibi ifadeler kullanma]",
       "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}},
       "correct_answer": "A",
       "explanation": "...",
       "bloom_level": "{bloom_level}"
     }}
   ]
-}}"""
+}}
+
+ÖNEMLİ: Sorularda "materyalde bahsedilen", "materyalde geçen" gibi ifadeler KULLANMA. Sorular doğal ve akıcı olmalı."""
     
     return prompt
 

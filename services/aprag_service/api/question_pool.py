@@ -310,7 +310,8 @@ async def list_question_pool(
             # Get total count
             count_query = query.replace("SELECT question_id, topic_id", "SELECT COUNT(*)")
             cursor = conn.execute(count_query, params)
-            total = cursor.fetchone()[0]
+            count_result = cursor.fetchone()
+            total = count_result[0] if count_result else 0
             
             # Get paginated results
             query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
@@ -440,6 +441,135 @@ async def export_question_pool(
         raise HTTPException(status_code=500, detail=f"Failed to export questions: {str(e)}")
 
 
+class BulkDeleteRequest(BaseModel):
+    """Request model for bulk delete"""
+    question_ids: List[int]
+
+
+@router.delete("/{question_id}")
+async def delete_question(question_id: int, session_id: str):
+    """
+    Tek bir soruyu siler (soft delete - is_active = FALSE yapar).
+    """
+    db = get_db()
+    
+    try:
+        with db.get_connection() as conn:
+            # Sorunun var olup olmadığını ve session'a ait olduğunu kontrol et
+            cursor = conn.execute("""
+                SELECT question_id, session_id, is_active
+                FROM question_pool
+                WHERE question_id = ?
+            """, (question_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Question not found")
+            
+            if row[1] != session_id:
+                raise HTTPException(status_code=403, detail="Question does not belong to this session")
+            
+            # Soft delete - is_active = FALSE yap
+            conn.execute("""
+                UPDATE question_pool
+                SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+                WHERE question_id = ?
+            """, (question_id,))
+            
+            # İlişkili embedding'i de sil
+            conn.execute("""
+                DELETE FROM question_embeddings
+                WHERE question_id = ?
+            """, (question_id,))
+            
+            conn.commit()
+            
+            logger.info(f"Question {question_id} deleted (soft delete) for session {session_id}")
+            
+            return {
+                "success": True,
+                "message": "Question deleted successfully",
+                "question_id": question_id
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting question: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete question: {str(e)}")
+
+
+@router.delete("/bulk")
+async def bulk_delete_questions(request: BulkDeleteRequest, session_id: str):
+    """
+    Birden fazla soruyu toplu olarak siler (soft delete).
+    """
+    db = get_db()
+    
+    if not request.question_ids or len(request.question_ids) == 0:
+        raise HTTPException(status_code=400, detail="question_ids list cannot be empty")
+    
+    try:
+        with db.get_connection() as conn:
+            # Tüm soruların var olup olmadığını ve session'a ait olduğunu kontrol et
+            placeholders = ",".join(["?"] * len(request.question_ids))
+            cursor = conn.execute(f"""
+                SELECT question_id, session_id
+                FROM question_pool
+                WHERE question_id IN ({placeholders})
+            """, request.question_ids)
+            
+            rows = cursor.fetchall()
+            found_ids = {row[0] for row in rows}
+            
+            # Eksik soruları kontrol et
+            missing_ids = set(request.question_ids) - found_ids
+            if missing_ids:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Questions not found: {list(missing_ids)}"
+                )
+            
+            # Session kontrolü
+            wrong_session_ids = [row[0] for row in rows if row[1] != session_id]
+            if wrong_session_ids:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Questions do not belong to this session: {wrong_session_ids}"
+                )
+            
+            # Soft delete - is_active = FALSE yap
+            conn.execute(f"""
+                UPDATE question_pool
+                SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+                WHERE question_id IN ({placeholders})
+            """, request.question_ids)
+            
+            # İlişkili embedding'leri de sil
+            conn.execute(f"""
+                DELETE FROM question_embeddings
+                WHERE question_id IN ({placeholders})
+            """, request.question_ids)
+            
+            conn.commit()
+            
+            deleted_count = len(request.question_ids)
+            logger.info(f"Bulk deleted {deleted_count} questions for session {session_id}")
+            
+            return {
+                "success": True,
+                "message": f"{deleted_count} questions deleted successfully",
+                "deleted_count": deleted_count,
+                "question_ids": request.question_ids
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error bulk deleting questions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to bulk delete questions: {str(e)}")
+
+
 # ===========================================
 # Duplicate/Similarity Detection Functions
 # ===========================================
@@ -566,7 +696,7 @@ def check_duplicate_question(
         # Mevcut soruları al (aynı session, aynı topic)
         with db.get_connection() as conn:
             query = """
-                SELECT question_id, question_text, embedding
+                SELECT qp.question_id, qp.question_text, qe.embedding
                 FROM question_pool qp
                 LEFT JOIN question_embeddings qe ON qp.question_id = qe.question_id
                 WHERE qp.session_id = ? AND qp.is_active = TRUE AND qp.is_duplicate = FALSE
@@ -884,12 +1014,51 @@ def check_question_quality(
         result = response.json()
         llm_output = result.get("response", "")
         
-        # Parse JSON
+        # Parse JSON - LLM bazen JSON'dan önce açıklama metni ekliyor
         import re
-        json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
-        if json_match:
-            data = json.loads(json_match.group())
-            
+        # Önce tam JSON objesini bul
+        json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+        json_matches = re.findall(json_pattern, llm_output, re.DOTALL)
+        
+        data = None
+        for json_str in json_matches:
+            try:
+                parsed = json.loads(json_str)
+                if "quality_score" in parsed or "is_approved" in parsed:
+                    data = parsed
+                    break
+            except json.JSONDecodeError:
+                continue
+        
+        # Eğer bulamadıysak, en büyük JSON objesini dene
+        if not data:
+            json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
+            if json_match:
+                try:
+                    data = json.loads(json_match.group())
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse LLM quality check response: {e}")
+                    logger.warning(f"LLM output (first 500 chars): {llm_output[:500]}")
+                    return {
+                        "quality_score": 0.5,
+                        "usability_score": 0.5,
+                        "is_approved": False,
+                        "bloom_level_match": True,
+                        "evaluation": {},
+                        "detailed_scores": {}
+                    }
+            else:
+                logger.warning("Failed to parse LLM quality check response - no JSON found")
+                return {
+                    "quality_score": 0.5,
+                    "usability_score": 0.5,
+                    "is_approved": False,
+                    "bloom_level_match": True,
+                    "evaluation": {},
+                    "detailed_scores": {}
+                }
+        
+        if data:
             quality_score = float(data.get("quality_score", 0.5))
             usability_score = float(data.get("usability_score", 0.5))
             is_approved = data.get("is_approved", False) and quality_score >= quality_threshold
@@ -956,158 +1125,226 @@ def generate_questions_for_topic_and_bloom(
 ) -> List[Dict[str, Any]]:
     """
     Belirli bir konu ve Bloom seviyesi için soru üretir.
+    Büyük sayılar için küçük batch'ler halinde üretir.
     
     Returns:
         Üretilen ve onaylanan sorular listesi
     """
-    try:
-        # Chunk metinlerini hazırla
-        chunks_text = "\n\n---\n\n".join([
-            f"Bölüm {i+1}:\n{chunk.get('chunk_text', chunk.get('content', chunk.get('text', '')))}"
-            for i, chunk in enumerate(chunks[:20])  # Limit to 20 chunks
-        ])
+    # Batch size belirle: Her seferde 5-10 soru üret
+    BATCH_SIZE = 8  # Her batch'te 8 soru üret
+    total_approved = []
+    
+    # Chunk metinlerini hazırla (bir kez hazırla, tüm batch'lerde kullan)
+    chunks_text = "\n\n---\n\n".join([
+        f"Bölüm {i+1}:\n{chunk.get('chunk_text', chunk.get('content', chunk.get('text', '')))}"
+        for i, chunk in enumerate(chunks[:20])  # Limit to 20 chunks
+    ])
+    
+    # Toplam count kadar soru üretmek için batch'ler halinde çalış
+    remaining = count
+    batch_num = 0
+    
+    while remaining > 0 and len(total_approved) < count:
+        batch_num += 1
+        # Bu batch için kaç soru üretilecek?
+        batch_count = min(BATCH_SIZE, remaining)
         
-        # Prompt oluştur
-        prompt = build_question_generation_prompt(
-            bloom_level=bloom_level,
-            topic_title=topic_title,
-            chunks_text=chunks_text,
-            keywords=keywords,
-            count=count,
-            custom_prompt=custom_prompt,
-            prompt_instructions=prompt_instructions,
-            use_default_prompts=use_default_prompts
-        )
+        logger.info(f"🔄 Batch {batch_num} for topic '{topic_title}', bloom '{bloom_level}': generating {batch_count} questions (remaining: {remaining}, total approved so far: {len(total_approved)})")
         
-        # LLM'e soru üretim isteği gönder
-        model = get_session_model(session_id) or "llama-3.1-8b-instant"
-        response = requests.post(
-            f"{MODEL_INFERENCER_URL}/models/generate",
-            json={
-                "prompt": prompt,
-                "model": model,
-                "max_tokens": 2048,
-                "temperature": 0.7
-            },
-            timeout=120
-        )
-        
-        if response.status_code != 200:
-            error_text = response.text if hasattr(response, 'text') else "Unknown error"
-            logger.error(f"LLM service error: {response.status_code} - {error_text}")
-            logger.error(f"Failed to generate questions for topic '{topic_title}', bloom level '{bloom_level}'")
-            return []
-        
-        result = response.json()
-        llm_output = result.get("response", "")
-        
-        if not llm_output or len(llm_output.strip()) < 10:
-            logger.error(f"Empty or invalid LLM response for topic '{topic_title}', bloom level '{bloom_level}'")
-            return []
-        
-        # Parse JSON
-        import re
-        json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
-        if json_match:
+        try:
+            # Prompt oluştur (bu batch için)
+            prompt = build_question_generation_prompt(
+                bloom_level=bloom_level,
+                topic_title=topic_title,
+                chunks_text=chunks_text,
+                keywords=keywords,
+                count=batch_count,
+                custom_prompt=custom_prompt,
+                prompt_instructions=prompt_instructions,
+                use_default_prompts=use_default_prompts
+            )
+            
+            # DEBUG: Prompt'u logla (sadece ilk batch için detaylı)
+            if batch_num == 1:
+                logger.info(f"=== QUESTION GENERATION REQUEST ===")
+                logger.info(f"Topic: '{topic_title}' | Bloom: '{bloom_level}' | Total count: {count} | Batch size: {BATCH_SIZE}")
+                logger.info(f"Chunks used: {len(chunks)} chunks")
+            
+            # LLM'e soru üretim isteği gönder
+            model = get_session_model(session_id) or "llama-3.1-8b-instant"
+            
             try:
-                questions_data = json.loads(json_match.group())
+                response = requests.post(
+                    f"{MODEL_INFERENCER_URL}/models/generate",
+                    json={
+                        "prompt": prompt,
+                        "model": model,
+                        "max_tokens": 2048,
+                        "temperature": 0.7
+                    },
+                    timeout=120
+                )
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Request exception for batch {batch_num}: {e}")
+                break  # Bu batch başarısız, devam et
+            
+            if response.status_code != 200:
+                error_text = response.text if hasattr(response, 'text') else "Unknown error"
+                logger.error(f"LLM service error (batch {batch_num}): {response.status_code} - {error_text}")
+                break  # Bu batch başarısız, devam et
+            
+            try:
+                result = response.json()
             except json.JSONDecodeError as e:
-                logger.error(f"JSON parse error for topic '{topic_title}': {e}")
-                logger.error(f"LLM output: {llm_output[:500]}")
-                return []
-        else:
-            try:
-                questions_data = json.loads(llm_output)
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON parse error for topic '{topic_title}': {e}")
-                logger.error(f"LLM output: {llm_output[:500]}")
-                return []
-        
-        questions = questions_data.get("questions", [])
-        if not questions:
-            logger.warning(f"No questions found in LLM response for topic '{topic_title}', bloom level '{bloom_level}'")
-            return []
-        
-        approved_questions = []
-        
-        # Her soru için işlem yap
-        for q in questions:
-            try:
-                # Soru formatını kontrol et - string formatını kabul etme, sadece dict
-                if isinstance(q, str):
-                    logger.warning(f"Question is in string format, skipping (topic: '{topic_title}'): {q[:50]}...")
+                logger.error(f"Failed to parse LLM response as JSON (batch {batch_num}): {e}")
+                break  # Bu batch başarısız, devam et
+            
+            llm_output = result.get("response", "")
+            
+            if not llm_output or len(llm_output.strip()) < 10:
+                logger.warning(f"Empty LLM response for batch {batch_num}, skipping")
+                break  # Bu batch başarısız, devam et
+            
+            # Parse JSON - LLM bazen JSON'dan önce açıklama metni ekliyor
+            import re
+            # Önce tam JSON objesini bul (nested braces için)
+            json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+            json_matches = re.findall(json_pattern, llm_output, re.DOTALL)
+            
+            questions_data = None
+            for json_str in json_matches:
+                try:
+                    parsed = json.loads(json_str)
+                    if "questions" in parsed and isinstance(parsed["questions"], list):
+                        questions_data = parsed
+                        break
+                except json.JSONDecodeError:
                     continue
-                
-                if not isinstance(q, dict):
-                    logger.warning(f"Question is not in expected format, skipping (topic: '{topic_title}')")
-                    continue
-                
-                question_text = q.get("question", "")
-                options = q.get("options", {})
-                correct_answer = q.get("correct_answer", "A")
-                explanation = q.get("explanation", "")
-                
-                if not question_text or not options:
-                    logger.warning(f"Question missing required fields (topic: '{topic_title}'): question_text={bool(question_text)}, options={bool(options)}")
-                    continue
-                
-                # Duplicate kontrolü
-                is_duplicate = False
-                similarity_score = 0.0
-                if enable_duplicate_check:
-                    duplicate_result = check_duplicate_question(
-                        new_question_text=question_text,
-                        session_id=session_id,
-                        topic_id=topic_id,
-                        similarity_threshold=similarity_threshold,
-                        method=duplicate_check_method
-                    )
-                    is_duplicate = duplicate_result["is_duplicate"]
-                    similarity_score = duplicate_result["similarity_score"]
-                    
-                    if is_duplicate:
-                        logger.info(f"Question rejected (duplicate): {question_text[:50]}...")
+            
+            # Eğer bulamadıysak, en büyük JSON objesini dene
+            if not questions_data:
+                json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
+                if json_match:
+                    try:
+                        questions_data = json.loads(json_match.group())
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Batch {batch_num}: JSON parse error: {e}")
+                        break  # Bu batch başarısız, devam et
+                else:
+                    try:
+                        questions_data = json.loads(llm_output)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Batch {batch_num}: JSON parse error: {e}")
+                        break  # Bu batch başarısız, devam et
+        
+            if not questions_data or "questions" not in questions_data:
+                logger.warning(f"Batch {batch_num}: No 'questions' key found in parsed data")
+                break  # Bu batch başarısız, devam et
+            
+            questions = questions_data.get("questions", [])
+            logger.info(f"Batch {batch_num}: Parsed {len(questions)} questions from LLM response")
+            
+            if not questions:
+                logger.warning(f"⚠️ Batch {batch_num}: No questions found in LLM response")
+                break  # Bu batch'te soru yok, devam et
+            
+            batch_approved = []
+            
+            # Her soru için işlem yap
+            for idx, q in enumerate(questions):
+                try:
+                    # Soru formatını kontrol et - string formatını kabul etme, sadece dict
+                    if isinstance(q, str):
+                        logger.warning(f"Question is in string format, skipping (batch {batch_num}): {q[:50]}...")
                         continue
-                
-                # Kalite kontrolü
-                quality_result = None
-                if enable_quality_check:
-                    quality_result = check_question_quality(
-                        question_text=question_text,
-                        options=options,
-                        correct_answer=correct_answer,
-                        explanation=explanation,
-                        bloom_level=bloom_level,
-                        topic_title=topic_title,
-                        source_chunks_text=chunks_text[:2000],
-                        quality_threshold=quality_threshold
-                    )
                     
-                    if not quality_result["is_approved"]:
-                        logger.info(f"Question rejected (quality): {question_text[:50]}... (score: {quality_result['quality_score']:.2f})")
+                    if not isinstance(q, dict):
+                        logger.warning(f"Question is not in expected format, skipping (batch {batch_num})")
                         continue
-                
-                # Soruyu kaydet
-                approved_questions.append({
-                    "question_text": question_text,
-                    "options": options,
-                    "correct_answer": correct_answer,
-                    "explanation": explanation,
-                    "bloom_level": bloom_level,
-                    "quality_result": quality_result,
-                    "similarity_score": similarity_score,
-                    "is_duplicate": False
-                })
-                
-            except Exception as e:
-                logger.error(f"Error processing question: {e}", exc_info=True)
-                continue
-        
-        return approved_questions
-        
-    except Exception as e:
-        logger.error(f"Error generating questions: {e}", exc_info=True)
-        return []
+                    
+                    question_text = q.get("question", "")
+                    options = q.get("options", {})
+                    correct_answer = q.get("correct_answer", "A")
+                    explanation = q.get("explanation", "")
+                    
+                    if not question_text or not options:
+                        logger.warning(f"Question missing required fields (batch {batch_num}): question_text={bool(question_text)}, options={bool(options)}")
+                        continue
+                    
+                    # Duplicate kontrolü (mevcut total_approved sorulara karşı da kontrol et)
+                    is_duplicate = False
+                    similarity_score = 0.0
+                    if enable_duplicate_check:
+                        duplicate_result = check_duplicate_question(
+                            new_question_text=question_text,
+                            session_id=session_id,
+                            topic_id=topic_id,
+                            similarity_threshold=similarity_threshold,
+                            method=duplicate_check_method
+                        )
+                        is_duplicate = duplicate_result["is_duplicate"]
+                        similarity_score = duplicate_result["similarity_score"]
+                        
+                        if is_duplicate:
+                            continue
+                    
+                    # Kalite kontrolü
+                    quality_result = None
+                    if enable_quality_check:
+                        quality_result = check_question_quality(
+                            question_text=question_text,
+                            options=options,
+                            correct_answer=correct_answer,
+                            explanation=explanation,
+                            bloom_level=bloom_level,
+                            topic_title=topic_title,
+                            source_chunks_text=chunks_text[:2000],
+                            quality_threshold=quality_threshold
+                        )
+                        
+                        if not quality_result["is_approved"]:
+                            continue
+                    
+                    # Soruyu kaydet
+                    batch_approved.append({
+                        "question_text": question_text,
+                        "options": options,
+                        "correct_answer": correct_answer,
+                        "explanation": explanation,
+                        "bloom_level": bloom_level,
+                        "quality_result": quality_result,
+                        "similarity_score": similarity_score,
+                        "is_duplicate": False
+                    })
+                    
+                except Exception as e:
+                    logger.error(f"Error processing question in batch {batch_num}: {e}", exc_info=True)
+                    continue
+            
+            # Bu batch'te onaylanan soruları ekle
+            total_approved.extend(batch_approved)
+            logger.info(f"✅ Batch {batch_num} completed: {len(batch_approved)}/{len(questions)} questions approved (total approved: {len(total_approved)}/{count})")
+            
+            # Yeterli soru toplandı mı?
+            if len(total_approved) >= count:
+                break
+            
+            # Kalan soru sayısını güncelle
+            remaining = count - len(total_approved)
+            
+            # Başarısız batch'ler varsa dur (3 başarısız batch sonra dur)
+            if batch_num >= 3 and len(total_approved) == 0:
+                logger.warning(f"⚠️ 3 consecutive failed batches, stopping for topic '{topic_title}', bloom '{bloom_level}'")
+                break
+            
+        except Exception as e:
+            logger.error(f"Error in batch {batch_num}: {e}", exc_info=True)
+            break  # Bu batch başarısız, devam et
+    
+    logger.info(f"=== QUESTION GENERATION RESULT ===")
+    logger.info(f"Topic: '{topic_title}' | Bloom: '{bloom_level}' | Requested: {count} | Approved: {len(total_approved)} | Batches: {batch_num}")
+    
+    return total_approved[:count]  # İstenen sayıdan fazla olursa kes
 
 
 def run_batch_generation(job_id: int, request: BatchQuestionGenerationRequest):
@@ -1207,30 +1444,51 @@ def run_batch_generation(job_id: int, request: BatchQuestionGenerationRequest):
             topic_title = topic["topic_title"]
             keywords = topic["keywords"]
             
-            # Topic'e özel chunk'ları filtrele (keyword + topic title matching)
+            # Topic'e özel chunk'ları filtrele (keyword + topic title matching - SCORING BASED)
             topic_chunks = []
             topic_title_lower = topic_title.lower()
             
             # Topic title'dan kelimeleri çıkar (stop words hariç)
-            stop_words = {'ve', 'ile', 'için', 'bir', 'bu', 'şu', 'o', 'de', 'da', 'ki', 'mi', 'mı', 'mu', 'mü'}
-            topic_words = [w for w in topic_title_lower.split() if w not in stop_words and len(w) > 2]
+            stop_words = {'ve', 'ile', 'için', 'bir', 'bu', 'şu', 'o', 'de', 'da', 'ki', 'mi', 'mı', 'mu', 'mü', 'veya', 'ya', 'gibi', 'kadar', 'daha', 'en', 'çok', 'az', 'var', 'yok'}
+            topic_words = [w.strip() for w in topic_title_lower.split() if w.strip() not in stop_words and len(w.strip()) > 2]
             
             # Hem keywords hem de topic title'a göre filtrele
-            search_terms = keywords + topic_words if keywords else topic_words
+            search_terms = (keywords + topic_words) if keywords else topic_words
             
             if search_terms:
+                # Her chunk için relevance score hesapla
+                chunk_scores = []
                 for chunk in chunks:
                     chunk_text = chunk.get('chunk_text', chunk.get('content', chunk.get('text', ''))).lower()
-                    # En az bir search term chunk'ta geçiyorsa ekle
-                    if any(term.lower() in chunk_text for term in search_terms):
-                        topic_chunks.append(chunk)
+                    score = 0
+                    matches = []
+                    
+                    # Her search term için kontrol et
+                    for term in search_terms:
+                        term_lower = term.lower().strip()
+                        if term_lower in chunk_text:
+                            # Term ne kadar sık geçiyor?
+                            count = chunk_text.count(term_lower)
+                            score += count * (3 if len(term_lower) > 4 else 1)  # Uzun kelimeler daha önemli
+                            matches.append(term_lower)
+                    
+                    if score > 0:
+                        chunk_scores.append((chunk, score, matches))
                 
-                # Eşleşme varsa kullan, yoksa uyarı ver ve boş bırak
+                # Score'a göre sırala ve en iyi 30'unu al
+                chunk_scores.sort(key=lambda x: x[1], reverse=True)
+                topic_chunks = [chunk for chunk, score, matches in chunk_scores[:30]]
+                
                 if topic_chunks:
-                    topic_chunks = topic_chunks[:30]  # Limit
-                    logger.info(f"Found {len(topic_chunks)} chunks for topic '{topic_title}'")
+                    logger.info(f"✅ Found {len(topic_chunks)} chunks for topic '{topic_title}' (keywords: {keywords}, topic words: {topic_words})")
+                    # İlk chunk'ın bir kısmını logla
+                    if topic_chunks and chunk_scores:
+                        first_chunk = topic_chunks[0].get('chunk_text', topic_chunks[0].get('content', topic_chunks[0].get('text', '')))
+                        first_score = chunk_scores[0][1] if chunk_scores else 0
+                        first_matches = chunk_scores[0][2] if chunk_scores else []
+                        logger.info(f"First chunk preview (score: {first_score}, matches: {first_matches[:3]}): {first_chunk[:200]}...")
                 else:
-                    logger.warning(f"No chunks found matching topic '{topic_title}' with keywords {keywords}. Skipping this topic.")
+                    logger.warning(f"❌ No chunks found matching topic '{topic_title}' with keywords {keywords} and topic words {topic_words}. Skipping this topic.")
                     continue  # Bu topic için soru üretme
             else:
                 # Keywords ve topic title yoksa, tüm chunk'ları kullanma - uyarı ver

@@ -2706,6 +2706,64 @@ export async function exportQuestionPool(
   return res.blob();
 }
 
+// Delete a single question
+export async function deleteQuestion(
+  questionId: number,
+  sessionId: string
+): Promise<{ success: boolean; message: string; question_id: number }> {
+  const apiUrl = getApiUrl();
+  const params = new URLSearchParams({
+    session_id: sessionId,
+  });
+
+  const res = await fetch(
+    `${apiUrl}/aprag/question-pool/${questionId}?${params.toString()}`,
+    {
+      method: "DELETE",
+      headers: {
+        ...(await tokenManager.getAuthHeaders()),
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || "Failed to delete question");
+  }
+
+  return res.json();
+}
+
+// Bulk delete questions
+export async function bulkDeleteQuestions(
+  questionIds: number[],
+  sessionId: string
+): Promise<{ success: boolean; message: string; deleted_count: number; question_ids: number[] }> {
+  const apiUrl = getApiUrl();
+  const params = new URLSearchParams({
+    session_id: sessionId,
+  });
+
+  const res = await fetch(
+    `${apiUrl}/aprag/question-pool/bulk?${params.toString()}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await tokenManager.getAuthHeaders()),
+      },
+      body: JSON.stringify({ question_ids: questionIds }),
+    }
+  );
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || "Failed to bulk delete questions");
+  }
+
+  return res.json();
+}
+
 // Classify a question to a topic
 export async function classifyQuestion(
   request: QuestionClassificationRequest
