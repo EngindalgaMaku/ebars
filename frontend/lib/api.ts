@@ -2539,6 +2539,173 @@ export async function getTopicDetails(topicId: number): Promise<{
   return res.json();
 }
 
+// ===========================================
+// Question Pool API Functions
+// ===========================================
+
+export interface BatchQuestionGenerationRequest {
+  session_id: string;
+  job_type?: string;
+  topic_ids?: number[];
+  custom_topic?: string;
+  total_questions_target: number;
+  questions_per_topic?: number;
+  questions_per_bloom_level?: number;
+  bloom_levels?: string[];
+  use_random_bloom_distribution?: boolean;
+  custom_prompt?: string;
+  prompt_instructions?: string;
+  use_default_prompts?: boolean;
+  enable_quality_check?: boolean;
+  quality_threshold?: number;
+  enable_duplicate_check?: boolean;
+  similarity_threshold?: number;
+  duplicate_check_method?: string;
+}
+
+export interface BatchJobStatus {
+  job_id: number;
+  session_id: string;
+  status: string;
+  progress_current: number;
+  progress_total: number;
+  questions_generated: number;
+  questions_failed: number;
+  questions_rejected_by_quality: number;
+  questions_rejected_by_duplicate: number;
+  questions_approved: number;
+  estimated_time_remaining?: string;
+}
+
+export interface QuestionPoolQuestion {
+  question_id: number;
+  topic_id?: number;
+  topic_title?: string;
+  question_text: string;
+  question_type: string;
+  difficulty_level?: string;
+  bloom_level?: string;
+  options?: { [key: string]: string };
+  correct_answer: string;
+  explanation?: string;
+  quality_score?: number;
+  usability_score?: number;
+  is_approved_by_llm?: boolean;
+  similarity_score?: number;
+  is_duplicate?: boolean;
+  created_at: string;
+}
+
+// Start batch question generation
+export async function startBatchQuestionGeneration(
+  request: BatchQuestionGenerationRequest
+): Promise<{ success: boolean; job_id: number; status: string; message: string }> {
+  const res = await fetch(`${getApiUrl()}/aprag/question-pool/batch-generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(await tokenManager.getAuthHeaders()),
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `HTTP ${res.status}`);
+  }
+
+  return res.json();
+}
+
+// Get batch job status
+export async function getBatchJobStatus(jobId: number): Promise<BatchJobStatus> {
+  const res = await fetch(`${getApiUrl()}/aprag/question-pool/batch-jobs/${jobId}`, {
+    method: "GET",
+    headers: {
+      ...(await tokenManager.getAuthHeaders()),
+    },
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `HTTP ${res.status}`);
+  }
+
+  return res.json();
+}
+
+// List questions from pool
+export async function listQuestionPool(
+  sessionId: string,
+  topicId?: number,
+  difficultyLevel?: string,
+  bloomLevel?: string,
+  isActive: boolean = true,
+  limit: number = 50,
+  offset: number = 0
+): Promise<{
+  total: number;
+  questions: QuestionPoolQuestion[];
+  pagination: { limit: number; offset: number; has_more: boolean };
+}> {
+  const params = new URLSearchParams({
+    session_id: sessionId,
+    is_active: String(isActive),
+    limit: String(limit),
+    offset: String(offset),
+  });
+
+  if (topicId) params.append("topic_id", String(topicId));
+  if (difficultyLevel) params.append("difficulty_level", difficultyLevel);
+  if (bloomLevel) params.append("bloom_level", bloomLevel);
+
+  const res = await fetch(`${getApiUrl()}/aprag/question-pool/list?${params}`, {
+    method: "GET",
+    headers: {
+      ...(await tokenManager.getAuthHeaders()),
+    },
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `HTTP ${res.status}`);
+  }
+
+  return res.json();
+}
+
+// Export question pool as JSON
+export async function exportQuestionPool(
+  sessionId: string,
+  format: string = "json",
+  topicId?: number,
+  difficultyLevel?: string,
+  bloomLevel?: string
+): Promise<Blob> {
+  const params = new URLSearchParams({
+    session_id: sessionId,
+    format,
+  });
+
+  if (topicId) params.append("topic_id", String(topicId));
+  if (difficultyLevel) params.append("difficulty_level", difficultyLevel);
+  if (bloomLevel) params.append("bloom_level", bloomLevel);
+
+  const res = await fetch(`${getApiUrl()}/aprag/question-pool/export?${params}`, {
+    method: "GET",
+    headers: {
+      ...(await tokenManager.getAuthHeaders()),
+    },
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(error.detail || `HTTP ${res.status}`);
+  }
+
+  return res.blob();
+}
+
 // Classify a question to a topic
 export async function classifyQuestion(
   request: QuestionClassificationRequest

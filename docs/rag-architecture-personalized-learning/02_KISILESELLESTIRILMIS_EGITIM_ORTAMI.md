@@ -424,3 +424,4 @@ Geliştirme ve araştırma için kapsamlı debug bilgileri:
 - [ ] Real-time adaptation
 - [ ] Predictive modeling for learning outcomes
 
+

@@ -508,3 +508,4 @@ POST http://model-inference-service:8002/models/generate
 - Trend analizini izle
 - Cache stratejisini optimize et
 
+

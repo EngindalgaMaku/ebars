@@ -466,3 +466,4 @@ Makale, hem teorik çerçeve hem de **mevcut sistemimizin bir case study olarak 
 **Son Güncelleme**: 2025-12-05
 **Öneri**: En uygun başlık ve yaklaşım seçildi
 
+

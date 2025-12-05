@@ -101,7 +101,7 @@ export default function SessionPage() {
   const [interactionsTotal, setInteractionsTotal] = useState(0);
   const INTERACTIONS_PER_PAGE = 10;
   const [activeTab, setActiveTab] = useState<
-    "genel" | "chunks" | "topics" | "interactions" | "session-settings"
+    "genel" | "chunks" | "topics" | "interactions" | "session-settings" | "question-pool"
   >("genel");
   
   // Batch processing job tracking
@@ -690,6 +690,13 @@ export default function SessionPage() {
                       <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-muted rounded-full">
                         {interactionsTotal || interactions.length}
                       </span>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="question-pool"
+                      className="data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span className="hidden sm:inline">Soru </span>Havuzu
                     </TabsTrigger>
                   </>
                 )}
@@ -1874,6 +1881,12 @@ export default function SessionPage() {
                     )}
                   </div>
                 </TabsContent>
+
+                <TabsContent value="question-pool" className="mt-0">
+                  <div className="p-6">
+                    <QuestionPoolPanel sessionId={sessionId} />
+                  </div>
+                </TabsContent>
               </>
             )}
 
@@ -1959,6 +1972,15 @@ export default function SessionPage() {
             </div>
           </div>
         )}
+
+                <TabsContent value="question-pool" className="mt-0">
+                  <div className="p-6">
+                    <QuestionPoolPanel sessionId={sessionId} />
+                  </div>
+                </TabsContent>
+              </>
+            )}
+          </Tabs>
       </div>
     </TeacherLayout>
   );

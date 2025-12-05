@@ -84,7 +84,7 @@ except ImportError:
 
 # Import database and API modules
 from database.database import DatabaseManager
-from api import interactions, feedback, profiles, personalization, recommendations, analytics, settings, topics, knowledge_extraction, hybrid_rag_query, session_settings, modules, async_hybrid_rag_query, survey, model_management
+from api import interactions, feedback, profiles, personalization, recommendations, analytics, settings, topics, knowledge_extraction, hybrid_rag_query, session_settings, modules, async_hybrid_rag_query, survey, model_management, question_pool
 
 # Import CACS scoring (Faz 2 - Eğitsel-KBRAG)
 try:
@@ -271,6 +271,7 @@ app.include_router(async_hybrid_rag_query.router, prefix="/api/aprag/async-rag",
 app.include_router(session_settings.router, prefix="/api/aprag/session-settings", tags=["Session Settings"])
 app.include_router(survey.router, prefix="/api/aprag", tags=["Survey"])
 app.include_router(model_management.router, prefix="/api", tags=["Model Management"])
+app.include_router(question_pool.router, prefix="/api/aprag/question-pool", tags=["Question Pool"])
 
 # Include Eğitsel-KBRAG routers (use Depends(get_db) for db access)
 if SCORING_AVAILABLE and FeatureFlags.is_cacs_enabled():

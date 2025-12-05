@@ -115,6 +115,7 @@ class DatabaseManager:
                     self.apply_initial_test_tracking_migration(conn)
                     self.apply_initial_test_two_stage_migration(conn)
                     self.apply_completion_percentage_migration(conn)
+                    self.apply_question_pool_migration(conn)
                     self.ensure_feature_flags_table(conn)
                     conn.commit()
                     
@@ -2115,6 +2116,187 @@ class DatabaseManager:
         except Exception as e:
             logger.warning(f"Failed to apply completion_percentage migration (non-critical): {e}")
             # Don't raise - let the system continue
+    
+    def apply_question_pool_migration(self, conn: sqlite3.Connection):
+        """Apply Question Pool System migration (018_create_question_pool_tables.sql)"""
+        try:
+            # Check if question_pool table exists
+            cursor = conn.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='question_pool'
+            """)
+            
+            if cursor.fetchone():
+                logger.info("Question pool tables already exist")
+                return
+            
+            logger.info("Applying Question Pool migration (018)...")
+            
+            # Read migration file
+            possible_paths = [
+                "/app/database/migrations/018_create_question_pool_tables.sql",
+                os.path.join(os.path.dirname(__file__), "migrations/018_create_question_pool_tables.sql"),
+                os.path.join(
+                    os.path.dirname(__file__),
+                    "../database/migrations/018_create_question_pool_tables.sql"
+                ),
+            ]
+            
+            migration_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    migration_path = path
+                    break
+            
+            if migration_path and os.path.exists(migration_path):
+                with open(migration_path, 'r', encoding='utf-8') as f:
+                    migration_sql = f.read()
+                
+                # Execute migration
+                conn.executescript(migration_sql)
+                conn.commit()
+                logger.info("✅ Question Pool migration (018) applied successfully")
+            else:
+                logger.warning(f"Question Pool migration file not found. Expected paths: {possible_paths}")
+                # Apply migration directly if file not found
+                logger.info("Applying Question Pool migration directly...")
+                self._apply_question_pool_migration_directly(conn)
+                
+        except Exception as e:
+            logger.warning(f"Failed to apply Question Pool migration (non-critical): {e}")
+            # Don't raise - let the system continue
+    
+    def _apply_question_pool_migration_directly(self, conn: sqlite3.Connection):
+        """Apply Question Pool migration directly (fallback if file not found)"""
+        try:
+            # Create question_pool table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS question_pool (
+                    question_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    topic_id INTEGER,
+                    topic_title TEXT,
+                    question_text TEXT NOT NULL,
+                    question_type TEXT DEFAULT 'multiple_choice',
+                    difficulty_level TEXT DEFAULT 'intermediate',
+                    bloom_level TEXT,
+                    options TEXT,
+                    correct_answer TEXT,
+                    explanation TEXT,
+                    related_chunk_ids TEXT,
+                    source_chunks TEXT,
+                    generation_method TEXT DEFAULT 'llm_generated',
+                    generation_model TEXT,
+                    generation_prompt TEXT,
+                    confidence_score REAL DEFAULT 0.0,
+                    quality_score REAL,
+                    quality_evaluation TEXT,
+                    usability_score REAL,
+                    is_approved_by_llm BOOLEAN DEFAULT FALSE,
+                    quality_check_model TEXT,
+                    similarity_score REAL,
+                    most_similar_question_id INTEGER,
+                    is_duplicate BOOLEAN DEFAULT FALSE,
+                    duplicate_reason TEXT,
+                    times_used INTEGER DEFAULT 0,
+                    times_answered_correctly INTEGER DEFAULT 0,
+                    average_response_time REAL,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    is_featured BOOLEAN DEFAULT FALSE,
+                    is_validated BOOLEAN DEFAULT FALSE,
+                    validation_notes TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    last_used_at TEXT,
+                    validated_at TEXT,
+                    FOREIGN KEY (topic_id) REFERENCES course_topics(topic_id)
+                )
+            """)
+            
+            # Create question_pool_batch_jobs table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS question_pool_batch_jobs (
+                    job_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    job_type TEXT NOT NULL,
+                    topic_ids TEXT,
+                    difficulty_levels TEXT,
+                    bloom_levels TEXT,
+                    questions_per_topic INTEGER DEFAULT 10,
+                    questions_per_bloom_level INTEGER,
+                    total_questions_target INTEGER NOT NULL,
+                    custom_topic TEXT,
+                    custom_prompt TEXT,
+                    prompt_instructions TEXT,
+                    use_default_prompts BOOLEAN DEFAULT TRUE,
+                    enable_quality_check BOOLEAN DEFAULT TRUE,
+                    quality_threshold REAL DEFAULT 0.7,
+                    enable_duplicate_check BOOLEAN DEFAULT TRUE,
+                    similarity_threshold REAL DEFAULT 0.85,
+                    duplicate_check_method TEXT DEFAULT 'embedding',
+                    status TEXT DEFAULT 'pending',
+                    progress_current INTEGER DEFAULT 0,
+                    progress_total INTEGER,
+                    questions_generated INTEGER DEFAULT 0,
+                    questions_failed INTEGER DEFAULT 0,
+                    questions_rejected_by_quality INTEGER DEFAULT 0,
+                    questions_rejected_by_duplicate INTEGER DEFAULT 0,
+                    questions_approved INTEGER DEFAULT 0,
+                    created_by INTEGER,
+                    started_at TEXT,
+                    completed_at TEXT,
+                    error_message TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Create question_embeddings table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS question_embeddings (
+                    question_id INTEGER PRIMARY KEY,
+                    embedding BLOB,
+                    embedding_model TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (question_id) REFERENCES question_pool(question_id) ON DELETE CASCADE
+                )
+            """)
+            
+            # Create indexes
+            indexes = [
+                "CREATE INDEX IF NOT EXISTS idx_question_pool_session ON question_pool(session_id)",
+                "CREATE INDEX IF NOT EXISTS idx_question_pool_topic ON question_pool(topic_id)",
+                "CREATE INDEX IF NOT EXISTS idx_question_pool_difficulty ON question_pool(difficulty_level)",
+                "CREATE INDEX IF NOT EXISTS idx_question_pool_bloom ON question_pool(bloom_level)",
+                "CREATE INDEX IF NOT EXISTS idx_question_pool_active ON question_pool(is_active)",
+                "CREATE INDEX IF NOT EXISTS idx_question_pool_featured ON question_pool(is_featured)",
+                "CREATE INDEX IF NOT EXISTS idx_question_pool_duplicate ON question_pool(is_duplicate)",
+                "CREATE INDEX IF NOT EXISTS idx_question_pool_created ON question_pool(created_at)",
+                "CREATE INDEX IF NOT EXISTS idx_batch_jobs_session ON question_pool_batch_jobs(session_id)",
+                "CREATE INDEX IF NOT EXISTS idx_batch_jobs_status ON question_pool_batch_jobs(status)",
+                "CREATE INDEX IF NOT EXISTS idx_batch_jobs_created ON question_pool_batch_jobs(created_at)",
+                "CREATE INDEX IF NOT EXISTS idx_question_embeddings_model ON question_embeddings(embedding_model)"
+            ]
+            
+            for index_sql in indexes:
+                conn.execute(index_sql)
+            
+            # Create trigger
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS update_question_pool_timestamp
+                AFTER UPDATE ON question_pool
+                BEGIN
+                    UPDATE question_pool 
+                    SET updated_at = CURRENT_TIMESTAMP 
+                    WHERE question_id = NEW.question_id;
+                END
+            """)
+            
+            conn.commit()
+            logger.info("✅ Question Pool migration applied directly")
+            
+        except Exception as e:
+            logger.error(f"Error applying Question Pool migration directly: {e}", exc_info=True)
+            conn.rollback()
     
     def _recreate_student_topic_progress_analytics_view(self, conn: sqlite3.Connection):
         """Recreate student_topic_progress_analytics view with completion_percentage support"""
