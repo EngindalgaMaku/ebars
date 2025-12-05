@@ -6,7 +6,7 @@
 
 ## Özet
 
-Bu çalışma, Türk eğitim sistemine özgü olarak tasarlanmış, pedagojik teorilerle zenginleştirilmiş hibrit RAG (Retrieval-Augmented Generation) tabanlı kişiselleştirilmiş öğrenme sistemini sunmaktadır. Sistem, üç farklı bilgi kaynağını (chunks, knowledge base, QA pairs) birleştiren hibrit mimari, Bloom Taksonomisi ve Bilişsel Yük Teorisi gibi pedagojik monitörler içermektedir. Çalışma, sistemin mimarisini, Türk eğitim sistemine uyarlama sürecini ve uygulama detaylarını sunmaktadır. Sistem, Türkçe'nin morfolojik yapısına özel optimizasyonlar, hibrit bilgi erişim stratejileri ve pedagojik adaptasyon mekanizmaları ile literatüre özgün katkılar sunmaktadır.
+Bu çalışma, Türk eğitim sistemine özgü olarak tasarlanmış, pedagojik teorilerle zenginleştirilmiş hibrit RAG (Retrieval-Augmented Generation) tabanlı kişiselleştirilmiş öğrenme sistemini sunmaktadır. Sistem, üç farklı bilgi kaynağını (metin parçaları, bilgi tabanı, soru-cevap çiftleri) birleştiren hibrit mimari, Bloom Taksonomisi ve Bilişsel Yük Teorisi gibi pedagojik monitörler içermektedir. Çalışma, sistemin mimarisini, Türk eğitim sistemine uyarlama sürecini ve uygulama detaylarını sunmaktadır. Sistem, Türkçe'nin morfolojik yapısına özel optimizasyonlar, hibrit bilgi erişim stratejileri ve pedagojik adaptasyon mekanizmaları ile literatüre özgün katkılar sunmaktadır.
 
 **Anahtar Kelimeler:** RAG, Kişiselleştirilmiş Öğrenme, Türk Eğitim Sistemi, Hibrit Mimari, Pedagojik Teoriler
 
@@ -24,7 +24,7 @@ Son yıllarda, yapay zeka (YZ) teknolojilerinin eğitim alanına entegrasyonu h�
 
 Bu çalışma, yukarıdaki sorunlara çözüm olarak **hibrit RAG tabanlı kişiselleştirilmiş öğrenme sistemi** önermektedir. Sistemin temel özellikleri:
 
-1. **Hibrit Bilgi Erişimi**: Chunk-based retrieval, Knowledge Base ve QA Pairs'ı birleştiren üç katmanlı bilgi erişim mimarisi
+1. **Hibrit Bilgi Erişimi**: Parça tabanlı erişim, bilgi tabanı ve soru-cevap çiftlerini birleştiren üç katmanlı bilgi erişim mimarisi
 2. **Pedagojik Zenginleştirme**: Bloom Taksonomisi ve Bilişsel Yük Teorisi gibi kanıtlanmış pedagojik teorilerin sistem entegrasyonu
 3. **Türkçe Dil Desteği**: Türkçe'nin morfolojik yapısına özel optimizasyonlar
 
@@ -33,7 +33,7 @@ Bu çalışma, yukarıdaki sorunlara çözüm olarak **hibrit RAG tabanlı kişi
 Bu makale şu katkıları sunmaktadır:
 
 1. **Türk Eğitim Sistemine Özgü RAG Uygulaması**: Literatürde Türk eğitim sistemine özel hibrit RAG uygulaması bulunmamaktadır.
-2. **Hibrit Mimari Tasarımı**: Chunks, KB ve QA Pairs'ı birleştiren hibrit yaklaşım literatürde nadirdir.
+2. **Hibrit Mimari Tasarımı**: Metin parçaları, bilgi tabanı ve soru-cevap çiftlerini birleştiren hibrit yaklaşım literatürde nadirdir.
 3. **Pedagojik Teorilerin Entegrasyonu**: Bloom ve Cognitive Load'un birlikte kullanımı özgün bir yaklaşımdır.
 4. **Pratik Uygulama Örneği**: Çalışan bir sistemin detaylı analizi ve değerlendirmesi.
 5. **Türkçe Dil Desteği**: Türkçe'nin morfolojik yapısına özel çözümler ve optimizasyonlar.
@@ -77,33 +77,38 @@ Eğitim sektöründe, chatbotlar öğrencilere anında bilgi sağlama, soruları
 
 | Çalışma | Yıl | Özellik | Önemi |
 |---------|-----|---------|-------|
-| **EduChat** [5] | 2023 | Büyük ölçekli chatbot sistemi | Öğretmen, öğrenci ve veli desteği |
+| **Turk-LettuceDetect** [4] | **2025** | Halüsinasyon tespiti | Türkçe RAG için özel model |
+| **Knowledge Graph + RAG** [6] | **2025** | Bilgi grafikleri entegrasyonu | Ölçeklenebilir ve şeffaf sistemler, tripartite değerlendirme |
 | **MufassirQAS** [3] | 2024 | RAG tabanlı soru-cevap | Türkçe içerik işleme örneği |
-| **Turk-LettuceDetect** [4] | 2025 | Halüsinasyon tespiti | Türkçe RAG için özel model |
-| **Knowledge Graph + RAG** [6] | 2025 | Bilgi grafikleri entegrasyonu | Ölçeklenebilir ve şeffaf sistemler, tripartite değerlendirme |
 | **DomainRAG** [8] | 2024 | Domain-specific RAG | Benchmark çalışması |
 | **FlashRAG** [7] | 2024 | Modüler araç seti | Verimli RAG araştırması |
 | **Amharic Educational Chatbot** | 2024 | Derin öğrenme tabanlı | %91.55 doğruluk oranı |
 | **Quizbot** | 2024 | Soru üretimi ve puanlama | Çoktan seçmeli soru üretimi |
 | **StudyBlaze** | 2024 | Kişiselleştirilmiş öğrenme | Not analizi ve sınav oluşturma |
 | **Cevaplab** [16] | 2024 | Otomatik kısa yanıt puanlama | Türkiye'de geliştirilen platform |
+| **EduChat** [5] | 2023 | Büyük ölçekli chatbot sistemi | Öğretmen, öğrenci ve veli desteği |
 | **TÜRKZÖS** [14] | 2023 | Web tabanlı zeki öğretim sistemi | Türkçe öğretimi için geliştirilmiş |
 
-**Türkiye'deki Araştırmalar:**
 
-Tosun, Erdemir ve Gökçearslan [2] tarafından gerçekleştirilen sistematik literatür taraması, eğitimde YZ sohbet robotlarının kullanımını incelemektedir. Çalışma, bu robotların öğrenci motivasyonunu artırma, dil becerilerini geliştirme potansiyeline sahip olduğunu belirtmektedir. Ancak, sınırlı etkileşim, yanıltıcı cevaplar ve veri koruma gibi dezavantajlara da dikkat çekilmektedir.
+Türkiye'de eğitimde yapay zeka ve chatbot kullanımı üzerine yapılan araştırmalar giderek artmaktadır. Tosun, Erdemir ve Gökçearslan [2] tarafından gerçekleştirilen sistematik literatür taraması, eğitimde YZ sohbet robotlarının kullanımını incelemektedir. Çalışma, bu robotların öğrenci motivasyonunu artırma, dil becerilerini geliştirme potansiyeline sahip olduğunu belirtmektedir. Ancak, sınırlı etkileşim, yanıltıcı cevaplar ve veri koruma gibi dezavantajlara da dikkat çekilmektedir.
+
+Doğan ve Arı [13] tarafından geliştirilen Web Tabanlı Uyarlamalı Zeki Öğretim Sistemleri, öğrenci modeli oluşturma ve uyarlamalı metin sunumu ile öğrencinin seviyesine uygun içerik sunmayı amaçlamaktadır. Arıcı ve Karacı [14] tarafından geliştirilen TÜRKZÖS (Türkçe Zeki Öğretim Sistemi), Türkçe öğretimi için özel olarak tasarlanmış bir web tabanlı zeki öğretim sistemidir ve öğrenci akademik başarısına olumlu etkileri olduğu belirtilmektedir.
+
+Polat ve arkadaşları [16] tarafından geliştirilen Cevaplab platformu, otomatik kısa yanıt puanlama özelliği ile öğretmenlerin iş yükünü azaltmayı hedeflemektedir. Akca, Önder ve Gülsoy [15] tarafından geliştirilen öğrenci başarı analiz plugini, öğrenme yönetim sistemlerinde öğrenci performansını bütüncül bir şekilde takip ve analiz edebilmektedir. Yetişensoy [11] tarafından yapılan doktora tezi, sosyal bilgiler öğretiminde chatbot kullanımını incelemektedir.
+
+Ancak, Türkiye'de RAG tabanlı eğitim sistemleri üzerine yapılan çalışmalar sınırlıdır. Mevcut çalışmalar genellikle genel amaçlı chatbot sistemlerine veya zeki öğretim sistemlerine odaklanmaktadır. Bu çalışma, Türk eğitim sistemine özgü hibrit RAG mimarisi ve pedagojik teorilerin entegrasyonu ile literatüre özgün katkılar sunmaktadır.
 
 ### 2.3. Hybrid RAG Sistemleri
 
 **Hybrid RAG Tanımı:**
 
-Hybrid RAG, birden fazla bilgi kaynağını birleştiren RAG mimarisidir. Geleneksel chunk-based retrieval'a ek olarak, structured knowledge base ve QA pairs gibi kaynakları da kullanır.
+Hibrit RAG, birden fazla bilgi kaynağını birleştiren RAG mimarisidir. Geleneksel parça tabanlı erişime ek olarak, yapılandırılmış bilgi tabanı ve soru-cevap çiftleri gibi kaynakları da kullanır.
 
 **Hybrid RAG Bileşenleri:**
 
-1. **Chunk-Based Retrieval**: Vector search ile metin parçaları
-2. **Knowledge Base**: Structured knowledge (summaries, concepts, objectives)
-3. **QA Pairs**: Pre-answered question-answer pairs
+1. **Parça Tabanlı Erişim (Chunk-Based Retrieval)**: Vektör araması ile metin parçaları
+2. **Bilgi Tabanı (Knowledge Base)**: Yapılandırılmış bilgi (özetler, kavramlar, hedefler)
+3. **Soru-Cevap Çiftleri (QA Pairs)**: Önceden cevaplanmış soru-cevap çiftleri
 
 **Literatürdeki Hybrid RAG Örnekleri:**
 
@@ -112,7 +117,7 @@ Hybrid RAG, birden fazla bilgi kaynağını birleştiren RAG mimarisidir. Gelene
 
 **Literatürdeki Boşluk:**
 
-Hybrid RAG sistemleri üzerine yapılan çalışmalar sınırlıdır. Özellikle, Chunk + KB + QA birleşimi üzerine kapsamlı çalışmalar bulunmamaktadır.
+Hibrit RAG sistemleri üzerine yapılan çalışmalar sınırlıdır. Özellikle, metin parçaları + bilgi tabanı + soru-cevap çiftleri birleşimi üzerine kapsamlı çalışmalar bulunmamaktadır.
 
 ### 2.4. Kişiselleştirilmiş Öğrenme ve Pedagojik Adaptasyon
 
@@ -175,9 +180,9 @@ Türkçe, morfolojik olarak zengin bir dildir. Bu durum, RAG sistemleri için ö
 
 **Tespit Edilen Boşluklar:**
 
-1. **Hybrid RAG Sistemleri**: Chunk + KB + QA birleşimi üzerine sınırlı çalışma
+1. **Hibrit RAG Sistemleri**: Metin parçaları + bilgi tabanı + soru-cevap çiftleri birleşimi üzerine sınırlı çalışma
 2. **Pedagojik Adaptasyon**: Bloom, Cognitive Load entegrasyonu üzerine sınırlı çalışma
-3. **Türkçe RAG Optimizasyonları**: Türkçe embedding optimizasyonları sınırlı
+3. **Türkçe RAG Optimizasyonları**: Türkçe vektörleştirme optimizasyonları sınırlı
 4. **Türk Eğitim Sistemi Bağlamı**: Türk eğitim sistemine özgü uygulamalar eksik
 
 **Bu Çalışmanın Konumu:**
@@ -224,9 +229,9 @@ Sistem, mikroservis mimarisi üzerine kurulmuştur ve aşağıdaki ana bileşenl
 | Bileşen | Açıklama | Teknoloji |
 |---------|----------|-----------|
 | **API Gateway** | Merkezi giriş noktası, routing | FastAPI |
-| **Hybrid RAG Service** | Hybrid RAG, pedagojik monitörler | FastAPI, Python |
-| **Document Processing** | PDF işleme, chunking, embedding | FastAPI, Marker |
-| **Model Inference** | LLM ve embedding servisleri | FastAPI, Multi-provider |
+| **Hibrit RAG Servisi** | Hibrit RAG, pedagojik monitörler | FastAPI, Python |
+| **Belge İşleme** | PDF işleme, parçalama, vektörleştirme | FastAPI, Marker |
+| **Model Çıkarım** | LLM ve vektörleştirme servisleri | FastAPI, Çoklu sağlayıcı |
 | **ChromaDB** | Vector store | ChromaDB |
 | **SQLite** | Öğrenci profilleri, konfigürasyon | SQLite |
 | **Frontend** | Kullanıcı arayüzü | React, TypeScript |
@@ -251,8 +256,8 @@ Hybrid Knowledge Retriever, üç farklı bilgi kaynağını birleştiren çekird
     │         │              │
     ▼         ▼              ▼
 ┌────────┐ ┌────────┐ ┌─────────────┐
-│ Chunk  │ │   KB   │ │   QA Pairs  │
-│Retrieval│ │Retrieval│ │  Matching   │
+│ Parça  │ │ Bilgi  │ │ Soru-Cevap  │
+│Erişimi │ │ Tabanı │ │  Eşleştirme │
 └────┬───┘ └────┬───┘ └──────┬───────┘
      │         │             │
      └─────────┼─────────────┘
@@ -275,21 +280,21 @@ Hybrid Knowledge Retriever, üç farklı bilgi kaynağını birleştiren çekird
 1. **Keyword-Based Classification (Hızlı)**:
    - Türkçe stopword filtreleme
    - Keyword matching
-   - Similarity threshold: 0.3
+   - Benzerlik eşiği: 0.3
 
 2. **LLM-Based Classification (Doğru)**:
    - LLM ile semantic understanding
    - Topic matching
    - Confidence scoring
 
-**Knowledge Base Yapısı:**
+**Bilgi Tabanı Yapısı:**
 
 | Alan | Açıklama | Format |
 |------|----------|--------|
 | `topic_id` | Konu kimliği | Integer |
 | `topic_title` | Konu başlığı | String |
 | `session_id` | Ders oturumu | String |
-| `knowledge_content` | Structured knowledge | JSON |
+| `knowledge_content` | Yapılandırılmış bilgi | JSON |
 | `created_at` | Oluşturulma tarihi | Timestamp |
 
 **Knowledge Content JSON Yapısı:**
@@ -303,17 +308,17 @@ Hybrid Knowledge Retriever, üç farklı bilgi kaynağını birleştiren çekird
 }
 ```
 
-**QA Pair Matching:**
+**Soru-Cevap Çifti Eşleştirme:**
 
-Üç farklı similarity hesaplama yöntemi:
+Üç farklı benzerlik hesaplama yöntemi:
 
-1. **Semantic Similarity**: Embedding-based cosine similarity
-2. **Keyword Overlap**: Türkçe keyword matching
-3. **LLM-Based Similarity**: LLM ile semantic matching
+1. **Anlamsal Benzerlik**: Vektör tabanlı kosinüs benzerliği
+2. **Anahtar Kelime Örtüşmesi**: Türkçe anahtar kelime eşleştirme
+3. **LLM Tabanlı Benzerlik**: LLM ile anlamsal eşleştirme
 
 **Direct Answer Mekanizması:**
 
-Similarity > 0.90 ise, LLM generation atlanır ve direkt QA cevabı döndürülür. Bu, %80-90 süre tasarrufu sağlar.
+Benzerlik > 0.90 ise, LLM üretimi atlanır ve direkt soru-cevap cevabı döndürülür. Bu, %80-90 süre tasarrufu sağlar.
 
 ### 3.3. Pedagojik Monitörler
 
@@ -354,19 +359,19 @@ Bilişsel yük, cevap karmaşıklığına göre hesaplanır:
        └─→ [LLM-Based] (Doğru)
        │
        ▼
-[Hybrid Retrieval]
+[Hibrit Erişim]
        │
-       ├─→ [Chunk Retrieval] (Vector Search)
-       ├─→ [KB Retrieval] (SQL Query)
-       └─→ [QA Matching] (Similarity)
-       │
-       ▼
-[Results Merging & Ranking]
-       │
-       └─→ [Reranking] (Alibaba Reranker)
+       ├─→ [Parça Erişimi] (Vektör Araması)
+       ├─→ [Bilgi Tabanı Erişimi] (SQL Sorgusu)
+       └─→ [Soru-Cevap Eşleştirme] (Benzerlik)
        │
        ▼
-[Context Building]
+[Sonuç Birleştirme ve Sıralama]
+       │
+       └─→ [Yeniden Sıralama] (Alibaba Yeniden Sıralayıcı)
+       │
+       ▼
+[Bağlam Oluşturma]
        │
        ▼
 [Pedagogical Analysis]
@@ -377,8 +382,8 @@ Bilişsel yük, cevap karmaşıklığına göre hesaplanır:
        ▼
 [LLM Generation]
        │
-       ├─→ [Personalization] (Opsiyonel)
-       └─→ [Post-Processing]
+       ├─→ [Kişiselleştirme] (Opsiyonel)
+       └─→ [Son İşleme]
        │
        ▼
 [Final Response]
@@ -399,7 +404,7 @@ Sistem, PDF belgelerini işlemek için Marker kütüphanesini kullanmaktadır. M
 | Neden | Açıklama |
 |-------|----------|
 | **Yüksek Kalite** | Yapısal bilgileri korur (başlıklar, listeler, tablolar) |
-| **Markdown Çıktısı** | Chunking için optimize edilmiş format |
+| **Markdown Çıktısı** | Parçalama için optimize edilmiş format |
 | **CID Karakter Desteği** | Türkçe karakterler için uyumlu |
 | **Offline İşleme** | Model cache ile internet bağımlılığı yok |
 
@@ -430,13 +435,13 @@ Sistem, PDF belgelerini işlemek için Marker kütüphanesini kullanmaktadır. M
 2. **RAG İçin Uygun**: Başlık-içerik ilişkileri korunur
 3. **Gelecek Genişletme**: Farklı formatlara dönüştürme kolay
 
-### 4.2. Chunking ve Embedding
+### 4.2. Parçalama ve Vektörleştirme
 
-**Chunking Stratejileri:**
+**Parçalama Stratejileri:**
 
-Sistem, lightweight chunking yaklaşımını kullanmaktadır. Bu yaklaşım, ML bağımlılıkları olmadan Türkçe için optimize edilmiştir.
+Sistem, hafif parçalama (lightweight chunking) yaklaşımını kullanmaktadır. Bu yaklaşım, ML bağımlılıkları olmadan Türkçe için optimize edilmiştir.
 
-**Lightweight Chunking Özellikleri:**
+**Hafif Parçalama Özellikleri:**
 
 | Özellik | Açıklama |
 |---------|----------|
@@ -454,9 +459,9 @@ Türkçe cümle tespiti için özel kurallar:
 - Kısaltma veritabanı (Dr., vs., gibi)
 - Sayı ve tarih işleme
 
-**Embedding Model Seçimi:**
+**Vektörleştirme Model Seçimi:**
 
-Sistem, modüler bir yapıda embedding model desteği sunmaktadır. Mevcut uygulamada Alibaba'nın `text-embedding-v4` modeli kullanılmaktadır, ancak sistem mimarisi farklı embedding modellerinin (HuggingFace, OpenAI, vb.) kolayca entegre edilmesine olanak tanımaktadır.
+Sistem, modüler bir yapıda vektörleştirme model desteği sunmaktadır. Mevcut uygulamada Alibaba'nın `text-embedding-v4` modeli kullanılmaktadır, ancak sistem mimarisi farklı vektörleştirme modellerinin (HuggingFace, OpenAI, vb.) kolayca entegre edilmesine olanak tanımaktadır.
 
 **Model Seçim Kararı:**
 
@@ -468,7 +473,7 @@ Sistem, modüler bir yapıda embedding model desteği sunmaktadır. Mevcut uygul
 | **Performans** | Orta | Düşük | Yüksek |
 | **Ölçeklenebilirlik** | Sınırlı | Sınırlı | Yüksek |
 
-**Embedding Özellikleri:**
+**Vektörleştirme Özellikleri:**
 
 - **Boyut**: 1024 boyutlu vektörler
 - **Batch Processing**: 25 metin/batch
@@ -493,7 +498,7 @@ Sistem, modüler bir yapıda reranker desteği sunmaktadır. Mevcut uygulamada A
 
 **Genişletilebilir Yapı:**
 
-Sistem, modüler bir reranker mimarisi kullanmaktadır. Mevcut uygulamada Alibaba reranker modeli kullanılmaktadır, ancak sistem mimarisi farklı reranker modellerinin (Cohere Rerank, Cross-Encoder, vb.) kolayca entegre edilmesine olanak tanımaktadır. Reranker ekleme/çıkarma işlemleri, provider interface'i sayesinde minimal kod değişikliği ile gerçekleştirilebilir.
+Sistem, modüler bir yeniden sıralayıcı mimarisi kullanmaktadır. Mevcut uygulamada Alibaba yeniden sıralayıcı modeli kullanılmaktadır, ancak sistem mimarisi farklı yeniden sıralayıcı modellerinin (Cohere Rerank, Cross-Encoder, vb.) kolayca entegre edilmesine olanak tanımaktadır. Yeniden sıralayıcı ekleme/çıkarma işlemleri, sağlayıcı arayüzü sayesinde minimal kod değişikliği ile gerçekleştirilebilir.
 
 ### 4.3. LLM Provider Management
 
@@ -557,7 +562,7 @@ Konular, LLM yardımıyla belge chunklarından çıkarılır.
 
 **Knowledge Extraction:**
 
-Her konu için structured knowledge çıkarılır:
+Her konu için yapılandırılmış bilgi çıkarılır:
 
 | Knowledge Type | Açıklama | Kullanım |
 |----------------|----------|----------|
@@ -580,7 +585,7 @@ Her konu için structured knowledge çıkarılır:
 [Hybrid Retrieval Results]
     │
     ▼
-[Context Building]
+[Bağlam Oluşturma]
     │
     ├─→ [Source Labeling]
     ├─→ [Length Management] (8000 char limit)
@@ -604,14 +609,14 @@ Her konu için structured knowledge çıkarılır:
     └─→ [Response Generation]
     │
     ▼
-[Post-Processing]
+[Son İşleme]
     │
     ├─→ [Whitespace Cleaning]
     ├─→ [Markdown Formatting]
     └─→ [Length Control]
     │
     ▼
-[Personalization] (Opsiyonel)
+[Kişiselleştirme] (Opsiyonel)
     │
     ├─→ [Student Profile Analysis]
     ├─→ [Pedagogical Analysis]
@@ -739,13 +744,13 @@ Sistem, öğrenci sorusunun ders kapsamında olup olmadığını kontrol eder. D
 
 | Kaynak Tipi | Kullanım Oranı | Ortalama Skor |
 |-------------|----------------|---------------|
-| **Chunks** | %45 | 0.82 |
-| **Knowledge Base** | %35 | 0.91 |
-| **QA Pairs** | %20 | 0.88 |
+| **Parçalar** | %45 | 0.82 |
+| **Bilgi Tabanı** | %35 | 0.91 |
+| **Soru-Cevap Çiftleri** | %20 | 0.88 |
 
 **Direct QA Match Oranı:**
 
-- Similarity > 0.90: %15-20 sorgu
+- Benzerlik > 0.90: %15-20 sorgu
 - Süre tasarrufu: %80-90
 - Kullanıcı memnuniyeti: Yüksek
 
@@ -950,15 +955,15 @@ flowchart TD
     TC1 --> PARALEL
     TC2 --> PARALEL
     
-    PARALEL[Paralel Bilgi Erişimi] --> CHUNK[Chunk Retrieval<br/>Vector Search]
-    PARALEL --> KB[KB Retrieval<br/>SQL Query]
-    PARALEL --> QA[QA Matching<br/>Similarity]
+    PARALEL[Paralel Bilgi Erişimi] --> CHUNK[Parça Erişimi<br/>Vektör Araması]
+    PARALEL --> KB[Bilgi Tabanı Erişimi<br/>SQL Sorgusu]
+    PARALEL --> QA[Soru-Cevap Eşleştirme<br/>Benzerlik]
     
     CHUNK --> MERGE[Results Merging]
     KB --> MERGE
     QA --> MERGE
     
-    MERGE --> RERANK[Reranking<br/>Alibaba Reranker]
+    MERGE --> RERANK[Yeniden Sıralama<br/>Alibaba Yeniden Sıralayıcı]
     
     RERANK --> CONTEXT[Context Building<br/>8000 char limit]
     
@@ -969,7 +974,7 @@ flowchart TD
     BLOOM --> LLM[LLM Generation]
     COG --> LLM
     
-    LLM --> POST[Post-Processing]
+    LLM --> POST[Son İşleme]
     POST --> PERSONAL{Personalization?}
     
     PERSONAL -->|Yes| PERSONALIZE[Personalization<br/>LLM Re-generation]
@@ -989,7 +994,7 @@ flowchart TD
 **[RESİM BOŞLUĞU - Ek B]**
 
 **Image Prompt:**
-"Design a comprehensive pipeline diagram for Hybrid RAG system showing: Student Query → Topic Classification (2-stage: keyword-based fast path and LLM-based accurate path) → Parallel Information Retrieval (Chunk Retrieval via Vector Search, KB Retrieval via SQL Query, QA Matching via Similarity) → Results Merging → Reranking (Alibaba Reranker) → Context Building (8000 char limit) → Pedagogical Analysis (Bloom Detector, Cognitive Load Manager) → LLM Generation → Post-Processing → Personalization (optional) → Final Response. Use flowchart style with decision diamonds, process boxes, parallel paths, and clear data flow. Professional technical diagram style with color coding."
+"Design a comprehensive pipeline diagram for Hybrid RAG system showing: Student Query → Topic Classification (2-stage: keyword-based fast path and LLM-based accurate path) → Parallel Information Retrieval (Parça Erişimi via Vektör Araması, Bilgi Tabanı Erişimi via SQL Sorgusu, Soru-Cevap Eşleştirme via Benzerlik) → Results Merging → Yeniden Sıralama (Alibaba Yeniden Sıralayıcı) → Context Building (8000 char limit) → Pedagogical Analysis (Bloom Detector, Cognitive Load Manager) → LLM Generation → Post-Processing → Personalization (optional) → Final Response. Use flowchart style with decision diamonds, process boxes, parallel paths, and clear data flow. Professional technical diagram style with color coding."
 
 ### Ek C: Pedagojik Monitörler İşleyiş Diyagramı
 
@@ -1096,7 +1101,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    RETRIEVAL[Hybrid Retrieval<br/>Chunks + KB + QA] --> CONTEXT[Context Building]
+    RETRIEVAL[Hybrid Retrieval<br/>Chunks + KB + QA] --> CONTEXT[Bağlam Oluşturma]
     
     CONTEXT --> SOURCE[Source Labeling<br/>DERS MATERYALİ<br/>BİLGİ TABANI<br/>SORU-CEVAP]
     CONTEXT --> LENGTH[Length Management<br/>8000 char limit]
@@ -1123,7 +1128,7 @@ flowchart TD
     LLM --> MODEL[Model Selection<br/>Groq/Alibaba/OpenRouter]
     LLM --> PARAM[Parameter Tuning<br/>max_tokens, temperature]
     
-    MODEL --> POST[Post-Processing]
+    MODEL --> POST[Son İşleme]
     PARAM --> POST
     
     POST --> WHITE[Whitespace<br/>Cleaning]
