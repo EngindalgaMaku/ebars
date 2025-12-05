@@ -890,20 +890,30 @@ LÜTFEN ŞUNLARI DEĞERLENDİR:
 
 1. **Soru Kalitesi (0-1 arası skor)**:
    - Soru açık ve anlaşılır mı?
+   - Soru DOĞAL ve AKICI mı? YAPMACIK veya MEKANİK değil mi? (ÇOK ÖNEMLİ!)
    - Soru materyaldeki bilgilere dayalı mı?
    - Soru belirtilen Bloom seviyesine uygun mu?
-   - Seçenekler mantıklı ve dengeli mi?
+   - Seçenekler mantıklı ve dengeli mi? TEKRAR EDEN veya MANTIKSIZ seçenek var mı?
    - Doğru cevap kesin ve doğru mu?
 
 2. **Kullanılabilirlik (0-1 arası skor)**:
    - Soru öğrenci için uygun seviyede mi?
    - Soru eğitsel değere sahip mi?
+   - Açıklama EĞİTİMSEL DEĞER taşıyor mu? Sadece "doğru cevap X'dir" demiyor mu?
+   - Açıklama soruyla aynı şeyi TEKRAR ETMİYOR mu? Ek bilgi veya bağlam veriyor mu?
    - Soru tekrar kullanılabilir mi?
    - Soru test ortamında kullanılabilir mi?
 
 3. **Bloom Seviyesi Uygunluğu**:
    - Soru gerçekten belirtilen Bloom seviyesini test ediyor mu?
    - Örnek: "remember" seviyesinde soru sadece hatırlama gerektirmeli, analiz gerektirmemeli
+
+4. **ÖNEMLİ RED SEBEPLERİ (Bu durumlardan biri varsa is_approved = false yap)**:
+   - Soru yapmacık veya mekanik görünüyorsa → REDDET
+   - Açıklama soruyla aynı şeyi tekrar ediyorsa → REDDET
+   - Seçenekler mantıksız, tekrar eden veya anlamsızsa → REDDET
+   - Soru günlük dilde doğal görünmüyorsa → REDDET
+   - Soru "materyalde bahsedilen" gibi yapay ifadeler içeriyorsa → REDDET
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{

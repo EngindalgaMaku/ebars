@@ -28,10 +28,12 @@ REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 LÜTFEN ŞUNLARI YAP:
 1. "{topic_title}" konusu için {count} adet çoktan seçmeli soru üret
 2. Sorular HATIRLAMA seviyesinde olmalı (örnek: "X nedir?", "Y kaçtır?", "Z kimdir?")
-3. Sorular doğal ve akıcı olmalı, "materyalde bahsedilen" gibi ifadeler kullanma
-4. Doğru cevap konuyla ilgili doğru bilgi olmalı
-5. Yanlış şıklar mantıklı çeldiriciler olmalı
-6. Her soru için açıklama ekle
+3. Sorular DOĞAL, AKICI ve GERÇEKÇİ olmalı - sanki bir öğretmen öğrencisine soruyormuş gibi
+4. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
+5. Doğru cevap konuyla ilgili doğru bilgi olmalı
+6. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
+7. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
+8. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
@@ -45,7 +47,7 @@ LÜTFEN ŞUNLARI YAP:
         "D": "Mantıklı çeldirici seçenek"
       }},
       "correct_answer": "A",
-      "explanation": "Doğru cevabın detaylı açıklaması",
+      "explanation": "Doğru cevabın eğitimsel açıklaması - NEDEN doğru olduğunu, hangi kavramların önemli olduğunu açıkla (soruyla aynı şeyi tekrar etme)",
       "bloom_level": "remember"
     }}
   ]
@@ -76,8 +78,12 @@ REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 LÜTFEN ŞUNLARI YAP:
 1. "{topic_title}" konusu için {count} adet ANLAMA seviyesinde soru üret
 2. Sorular "neden", "nasıl", "açıkla", "karşılaştır" gibi anlama gerektiren sorular olmalı
-3. Sorular doğal ve akıcı olmalı, "materyalde bahsedilen" gibi ifadeler kullanma
-4. Örnek: "X kavramı neden önemlidir?", "Y nasıl çalışır?", "Z ve W arasındaki fark nedir?"
+3. Sorular DOĞAL, AKICI ve GERÇEKÇİ olmalı - sanki bir öğretmen öğrencisine soruyormuş gibi
+4. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
+5. Örnek: "X kavramı neden önemlidir?", "Y nasıl çalışır?", "Z ve W arasındaki fark nedir?"
+6. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
+7. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
+8. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
@@ -91,7 +97,7 @@ LÜTFEN ŞUNLARI YAP:
         "D": "Mantıklı çeldirici seçenek"
       }},
       "correct_answer": "A",
-      "explanation": "Doğru cevabın detaylı açıklaması",
+      "explanation": "Doğru cevabın eğitimsel açıklaması - NEDEN doğru olduğunu, hangi kavramların önemli olduğunu açıkla (soruyla aynı şeyi tekrar etme)",
       "bloom_level": "understand"
     }}
   ]
@@ -123,8 +129,12 @@ REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 LÜTFEN ŞUNLARI YAP:
 1. "{topic_title}" konusu için {count} adet UYGULAMA seviyesinde soru üret
 2. Sorular problem çözme, uygulama, kullanım gerektirmeli
-3. Sorular doğal ve akıcı olmalı, "materyalde bahsedilen" gibi ifadeler kullanma
-4. Örnek: "X durumunda Y yöntemini nasıl kullanırsın?", "Z problemi için hangi çözüm uygundur?"
+3. Sorular DOĞAL, AKICI ve GERÇEKÇİ olmalı - sanki bir öğretmen öğrencisine soruyormuş gibi
+4. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
+5. Örnek: "X durumunda Y yöntemini nasıl kullanırsın?", "Z problemi için hangi çözüm uygundur?"
+6. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
+7. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
+8. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
@@ -170,8 +180,12 @@ REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 LÜTFEN ŞUNLARI YAP:
 1. "{topic_title}" konusu için {count} adet ANALİZ seviyesinde soru üret
 2. Sorular "neden", "nasıl ilişkili", "hangi parçalar", "yapı nedir" gibi analiz gerektirmeli
-3. Sorular doğal ve akıcı olmalı, "materyalde bahsedilen" gibi ifadeler kullanma
-4. Örnek: "X ve Y arasındaki ilişki nedir?", "Z'nin yapısı nasıldır?", "W'nun nedenleri nelerdir?"
+3. Sorular DOĞAL, AKICI ve GERÇEKÇİ olmalı - sanki bir öğretmen öğrencisine soruyormuş gibi
+4. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
+5. Örnek: "X ve Y arasındaki ilişki nedir?", "Z'nin yapısı nasıldır?", "W'nun nedenleri nelerdir?"
+6. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
+7. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
+8. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
@@ -217,8 +231,12 @@ REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 LÜTFEN ŞUNLARI YAP:
 1. "{topic_title}" konusu için {count} adet DEĞERLENDİRME seviyesinde soru üret
 2. Sorular "hangisi daha iyi", "neden uygun", "eleştir", "karşılaştır" gibi değerlendirme gerektirmeli
-3. Sorular doğal ve akıcı olmalı, "materyalde bahsedilen" gibi ifadeler kullanma
-4. Örnek: "X ve Y arasında hangisi daha etkilidir?", "Z yaklaşımının avantajları nelerdir?"
+3. Sorular DOĞAL, AKICI ve GERÇEKÇİ olmalı - sanki bir öğretmen öğrencisine soruyormuş gibi
+4. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
+5. Örnek: "X ve Y arasında hangisi daha etkilidir?", "Z yaklaşımının avantajları nelerdir?"
+6. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
+7. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
+8. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
@@ -264,8 +282,12 @@ REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
 LÜTFEN ŞUNLARI YAP:
 1. "{topic_title}" konusu için {count} adet YARATMA seviyesinde soru üret
 2. Sorular "oluştur", "tasarla", "geliştir", "sentezle" gibi yaratma gerektirmeli
-3. Sorular doğal ve akıcı olmalı, "materyalde bahsedilen" gibi ifadeler kullanma
-4. Örnek: "X durumu için Y çözümü nasıl tasarlarsın?", "Z problemini çözmek için hangi yaklaşımı oluşturursun?"
+3. Sorular DOĞAL, AKICI ve GERÇEKÇİ olmalı - sanki bir öğretmen öğrencisine soruyormuş gibi
+4. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
+5. Örnek: "X durumu için Y çözümü nasıl tasarlarsın?", "Z problemini çözmek için hangi yaklaşımı oluşturursun?"
+6. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
+7. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
+8. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
