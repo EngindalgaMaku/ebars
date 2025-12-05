@@ -280,6 +280,13 @@ async def remove_model_from_session(
                 detail="Provider and model are required"
             )
         
+        # Check if model exists in global models
+        global_models = get_global_models_config()
+        is_global_model = (
+            provider in global_models and 
+            model in global_models.get(provider, [])
+        )
+        
         # Remove model from session
         with db.get_connection() as conn:
             cursor = conn.execute("""
@@ -288,16 +295,24 @@ async def remove_model_from_session(
             """, (session_id, provider, model))
             
             if cursor.rowcount == 0:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Model '{model}' not found for provider '{provider}' in this session"
-                )
+                # Model not found in session_models
+                if is_global_model:
+                    # Model is a global model but not session-specific
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Model '{model}' is a global model for provider '{provider}' and was not added as a session-specific model. Global models cannot be removed from individual sessions. If you want to hide this model, you need to remove it from the global configuration."
+                    )
+                else:
+                    # Model doesn't exist at all
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"Model '{model}' not found for provider '{provider}' in this session"
+                    )
             
             conn.commit()
         
         # Get updated config
         session_models = get_session_models(db, session_id)
-        global_models = get_global_models_config()
         merged_models = merge_models(global_models, session_models)
         
         return ModelManagementResponse(
