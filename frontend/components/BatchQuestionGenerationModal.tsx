@@ -39,7 +39,7 @@ export default function BatchQuestionGenerationModal({
     topic_ids: [],
     custom_topic: "",
     total_questions_target: 100,
-    questions_per_topic: null,
+    questions_per_topic: undefined,
     bloom_levels: ["remember", "understand", "apply", "analyze", "evaluate", "create"],
     use_random_bloom_distribution: true,
     custom_prompt: "",
@@ -199,7 +199,7 @@ export default function BatchQuestionGenerationModal({
                           ...config,
                           questions_per_topic: e.target.value
                             ? parseInt(e.target.value)
-                            : null,
+                            : undefined,
                         })
                       }
                       placeholder="Boş bırakılırsa otomatik dağıtılır"
