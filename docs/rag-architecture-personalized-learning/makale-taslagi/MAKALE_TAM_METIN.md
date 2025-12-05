@@ -482,13 +482,13 @@ Sistem, modüler bir yapıda vektörleştirme model desteği sunmaktadır. Mevcu
 
 **Genişletilebilir Yapı:**
 
-Sistem, modüler bir embedding mimarisi kullanmaktadır. Mevcut uygulamada Alibaba `text-embedding-v4` modeli kullanılmaktadır, ancak sistem mimarisi farklı embedding modellerinin (HuggingFace, OpenAI, Cohere, vb.) kolayca entegre edilmesine olanak tanımaktadır. Model ekleme/çıkarma işlemleri, provider interface'i sayesinde minimal kod değişikliği ile gerçekleştirilebilir.
+Sistem, modüler bir vektörleştirme mimarisi kullanmaktadır. Mevcut uygulamada Alibaba `text-embedding-v4` modeli kullanılmaktadır, ancak sistem mimarisi farklı vektörleştirme modellerinin (HuggingFace, OpenAI, Cohere, vb.) kolayca entegre edilmesine olanak tanımaktadır. Model ekleme/çıkarma işlemleri, sağlayıcı arayüzü sayesinde minimal kod değişikliği ile gerçekleştirilebilir.
 
-**Reranking:**
+**Yeniden Sıralama:**
 
-Sistem, modüler bir yapıda reranker desteği sunmaktadır. Mevcut uygulamada Alibaba'nın reranker modeli kullanılmaktadır, ancak sistem mimarisi farklı reranker modellerinin (Cohere, Cross-Encoder, vb.) kolayca entegre edilmesine olanak tanımaktadır.
+Sistem, modüler bir yapıda yeniden sıralayıcı desteği sunmaktadır. Mevcut uygulamada Alibaba'nın yeniden sıralayıcı modeli kullanılmaktadır, ancak sistem mimarisi farklı yeniden sıralayıcı modellerinin (Cohere, Cross-Encoder, vb.) kolayca entegre edilmesine olanak tanımaktadır.
 
-**Reranking Avantajları:**
+**Yeniden Sıralama Avantajları:**
 
 | Avantaj | Açıklama |
 |---------|----------|
