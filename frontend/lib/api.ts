@@ -2731,6 +2731,11 @@ export async function deleteQuestion(
     throw new Error(error.detail || "Failed to delete question");
   }
 
+  // 204 No Content - no body to parse
+  if (res.status === 204) {
+    return { success: true, message: "Question deleted successfully", question_id: questionId };
+  }
+
   return res.json();
 }
 
@@ -2759,6 +2764,16 @@ export async function bulkDeleteQuestions(
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: "Unknown error" }));
     throw new Error(error.detail || "Failed to bulk delete questions");
+  }
+
+  // 204 No Content - no body to parse
+  if (res.status === 204) {
+    return { 
+      success: true, 
+      message: `${questionIds.length} questions deleted successfully`, 
+      deleted_count: questionIds.length, 
+      question_ids: questionIds 
+    };
   }
 
   return res.json();

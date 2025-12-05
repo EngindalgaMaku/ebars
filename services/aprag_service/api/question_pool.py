@@ -6,7 +6,6 @@ Handles batch question generation, quality control, and duplicate detection
 from fastapi import APIRouter, HTTPException, Depends, Request, status
 from fastapi.responses import Response
 from pydantic import BaseModel
-import json
 from typing import Optional, List, Dict, Any
 import logging
 import json
@@ -487,17 +486,8 @@ async def delete_question(question_id: int, session_id: str):
             
             logger.info(f"Question {question_id} deleted (hard delete) for session {session_id}")
             
-            # Explicit response with proper headers
-            response_data = {
-                "success": True,
-                "message": "Question deleted successfully",
-                "question_id": question_id
-            }
-            return Response(
-                content=json.dumps(response_data),
-                media_type="application/json",
-                status_code=status.HTTP_200_OK
-            )
+            # Return 204 No Content - standard for DELETE operations
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
         
     except HTTPException:
         raise
@@ -562,18 +552,8 @@ async def bulk_delete_questions(request: BulkDeleteRequest, session_id: str):
             deleted_count = len(request.question_ids)
             logger.info(f"Bulk deleted {deleted_count} questions (hard delete) for session {session_id}")
             
-            # Explicit response with proper headers
-            response_data = {
-                "success": True,
-                "message": f"{deleted_count} questions deleted successfully",
-                "deleted_count": deleted_count,
-                "question_ids": request.question_ids
-            }
-            return Response(
-                content=json.dumps(response_data),
-                media_type="application/json",
-                status_code=status.HTTP_200_OK
-            )
+            # Return 204 No Content - standard for DELETE operations
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
         
     except HTTPException:
         raise
