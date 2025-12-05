@@ -3,7 +3,8 @@ Question Pool System API endpoints
 Handles batch question generation, quality control, and duplicate detection
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import logging
@@ -447,7 +448,7 @@ class BulkDeleteRequest(BaseModel):
 
 
 @router.delete("/{question_id}")
-async def delete_question(question_id: int, session_id: str):
+async def delete_question(question_id: int, session_id: str = Query(...)):
     """
     Tek bir soruyu tamamen siler (hard delete).
     """
@@ -485,11 +486,14 @@ async def delete_question(question_id: int, session_id: str):
             
             logger.info(f"Question {question_id} deleted (hard delete) for session {session_id}")
             
-            return {
-                "success": True,
-                "message": "Question deleted successfully",
-                "question_id": question_id
-            }
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "message": "Question deleted successfully",
+                    "question_id": question_id
+                }
+            )
         
     except HTTPException:
         raise
@@ -499,7 +503,7 @@ async def delete_question(question_id: int, session_id: str):
 
 
 @router.delete("/bulk")
-async def bulk_delete_questions(request: BulkDeleteRequest, session_id: str):
+async def bulk_delete_questions(request: BulkDeleteRequest, session_id: str = Query(...)):
     """
     Birden fazla soruyu toplu olarak tamamen siler (hard delete).
     """
@@ -554,12 +558,15 @@ async def bulk_delete_questions(request: BulkDeleteRequest, session_id: str):
             deleted_count = len(request.question_ids)
             logger.info(f"Bulk deleted {deleted_count} questions (hard delete) for session {session_id}")
             
-            return {
-                "success": True,
-                "message": f"{deleted_count} questions deleted successfully",
-                "deleted_count": deleted_count,
-                "question_ids": request.question_ids
-            }
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "message": f"{deleted_count} questions deleted successfully",
+                    "deleted_count": deleted_count,
+                    "question_ids": request.question_ids
+                }
+            )
         
     except HTTPException:
         raise
