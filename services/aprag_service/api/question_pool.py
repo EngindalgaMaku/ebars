@@ -993,40 +993,62 @@ def generate_questions_for_topic_and_bloom(
         )
         
         if response.status_code != 200:
-            logger.error(f"LLM service error: {response.status_code}")
+            error_text = response.text if hasattr(response, 'text') else "Unknown error"
+            logger.error(f"LLM service error: {response.status_code} - {error_text}")
+            logger.error(f"Failed to generate questions for topic '{topic_title}', bloom level '{bloom_level}'")
             return []
         
         result = response.json()
         llm_output = result.get("response", "")
         
+        if not llm_output or len(llm_output.strip()) < 10:
+            logger.error(f"Empty or invalid LLM response for topic '{topic_title}', bloom level '{bloom_level}'")
+            return []
+        
         # Parse JSON
         import re
         json_match = re.search(r'\{.*\}', llm_output, re.DOTALL)
         if json_match:
-            questions_data = json.loads(json_match.group())
+            try:
+                questions_data = json.loads(json_match.group())
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON parse error for topic '{topic_title}': {e}")
+                logger.error(f"LLM output: {llm_output[:500]}")
+                return []
         else:
-            questions_data = json.loads(llm_output)
+            try:
+                questions_data = json.loads(llm_output)
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON parse error for topic '{topic_title}': {e}")
+                logger.error(f"LLM output: {llm_output[:500]}")
+                return []
         
         questions = questions_data.get("questions", [])
+        if not questions:
+            logger.warning(f"No questions found in LLM response for topic '{topic_title}', bloom level '{bloom_level}'")
+            return []
+        
         approved_questions = []
         
         # Her soru için işlem yap
         for q in questions:
             try:
-                # Soru formatını kontrol et
+                # Soru formatını kontrol et - string formatını kabul etme, sadece dict
                 if isinstance(q, str):
-                    # Basit string formatı - çoktan seçmeli formatına çevir
-                    question_text = q
-                    options = {"A": "Seçenek 1", "B": "Seçenek 2", "C": "Seçenek 3", "D": "Seçenek 4"}
-                    correct_answer = "A"
-                    explanation = "Doğru cevap"
-                else:
-                    question_text = q.get("question", "")
-                    options = q.get("options", {})
-                    correct_answer = q.get("correct_answer", "A")
-                    explanation = q.get("explanation", "")
+                    logger.warning(f"Question is in string format, skipping (topic: '{topic_title}'): {q[:50]}...")
+                    continue
                 
-                if not question_text:
+                if not isinstance(q, dict):
+                    logger.warning(f"Question is not in expected format, skipping (topic: '{topic_title}')")
+                    continue
+                
+                question_text = q.get("question", "")
+                options = q.get("options", {})
+                correct_answer = q.get("correct_answer", "A")
+                explanation = q.get("explanation", "")
+                
+                if not question_text or not options:
+                    logger.warning(f"Question missing required fields (topic: '{topic_title}'): question_text={bool(question_text)}, options={bool(options)}")
                     continue
                 
                 # Duplicate kontrolü
@@ -1185,19 +1207,35 @@ def run_batch_generation(job_id: int, request: BatchQuestionGenerationRequest):
             topic_title = topic["topic_title"]
             keywords = topic["keywords"]
             
-            # Topic'e özel chunk'ları filtrele (basit keyword matching)
-            topic_chunks = chunks
-            if keywords:
-                # Keyword'e göre chunk filtrele
-                keyword_matches = []
+            # Topic'e özel chunk'ları filtrele (keyword + topic title matching)
+            topic_chunks = []
+            topic_title_lower = topic_title.lower()
+            
+            # Topic title'dan kelimeleri çıkar (stop words hariç)
+            stop_words = {'ve', 'ile', 'için', 'bir', 'bu', 'şu', 'o', 'de', 'da', 'ki', 'mi', 'mı', 'mu', 'mü'}
+            topic_words = [w for w in topic_title_lower.split() if w not in stop_words and len(w) > 2]
+            
+            # Hem keywords hem de topic title'a göre filtrele
+            search_terms = keywords + topic_words if keywords else topic_words
+            
+            if search_terms:
                 for chunk in chunks:
                     chunk_text = chunk.get('chunk_text', chunk.get('content', chunk.get('text', ''))).lower()
-                    if any(kw.lower() in chunk_text for kw in keywords):
-                        keyword_matches.append(chunk)
-                if keyword_matches:
-                    topic_chunks = keyword_matches[:20]  # Limit
+                    # En az bir search term chunk'ta geçiyorsa ekle
+                    if any(term.lower() in chunk_text for term in search_terms):
+                        topic_chunks.append(chunk)
+                
+                # Eşleşme varsa kullan, yoksa uyarı ver ve boş bırak
+                if topic_chunks:
+                    topic_chunks = topic_chunks[:30]  # Limit
+                    logger.info(f"Found {len(topic_chunks)} chunks for topic '{topic_title}'")
                 else:
-                    topic_chunks = chunks[:20]  # Fallback to all chunks
+                    logger.warning(f"No chunks found matching topic '{topic_title}' with keywords {keywords}. Skipping this topic.")
+                    continue  # Bu topic için soru üretme
+            else:
+                # Keywords ve topic title yoksa, tüm chunk'ları kullanma - uyarı ver
+                logger.warning(f"Topic '{topic_title}' has no keywords or searchable terms. Skipping this topic.")
+                continue  # Bu topic için soru üretme
             
             # Her Bloom seviyesi için soru üret
             for bloom_level, count in bloom_distribution.items():

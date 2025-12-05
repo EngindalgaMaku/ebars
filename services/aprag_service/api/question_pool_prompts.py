@@ -8,6 +8,8 @@ Bloom Taksonomisi seviyelerine özel soru üretim prompt şablonları
 
 REMEMBER_PROMPT = """Sen bir eğitim uzmanısın. Aşağıdaki ders materyali bağlamında "{topic_title}" konusu için HATIRLAMA seviyesinde sorular üret.
 
+⚠️ ÖNEMLİ: Aşağıdaki materyal SADECE "{topic_title}" konusuyla ilgilidir. Soruları SADECE bu konuya özel üret.
+
 BLOOM SEVİYESİ: REMEMBER (Hatırlama)
 Bu seviyede öğrenci:
 - Bilgileri hatırlamalı
@@ -17,7 +19,7 @@ Bu seviyede öğrenci:
 
 KONU BAŞLIĞI: {topic_title}
 ANAHTAR KELİMELER: {keywords}
-DERS MATERYALİ:
+DERS MATERYALİ (SADECE "{topic_title}" KONUSUNA ÖZEL):
 {chunks_text}
 
 LÜTFEN ŞUNLARI YAP:
@@ -26,6 +28,7 @@ LÜTFEN ŞUNLARI YAP:
 3. Doğru cevap MUTLAKA materyaldeki gerçek bilgi olmalı
 4. Yanlış şıklar mantıklı çeldiriciler olmalı ama materyalde olmamalı
 5. Her soru için açıklama ekle (doğru cevabın neden doğru olduğunu)
+6. Sorular MUTLAKA "{topic_title}" konusuyla ilgili olmalı - başka konulardan soru üretme
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
