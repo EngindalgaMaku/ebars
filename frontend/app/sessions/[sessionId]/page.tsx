@@ -16,6 +16,7 @@ import {
 import { ModelManagement } from "./components/rag-settings-tab/ModelManagement";
 import TopicManagementPanel from "@/components/TopicManagementPanel";
 import SessionSettingsPanel from "@/components/SessionSettingsPanel";
+import QuestionPoolPanel from "@/components/QuestionPoolPanel";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import FileUploadModal from "@/components/FileUploadModal";
@@ -1972,15 +1973,6 @@ export default function SessionPage() {
             </div>
           </div>
         )}
-
-                <TabsContent value="question-pool" className="mt-0">
-                  <div className="p-6">
-                    <QuestionPoolPanel sessionId={sessionId} />
-                  </div>
-                </TabsContent>
-              </>
-            )}
-          </Tabs>
       </div>
     </TeacherLayout>
   );
