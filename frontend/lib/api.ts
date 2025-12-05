@@ -2712,17 +2712,16 @@ export async function deleteQuestion(
   sessionId: string
 ): Promise<{ success: boolean; message: string; question_id: number }> {
   const apiUrl = getApiUrl();
-  const params = new URLSearchParams({
-    session_id: sessionId,
-  });
 
   const res = await fetch(
-    `${apiUrl}/aprag/question-pool/${questionId}?${params.toString()}`,
+    `${apiUrl}/aprag/question-pool/${questionId}`,
     {
       method: "DELETE",
       headers: {
+        "Content-Type": "application/json",
         ...(await tokenManager.getAuthHeaders()),
       },
+      body: JSON.stringify({ session_id: sessionId }),
     }
   );
 
@@ -2745,19 +2744,19 @@ export async function bulkDeleteQuestions(
   sessionId: string
 ): Promise<{ success: boolean; message: string; deleted_count: number; question_ids: number[] }> {
   const apiUrl = getApiUrl();
-  const params = new URLSearchParams({
-    session_id: sessionId,
-  });
 
   const res = await fetch(
-    `${apiUrl}/aprag/question-pool/bulk?${params.toString()}`,
+    `${apiUrl}/aprag/question-pool/bulk`,
     {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
         ...(await tokenManager.getAuthHeaders()),
       },
-      body: JSON.stringify({ question_ids: questionIds }),
+      body: JSON.stringify({ 
+        question_ids: questionIds,
+        session_id: sessionId 
+      }),
     }
   );
 

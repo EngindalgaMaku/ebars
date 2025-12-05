@@ -442,17 +442,24 @@ async def export_question_pool(
         raise HTTPException(status_code=500, detail=f"Failed to export questions: {str(e)}")
 
 
+class DeleteQuestionRequest(BaseModel):
+    """Request model for single delete"""
+    session_id: str
+
+
 class BulkDeleteRequest(BaseModel):
     """Request model for bulk delete"""
     question_ids: List[int]
+    session_id: str
 
 
 @router.delete("/{question_id}")
-async def delete_question(question_id: int, session_id: str):
+async def delete_question(question_id: int, request: DeleteQuestionRequest):
     """
     Tek bir soruyu tamamen siler (hard delete).
     """
     db = get_db()
+    session_id = request.session_id
     
     try:
         with db.get_connection() as conn:
@@ -497,11 +504,12 @@ async def delete_question(question_id: int, session_id: str):
 
 
 @router.delete("/bulk")
-async def bulk_delete_questions(request: BulkDeleteRequest, session_id: str):
+async def bulk_delete_questions(request: BulkDeleteRequest):
     """
     Birden fazla soruyu toplu olarak tamamen siler (hard delete).
     """
     db = get_db()
+    session_id = request.session_id
     
     if not request.question_ids or len(request.question_ids) == 0:
         raise HTTPException(status_code=400, detail="question_ids list cannot be empty")
