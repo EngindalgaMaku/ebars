@@ -449,7 +449,7 @@ class BulkDeleteRequest(BaseModel):
 @router.delete("/{question_id}")
 async def delete_question(question_id: int, session_id: str):
     """
-    Tek bir soruyu siler (soft delete - is_active = FALSE yapar).
+    Tek bir soruyu tamamen siler (hard delete).
     """
     db = get_db()
     
@@ -457,7 +457,7 @@ async def delete_question(question_id: int, session_id: str):
         with db.get_connection() as conn:
             # Sorunun var olup olmadığını ve session'a ait olduğunu kontrol et
             cursor = conn.execute("""
-                SELECT question_id, session_id, is_active
+                SELECT question_id, session_id
                 FROM question_pool
                 WHERE question_id = ?
             """, (question_id,))
@@ -469,22 +469,21 @@ async def delete_question(question_id: int, session_id: str):
             if row[1] != session_id:
                 raise HTTPException(status_code=403, detail="Question does not belong to this session")
             
-            # Soft delete - is_active = FALSE yap
-            conn.execute("""
-                UPDATE question_pool
-                SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
-                WHERE question_id = ?
-            """, (question_id,))
-            
-            # İlişkili embedding'i de sil
+            # İlişkili embedding'i önce sil (foreign key constraint)
             conn.execute("""
                 DELETE FROM question_embeddings
                 WHERE question_id = ?
             """, (question_id,))
             
+            # Soruyu tamamen sil
+            conn.execute("""
+                DELETE FROM question_pool
+                WHERE question_id = ?
+            """, (question_id,))
+            
             conn.commit()
             
-            logger.info(f"Question {question_id} deleted (soft delete) for session {session_id}")
+            logger.info(f"Question {question_id} deleted (hard delete) for session {session_id}")
             
             return {
                 "success": True,
@@ -502,7 +501,7 @@ async def delete_question(question_id: int, session_id: str):
 @router.delete("/bulk")
 async def bulk_delete_questions(request: BulkDeleteRequest, session_id: str):
     """
-    Birden fazla soruyu toplu olarak siler (soft delete).
+    Birden fazla soruyu toplu olarak tamamen siler (hard delete).
     """
     db = get_db()
     
@@ -538,23 +537,22 @@ async def bulk_delete_questions(request: BulkDeleteRequest, session_id: str):
                     detail=f"Questions do not belong to this session: {wrong_session_ids}"
                 )
             
-            # Soft delete - is_active = FALSE yap
+            # İlişkili embedding'leri önce sil (foreign key constraint)
             conn.execute(f"""
-                UPDATE question_pool
-                SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+                DELETE FROM question_embeddings
                 WHERE question_id IN ({placeholders})
             """, request.question_ids)
             
-            # İlişkili embedding'leri de sil
+            # Soruları tamamen sil
             conn.execute(f"""
-                DELETE FROM question_embeddings
+                DELETE FROM question_pool
                 WHERE question_id IN ({placeholders})
             """, request.question_ids)
             
             conn.commit()
             
             deleted_count = len(request.question_ids)
-            logger.info(f"Bulk deleted {deleted_count} questions for session {session_id}")
+            logger.info(f"Bulk deleted {deleted_count} questions (hard delete) for session {session_id}")
             
             return {
                 "success": True,
