@@ -69,7 +69,7 @@ interface Agent {
 
 interface SimulationStatus {
   simulation_id: string; // Fixed: API returns simulation_id, not id
-  status: "RUNNING" | "PAUSED" | "COMPLETED" | "FAILED";
+  status: "RUNNING" | "PAUSED" | "COMPLETED" | "FAILED" | "completed" | "failed" | "stopped" | "running" | "paused";
   current_turn: number;
   total_turns: number;
   agents: Agent[];
