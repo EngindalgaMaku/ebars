@@ -388,8 +388,10 @@ def list_sessions(created_by: Optional[str] = None, category: Optional[str] = No
                   status: Optional[str] = None, limit: int = 50, request: Request = None):
     """List sessions from SQLite database"""
     try:
+        logger.info(f"🎯 [API GATEWAY] /sessions endpoint called")
         # Determine requester and role
         current_user = _get_current_user(request)
+        logger.info(f"🎯 [API GATEWAY] Current user: {current_user}")
         # Convert string parameters to enums if provided
         category_enum = None
         if category:
@@ -464,7 +466,10 @@ def list_sessions(created_by: Optional[str] = None, category: Optional[str] = No
             else:
                 logger.warning(f"[SESSION LIST] Student user - NO ACTIVE SESSIONS FOUND! Total sessions: {len(all_sessions)}")
         return [_convert_metadata_to_response(session) for session in sessions]
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"❌ [API GATEWAY] Error in list_sessions: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to list sessions: {str(e)}")
 
 @app.post("/sessions", response_model=SessionResponse)
@@ -3822,6 +3827,8 @@ def get_pending_notifications(
 ):
     """Get pending (unread) notifications"""
     try:
+        logger.info(f"🎯 [API GATEWAY] /api/v1/notifications/pending endpoint called")
+        logger.info(f"🎯 [API GATEWAY] user_id: {user_id}, session_id: {session_id}")
         conn = sqlite3.connect(professional_session_manager.db_path)
         cursor = conn.cursor()
         
@@ -3861,7 +3868,7 @@ def get_pending_notifications(
             "count": len(notifications)
         }
     except Exception as e:
-        logger.error(f"❌ Failed to get pending notifications: {e}")
+        logger.error(f"❌ [API GATEWAY] Failed to get pending notifications: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get notifications: {str(e)}")
 
 @app.post("/api/v1/notifications/pending")
