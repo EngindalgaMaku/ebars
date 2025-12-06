@@ -95,7 +95,7 @@ class SimulationAgent:
             
             import requests
             response = requests.post(
-                f"{api_base_url}/aprag/hybrid-rag/query",
+                f"{api_base_url}/api/aprag/hybrid-rag/query",
                 json={
                     "user_id": self.user_id,
                     "session_id": self.session_id,
