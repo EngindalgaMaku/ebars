@@ -125,18 +125,6 @@ services:
       - database_data:/app/data
       - ./services/auth_service/database/migrations:/app/migrations:ro
     command: python -m uvicorn main:app --host 0.0.0.0 --port 8007 --workers 3
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import requests; requests.get('http://localhost:8007/health')",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
     depends_on:
       auth-service:
         condition: service_healthy
