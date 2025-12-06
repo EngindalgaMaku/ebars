@@ -284,7 +284,7 @@ class EBARSSimulation:
         """Initialize simulation database tables"""
         self.db_manager.init_simulation_tables()
     
-    def create_simulation(self, questions: List[str], config: Dict[str, Any]) -> str:
+    def create_simulation(self, questions: List[str], config: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new simulation"""
         self.simulation_id = str(uuid.uuid4())
         self.questions = questions
@@ -297,9 +297,12 @@ class EBARSSimulation:
         )
         
         if not result['success']:
-            raise Exception(f"Failed to create simulation: {result['error']}")
+            return result  # Return the error dict directly
         
-        return self.simulation_id
+        return {
+            'success': True,
+            'simulation_id': self.simulation_id
+        }
     
     def add_agent(
         self,
