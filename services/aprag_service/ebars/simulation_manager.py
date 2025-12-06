@@ -435,7 +435,12 @@ class SimulationRunner:
         # Create simulation
         simulation = EBARSSimulation(session_id, db)
         simulation.initialize_tables()
-        simulation_id = simulation.create_simulation(questions, config)
+        
+        # CRITICAL FIX: create_simulation returns a dict, not a string
+        result = simulation.create_simulation(questions, config)
+        if not result['success']:
+            raise Exception(f"Failed to create simulation: {result.get('error', 'Unknown error')}")
+        simulation_id = result['simulation_id']
         
         # Add default agents
         agents_config = [

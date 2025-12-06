@@ -130,11 +130,39 @@ export default function EBARSSimulationPage() {
   };
 
   const monitorSimulation = async (simulationId: string) => {
+    // CRITICAL FIX: Validate simulationId to prevent "undefined" requests
+    if (
+      !simulationId ||
+      simulationId === "undefined" ||
+      simulationId === "null"
+    ) {
+      console.error(
+        "❌ CRITICAL: Cannot monitor simulation with invalid ID:",
+        simulationId
+      );
+      toast.error("Simülasyon ID'si geçersiz! Monitoring başlatılamadı.");
+      setIsRunning(false);
+      return;
+    }
+
+    console.log("🔍 Starting monitoring for simulation:", simulationId);
+
     const intervalId = setInterval(async () => {
       try {
+        // Double-check simulationId before making request
+        if (!simulationId || simulationId === "undefined") {
+          console.error(
+            "❌ CRITICAL: simulationId became undefined during monitoring!"
+          );
+          clearInterval(intervalId);
+          setIsRunning(false);
+          return;
+        }
+
         const response = await fetch(
           `${EBARS_API_BASE}/simulation/status/${simulationId}`
         );
+
         if (response.ok) {
           const status = await response.json();
           setCurrentSimulation(status);
@@ -148,6 +176,12 @@ export default function EBARSSimulationPage() {
               toast.error("Simülasyon başarısız oldu");
             }
           }
+        } else {
+          console.error(
+            "❌ Monitoring request failed:",
+            response.status,
+            response.statusText
+          );
         }
       } catch (error) {
         console.error("Error monitoring simulation:", error);
@@ -186,11 +220,21 @@ export default function EBARSSimulationPage() {
       }
 
       const data = await response.json();
+
+      // CRITICAL FIX: Check if simulation_id exists to prevent "undefined" requests
+      if (!data.simulation_id) {
+        console.error("❌ API Response missing simulation_id:", data);
+        throw new Error(
+          "API yanıtında simulation_id bulunamadı. Backend loglarını kontrol edin."
+        );
+      }
+
       setCurrentSimulation(data);
       setActiveTab("monitoring");
       toast.success("Simülasyon başlatıldı!");
 
-      // Status monitoring başlat - FIX: Use correct field name
+      // Status monitoring başlat with validation
+      console.log("✅ Starting monitoring for simulation:", data.simulation_id);
       monitorSimulation(data.simulation_id);
     } catch (error) {
       console.error("Error starting simulation:", error);
