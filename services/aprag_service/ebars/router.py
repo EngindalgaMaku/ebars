@@ -2307,14 +2307,16 @@ async def start_simulation(
                     logger.error(f"Failed to update simulation status: {db_err}")
         
         # Add to FastAPI BackgroundTasks - this ensures it runs
+        # CRITICAL: Add task BEFORE returning response to ensure it's queued
         background_tasks.add_task(run_simulation_background)
         logger.info(f"✅ [START ENDPOINT] Simulation {simulation_id} added to background tasks")
         
         # Also track in SimulationRunner for stop functionality
         SimulationRunner._running_simulations[simulation_id] = None  # Will be set when task runs
         
-        logger.info(f"✅ [START ENDPOINT] Simulation {simulation_id} started successfully")
+        logger.info(f"✅ [START ENDPOINT] Simulation {simulation_id} started successfully, returning response")
         
+        # Return response immediately - background task will run after response is sent
         return {
             'success': True,
             'simulation_id': simulation_id,
