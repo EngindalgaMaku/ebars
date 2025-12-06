@@ -297,7 +297,7 @@ if ADAPTIVE_QUERY_AVAILABLE and FeatureFlags.is_egitsel_kbrag_enabled():
 
 # Include EBARS router (Emoji-Based Adaptive Response System)
 if EBARS_AVAILABLE:
-    app.include_router(ebars_router.router, prefix="/api", tags=["EBARS"])
+    app.include_router(ebars_router.router, prefix="/api/aprag", tags=["EBARS"])
     logger.info("EBARS (Emoji-Based Adaptive Response System) endpoints enabled")
 
 
