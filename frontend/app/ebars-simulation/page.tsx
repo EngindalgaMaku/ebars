@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import TeacherLayout from "../components/TeacherLayout";
+import { listSessions, SessionMeta } from "@/lib/api";
 import {
   Card,
   CardContent,
@@ -83,19 +84,11 @@ interface SimulationStatus {
   };
 }
 
-interface SessionInfo {
-  id: string;
-  name: string;
-  created_at: string;
-  status: string;
-  chunk_count?: number;
-}
-
 export default function EBARSSimulationPage() {
   const [mounted, setMounted] = useState(false);
 
   // Ana state'ler
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [currentSimulation, setCurrentSimulation] =
     useState<SimulationStatus | null>(null);
@@ -121,16 +114,16 @@ export default function EBARSSimulationPage() {
   const loadSessions = async () => {
     try {
       setLoadingSessions(true);
-      const response = await fetch("/api/sessions");
-      if (response.ok) {
-        const data = await response.json();
-        setSessions(data.sessions || []);
-      } else {
-        throw new Error("Oturumlar yüklenemedi");
-      }
+      setError(null);
+      const data = await listSessions();
+      setSessions(data || []);
     } catch (error) {
       console.error("Error loading sessions:", error);
-      setError("Oturumlar yüklenirken hata oluştu");
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Oturumlar yüklenirken hata oluştu"
+      );
     } finally {
       setLoadingSessions(false);
     }
@@ -255,7 +248,9 @@ export default function EBARSSimulationPage() {
     );
   }
 
-  const selectedSession = sessions.find((s) => s.id === config.session_id);
+  const selectedSession = sessions.find(
+    (s) => s.session_id === config.session_id
+  );
 
   return (
     <TeacherLayout>
@@ -342,10 +337,13 @@ export default function EBARSSimulationPage() {
                           : "Oturum seçin"}
                       </option>
                       {sessions.map((session) => (
-                        <option key={session.id} value={session.id}>
-                          {session.name} (ID: {session.id})
-                          {session.chunk_count &&
-                            ` • ${session.chunk_count} chunk`}
+                        <option
+                          key={session.session_id}
+                          value={session.session_id}
+                        >
+                          {session.name} (ID: {session.session_id})
+                          {session.total_chunks &&
+                            ` • ${session.total_chunks} chunk`}
                         </option>
                       ))}
                     </select>
