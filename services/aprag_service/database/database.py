@@ -117,6 +117,7 @@ class DatabaseManager:
                     self.apply_completion_percentage_migration(conn)
                     self.apply_question_pool_migration(conn)
                     self.apply_student_interactions_response_migration(conn)
+                    self.create_qa_similarity_cache_table(conn)
                     self.ensure_feature_flags_table(conn)
                     conn.commit()
                     
@@ -2343,6 +2344,46 @@ class DatabaseManager:
                 conn.executescript(migration_sql)
                 conn.commit()
                 logger.info("✅ Student Interactions Response Column migration (009) applied successfully")
+    
+    def create_qa_similarity_cache_table(self, conn: sqlite3.Connection):
+        """Create qa_similarity_cache table if it doesn't exist"""
+        try:
+            # Check if table exists
+            cursor = conn.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='qa_similarity_cache'
+            """)
+            
+            if cursor.fetchone():
+                logger.info("qa_similarity_cache table already exists")
+                return
+            
+            logger.info("Creating qa_similarity_cache table...")
+            
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS qa_similarity_cache (
+                    question_text TEXT NOT NULL,
+                    question_text_hash TEXT NOT NULL PRIMARY KEY,
+                    matched_qa_ids TEXT NOT NULL,
+                    embedding_model TEXT,
+                    cache_hits INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NOT NULL
+                )
+            """)
+            
+            # Create index for faster lookups
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_qa_similarity_cache_hash 
+                ON qa_similarity_cache(question_text_hash)
+            """)
+            
+            conn.commit()
+            logger.info("✅ qa_similarity_cache table created successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to create qa_similarity_cache table: {e}", exc_info=True)
+            # Don't raise - this is non-critical
             else:
                 logger.warning(f"Migration 009 file not found. Expected paths: {possible_paths}")
                 # Apply migration directly if file not found

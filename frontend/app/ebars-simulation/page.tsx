@@ -795,11 +795,11 @@ export default function EBARSSimulationPage() {
           <TabsContent value="results" className="space-y-6">
             {currentSimulation && 
              currentSimulation.simulation_id && 
-             (currentSimulation.status === "COMPLETED" || 
-              currentSimulation.status === "completed" ||
-              currentSimulation.status === "FAILED" ||
-              currentSimulation.status === "failed" ||
-              currentSimulation.status === "stopped") ? (
+             (currentSimulation.status?.toUpperCase() === "COMPLETED" || 
+              currentSimulation.status?.toLowerCase() === "completed" ||
+              currentSimulation.status?.toUpperCase() === "FAILED" ||
+              currentSimulation.status?.toLowerCase() === "failed" ||
+              currentSimulation.status?.toLowerCase() === "stopped") ? (
               <SimulationResultsView simulationId={currentSimulation.simulation_id} />
             ) : (
               <Card>
