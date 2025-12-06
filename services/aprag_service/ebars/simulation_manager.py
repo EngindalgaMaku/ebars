@@ -388,10 +388,13 @@ class EBARSSimulation:
         if len(self.questions) < num_turns:
             raise Exception(f"Not enough questions: {len(self.questions)} < {num_turns}")
         
-        logger.info(f"🚀 Starting simulation {self.simulation_id}: {num_turns} turns, {len(self.agents)} agents")
+        logger.info(f"🚀 [SIMULATION RUN] Starting simulation {self.simulation_id}: {num_turns} turns, {len(self.agents)} agents")
+        logger.info(f"🚀 [SIMULATION RUN] Agents: {[a.agent_name for a in self.agents]}")
+        logger.info(f"🚀 [SIMULATION RUN] Questions: {len(self.questions)} questions available")
         
         # Update status to running
         self.db_manager.update_simulation_status(self.simulation_id, SimulationStatus.RUNNING)
+        logger.info(f"🚀 [SIMULATION RUN] Status updated to RUNNING")
         
         try:
             # Run turns
@@ -508,12 +511,37 @@ class SimulationRunner:
         for agent_config in agents_config:
             simulation.add_agent(**agent_config)
         
-        # Start simulation task
-        task = asyncio.create_task(
-            simulation.run_simulation(config.get('num_turns', 20))
-        )
+        # Start simulation task - use asyncio.create_task to run in background
+        # This ensures the task runs in the current event loop
+        async def run_simulation_wrapper():
+            try:
+                logger.info(f"🎬 [SIMULATION TASK] Wrapper started for {simulation_id}")
+                logger.info(f"🎬 [SIMULATION TASK] About to call simulation.run_simulation()")
+                await simulation.run_simulation(config.get('num_turns', 20))
+                logger.info(f"✅ [SIMULATION TASK] Wrapper completed for {simulation_id}")
+            except asyncio.CancelledError:
+                logger.info(f"🛑 [SIMULATION TASK] Wrapper cancelled for {simulation_id}")
+                raise
+            except Exception as e:
+                logger.error(f"❌ [SIMULATION TASK] Wrapper error for {simulation_id}: {e}", exc_info=True)
+                # Update status to failed
+                try:
+                    db_manager = SimulationDatabaseManager(db)
+                    db_manager.update_simulation_status(
+                        simulation_id,
+                        SimulationStatus.FAILED,
+                        f"Simulation failed: {str(e)}"
+                    )
+                except Exception as db_err:
+                    logger.error(f"Failed to update simulation status: {db_err}")
+                raise
         
+        logger.info(f"🔧 [SIMULATION START] Creating task for {simulation_id}")
+        task = asyncio.create_task(run_simulation_wrapper())
         cls._running_simulations[simulation_id] = task
+        
+        logger.info(f"✅ [SIMULATION START] Task created for {simulation_id}, task done: {task.done()}")
+        logger.info(f"✅ [SIMULATION START] Total running simulations: {len(cls._running_simulations)}")
         
         return simulation_id
     

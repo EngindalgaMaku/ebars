@@ -11,6 +11,7 @@ import os
 import json
 import requests
 import sqlite3
+import asyncio
 
 from database.database import DatabaseManager
 
@@ -23,7 +24,7 @@ from config.feature_flags import is_feature_enabled
 from .feedback_handler import FeedbackHandler
 from .score_calculator import ComprehensionScoreCalculator
 from .prompt_adapter import PromptAdapter
-from .simulation_manager import SimulationRunner
+from .simulation_manager import SimulationRunner, EBARSSimulation, AgentType
 from .simulation_models import SimulationDatabaseManager, SimulationStatus
 
 logger = logging.getLogger(__name__)
@@ -2221,14 +2222,43 @@ async def start_simulation(
         logger.info(f"🚀 Starting simulation for session {request.session_id}")
         logger.info(f"   Turns: {request.num_turns}, Agents: {request.num_agents}")
         
-        # Start simulation in background
+        # Start simulation in background using FastAPI BackgroundTasks
+        # This ensures the simulation runs properly in FastAPI's event loop
+        logger.info(f"🔧 [START ENDPOINT] About to call SimulationRunner.start_simulation")
         simulation_id = await SimulationRunner.start_simulation(
             session_id=request.session_id,
             questions=questions,
             config=config
         )
+        logger.info(f"🔧 [START ENDPOINT] SimulationRunner returned simulation_id: {simulation_id}")
         
-        logger.info(f"✅ Simulation {simulation_id} started successfully")
+        # Add simulation to background tasks to ensure it's tracked and runs
+        async def ensure_simulation_runs():
+            """Ensure simulation task is running and tracked"""
+            try:
+                logger.info(f"🎬 [BACKGROUND TASK] Ensuring simulation {simulation_id} is running...")
+                # Give a small delay to let the task start
+                await asyncio.sleep(0.5)
+                task = SimulationRunner._running_simulations.get(simulation_id)
+                if task:
+                    logger.info(f"✅ [BACKGROUND TASK] Simulation task found, task done: {task.done()}")
+                    if not task.done():
+                        logger.info(f"✅ [BACKGROUND TASK] Waiting for simulation {simulation_id} to complete...")
+                        await task
+                        logger.info(f"✅ [BACKGROUND TASK] Simulation {simulation_id} completed")
+                    else:
+                        logger.warning(f"⚠️ [BACKGROUND TASK] Simulation task already done for {simulation_id}")
+                else:
+                    logger.error(f"❌ [BACKGROUND TASK] Simulation task NOT FOUND for {simulation_id}")
+                    logger.error(f"❌ [BACKGROUND TASK] Available simulations: {list(SimulationRunner._running_simulations.keys())}")
+            except asyncio.CancelledError:
+                logger.info(f"🛑 [BACKGROUND TASK] Simulation {simulation_id} was cancelled")
+            except Exception as e:
+                logger.error(f"❌ [BACKGROUND TASK] Simulation {simulation_id} error: {e}", exc_info=True)
+        
+        background_tasks.add_task(ensure_simulation_runs)
+        
+        logger.info(f"✅ [START ENDPOINT] Simulation {simulation_id} started successfully (background task added)")
         
         return {
             'success': True,
