@@ -117,22 +117,7 @@ export default function EBARSSimulationPage() {
   const [activeTab, setActiveTab] = useState("configuration");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    loadSessions();
-  }, []);
-
-  if (!mounted) {
-    return (
-      <TeacherLayout>
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-gray-600">Yükleniyor...</span>
-        </div>
-      </TeacherLayout>
-    );
-  }
-
+  // Function definitions moved before useEffect to avoid temporal dead zone
   const loadSessions = async () => {
     try {
       setLoadingSessions(true);
@@ -149,6 +134,40 @@ export default function EBARSSimulationPage() {
     } finally {
       setLoadingSessions(false);
     }
+  };
+
+  const monitorSimulation = async (simulationId: string) => {
+    const intervalId = setInterval(async () => {
+      try {
+        const response = await fetch(
+          `${EBARS_API_BASE}/simulation/status/${simulationId}`
+        );
+        if (response.ok) {
+          const status = await response.json();
+          setCurrentSimulation(status);
+
+          if (status.status === "COMPLETED" || status.status === "FAILED") {
+            clearInterval(intervalId);
+            setIsRunning(false);
+            if (status.status === "COMPLETED") {
+              toast.success("Simülasyon tamamlandı!");
+            } else {
+              toast.error("Simülasyon başarısız oldu");
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error monitoring simulation:", error);
+      }
+    }, 2000);
+
+    // 30 saniye sonra monitoring'i durdur
+    setTimeout(() => {
+      clearInterval(intervalId);
+      if (isRunning) {
+        setIsRunning(false);
+      }
+    }, 30000);
   };
 
   const startSimulation = async () => {
@@ -190,40 +209,6 @@ export default function EBARSSimulationPage() {
     }
   };
 
-  const monitorSimulation = async (simulationId: string) => {
-    const intervalId = setInterval(async () => {
-      try {
-        const response = await fetch(
-          `${EBARS_API_BASE}/simulation/status/${simulationId}`
-        );
-        if (response.ok) {
-          const status = await response.json();
-          setCurrentSimulation(status);
-
-          if (status.status === "COMPLETED" || status.status === "FAILED") {
-            clearInterval(intervalId);
-            setIsRunning(false);
-            if (status.status === "COMPLETED") {
-              toast.success("Simülasyon tamamlandı!");
-            } else {
-              toast.error("Simülasyon başarısız oldu");
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error monitoring simulation:", error);
-      }
-    }, 2000);
-
-    // 30 saniye sonra monitoring'i durdur
-    setTimeout(() => {
-      clearInterval(intervalId);
-      if (isRunning) {
-        setIsRunning(false);
-      }
-    }, 30000);
-  };
-
   const stopSimulation = async () => {
     if (!currentSimulation?.id) return;
 
@@ -253,6 +238,22 @@ export default function EBARSSimulationPage() {
     setError(null);
     setActiveTab("configuration");
   };
+
+  useEffect(() => {
+    setMounted(true);
+    loadSessions();
+  }, []);
+
+  if (!mounted) {
+    return (
+      <TeacherLayout>
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-3 text-gray-600">Yükleniyor...</span>
+        </div>
+      </TeacherLayout>
+    );
+  }
 
   const selectedSession = sessions.find((s) => s.id === config.session_id);
 
