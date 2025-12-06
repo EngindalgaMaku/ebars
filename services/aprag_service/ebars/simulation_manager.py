@@ -90,8 +90,8 @@ class SimulationAgent:
         start_time = time.time()
         
         try:
-            # Use internal localhost instead of external HTTPS to avoid SSL errors
-            api_base_url = "http://localhost:8007"  # Use internal localhost
+            # Use internal Docker network URL instead of localhost for container communication
+            api_base_url = "http://aprag-service:8007"  # Use internal Docker network URL
             
             import requests
             response = requests.post(

@@ -468,6 +468,28 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest):
     start_time = datetime.now()
     db = get_db()
     
+    # Record interaction in database first so agents can find it for feedback
+    interaction_id = None
+    try:
+        with db.get_connection() as conn:
+            cursor = conn.execute("""
+                INSERT INTO student_interactions
+                (user_id, session_id, query, response, timestamp, model_used)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                request.user_id,
+                request.session_id,
+                request.query,
+                "Processing...",  # Temporary response, will be updated
+                datetime.now().isoformat(),
+                request.model or "llama-3.1-8b-instant"
+            ))
+            interaction_id = cursor.lastrowid
+            conn.commit()
+            logger.info(f"✅ Created interaction record: {interaction_id}")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not create interaction record: {e}")
+    
     try:
         # Get session RAG settings and metadata from API Gateway to use correct model
         session_rag_settings = {}
@@ -559,6 +581,20 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest):
             )
             
             processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
+            
+            # Update interaction record with final answer
+            if interaction_id:
+                try:
+                    with db.get_connection() as conn:
+                        conn.execute("""
+                            UPDATE student_interactions
+                            SET response = ?, processing_time_ms = ?
+                            WHERE interaction_id = ?
+                        """, (answer, processing_time, interaction_id))
+                        conn.commit()
+                        logger.info(f"✅ Updated interaction {interaction_id} with final answer")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not update interaction record: {e}")
             
             return HybridRAGQueryResponse(
                 answer=answer,
@@ -1343,6 +1379,20 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest):
             )
         except Exception as sugg_err:
             logger.warning(f"Failed to generate suggestions: {sugg_err}")
+        
+        # Update interaction record with final answer
+        if interaction_id:
+            try:
+                with db.get_connection() as conn:
+                    conn.execute("""
+                        UPDATE student_interactions
+                        SET response = ?, processing_time_ms = ?
+                        WHERE interaction_id = ?
+                    """, (answer, processing_time, interaction_id))
+                    conn.commit()
+                    logger.info(f"✅ Updated interaction {interaction_id} with final answer")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not update interaction record: {e}")
         
         return HybridRAGQueryResponse(
             answer=answer,
