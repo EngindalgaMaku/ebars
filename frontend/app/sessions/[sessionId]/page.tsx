@@ -54,7 +54,15 @@ export default function SessionPage() {
   const sessionId = params.sessionId as string;
 
   // Handler for sidebar navigation
-  type TabType = "dashboard" | "sessions" | "upload" | "analytics" | "modules" | "assistant" | "query";
+  type TabType =
+    | "dashboard"
+    | "sessions"
+    | "upload"
+    | "analytics"
+    | "modules"
+    | "assistant"
+    | "query"
+    | "ebars-simulation";
   const handleTabChange = (tab: TabType) => {
     // Navigate to main page, which will handle the tab change
     router.push("/");
@@ -102,9 +110,14 @@ export default function SessionPage() {
   const [interactionsTotal, setInteractionsTotal] = useState(0);
   const INTERACTIONS_PER_PAGE = 10;
   const [activeTab, setActiveTab] = useState<
-    "genel" | "chunks" | "topics" | "interactions" | "session-settings" | "question-pool"
+    | "genel"
+    | "chunks"
+    | "topics"
+    | "interactions"
+    | "session-settings"
+    | "question-pool"
   >("genel");
-  
+
   // Batch processing job tracking
   const [batchJobId, setBatchJobId] = useState<string | null>(null);
   const [batchStatus, setBatchStatus] = useState<any | null>(null);
@@ -188,12 +201,14 @@ export default function SessionPage() {
       setBatchJobId(result.job_id);
       setProcessing(true);
       setSuccess(
-        `Batch işlem başlatıldı: ${result.total_files || 0} dosya arka planda işleniyor...`
+        `Batch işlem başlatıldı: ${
+          result.total_files || 0
+        } dosya arka planda işleniyor...`
       );
       // Polling will start via useEffect
       return;
     }
-    
+
     // Normal completion (non-batch or completed batch)
     const processedCount = result?.processed_count ?? 0;
     const totalChunks = result?.total_chunks_added ?? 0;
@@ -239,14 +254,18 @@ export default function SessionPage() {
         if (!res.ok) {
           // If 404, job tracking might be lost but processing may have completed
           if (res.status === 404) {
-            console.warn("Batch job tracking not found - checking if processing completed");
+            console.warn(
+              "Batch job tracking not found - checking if processing completed"
+            );
             // Check chunks to see if processing actually completed
             try {
               await fetchChunks();
               const currentChunks = chunks.length;
               // If we have chunks, processing likely completed successfully
               if (currentChunks > 0) {
-                console.log("Chunks found - batch processing likely completed successfully");
+                console.log(
+                  "Chunks found - batch processing likely completed successfully"
+                );
                 if (interval) clearInterval(interval);
                 setBatchJobId(null);
                 setProcessing(false);
@@ -260,7 +279,7 @@ export default function SessionPage() {
               console.error("Error checking chunks:", err);
             }
           }
-          
+
           consecutiveErrors++;
           if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
             console.error("Batch status polling failed too many times");
@@ -295,8 +314,13 @@ export default function SessionPage() {
         setBatchStatus(data.job);
 
         // Handle unknown or likely_completed status (job tracking lost but processing may have completed)
-        if (data.job.status === "unknown" || data.job.status === "likely_completed") {
-          console.log(`Job status: ${data.job.status} - checking chunks to verify completion`);
+        if (
+          data.job.status === "unknown" ||
+          data.job.status === "likely_completed"
+        ) {
+          console.log(
+            `Job status: ${data.job.status} - checking chunks to verify completion`
+          );
           try {
             await fetchChunks();
             if (chunks.length > 0 || data.job.total_chunks > 0) {
@@ -320,7 +344,11 @@ export default function SessionPage() {
           return;
         }
 
-        if (data.job.status === "completed" || data.job.status === "completed_with_errors" || data.job.status === "failed") {
+        if (
+          data.job.status === "completed" ||
+          data.job.status === "completed_with_errors" ||
+          data.job.status === "failed"
+        ) {
           if (interval) clearInterval(interval);
           setBatchJobId(null);
           setProcessing(false);
@@ -336,25 +364,38 @@ export default function SessionPage() {
               `Batch işlem tamamlandı (bazı hatalar var): ${data.job.processed_successfully}/${data.job.total_files} dosya işlendi, ${data.job.total_chunks} chunk oluşturuldu.`
             );
             if (data.job.errors && data.job.errors.length > 0) {
-              setError(`Hatalar: ${data.job.errors.map((e: any) => e.filename).join(", ")}`);
+              setError(
+                `Hatalar: ${data.job.errors
+                  .map((e: any) => e.filename)
+                  .join(", ")}`
+              );
             }
             await fetchChunks();
             await fetchSessionDetails();
           } else {
             setError(
-              `Batch işlem başarısız: ${data.job.errors?.[0]?.error || "Bilinmeyen hata"}`
+              `Batch işlem başarısız: ${
+                data.job.errors?.[0]?.error || "Bilinmeyen hata"
+              }`
             );
           }
         } else if (data.job.status === "running") {
           // Show progress with batch info (Batch 1, Batch 2, etc.)
-          const batchInfo = data.job.current_batch && data.job.total_batches
-            ? ` - Batch ${data.job.current_batch}/${data.job.total_batches}`
-            : "";
-          const currentFile = data.job.current_file 
-            ? ` - İşleniyor: ${data.job.current_file.split('/').pop() || data.job.current_file}`
+          const batchInfo =
+            data.job.current_batch && data.job.total_batches
+              ? ` - Batch ${data.job.current_batch}/${data.job.total_batches}`
+              : "";
+          const currentFile = data.job.current_file
+            ? ` - İşleniyor: ${
+                data.job.current_file.split("/").pop() || data.job.current_file
+              }`
             : "";
           setSuccess(
-            `Batch işlem devam ediyor... (${data.job.processed_successfully || 0}/${data.job.total_files || 0} dosya işlendi${batchInfo}${currentFile})`
+            `Batch işlem devam ediyor... (${
+              data.job.processed_successfully || 0
+            }/${
+              data.job.total_files || 0
+            } dosya işlendi${batchInfo}${currentFile})`
           );
         }
       } catch (err: any) {
@@ -883,7 +924,10 @@ export default function SessionPage() {
                                 : response.models || [];
                               const filtered = models.filter((m: any) => {
                                 const provider = m.provider || "";
-                                return provider.toLowerCase() === selectedProvider.toLowerCase();
+                                return (
+                                  provider.toLowerCase() ===
+                                  selectedProvider.toLowerCase()
+                                );
                               });
                               setAvailableModels(filtered);
                             } catch (e: any) {

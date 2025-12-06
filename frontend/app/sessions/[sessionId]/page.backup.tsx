@@ -51,7 +51,15 @@ export default function SessionPage() {
   const sessionId = params.sessionId as string;
 
   // Handler for sidebar navigation
-  type TabType = "dashboard" | "sessions" | "upload" | "analytics" | "modules" | "assistant" | "query";
+  type TabType =
+    | "dashboard"
+    | "sessions"
+    | "upload"
+    | "analytics"
+    | "modules"
+    | "assistant"
+    | "query"
+    | "ebars-simulation";
   const handleTabChange = (tab: TabType) => {
     // Navigate to main page, which will handle the tab change
     router.push("/");
