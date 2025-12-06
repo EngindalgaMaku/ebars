@@ -2165,6 +2165,11 @@ async def start_simulation(
     
     The simulation runs asynchronously and can be monitored via status endpoint.
     """
+    logger.info(f"🎯 [START ENDPOINT] Received simulation start request")
+    logger.info(f"🎯 [START ENDPOINT] Request data: session_id={request.session_id}, num_turns={request.num_turns}, num_agents={request.num_agents}")
+    logger.info(f"🎯 [START ENDPOINT] Questions provided: {len(request.questions) if request.questions else 0}")
+    logger.info(f"🎯 [START ENDPOINT] Config: {request.config}")
+    
     try:
         # Check if EBARS is enabled - make this more lenient for testing
         try:
@@ -2318,10 +2323,11 @@ async def start_simulation(
             'config': config
         }
         
-    except HTTPException:
+    except HTTPException as e:
+        logger.error(f"❌ [START ENDPOINT] HTTPException: {e.status_code} - {e.detail}")
         raise
     except Exception as e:
-        logger.error(f"Error starting simulation: {e}")
+        logger.error(f"❌ [START ENDPOINT] Error starting simulation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
