@@ -227,7 +227,7 @@ export async function getSimulationStatus(
   simulationId: string
 ): Promise<SimulationStatus> {
   const response = await makeAuthenticatedRequest(
-    `/ebars/simulation/${simulationId}/status`
+    `/ebars/simulation/status/${simulationId}`
   );
 
   if (!response.ok) {
@@ -248,7 +248,7 @@ export async function getSimulationResults(
   simulationId: string
 ): Promise<SimulationResult> {
   const response = await makeAuthenticatedRequest(
-    `/ebars/simulation/${simulationId}/results`
+    `/ebars/simulation/results/${simulationId}`
   );
 
   if (!response.ok) {
@@ -287,7 +287,7 @@ export async function pauseSimulation(simulationId: string): Promise<{
   status: string;
 }> {
   const response = await makeAuthenticatedRequest(
-    `/ebars/simulation/${simulationId}/pause`,
+    `/ebars/simulation/pause/${simulationId}`,
     {
       method: "POST",
     }
@@ -311,7 +311,7 @@ export async function resumeSimulation(simulationId: string): Promise<{
   status: string;
 }> {
   const response = await makeAuthenticatedRequest(
-    `/ebars/simulation/${simulationId}/resume`,
+    `/ebars/simulation/resume/${simulationId}`,
     {
       method: "POST",
     }
@@ -335,7 +335,7 @@ export async function stopSimulation(simulationId: string): Promise<{
   final_results?: SimulationResult;
 }> {
   const response = await makeAuthenticatedRequest(
-    `/ebars/simulation/${simulationId}/stop`,
+    `/ebars/simulation/stop/${simulationId}`,
     {
       method: "POST",
     }
@@ -358,7 +358,7 @@ export async function deleteSimulation(simulationId: string): Promise<{
   message: string;
 }> {
   const response = await makeAuthenticatedRequest(
-    `/ebars/simulation/${simulationId}`,
+    `/ebars/simulation/delete/${simulationId}`,
     {
       method: "DELETE",
     }
@@ -386,7 +386,7 @@ export async function getSimulationLogs(
   total_count: number;
   has_more: boolean;
 }> {
-  let endpoint = `/ebars/simulation/${simulationId}/logs`;
+  let endpoint = `/ebars/simulation/logs/${simulationId}`;
   const params = new URLSearchParams();
 
   if (limit !== undefined) params.append("limit", limit.toString());
@@ -415,7 +415,7 @@ export async function exportSimulationResults(
   simulationId: string
 ): Promise<Blob> {
   const response = await makeAuthenticatedRequest(
-    `/ebars/simulation/${simulationId}/export`,
+    `/ebars/simulation/export/${simulationId}`,
     {
       headers: {
         Authorization: `Bearer ${getAccessToken()}`,
