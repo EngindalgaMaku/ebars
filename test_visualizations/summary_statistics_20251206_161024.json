@@ -1,0 +1,44 @@
+{
+  "generation_timestamp": "2025-12-06T16:10:24.822594",
+  "data_summary": {
+    "total_records": 60,
+    "agents": 3,
+    "turns": "20",
+    "date_range": {
+      "start": "2025-12-06T16:10:16.758715",
+      "end": "2025-12-06T16:10:16.759571"
+    }
+  },
+  "agent_statistics": {
+    "agent_a": {
+      "initial_score": 28.19,
+      "final_score": 45.61,
+      "score_improvement": 17.419999999999998,
+      "improvement_percentage": 61.79496275274919,
+      "total_turns": 20,
+      "avg_processing_time": 1249.1799999999998,
+      "level_changes": 3,
+      "positive_feedback_ratio": 0.3
+    },
+    "agent_b": {
+      "initial_score": 60.58,
+      "final_score": 100.0,
+      "score_improvement": 39.42,
+      "improvement_percentage": 65.0709805216243,
+      "total_turns": 20,
+      "avg_processing_time": 956.8049999999997,
+      "level_changes": 1,
+      "positive_feedback_ratio": 1.0
+    },
+    "agent_c": {
+      "initial_score": 48.94,
+      "final_score": 71.89,
+      "score_improvement": 22.950000000000003,
+      "improvement_percentage": 46.89415610952187,
+      "total_turns": 20,
+      "avg_processing_time": 1184.19,
+      "level_changes": 9,
+      "positive_feedback_ratio": 0.5
+    }
+  }
+}

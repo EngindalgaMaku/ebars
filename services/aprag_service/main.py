@@ -78,6 +78,11 @@ except ImportError:
             return os.getenv("MODULE_CURRICULUM_ALIGNMENT_ENABLED", "true").lower() == "true"
         
         @staticmethod
+        def is_ebars_enabled(session_id=None):
+            """Fallback for EBARS (Emoji-Based Adaptive Response System)"""
+            return os.getenv("EBARS_ENABLED", "true").lower() == "true"
+        
+        @staticmethod
         def load_from_database(db_manager):
             """Fallback method for database loading"""
             pass

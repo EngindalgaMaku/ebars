@@ -123,6 +123,8 @@ async def process_emoji_feedback(
     2. Adjusts difficulty level if needed
     3. Records feedback in history
     4. Returns updated state
+    
+    Note: Response format adjusted to match simulation expectations
     """
     try:
         # Check if EBARS is enabled
@@ -148,11 +150,8 @@ async def process_emoji_feedback(
                 detail=result.get('error', 'Failed to process feedback')
             )
         
-        return {
-            "success": True,
-            "message": "Feedback processed successfully",
-            "data": result
-        }
+        # Return direct result without wrapper for simulation compatibility
+        return result
         
     except HTTPException:
         raise
@@ -215,22 +214,19 @@ async def get_ebars_state(
     """
     Get current EBARS state for a student.
     
-    If query and context are provided, returns the complete prompt
-    (student question + EBARS personalization + RAG chunks).
-    
     Args:
         user_id: User ID
         session_id: Session ID
-        query: Optional student question (for complete prompt generation)
-        context: Optional RAG context/chunks (for complete prompt generation)
     
     Returns:
-        - Current comprehension score
-        - Current difficulty level
-        - Prompt parameters
-        - Statistics
-        - adaptive_prompt: Sample prompt (if query/context not provided)
-        - complete_prompt: Full prompt with query + EBARS + context (if query/context provided)
+        Direct state object with:
+        - comprehension_score: Current comprehension score
+        - difficulty_level: Current difficulty level
+        - prompt_parameters: Prompt parameters
+        - statistics: Usage statistics
+        - adaptive_prompt: Sample prompt
+        
+    Note: Response format adjusted to match simulation expectations
     """
     try:
         # Check if EBARS is enabled
@@ -243,13 +239,8 @@ async def get_ebars_state(
         handler = FeedbackHandler(db)
         state = handler.get_current_state(user_id, session_id)
         
-        # Note: query and context removed from GET endpoint to avoid 414 URI Too Large error
-        # Use POST endpoint for complete prompt generation
-        
-        return {
-            "success": True,
-            "data": state
-        }
+        # Return direct state without wrapper for simulation compatibility
+        return state
         
     except HTTPException:
         raise

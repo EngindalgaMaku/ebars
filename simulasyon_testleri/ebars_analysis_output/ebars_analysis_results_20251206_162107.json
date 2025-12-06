@@ -1,0 +1,240 @@
+{
+  "adaptation_metrics": {
+    "agent_a": "AdaptationMetrics(agent_id='agent_a', convergence_rate=0.01228757719197299, stability_index=0.04865160722033277, adaptation_speed=4.544342611583059, final_performance=53.068456449870006, learning_efficiency=1.1636283210170006, hysteresis_index=0.625)",
+    "agent_b": "AdaptationMetrics(agent_id='agent_b', convergence_rate=0.038669276268687165, stability_index=0.6155301150756711, adaptation_speed=3.475874171711978, final_performance=100.0, learning_efficiency=2.2747967561337132, hysteresis_index=0.7142857142857143)",
+    "agent_c": "AdaptationMetrics(agent_id='agent_c', convergence_rate=0.009907376203537382, stability_index=0.015961968262871093, adaptation_speed=4.780932326436899, final_performance=78.66484647373619, learning_efficiency=1.6515304128150539, hysteresis_index=0.7407407407407407)"
+  },
+  "convergence_analysis": {
+    "agent_a": {
+      "stabilization_turn": 3.0,
+      "convergence_velocity": 0.07550197674916881,
+      "overshoot_tendency": 0.0,
+      "settling_time": 18.0,
+      "final_score": 53.068456449870006,
+      "score_variance": 55.990415709899345
+    },
+    "agent_b": {
+      "stabilization_turn": 1.0,
+      "convergence_velocity": 0.11734520525122759,
+      "overshoot_tendency": 0.35,
+      "settling_time": 16.0,
+      "final_score": 100.0,
+      "score_variance": 243.12419083961964
+    },
+    "agent_c": {
+      "stabilization_turn": 5.0,
+      "convergence_velocity": 0.0364522022294578,
+      "overshoot_tendency": 0.05,
+      "settling_time": 19.0,
+      "final_score": 78.66484647373619,
+      "score_variance": 81.83657666156235
+    }
+  },
+  "responsiveness_metrics": {
+    "agent_a": {
+      "avg_response_lag": 1.5789473684210527,
+      "processing_consistency": 0.0039577571366728025,
+      "avg_adaptation_delay": 1.0,
+      "reactivity_correlation": NaN,
+      "responsiveness_index": 0.3877551020408163
+    },
+    "agent_b": {
+      "avg_response_lag": 1.368421052631579,
+      "processing_consistency": 0.002459861706406362,
+      "avg_adaptation_delay": 1.0,
+      "reactivity_correlation": NaN,
+      "responsiveness_index": 0.4222222222222223
+    },
+    "agent_c": {
+      "avg_response_lag": 1.5789473684210527,
+      "processing_consistency": 0.0029122943938355746,
+      "avg_adaptation_delay": 1.0,
+      "reactivity_correlation": -0.22433016247662288,
+      "responsiveness_index": 0.3877551020408163
+    }
+  },
+  "stability_metrics": {
+    "agent_a": {
+      "oscillation_index": 0.6,
+      "steady_state_variance": 16.44152515492329,
+      "damping_ratio": -0.0574630449812152,
+      "stability_margin": 0.3085370788934192,
+      "avg_recovery_time": 1.25,
+      "stability_score": 0.5667600068192319
+    },
+    "agent_b": {
+      "oscillation_index": 0.4,
+      "steady_state_variance": 43.04456146458216,
+      "damping_ratio": -0.12567101396668137,
+      "stability_margin": 0.5450406487732573,
+      "avg_recovery_time": 2.5,
+      "stability_score": 0.5463150568357602
+    },
+    "agent_c": {
+      "oscillation_index": 0.35,
+      "steady_state_variance": 96.83829159782967,
+      "damping_ratio": 0.0130643333048579,
+      "stability_margin": 0.4828284768267322,
+      "avg_recovery_time": 1.3333333333333333,
+      "stability_score": 0.431335131529826
+    }
+  },
+  "statistical_comparisons": {
+    "score_comparisons": [
+      "StatisticalResult(test_name='agent_a vs agent_b (Comprehension Scores)', statistic=4.0, p_value=1.2179940465598152e-07, effect_size=-0.98, confidence_interval=None, interpretation='Result is significant (p=0.0000) with large effect size (-0.980)', significance_level=0.05)",
+      "StatisticalResult(test_name='agent_a vs agent_c (Comprehension Scores)', statistic=15.0, p_value=6.014797005320149e-07, effect_size=-0.925, confidence_interval=None, interpretation='Result is significant (p=0.0000) with large effect size (-0.925)', significance_level=0.05)",
+      "StatisticalResult(test_name='agent_b vs agent_c (Comprehension Scores)', statistic=323.0, p_value=0.0009158044863372054, effect_size=0.615, confidence_interval=None, interpretation='Result is significant (p=0.0009) with medium effect size (0.615)', significance_level=0.05)",
+      "StatisticalResult(test_name='Overall Group Differences (ANOVA)', statistic=51.09942846643181, p_value=1.9370683740479944e-13, effect_size=0.6419572282228274, confidence_interval=None, interpretation='Result is significant (p=0.0000) with large effect size (0.642)', significance_level=0.05)"
+    ],
+    "adaptation_comparisons": [
+      "StatisticalResult(test_name='agent_a vs agent_b (Adaptation Speed)', statistic=212.0, p_value=0.3653407510217287, effect_size=0.1745152354570637, confidence_interval=None, interpretation='Result is not significant (p=0.3653) with negligible effect size (0.175)', significance_level=0.05)",
+      "StatisticalResult(test_name='agent_a vs agent_c (Adaptation Speed)', statistic=165.0, p_value=0.6614434015332223, effect_size=-0.08587257617728532, confidence_interval=None, interpretation='Result is not significant (p=0.6614) with negligible effect size (-0.086)', significance_level=0.05)",
+      "StatisticalResult(test_name='agent_b vs agent_c (Adaptation Speed)', statistic=135.0, p_value=0.18882896671944516, effect_size=-0.2520775623268698, confidence_interval=None, interpretation='Result is not significant (p=0.1888) with small effect size (-0.252)', significance_level=0.05)"
+    ],
+    "performance_comparisons": [
+      "StatisticalResult(test_name='agent_a vs agent_b (Final Performance)', statistic=-14.323522033865983, p_value=0.00013802888878642467, effect_size=-11.695106767494522, confidence_interval=None, interpretation='Result is significant (p=0.0001) with large effect size (-11.695)', significance_level=0.05)",
+      "StatisticalResult(test_name='agent_a vs agent_c (Final Performance)', statistic=-4.845847667224005, p_value=0.008364544396208233, effect_size=-3.956618051984998, confidence_interval=None, interpretation='Result is significant (p=0.0084) with large effect size (-3.957)', significance_level=0.05)",
+      "StatisticalResult(test_name='agent_b vs agent_c (Final Performance)', statistic=5.14957597637123, p_value=0.006746433600799593, effect_size=4.204611177934666, confidence_interval=None, interpretation='Result is significant (p=0.0067) with large effect size (4.205)', significance_level=0.05)"
+    ]
+  },
+  "correlation_analysis": {
+    "agent_a": {
+      "feedback_score_correlation": NaN,
+      "feedback_difficulty_correlation": NaN,
+      "lag_correlation": NaN,
+      "processing_performance_correlation": -0.21989411899578015
+    },
+    "agent_b": {
+      "feedback_score_correlation": NaN,
+      "feedback_difficulty_correlation": NaN,
+      "lag_correlation": NaN,
+      "processing_performance_correlation": 0.034579661093579454
+    },
+    "agent_c": {
+      "feedback_score_correlation": -0.22433016247662288,
+      "feedback_difficulty_correlation": 0.09356014857064002,
+      "lag_correlation": 0.21439047124674548,
+      "processing_performance_correlation": 0.010781814223226405
+    }
+  },
+  "trend_analysis": {
+    "agent_a": {
+      "score_slope": 1.0991549180491578,
+      "score_intercept": 30.90329878749513,
+      "score_r_squared": 0.7174568270642439,
+      "difficulty_slope": 0.07443609022556393,
+      "difficulty_r_squared": 0.7443609022556391,
+      "polynomial_coefficients": [
+        0.04344359066066281,
+        0.1868395141752393,
+        34.24845526836615
+      ],
+      "polynomial_r_squared": 0.7470460330005458,
+      "trend_type": "strong_positive",
+      "trend_strength": 1.0991549180491578
+    },
+    "agent_b": {
+      "score_slope": 2.644202500715494,
+      "score_intercept": 51.62646799295068,
+      "score_r_squared": 0.9562091598183539,
+      "difficulty_slope": 0.11954887218045117,
+      "difficulty_r_squared": 0.8679575651457411,
+      "polynomial_coefficients": [
+        -0.03007022126199224,
+        3.275677147217334,
+        49.31106095577727
+      ],
+      "polynomial_r_squared": 0.9594738400590976,
+      "trend_type": "strong_positive",
+      "trend_strength": 2.644202500715494
+    },
+    "agent_c": {
+      "score_slope": 0.9272319165706222,
+      "score_intercept": 52.06598405615107,
+      "score_r_squared": 0.3493179800217906,
+      "difficulty_slope": 0.12481203007518799,
+      "difficulty_r_squared": 0.877915126800051,
+      "polynomial_coefficients": [
+        0.1214471633269368,
+        -1.6231585132950495,
+        61.41741563232517
+      ],
+      "polynomial_r_squared": 0.507523951984999,
+      "trend_type": "moderate_positive",
+      "trend_strength": 0.9272319165706222
+    }
+  },
+  "effect_sizes": {
+    "agent_a": {
+      "cohens_d": 3.7808682089936623,
+      "glass_delta": 5.008337357867254,
+      "interpretation": "large effect"
+    },
+    "agent_b": {
+      "cohens_d": 28.89818447551699,
+      "glass_delta": 20.434102206617876,
+      "interpretation": "large effect"
+    },
+    "agent_c": {
+      "cohens_d": 3.761838458581858,
+      "glass_delta": 4.328363354554799,
+      "interpretation": "large effect"
+    }
+  },
+  "learning_curves": {
+    "agent_a": {
+      "curve_type": "power_law",
+      "best_fit_r_squared": 0.7477989507331376,
+      "power_law_parameters": [
+        0.10667098558922326,
+        1.7603322736916265,
+        34.377287390100065
+      ],
+      "exponential_parameters": [
+        99.99999999999005,
+        0.01228757719197299,
+        30.560896868377124
+      ],
+      "average_learning_rate": 4.982503456382641,
+      "learning_efficiency": 1.1636283210170006,
+      "is_plateaued": false,
+      "total_improvement": 23.272566420340013
+    },
+    "agent_b": {
+      "curve_type": "power_law",
+      "best_fit_r_squared": 0.9584130522493374,
+      "power_law_parameters": [
+        4.3086814325385605,
+        0.8517595346738432,
+        48.174213354070574
+      ],
+      "exponential_parameters": [
+        99.99999999996976,
+        0.038669276268687165,
+        47.68851406383581
+      ],
+      "average_learning_rate": 4.647397682716744,
+      "learning_efficiency": 2.2747967561337132,
+      "is_plateaued": false,
+      "total_improvement": 45.49593512267427
+    },
+    "agent_c": {
+      "curve_type": "linear",
+      "best_fit_r_squared": 0.3493179800217906,
+      "power_law_parameters": [
+        0.04851963064405871,
+        1.9999999999999998,
+        54.83935217695864
+      ],
+      "exponential_parameters": [
+        99.99999999999996,
+        0.009907376203537382,
+        52.06910882214832
+      ],
+      "average_learning_rate": 4.423868659235792,
+      "learning_efficiency": 1.6515304128150539,
+      "is_plateaued": false,
+      "total_improvement": 33.03060825630108
+    }
+  }
+}
