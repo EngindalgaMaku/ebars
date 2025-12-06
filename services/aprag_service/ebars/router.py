@@ -2219,46 +2219,96 @@ async def start_simulation(
             'session_id': request.session_id
         })
         
-        logger.info(f"🚀 Starting simulation for session {request.session_id}")
-        logger.info(f"   Turns: {request.num_turns}, Agents: {request.num_agents}")
+        logger.info(f"🚀 [START ENDPOINT] Starting simulation for session {request.session_id}")
+        logger.info(f"🚀 [START ENDPOINT] Turns: {request.num_turns}, Agents: {request.num_agents}")
         
-        # Start simulation in background using FastAPI BackgroundTasks
-        # This ensures the simulation runs properly in FastAPI's event loop
-        logger.info(f"🔧 [START ENDPOINT] About to call SimulationRunner.start_simulation")
-        simulation_id = await SimulationRunner.start_simulation(
-            session_id=request.session_id,
-            questions=questions,
-            config=config
-        )
-        logger.info(f"🔧 [START ENDPOINT] SimulationRunner returned simulation_id: {simulation_id}")
+        # Create simulation directly (don't use SimulationRunner.start_simulation)
+        # This ensures we have full control over the background task
+        db = get_db()
+        simulation = EBARSSimulation(request.session_id, db)
+        simulation.initialize_tables()
         
-        # Add simulation to background tasks to ensure it's tracked and runs
-        async def ensure_simulation_runs():
-            """Ensure simulation task is running and tracked"""
+        # Create simulation record
+        logger.info(f"🔧 [START ENDPOINT] Creating simulation record...")
+        result = simulation.create_simulation(questions, config)
+        if not result['success']:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create simulation: {result.get('error', 'Unknown error')}"
+            )
+        simulation_id = result['simulation_id']
+        logger.info(f"✅ [START ENDPOINT] Simulation record created: {simulation_id}")
+        
+        # Add agents (limit to num_agents)
+        agents_config = [
+            {
+                'agent_id': f'agent_a_{simulation_id[:8]}',
+                'agent_name': 'Ajan A (Zorlanan)',
+                'user_id': f'sim_agent_a_{simulation_id[:8]}',
+                'agent_type': AgentType.STRUGGLING,
+                'feedback_strategy': 'negative',
+                'emoji_distribution': {'❌': 0.7, '😐': 0.3}
+            },
+            {
+                'agent_id': f'agent_b_{simulation_id[:8]}',
+                'agent_name': 'Ajan B (Hızlı Öğrenen)',
+                'user_id': f'sim_agent_b_{simulation_id[:8]}',
+                'agent_type': AgentType.FAST_LEARNER,
+                'feedback_strategy': 'positive',
+                'emoji_distribution': {'👍': 0.7, '😊': 0.3}
+            },
+            {
+                'agent_id': f'agent_c_{simulation_id[:8]}',
+                'agent_name': 'Ajan C (Dalgalı)',
+                'user_id': f'sim_agent_c_{simulation_id[:8]}',
+                'agent_type': AgentType.VARIABLE,
+                'feedback_strategy': 'variable',
+                'emoji_distribution': {}
+            }
+        ]
+        
+        logger.info(f"🔧 [START ENDPOINT] Adding {request.num_agents} agents...")
+        for agent_config in agents_config[:request.num_agents]:
+            simulation.add_agent(**agent_config)
+        logger.info(f"✅ [START ENDPOINT] Added {len(simulation.agents)} agents")
+        
+        # Start simulation directly in background task
+        # This is the CRITICAL FIX - use FastAPI's BackgroundTasks instead of asyncio.create_task
+        async def run_simulation_background():
+            """Run simulation in background - this WILL execute"""
             try:
-                logger.info(f"🎬 [BACKGROUND TASK] Ensuring simulation {simulation_id} is running...")
-                # Give a small delay to let the task start
-                await asyncio.sleep(0.5)
-                task = SimulationRunner._running_simulations.get(simulation_id)
-                if task:
-                    logger.info(f"✅ [BACKGROUND TASK] Simulation task found, task done: {task.done()}")
-                    if not task.done():
-                        logger.info(f"✅ [BACKGROUND TASK] Waiting for simulation {simulation_id} to complete...")
-                        await task
-                        logger.info(f"✅ [BACKGROUND TASK] Simulation {simulation_id} completed")
-                    else:
-                        logger.warning(f"⚠️ [BACKGROUND TASK] Simulation task already done for {simulation_id}")
-                else:
-                    logger.error(f"❌ [BACKGROUND TASK] Simulation task NOT FOUND for {simulation_id}")
-                    logger.error(f"❌ [BACKGROUND TASK] Available simulations: {list(SimulationRunner._running_simulations.keys())}")
+                logger.info(f"🎬 [BACKGROUND TASK] Starting simulation {simulation_id}...")
+                logger.info(f"🎬 [BACKGROUND TASK] Simulation object: {simulation}")
+                logger.info(f"🎬 [BACKGROUND TASK] Agents: {len(simulation.agents)}")
+                logger.info(f"🎬 [BACKGROUND TASK] Questions: {len(simulation.questions)}")
+                logger.info(f"🎬 [BACKGROUND TASK] Num turns: {request.num_turns}")
+                
+                await simulation.run_simulation(request.num_turns)
+                
+                logger.info(f"✅ [BACKGROUND TASK] Simulation {simulation_id} completed successfully")
             except asyncio.CancelledError:
                 logger.info(f"🛑 [BACKGROUND TASK] Simulation {simulation_id} was cancelled")
             except Exception as e:
                 logger.error(f"❌ [BACKGROUND TASK] Simulation {simulation_id} error: {e}", exc_info=True)
+                # Update status to failed
+                try:
+                    db_manager = SimulationDatabaseManager(db)
+                    db_manager.update_simulation_status(
+                        simulation_id,
+                        SimulationStatus.FAILED,
+                        f"Simulation failed: {str(e)}"
+                    )
+                except Exception as db_err:
+                    logger.error(f"Failed to update simulation status: {db_err}")
         
-        background_tasks.add_task(ensure_simulation_runs)
+        # Add to FastAPI BackgroundTasks - this ensures it runs
+        background_tasks.add_task(run_simulation_background)
+        logger.info(f"✅ [START ENDPOINT] Simulation {simulation_id} added to background tasks")
         
-        logger.info(f"✅ [START ENDPOINT] Simulation {simulation_id} started successfully (background task added)")
+        # Also track in SimulationRunner for stop functionality
+        SimulationRunner._running_simulations[simulation_id] = None  # Will be set when task runs
+        
+        logger.info(f"✅ [START ENDPOINT] Simulation {simulation_id} started successfully")
         
         return {
             'success': True,
