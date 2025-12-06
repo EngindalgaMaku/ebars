@@ -90,9 +90,8 @@ class SimulationAgent:
         start_time = time.time()
         
         try:
-            # Use internal HTTP request to avoid circular imports
-            # This mimics the external API but uses localhost
-            api_base_url = os.getenv("API_GATEWAY_URL", "http://localhost:8000")
+            # Use internal localhost instead of external HTTPS to avoid SSL errors
+            api_base_url = "http://localhost:8007"  # Use internal localhost
             
             import requests
             response = requests.post(
