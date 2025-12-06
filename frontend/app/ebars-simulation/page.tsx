@@ -210,6 +210,9 @@ export default function EBARSSimulationPage() {
       setIsRunning(true);
       setError(null);
 
+      console.log("🚀 [FRONTEND] Starting simulation with config:", config);
+      console.log("🚀 [FRONTEND] API endpoint:", `${EBARS_API_BASE}/simulation/start`);
+
       const response = await fetch(`${EBARS_API_BASE}/simulation/start`, {
         method: "POST",
         headers: {
@@ -218,29 +221,36 @@ export default function EBARSSimulationPage() {
         body: JSON.stringify(config),
       });
 
+      console.log("🚀 [FRONTEND] Response status:", response.status);
+      console.log("🚀 [FRONTEND] Response ok:", response.ok);
+
       if (!response.ok) {
-        throw new Error(`Simülasyon başlatılamadı: ${response.status}`);
+        const errorText = await response.text();
+        console.error("❌ [FRONTEND] Response not OK:", response.status, errorText);
+        throw new Error(`Simülasyon başlatılamadı: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log("✅ [FRONTEND] Response data:", data);
 
       // CRITICAL FIX: Check if simulation_id exists to prevent "undefined" requests
       if (!data.simulation_id) {
-        console.error("❌ API Response missing simulation_id:", data);
+        console.error("❌ [FRONTEND] API Response missing simulation_id:", data);
         throw new Error(
           "API yanıtında simulation_id bulunamadı. Backend loglarını kontrol edin."
         );
       }
 
+      console.log("✅ [FRONTEND] Simulation started successfully:", data.simulation_id);
       setCurrentSimulation(data);
       setActiveTab("monitoring");
       toast.success("Simülasyon başlatıldı!");
 
       // Status monitoring başlat with validation
-      console.log("✅ Starting monitoring for simulation:", data.simulation_id);
+      console.log("✅ [FRONTEND] Starting monitoring for simulation:", data.simulation_id);
       monitorSimulation(data.simulation_id);
     } catch (error) {
-      console.error("Error starting simulation:", error);
+      console.error("❌ [FRONTEND] Error starting simulation:", error);
       setError(
         error instanceof Error ? error.message : "Simülasyon başlatılamadı"
       );
