@@ -165,36 +165,39 @@ export default function EBARSSimulationPage() {
 
         if (response.ok) {
           const status = await response.json();
+          console.log("📊 Simulation status update:", status);
           setCurrentSimulation(status);
 
-          if (status.status === "COMPLETED" || status.status === "FAILED") {
+          if (status.status === "COMPLETED" || status.status === "FAILED" || status.status === "stopped") {
             clearInterval(intervalId);
             setIsRunning(false);
-            if (status.status === "COMPLETED") {
+            if (status.status === "COMPLETED" || status.status === "completed") {
               toast.success("Simülasyon tamamlandı!");
             } else {
-              toast.error("Simülasyon başarısız oldu");
+              toast.error("Simülasyon durduruldu");
             }
           }
         } else {
+          const errorText = await response.text();
           console.error(
             "❌ Monitoring request failed:",
             response.status,
-            response.statusText
+            response.statusText,
+            errorText
           );
+          // Don't stop monitoring on single error, just log it
         }
       } catch (error) {
         console.error("Error monitoring simulation:", error);
+        // Don't stop monitoring on network errors, just log them
       }
     }, 2000);
 
-    // 30 saniye sonra monitoring'i durdur
-    setTimeout(() => {
-      clearInterval(intervalId);
-      if (isRunning) {
-        setIsRunning(false);
-      }
-    }, 30000);
+    // Store interval ID to allow manual cleanup
+    (window as any).__ebars_monitoring_interval = intervalId;
+
+    // Don't auto-stop monitoring - let it run until simulation completes
+    // User can manually stop via stop button
   };
 
   const startSimulation = async () => {
@@ -780,24 +783,420 @@ export default function EBARSSimulationPage() {
 
           {/* Results Tab */}
           <TabsContent value="results" className="space-y-6">
-            <Card>
-              <CardContent className="text-center py-12">
-                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  Sonuçlar Yakında Gelecek
-                </h3>
-                <p className="text-gray-500 mb-4">
-                  Detaylı analiz ve raporlama özellikleri geliştiriliyor.
-                </p>
-                <Button variant="outline" disabled>
-                  <Download className="mr-2 h-4 w-4" />
-                  Rapor İndir
-                </Button>
-              </CardContent>
-            </Card>
+            {currentSimulation && 
+             currentSimulation.simulation_id && 
+             (currentSimulation.status === "COMPLETED" || 
+              currentSimulation.status === "completed" ||
+              currentSimulation.status === "FAILED" ||
+              currentSimulation.status === "failed" ||
+              currentSimulation.status === "stopped") ? (
+              <SimulationResultsView simulationId={currentSimulation.simulation_id} />
+            ) : (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    {currentSimulation?.status === "RUNNING" || currentSimulation?.status === "running"
+                      ? "Simülasyon Devam Ediyor"
+                      : "Henüz Sonuç Yok"}
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    {currentSimulation?.status === "RUNNING" || currentSimulation?.status === "running"
+                      ? "Sonuçları görmek için simülasyonun tamamlanmasını bekleyin."
+                      : "Sonuçları görmek için önce bir simülasyon başlatın ve tamamlayın."}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
     </TeacherLayout>
+  );
+}
+
+// Simulation Results Component
+function SimulationResultsView({ simulationId }: { simulationId: string }) {
+  const [results, setResults] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    loadResults();
+  }, [simulationId]);
+
+  const loadResults = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(
+        `${EBARS_API_BASE}/simulation/results/${simulationId}`
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to load results: ${response.status}`);
+      }
+      const data = await response.json();
+      setResults(data);
+    } catch (err) {
+      console.error("Error loading results:", err);
+      setError(
+        err instanceof Error ? err.message : "Sonuçlar yüklenemedi"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const exportToCSV = () => {
+    if (!results || !results.turns) return;
+
+    setExporting(true);
+    try {
+      // CSV Header
+      const headers = [
+        "Turn",
+        "Agent",
+        "Agent Type",
+        "Question",
+        "Answer Length",
+        "Emoji",
+        "Score",
+        "Score Change",
+        "Difficulty Level",
+        "Level Transition",
+        "Processing Time (ms)",
+        "Feedback Sent",
+        "Timestamp",
+      ];
+
+      // CSV Rows
+      const rows = results.turns.map((turn: any) => [
+        turn.turn_number || "",
+        turn.agent_name || turn.agent_id || "",
+        turn.agent_type || "",
+        (turn.question || "").substring(0, 100),
+        turn.answer_length || 0,
+        turn.emoji_feedback || "",
+        turn.comprehension_score?.toFixed(2) || "0.00",
+        turn.score_delta?.toFixed(2) || "0.00",
+        turn.difficulty_level || "",
+        turn.level_transition || "",
+        turn.processing_time_ms || 0,
+        turn.feedback_sent ? "Yes" : "No",
+        turn.timestamp || "",
+      ]);
+
+      // Combine headers and rows
+      const csvContent = [
+        headers.join(","),
+        ...rows.map((row: any[]) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+        ),
+      ].join("\n");
+
+      // Create blob and download
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute(
+        "download",
+        `ebars_simulation_${simulationId.substring(0, 8)}_${new Date().toISOString().split("T")[0]}.csv`
+      );
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success("CSV dosyası indirildi!");
+    } catch (err) {
+      console.error("Error exporting CSV:", err);
+      toast.error("CSV export başarısız oldu");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportToJSON = () => {
+    if (!results) return;
+
+    setExporting(true);
+    try {
+      const jsonContent = JSON.stringify(results, null, 2);
+      const blob = new Blob([jsonContent], { type: "application/json" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute(
+        "download",
+        `ebars_simulation_${simulationId.substring(0, 8)}_${new Date().toISOString().split("T")[0]}.json`
+      );
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success("JSON dosyası indirildi!");
+    } catch (err) {
+      console.error("Error exporting JSON:", err);
+      toast.error("JSON export başarısız oldu");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="text-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Sonuçlar yükleniyor...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="text-center py-12">
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Hata</h3>
+          <p className="text-gray-500 mb-4">{error}</p>
+          <Button onClick={loadResults} variant="outline">
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Tekrar Dene
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!results || !results.success) {
+    return (
+      <Card>
+        <CardContent className="text-center py-12">
+          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">
+            Sonuç Bulunamadı
+          </h3>
+          <p className="text-gray-500">
+            Bu simülasyon için sonuç bulunamadı.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { simulation_info, agents, turns } = results;
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Simülasyon Özeti
+            </CardTitle>
+            <div className="flex gap-2">
+              <Button
+                onClick={exportToCSV}
+                disabled={exporting}
+                variant="outline"
+                size="sm"
+              >
+                {exporting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                CSV İndir
+              </Button>
+              <Button
+                onClick={exportToJSON}
+                disabled={exporting}
+                variant="outline"
+                size="sm"
+              >
+                {exporting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                JSON İndir
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <div className="text-sm text-gray-500">Durum</div>
+              <div className="text-lg font-semibold">
+                {simulation_info.status === "completed" ? "✅ Tamamlandı" : simulation_info.status}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Toplam Tur</div>
+              <div className="text-lg font-semibold">
+                {simulation_info.total_turns}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Agent Sayısı</div>
+              <div className="text-lg font-semibold">
+                {simulation_info.num_agents}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-500">Süre</div>
+              <div className="text-lg font-semibold">
+                {simulation_info.duration_seconds
+                  ? `${Math.round(simulation_info.duration_seconds)}s`
+                  : "N/A"}
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t">
+            <div className="text-sm text-gray-500">
+              <strong>Başlangıç:</strong>{" "}
+              {simulation_info.started_at
+                ? new Date(simulation_info.started_at).toLocaleString("tr-TR")
+                : "N/A"}
+            </div>
+            <div className="text-sm text-gray-500">
+              <strong>Bitiş:</strong>{" "}
+              {simulation_info.completed_at
+                ? new Date(simulation_info.completed_at).toLocaleString("tr-TR")
+                : "N/A"}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Agent Performance */}
+      {agents && agents.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Agent Performans Analizi
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">Agent</th>
+                    <th className="text-left p-2">Tip</th>
+                    <th className="text-center p-2">Başlangıç Skoru</th>
+                    <th className="text-center p-2">Bitiş Skoru</th>
+                    <th className="text-center p-2">Değişim</th>
+                    <th className="text-center p-2">Seviye Değişimi</th>
+                    <th className="text-center p-2">Toplam Tur</th>
+                    <th className="text-center p-2">Ort. Süre (ms)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agents.map((agent: any, idx: number) => (
+                    <tr key={idx} className="border-b hover:bg-gray-50">
+                      <td className="p-2 font-medium">{agent.agent_name}</td>
+                      <td className="p-2 text-sm text-gray-600">
+                        {agent.agent_type}
+                      </td>
+                      <td className="p-2 text-center">
+                        {agent.initial_score?.toFixed(2) || "0.00"}
+                      </td>
+                      <td className="p-2 text-center">
+                        {agent.final_score?.toFixed(2) || "0.00"}
+                      </td>
+                      <td className={`p-2 text-center ${
+                        (agent.score_change || 0) > 0
+                          ? "text-green-600"
+                          : (agent.score_change || 0) < 0
+                          ? "text-red-600"
+                          : "text-gray-600"
+                      }`}>
+                        {(agent.score_change || 0) > 0 ? "+" : ""}
+                        {agent.score_change?.toFixed(2) || "0.00"}
+                      </td>
+                      <td className="p-2 text-center">
+                        {agent.level_changes || 0}
+                      </td>
+                      <td className="p-2 text-center">
+                        {agent.total_turns || 0}
+                      </td>
+                      <td className="p-2 text-center">
+                        {Math.round(agent.avg_processing_time || 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Detailed Turns */}
+      {turns && turns.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Detaylı Turn Verileri ({turns.length} kayıt)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto max-h-96 overflow-y-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b">
+                    <th className="text-left p-2">Turn</th>
+                    <th className="text-left p-2">Agent</th>
+                    <th className="text-left p-2">Soru</th>
+                    <th className="text-center p-2">Cevap Uzunluğu</th>
+                    <th className="text-center p-2">Emoji</th>
+                    <th className="text-center p-2">Skor</th>
+                    <th className="text-center p-2">Seviye</th>
+                    <th className="text-center p-2">Süre (ms)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {turns.map((turn: any, idx: number) => (
+                    <tr key={idx} className="border-b hover:bg-gray-50">
+                      <td className="p-2">{turn.turn_number || ""}</td>
+                      <td className="p-2">{turn.agent_name || turn.agent_id || ""}</td>
+                      <td className="p-2 max-w-xs truncate" title={turn.question}>
+                        {(turn.question || "").substring(0, 50)}...
+                      </td>
+                      <td className="p-2 text-center">{turn.answer_length || 0}</td>
+                      <td className="p-2 text-center text-lg">
+                        {turn.emoji_feedback || ""}
+                      </td>
+                      <td className="p-2 text-center">
+                        {turn.comprehension_score?.toFixed(2) || "0.00"}
+                      </td>
+                      <td className="p-2 text-center">
+                        <Badge variant="outline">
+                          {turn.difficulty_level || ""}
+                        </Badge>
+                      </td>
+                      <td className="p-2 text-center">
+                        {turn.processing_time_ms || 0}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

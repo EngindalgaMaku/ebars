@@ -129,17 +129,49 @@ class SimulationAgent:
             await asyncio.sleep(1)
             
             with self.db_manager.db.get_connection() as conn:
+                # Check table schema to determine user_id type
+                cursor = conn.execute("PRAGMA table_info(student_interactions)")
+                columns_info = {row[1]: {'type': row[2].upper()} for row in cursor.fetchall()}
+                user_id_type = columns_info.get('user_id', {}).get('type', '')
+                user_id_is_integer = 'INTEGER' in user_id_type or 'INT' in user_id_type
+                
+                # Convert user_id to appropriate type
+                if user_id_is_integer:
+                    # Convert string user_id to integer (same hash as in hybrid_rag_query.py)
+                    import hashlib
+                    user_id_value = int(hashlib.md5(str(self.user_id).encode()).hexdigest()[:8], 16) % 2147483647
+                else:
+                    user_id_value = self.user_id
+                
+                # Try both timestamp and created_at columns
                 cursor = conn.execute("""
                     SELECT interaction_id FROM student_interactions
                     WHERE user_id = ? AND session_id = ?
-                    ORDER BY timestamp DESC LIMIT 1
-                """, (self.user_id, self.session_id))
+                    ORDER BY COALESCE(timestamp, created_at, interaction_id) DESC LIMIT 1
+                """, (user_id_value, self.session_id))
                 
                 row = cursor.fetchone()
-                return row['interaction_id'] if row else None
+                if row:
+                    return row['interaction_id']
+                
+                # If not found, try with original user_id (fallback)
+                if user_id_is_integer:
+                    cursor = conn.execute("""
+                        SELECT interaction_id FROM student_interactions
+                        WHERE session_id = ?
+                        ORDER BY COALESCE(timestamp, created_at, interaction_id) DESC LIMIT 1
+                    """, (self.session_id,))
+                    row = cursor.fetchone()
+                    if row:
+                        logger.debug(f"Found interaction_id using session_id only: {row['interaction_id']}")
+                        return row['interaction_id']
+                
+                return None
                 
         except Exception as e:
             logger.warning(f"Could not get interaction ID: {e}")
+            import traceback
+            logger.debug(f"Full error traceback: {traceback.format_exc()}")
             return None
     
     def send_feedback_internal(self, interaction_id: Optional[int], emoji: str) -> bool:
