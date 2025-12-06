@@ -86,3 +86,4 @@ Nginx location'ları **en spesifikten en genele** doğru sıralanmalı:
 
 
 
+

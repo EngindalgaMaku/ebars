@@ -116,6 +116,7 @@ class DatabaseManager:
                     self.apply_initial_test_two_stage_migration(conn)
                     self.apply_completion_percentage_migration(conn)
                     self.apply_question_pool_migration(conn)
+                    self.apply_student_interactions_response_migration(conn)
                     self.ensure_feature_flags_table(conn)
                     conn.commit()
                     
@@ -2296,6 +2297,118 @@ class DatabaseManager:
             
         except Exception as e:
             logger.error(f"Error applying Question Pool migration directly: {e}", exc_info=True)
+            conn.rollback()
+    
+    def apply_student_interactions_response_migration(self, conn: sqlite3.Connection):
+        """Apply Student Interactions Response Column migration (009_fix_student_interactions_response_column.sql)"""
+        try:
+            logger.info("Applying Student Interactions Response Column migration (009)...")
+            
+            # Check if response column already exists
+            cursor = conn.execute("PRAGMA table_info(student_interactions)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            if 'response' in columns:
+                logger.info("response column already exists in student_interactions")
+                # Still run the migration to ensure data consistency
+            else:
+                logger.info("Adding response column to student_interactions...")
+                try:
+                    conn.execute("ALTER TABLE student_interactions ADD COLUMN response TEXT DEFAULT NULL")
+                    conn.commit()
+                except Exception as e:
+                    logger.warning(f"Could not add response column (may already exist): {e}")
+            
+            # Read migration file
+            possible_paths = [
+                "/app/migrations/009_fix_student_interactions_response_column.sql",
+                os.path.join(os.path.dirname(__file__), "migrations/009_fix_student_interactions_response_column.sql"),
+                os.path.join(
+                    os.path.dirname(__file__),
+                    "../database/migrations/009_fix_student_interactions_response_column.sql"
+                ),
+            ]
+            
+            migration_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    migration_path = path
+                    break
+            
+            if migration_path and os.path.exists(migration_path):
+                with open(migration_path, 'r', encoding='utf-8') as f:
+                    migration_sql = f.read()
+                
+                # Execute migration
+                conn.executescript(migration_sql)
+                conn.commit()
+                logger.info("✅ Student Interactions Response Column migration (009) applied successfully")
+            else:
+                logger.warning(f"Migration 009 file not found. Expected paths: {possible_paths}")
+                # Apply migration directly if file not found
+                logger.info("Applying Student Interactions Response Column migration directly...")
+                self._apply_student_interactions_response_migration_directly(conn)
+                
+        except Exception as e:
+            logger.warning(f"Failed to apply Student Interactions Response Column migration (non-critical): {e}")
+    
+    def _apply_student_interactions_response_migration_directly(self, conn: sqlite3.Connection):
+        """Apply Student Interactions Response Column migration directly (fallback if file not found)"""
+        try:
+            # Check if response column exists, if not add it
+            cursor = conn.execute("PRAGMA table_info(student_interactions)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            if 'response' not in columns:
+                conn.execute("ALTER TABLE student_interactions ADD COLUMN response TEXT DEFAULT NULL")
+            
+            # Update empty response fields with data from other response columns (if they exist)
+            # Priority: personalized_response > original_response > existing response
+            update_sql = """
+                UPDATE student_interactions 
+                SET response = COALESCE(
+                    CASE WHEN response IS NOT NULL AND response != '' AND response != 'Processing...' THEN response END,
+                    personalized_response,
+                    original_response,
+                    response,
+                    'No response recorded'
+                )
+                WHERE response IS NULL OR response = '' OR response = 'Processing...'
+            """
+            
+            # Check if columns exist before updating
+            if 'personalized_response' in columns or 'original_response' in columns:
+                conn.execute(update_sql)
+            
+            # Add index for better performance on response queries
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_student_interactions_response_nonempty 
+                ON student_interactions(interaction_id) WHERE response IS NOT NULL AND response != ''
+            """)
+            
+            # Add a check to ensure response is never null in new records
+            # (SQLite doesn't support adding NOT NULL constraint to existing column, so we use a trigger)
+            try:
+                conn.execute("DROP TRIGGER IF EXISTS ensure_student_interactions_response_not_null")
+                conn.execute("""
+                    CREATE TRIGGER IF NOT EXISTS ensure_student_interactions_response_not_null
+                    BEFORE INSERT ON student_interactions
+                    FOR EACH ROW
+                    BEGIN
+                        SELECT CASE
+                            WHEN NEW.response IS NULL OR NEW.response = '' THEN
+                                RAISE(ABORT, 'response column cannot be null or empty')
+                        END;
+                    END
+                """)
+            except Exception as trigger_err:
+                logger.warning(f"Could not create trigger (non-critical): {trigger_err}")
+            
+            conn.commit()
+            logger.info("✅ Student Interactions Response Column migration applied directly")
+            
+        except Exception as e:
+            logger.error(f"Error applying Student Interactions Response Column migration directly: {e}", exc_info=True)
             conn.rollback()
     
     def _recreate_student_topic_progress_analytics_view(self, conn: sqlite3.Connection):
