@@ -5024,18 +5024,21 @@ async def proxy_aprag_service(path: str, request: Request):
         raise HTTPException(status_code=500, detail=f"APRAG service proxy failed: {str(e)}")
 
 
-@app.api_route("/aprag/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-async def proxy_aprag_service_no_prefix(path: str, request: Request):
+@app.api_route("/api/aprag/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_aprag_service_with_api_prefix(path: str, request: Request):
     """
-    Proxy APRAG service requests without /api prefix (for Next.js rewrites that strip /api)
+    Proxy APRAG service requests with /api/aprag prefix
     """
     try:
+        logger.info(f"🎯 [API GATEWAY] Proxying {request.method} /api/aprag/{path} to APRAG service")
         # Get request body if present
         body = None
         if request.method in ["POST", "PUT", "PATCH"]:
             try:
                 body = await request.body()
-            except Exception:
+                logger.info(f"🎯 [API GATEWAY] Request body length: {len(body) if body else 0}")
+            except Exception as e:
+                logger.warning(f"⚠️ [API GATEWAY] Could not read request body: {e}")
                 body = None
         
         # Forward headers (including Authorization)
@@ -5043,10 +5046,10 @@ async def proxy_aprag_service_no_prefix(path: str, request: Request):
         # Remove host header to avoid conflicts
         headers.pop("host", None)
         
-        # Build target URL - add /api prefix back since Next.js rewrites strip it
+        # Build target URL
         target_url = f"{APRAG_SERVICE_URL}/api/aprag/{path}"
         
-        logger.info(f"Proxying {request.method} request (no /api prefix) to APRAG service: {target_url}")
+        logger.info(f"🎯 [API GATEWAY] Target URL: {target_url}")
         
         # Forward request to APRAG service
         async with httpx.AsyncClient(timeout=30.0) as client:
