@@ -179,6 +179,25 @@ const sectionNavigation: NavigationSection[] = [
           </svg>
         ),
       },
+      {
+        name: "EBARS Simülasyon",
+        href: "/admin/ebars-simulation",
+        icon: (
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 10V3L4 14h7v7l9-11h-7z"
+            />
+          </svg>
+        ),
+      },
     ],
   },
 ];
@@ -311,8 +330,14 @@ export default function AdminSidebar({
               onClick={handleLinkClick}
               title={isMinimized ? item.name : undefined}
               className={`
-                group relative flex items-center ${isMinimized ? "justify-center px-3" : "px-4"} py-3 text-sm font-semibold rounded-xl transition-colors duration-200
-                ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}
+                group relative flex items-center ${
+                  isMinimized ? "justify-center px-3" : "px-4"
+                } py-3 text-sm font-semibold rounded-xl transition-colors duration-200
+                ${
+                  isActive
+                    ? "bg-slate-800 text-white"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                }
               `}
             >
               <span
@@ -331,7 +356,13 @@ export default function AdminSidebar({
               )}
 
               {/* Active indicator */}
-              {isActive && <div className={`absolute ${isMinimized ? "right-1" : "right-3"} w-2 h-2 bg-indigo-400 rounded-full`}></div>}
+              {isActive && (
+                <div
+                  className={`absolute ${
+                    isMinimized ? "right-1" : "right-3"
+                  } w-2 h-2 bg-indigo-400 rounded-full`}
+                ></div>
+              )}
 
               {/* Hover glow effect */}
               {!isActive && <div className="absolute inset-0 rounded-xl"></div>}

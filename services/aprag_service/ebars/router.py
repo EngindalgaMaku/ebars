@@ -3,7 +3,7 @@ EBARS API Router
 Endpoints for Emoji-Based Adaptive Response System
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 import logging
@@ -23,6 +23,8 @@ from config.feature_flags import is_feature_enabled
 from .feedback_handler import FeedbackHandler
 from .score_calculator import ComprehensionScoreCalculator
 from .prompt_adapter import PromptAdapter
+from .simulation_manager import SimulationRunner
+from .simulation_models import SimulationDatabaseManager, SimulationStatus
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +97,44 @@ class SubmitAnswerPreferenceRequest(BaseModel):
     session_id: str
     topic_preferences: List[Dict[str, Any]]  # List of {topic_index, selected_level, question_index}
     # selected_level: "very_struggling", "struggling", "normal", "good", "excellent"
+
+
+# ============================================================================
+# Simulation Request/Response Models
+# ============================================================================
+
+class StartSimulationRequest(BaseModel):
+    """Request model for starting a simulation"""
+    session_id: str
+    num_turns: int = 20
+    num_agents: int = 3
+    questions: Optional[List[str]] = None
+    config: Optional[Dict[str, Any]] = None
+
+
+class SimulationStatusResponse(BaseModel):
+    """Response model for simulation status"""
+    success: bool
+    simulation_id: str
+    session_id: str
+    status: str
+    current_turn: int
+    total_turns: int
+    agents_completed: int
+    total_agents: int
+    status_message: Optional[str] = None
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    error_message: Optional[str] = None
+    agents: List[Dict[str, Any]]
+
+
+class SimulationResultsResponse(BaseModel):
+    """Response model for simulation results"""
+    success: bool
+    simulation_info: Dict[str, Any]
+    agents: List[Dict[str, Any]]
+    turns: List[Dict[str, Any]]
 
 
 # ============================================================================
@@ -2102,4 +2142,322 @@ def _evaluate_answer_simple(
         'score': round(score, 1),
         'feedback': f"{key_points_found}/{len(key_points) if key_points else 0} anahtar nokta bulundu" if key_points else "Basit eşleştirme yapıldı"
     }
+
+
+# ============================================================================
+# Simulation Endpoints
+# ============================================================================
+
+@router.post("/simulation/start")
+async def start_simulation(
+    request: StartSimulationRequest,
+    background_tasks: BackgroundTasks,
+    db: DatabaseManager = Depends(get_db)
+):
+    """
+    Start a new EBARS simulation.
+    
+    This endpoint:
+    1. Creates a new simulation with 3 agents (struggling, fast learner, variable)
+    2. Starts the simulation in background
+    3. Returns simulation ID for tracking
+    
+    The simulation runs asynchronously and can be monitored via status endpoint.
+    """
+    try:
+        # Check if EBARS is enabled
+        if not check_ebars_enabled(request.session_id):
+            raise HTTPException(
+                status_code=403,
+                detail="EBARS feature is disabled for this session"
+            )
+        
+        # Default questions if none provided
+        if not request.questions:
+            default_questions = [
+                "Bilgisayar nedir?",
+                "İşletim sistemi nedir?",
+                "RAM ve ROM arasındaki fark nedir?",
+                "CPU nedir ve nasıl çalışır?",
+                "Ağ protokolleri nedir?",
+                "Yazılım ve donanım arasındaki fark nedir?",
+                "Veri tabanı nedir?",
+                "Algoritma nedir?",
+                "Programlama dili nedir?",
+                "İnternet nasıl çalışır?",
+                "Güvenlik yazılımları nelerdir?",
+                "Cloud computing nedir?",
+                "Veri yapıları nedir?",
+                "Bilgisayar ağları nedir?",
+                "Veritabanı yönetim sistemleri nedir?",
+                "Yazılım geliştirme süreci nedir?",
+                "Bilgisayar donanım bileşenleri nelerdir?",
+                "İşletim sisteminin görevleri nelerdir?",
+                "Veri güvenliği nedir?",
+                "Bilgisayar ağ türleri nelerdir?"
+            ]
+            questions = default_questions
+        else:
+            questions = request.questions
+        
+        # Validate questions count
+        if len(questions) < request.num_turns:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Not enough questions provided. Need {request.num_turns}, got {len(questions)}"
+            )
+        
+        # Prepare simulation config
+        config = request.config or {}
+        config.update({
+            'num_turns': request.num_turns,
+            'num_agents': request.num_agents,
+            'session_id': request.session_id
+        })
+        
+        logger.info(f"🚀 Starting simulation for session {request.session_id}")
+        logger.info(f"   Turns: {request.num_turns}, Agents: {request.num_agents}")
+        
+        # Start simulation in background
+        simulation_id = await SimulationRunner.start_simulation(
+            session_id=request.session_id,
+            questions=questions,
+            config=config
+        )
+        
+        logger.info(f"✅ Simulation {simulation_id} started successfully")
+        
+        return {
+            'success': True,
+            'simulation_id': simulation_id,
+            'message': 'Simulation started successfully',
+            'status': 'running',
+            'config': config
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error starting simulation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/simulation/status/{simulation_id}")
+async def get_simulation_status(
+    simulation_id: str,
+    db: DatabaseManager = Depends(get_db)
+):
+    """
+    Get current status of a simulation.
+    
+    Returns:
+        - simulation_id: Simulation ID
+        - status: pending/running/completed/failed/stopped
+        - current_turn: Current turn number (0 if not started)
+        - total_turns: Total number of turns
+        - agents_completed: Number of agents completed current turn
+        - total_agents: Total number of agents
+        - status_message: Current status message
+        - started_at: When simulation started
+        - completed_at: When simulation completed (if finished)
+        - agents: List of agent information
+    """
+    try:
+        db_manager = SimulationDatabaseManager(db)
+        result = db_manager.get_simulation_status(simulation_id)
+        
+        if not result['success']:
+            raise HTTPException(
+                status_code=404,
+                detail=result['error']
+            )
+        
+        # Add running status check
+        is_running = SimulationRunner.is_simulation_running(simulation_id)
+        if is_running and result['status'] == 'running':
+            result['is_active'] = True
+        else:
+            result['is_active'] = False
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting simulation status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/simulation/results/{simulation_id}")
+async def get_simulation_results(
+    simulation_id: str,
+    db: DatabaseManager = Depends(get_db)
+):
+    """
+    Get complete results of a simulation.
+    
+    Returns detailed simulation results including:
+    - Simulation summary
+    - Agent performance summaries
+    - All turn data
+    - Performance metrics
+    
+    Only available for completed simulations.
+    """
+    try:
+        db_manager = SimulationDatabaseManager(db)
+        
+        # Check if simulation exists and is completed
+        status = db_manager.get_simulation_status(simulation_id)
+        if not status['success']:
+            raise HTTPException(
+                status_code=404,
+                detail="Simulation not found"
+            )
+        
+        if status['status'] not in ['completed', 'failed', 'stopped']:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Simulation is not finished yet. Current status: {status['status']}"
+            )
+        
+        # Get complete results
+        results = db_manager.get_simulation_results(simulation_id)
+        
+        if not results['success']:
+            raise HTTPException(
+                status_code=500,
+                detail=results['error']
+            )
+        
+        logger.info(f"📊 Retrieved results for simulation {simulation_id}")
+        
+        return results
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting simulation results: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/simulation/stop/{simulation_id}")
+async def stop_simulation(
+    simulation_id: str,
+    db: DatabaseManager = Depends(get_db)
+):
+    """
+    Stop a running simulation.
+    
+    This will gracefully stop the simulation and mark it as 'stopped'.
+    Cannot be undone - stopped simulations cannot be resumed.
+    """
+    try:
+        # Check if simulation exists
+        db_manager = SimulationDatabaseManager(db)
+        status = db_manager.get_simulation_status(simulation_id)
+        
+        if not status['success']:
+            raise HTTPException(
+                status_code=404,
+                detail="Simulation not found"
+            )
+        
+        if status['status'] not in ['pending', 'running']:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot stop simulation with status: {status['status']}"
+            )
+        
+        # Stop the simulation
+        stopped = await SimulationRunner.stop_simulation(simulation_id)
+        
+        if stopped:
+            logger.info(f"🛑 Simulation {simulation_id} stopped successfully")
+            return {
+                'success': True,
+                'simulation_id': simulation_id,
+                'message': 'Simulation stopped successfully',
+                'status': 'stopped'
+            }
+        else:
+            logger.warning(f"⚠️ Simulation {simulation_id} was not running")
+            # Still update database status if it wasn't running
+            db_manager.update_simulation_status(
+                simulation_id,
+                SimulationStatus.STOPPED,
+                "Simulation stop requested but was not actively running"
+            )
+            return {
+                'success': True,
+                'simulation_id': simulation_id,
+                'message': 'Simulation was not running but marked as stopped',
+                'status': 'stopped'
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error stopping simulation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/simulation/list")
+async def list_simulations(
+    session_id: Optional[str] = Query(None, description="Filter by session ID"),
+    limit: int = Query(50, description="Maximum number of simulations to return", le=100),
+    db: DatabaseManager = Depends(get_db)
+):
+    """
+    List simulations with optional filtering.
+    
+    Query parameters:
+    - session_id: Filter by specific session (optional)
+    - limit: Maximum number of results (default 50, max 100)
+    
+    Returns list of simulations with basic info and status.
+    """
+    try:
+        db_manager = SimulationDatabaseManager(db)
+        result = db_manager.list_simulations(session_id=session_id, limit=limit)
+        
+        if not result['success']:
+            raise HTTPException(
+                status_code=500,
+                detail=result['error']
+            )
+        
+        # Add running status for each simulation
+        for sim in result['simulations']:
+            sim['is_active'] = SimulationRunner.is_simulation_running(sim['simulation_id'])
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing simulations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/simulation/running")
+async def get_running_simulations():
+    """
+    Get list of currently running simulation IDs.
+    
+    Returns list of simulation IDs that are actively running in background.
+    Useful for monitoring and debugging.
+    """
+    try:
+        running_ids = SimulationRunner.get_running_simulations()
+        
+        return {
+            'success': True,
+            'running_simulations': running_ids,
+            'count': len(running_ids)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting running simulations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 

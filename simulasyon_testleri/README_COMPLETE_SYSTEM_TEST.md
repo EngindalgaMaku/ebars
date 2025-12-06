@@ -4,6 +4,24 @@
 
 The EBARS Complete System Integration Test ([`test_complete_system.py`](test_complete_system.py)) is a comprehensive test suite that validates the complete EBARS simulation system end-to-end, ensuring all components work together and produce meaningful results for academic research.
 
+## 🚀 **NEW**: Admin Panel Integration
+
+**IMPORTANT**: The external simulation scripts have been deprecated in favor of the new **Admin Panel EBARS Simulation System**. This test suite now supports both legacy testing and the new web-based admin panel system.
+
+### Admin Panel Benefits:
+
+- **Web-based interface**: Easy browser access
+- **Real-time monitoring**: Live simulation tracking
+- **Advanced analytics**: Automatic reports and visualizations
+- **User-friendly**: No technical knowledge required
+- **Multi-simulation**: Run multiple simulations simultaneously
+- **Secure**: Authentication and authorization
+
+### Admin Panel Access:
+
+- **Web URL**: `http://localhost:3000/admin/ebars-simulation`
+- **Production**: `https://your-domain.com/admin/ebars-simulation`
+
 ## 🎯 Test Coverage
 
 ### 1. **End-to-End System Integration**
@@ -67,14 +85,22 @@ pip install pandas numpy matplotlib seaborn scipy requests psutil
 
 ### Basic Usage
 
+**NEW: Test Admin Panel System**
+
 ```bash
-# Run complete test suite (recommended)
+# Test the new admin panel integration (recommended)
+python test_complete_system.py --test-admin-panel
+
+# Test legacy system with deprecation warnings
+python test_complete_system.py --test-legacy
+
+# Run complete test suite (includes both systems)
 python test_complete_system.py
 
 # Run quick test mode (faster, reduced scope)
 python test_complete_system.py --quick
 
-# Custom API URL
+# Custom API URL for admin panel testing
 python test_complete_system.py --api-url http://localhost:8007
 
 # Custom output directory
@@ -82,6 +108,16 @@ python test_complete_system.py --output-dir my_test_results
 
 # Custom number of simulation turns
 python test_complete_system.py --num-turns 5
+```
+
+**Admin Panel Testing**
+
+```bash
+# Ensure frontend is running first
+cd frontend && npm run dev
+
+# Then run admin panel integration tests
+python test_complete_system.py --test-admin-panel
 ```
 
 ### Example Output
@@ -282,14 +318,34 @@ python -u test_complete_system.py --quick
 You can test individual components separately:
 
 ```bash
-# Test visualization only
+# Test visualization only (works with admin panel CSV exports)
 python test_visualization.py
 
-# Test analysis only
+# Test analysis only (works with admin panel CSV exports)
 python test_analyze_results.py
 
 # Test API endpoints only
 python test_ebars_endpoints.py
+
+# Test admin panel simulation API
+python test_admin_panel_simulation.py
+
+# Test deprecated external simulation (with warnings)
+python ebars_simulation_working.py
+```
+
+### Admin Panel Integration Testing
+
+```bash
+# Test admin panel API endpoints
+curl -X GET http://localhost:8007/admin/simulation/status
+curl -X POST http://localhost:8007/admin/simulation/start
+
+# Test admin panel web interface
+# 1. Open http://localhost:3000/admin/ebars-simulation
+# 2. Create a test simulation
+# 3. Monitor progress in real-time
+# 4. Export results and run analysis scripts
 ```
 
 ## 🔍 Understanding Test Results
