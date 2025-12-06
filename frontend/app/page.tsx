@@ -541,16 +541,36 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [sessionPage, setSessionPage] = useState(1);
   const SESSIONS_PER_PAGE = 5;
-  type TabType = "dashboard" | "sessions" | "upload" | "analytics" | "modules" | "assistant" | "query";
+  type TabType =
+    | "dashboard"
+    | "sessions"
+    | "upload"
+    | "analytics"
+    | "modules"
+    | "assistant"
+    | "query"
+    | "ebars-simulation";
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
 
   // Read tab from URL on mount and when URL changes (for navigation from other pages)
   useEffect(() => {
     // Only process if we're on the home page
     if (pathname !== "/") return;
-    
+
     const tabParam = searchParams?.get("tab");
-    if (tabParam && ["dashboard", "sessions", "upload", "analytics", "modules", "assistant", "query"].includes(tabParam)) {
+    if (
+      tabParam &&
+      [
+        "dashboard",
+        "sessions",
+        "upload",
+        "analytics",
+        "modules",
+        "assistant",
+        "query",
+        "ebars-simulation",
+      ].includes(tabParam)
+    ) {
       setActiveTab(tabParam as TabType);
     } else {
       // If no tab param, default to dashboard
@@ -2286,7 +2306,7 @@ export default function HomePage() {
                     sessionId={selectedSessionId}
                     onFeedbackSubmitted={() => {
                       // Trigger refresh when feedback is submitted
-                      setEbarsRefreshTrigger(prev => prev + 1);
+                      setEbarsRefreshTrigger((prev) => prev + 1);
                     }}
                   />
                 </div>
@@ -2627,8 +2647,12 @@ export default function HomePage() {
                                           compact={false}
                                           onFeedbackSubmitted={() => {
                                             // Refresh EBARS status panel
-                                            setEbarsRefreshTrigger(prev => prev + 1);
-                                            console.log("Feedback submitted, EBARS refreshed");
+                                            setEbarsRefreshTrigger(
+                                              (prev) => prev + 1
+                                            );
+                                            console.log(
+                                              "Feedback submitted, EBARS refreshed"
+                                            );
                                           }}
                                         />
                                       </div>
@@ -2652,15 +2676,13 @@ export default function HomePage() {
   // Education Assistant Component for Teachers
   function EducationAssistantContent() {
     const assistant = useEducationAssistant();
-    
+
     return (
       <div className="space-y-6">
         {/* Session Selection */}
         {!assistant.selectedSessionId && assistant.sessions.length > 0 && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <p className="text-yellow-800">
-              ⚠️ Lütfen bir ders oturumu seçin.
-            </p>
+            <p className="text-yellow-800">⚠️ Lütfen bir ders oturumu seçin.</p>
           </div>
         )}
 
@@ -2711,7 +2733,8 @@ export default function HomePage() {
                     Merhaba! Size nasıl yardımcı olabilirim?
                   </h3>
                   <p className="text-gray-500 max-w-md mx-auto mb-6">
-                    Ders hakkında sorularınızı sorabilirsiniz. Detaylı cevaplar verebilirim!
+                    Ders hakkında sorularınızı sorabilirsiniz. Detaylı cevaplar
+                    verebilirim!
                   </p>
                 </div>
               )}
@@ -2780,20 +2803,28 @@ export default function HomePage() {
                                   </span>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                  {message.sources.map((source: any, i: number) => (
-                                    <button
-                                      key={i}
-                                      onClick={() => assistant.handleOpenSourceModal(source)}
-                                      className="px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-200 hover:border-gray-300 transition-all"
-                                    >
-                                      {source.source || source.metadata?.source_file || `Kaynak ${i + 1}`}
-                                      {source.score !== undefined && (
-                                        <span className="ml-2 text-gray-500">
-                                          ({Math.round(source.score * 100)}%)
-                                        </span>
-                                      )}
-                                    </button>
-                                  ))}
+                                  {message.sources.map(
+                                    (source: any, i: number) => (
+                                      <button
+                                        key={i}
+                                        onClick={() =>
+                                          assistant.handleOpenSourceModal(
+                                            source
+                                          )
+                                        }
+                                        className="px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-200 hover:border-gray-300 transition-all"
+                                      >
+                                        {source.source ||
+                                          source.metadata?.source_file ||
+                                          `Kaynak ${i + 1}`}
+                                        {source.score !== undefined && (
+                                          <span className="ml-2 text-gray-500">
+                                            ({Math.round(source.score * 100)}%)
+                                          </span>
+                                        )}
+                                      </button>
+                                    )
+                                  )}
                                 </div>
                               </div>
                             )}
@@ -2812,7 +2843,11 @@ export default function HomePage() {
                                       (suggestion: string, i: number) => (
                                         <button
                                           key={i}
-                                          onClick={() => assistant.handleSuggestionClick(suggestion)}
+                                          onClick={() =>
+                                            assistant.handleSuggestionClick(
+                                              suggestion
+                                            )
+                                          }
                                           className="px-4 py-3 text-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-full hover:shadow-md transition-all duration-200 transform hover:scale-105 min-h-[44px]"
                                         >
                                           {suggestion}
@@ -2854,7 +2889,10 @@ export default function HomePage() {
 
   // Teacher view - full interface with sidebar layout
   return (
-    <TeacherLayout activeTab={activeTab} onTabChange={setActiveTab}>
+    <TeacherLayout
+      activeTab={activeTab}
+      onTabChange={(tab) => setActiveTab(tab)}
+    >
       {activeTab === "dashboard" && (
         <div className="space-y-8 -mt-4">
           {success && (
@@ -4517,35 +4555,48 @@ export default function HomePage() {
                                   {chat.sources && chat.sources.length > 0 && (
                                     <div className="mt-6 pt-4 border-t border-gray-100">
                                       <div className="flex flex-wrap gap-2">
-                                        {chat.sources.map((source: any, i: number) => (
-                                          <button
-                                            key={i}
-                                            onClick={() => handleOpenSourceModal(source)}
-                                            className="px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-200 transition-all"
-                                          >
-                                            {source.source || source.metadata?.source_file || `Kaynak ${i + 1}`}
-                                          </button>
-                                        ))}
+                                        {chat.sources.map(
+                                          (source: any, i: number) => (
+                                            <button
+                                              key={i}
+                                              onClick={() =>
+                                                handleOpenSourceModal(source)
+                                              }
+                                              className="px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-200 transition-all"
+                                            >
+                                              {source.source ||
+                                                source.metadata?.source_file ||
+                                                `Kaynak ${i + 1}`}
+                                            </button>
+                                          )
+                                        )}
                                       </div>
                                     </div>
                                   )}
 
                                   {/* Suggestions */}
-                                  {Array.isArray(chat.suggestions) && chat.suggestions.length > 0 && (
-                                    <div className="mt-6 pt-4 border-t border-gray-100">
-                                      <div className="flex flex-wrap gap-2">
-                                        {chat.suggestions.map((suggestion: string, i: number) => (
-                                          <button
-                                            key={i}
-                                            onClick={() => handleSuggestionClick(suggestion)}
-                                            className="px-4 py-3 text-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-full hover:shadow-md transition-all min-h-[44px]"
-                                          >
-                                            {suggestion}
-                                          </button>
-                                        ))}
+                                  {Array.isArray(chat.suggestions) &&
+                                    chat.suggestions.length > 0 && (
+                                      <div className="mt-6 pt-4 border-t border-gray-100">
+                                        <div className="flex flex-wrap gap-2">
+                                          {chat.suggestions.map(
+                                            (suggestion: string, i: number) => (
+                                              <button
+                                                key={i}
+                                                onClick={() =>
+                                                  handleSuggestionClick(
+                                                    suggestion
+                                                  )
+                                                }
+                                                className="px-4 py-3 text-sm bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-full hover:shadow-md transition-all min-h-[44px]"
+                                              >
+                                                {suggestion}
+                                              </button>
+                                            )
+                                          )}
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
+                                    )}
                                 </div>
                               </div>
                             )}
