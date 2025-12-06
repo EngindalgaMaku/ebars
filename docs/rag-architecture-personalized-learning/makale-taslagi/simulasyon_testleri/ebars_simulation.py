@@ -82,8 +82,39 @@ class EBARSAgent:
         try:
             start_time = time.time()
             
+            # ÖNCE: Interaction oluştur (EBARS feedback için gerekli)
+            interaction_id = None
+            try:
+                interaction_response = requests.post(
+                    f"{self.api_base_url}/aprag/interactions",
+                    json={
+                        "user_id": self.user_id,
+                        "session_id": self.session_id,
+                        "query": question,
+                        "response": "",  # Boş, query sonrası doldurulacak
+                        "chain_type": "hybrid_rag"
+                    },
+                    timeout=10
+                )
+                
+                if interaction_response.status_code in [200, 201]:
+                    interaction_data = interaction_response.json()
+                    interaction_id = interaction_data.get("interaction_id")
+            except Exception as e:
+                print(f"   ⚠️ Could not create interaction: {e}")
+            
+            # SONRA: Query yap
+            import os
+            if os.path.exists("/.dockerenv"):
+                # Docker network içinde - direkt aprag-service kullan
+                aprag_url = os.getenv("APRAG_SERVICE_URL", "http://aprag-service:8007")
+                query_url = f"{aprag_url}/api/aprag/hybrid-rag/query"
+            else:
+                # Host'tan - API Gateway üzerinden
+                query_url = f"{self.api_base_url}/aprag/hybrid-rag/query"
+            
             response = requests.post(
-                f"{self.api_base_url}/aprag/ebars/query",
+                query_url,
                 json={
                     "user_id": self.user_id,
                     "session_id": self.session_id,
@@ -97,8 +128,26 @@ class EBARSAgent:
             if response.status_code != 200:
                 raise Exception(f"Query failed: {response.status_code} - {response.text}")
             
+            response_data = response.json()
+            
+            # Interaction'a cevabı ekle
+            if interaction_id and "answer" in response_data:
+                try:
+                    requests.put(
+                        f"{self.api_base_url}/aprag/interactions/{interaction_id}",
+                        json={
+                            "response": response_data["answer"]
+                        },
+                        timeout=10
+                    )
+                except:
+                    pass  # Non-critical
+            
+            # Response'a interaction_id ekle
+            response_data["interaction_id"] = interaction_id
+            
             return {
-                "response_data": response.json(),
+                "response_data": response_data,
                 "processing_time_ms": processing_time
             }
         except Exception as e:
@@ -108,8 +157,16 @@ class EBARSAgent:
     def send_feedback(self, interaction_id: int, emoji: str) -> Dict:
         """Sisteme emoji geri bildirimi gönderir"""
         try:
+            # Container içindeyse direkt aprag-service'e bağlan
+            import os
+            if os.path.exists("/.dockerenv"):
+                aprag_url = os.getenv("APRAG_SERVICE_URL", "http://aprag-service:8007")
+                feedback_url = f"{aprag_url}/api/aprag/ebars/feedback"
+            else:
+                feedback_url = f"{self.api_base_url}/aprag/ebars/feedback"
+            
             response = requests.post(
-                f"{self.api_base_url}/aprag/ebars/feedback",
+                feedback_url,
                 json={
                     "user_id": self.user_id,
                     "session_id": self.session_id,
@@ -127,21 +184,90 @@ class EBARSAgent:
             print(f"❌ Error sending feedback: {e}")
             raise
     
+    def get_latest_interaction_id(self) -> Optional[int]:
+        """En son interaction ID'sini al"""
+        try:
+            # Önce session'a göre al
+            response = requests.get(
+                f"{self.api_base_url}/aprag/interactions/session/{self.session_id}",
+                params={
+                    "user_id": self.user_id,
+                    "limit": 1
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list) and len(data) > 0:
+                    return data[0].get("interaction_id")
+                elif isinstance(data, dict):
+                    if "interactions" in data:
+                        interactions = data["interactions"]
+                        if len(interactions) > 0:
+                            return interactions[0].get("interaction_id")
+                    elif "interaction_id" in data:
+                        return data.get("interaction_id")
+            
+            # Alternatif: user'a göre al
+            response = requests.get(
+                f"{self.api_base_url}/aprag/interactions",
+                params={
+                    "user_id": self.user_id,
+                    "session_id": self.session_id,
+                    "limit": 1
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list) and len(data) > 0:
+                    return data[0].get("interaction_id")
+                elif isinstance(data, dict) and "interactions" in data:
+                    interactions = data["interactions"]
+                    if len(interactions) > 0:
+                        return interactions[0].get("interaction_id")
+            
+            return None
+        except Exception as e:
+            print(f"   ⚠️ Could not get latest interaction_id: {e}")
+            return None
+    
     def get_current_state(self) -> Dict:
         """Öğrencinin mevcut durumunu alır"""
         try:
+            # Container içindeyse direkt aprag-service'e bağlan
+            import os
+            if os.path.exists("/.dockerenv"):
+                aprag_url = os.getenv("APRAG_SERVICE_URL", "http://aprag-service:8007")
+                state_url = f"{aprag_url}/api/aprag/ebars/state/{self.user_id}/{self.session_id}"
+            else:
+                state_url = f"{self.api_base_url}/aprag/ebars/state/{self.user_id}/{self.session_id}"
+            
             response = requests.get(
-                f"{self.api_base_url}/aprag/ebars/state/{self.user_id}/{self.session_id}",
+                state_url,
                 timeout=30
             )
             
             if response.status_code != 200:
+                # 403 hatası durumunda default değerler döndür
+                if response.status_code == 403:
+                    print(f"   ⚠️ State endpoint returned 403, using defaults")
+                    return {
+                        "comprehension_score": self.previous_score or 50.0,
+                        "difficulty_level": self.previous_level or "normal"
+                    }
                 raise Exception(f"State fetch failed: {response.status_code}")
             
             return response.json()
         except Exception as e:
-            print(f"❌ Error getting state: {e}")
-            raise
+            print(f"   ⚠️ Error getting state: {e}, using defaults")
+            # Hata durumunda önceki değerleri kullan
+            return {
+                "comprehension_score": self.previous_score or 50.0,
+                "difficulty_level": self.previous_level or "normal"
+            }
     
     def initialize_score(self, initial_score: float = 50.0, initial_level: str = 'normal'):
         """Başlangıç skorunu ayarlar"""
@@ -179,13 +305,25 @@ class EBARSAgent:
         answer = response_data.get("answer", "")
         interaction_id = response_data.get("interaction_id")
         
+        # Eğer interaction_id yoksa, en son interaction'ı al
+        if not interaction_id:
+            print(f"   🔍 interaction_id not in response, fetching latest...")
+            time.sleep(2)  # DB'ye yazılması için bekle
+            interaction_id = self.get_latest_interaction_id()
+            if interaction_id:
+                print(f"   ✅ Found interaction_id: {interaction_id}")
+        
         # Emoji geri bildirimi seç
         emoji = self.get_emoji_feedback(self.turn_count)
         
         # Geri bildirim gönder
         if interaction_id:
-            feedback_result = self.send_feedback(interaction_id, emoji)
-            print(f"   Feedback: {emoji}")
+            try:
+                feedback_result = self.send_feedback(interaction_id, emoji)
+                print(f"   ✅ Feedback sent: {emoji}")
+            except Exception as e:
+                print(f"   ⚠️ Feedback failed: {e}")
+                feedback_result = {}
         else:
             print(f"   ⚠️ No interaction_id, skipping feedback")
             feedback_result = {}
@@ -377,9 +515,29 @@ class EBARSSimulation:
 def main():
     """Ana simülasyon fonksiyonu"""
     
-    # Konfigürasyon
-    API_BASE_URL = "http://localhost:8000"  # API Gateway URL
-    SESSION_ID = "biyoloji_simulasyon_session"  # Test session ID
+    # Konfigürasyon - önce config dosyasını kontrol et
+    import os
+    config_file = "simulation_config.json"
+    
+    if os.path.exists(config_file):
+        with open(config_file, "r", encoding="utf-8") as f:
+            config = json.load(f)
+            # Container içindeyse Docker network URL kullan
+            default_url = "http://api-gateway:8000" if os.path.exists("/.dockerenv") else "http://localhost:8000"
+            API_BASE_URL = config.get("api_base_url", default_url)
+            SESSION_ID = config.get("session_id", "biyoloji_simulasyon_session")
+            users_config = config.get("users", {})
+            print(f"✅ Loaded configuration from {config_file}")
+            print(f"   API URL: {API_BASE_URL}")
+    else:
+        print("⚠️ Warning: simulation_config.json not found!")
+        print("   Please run setup_simulation.py first")
+        print("   Using default values...")
+        # Container içindeyse Docker network URL kullan
+        default_url = "http://api-gateway:8000" if os.path.exists("/.dockerenv") else "http://localhost:8000"
+        API_BASE_URL = os.getenv("API_BASE_URL", default_url)
+        SESSION_ID = os.getenv("SESSION_ID", "biyoloji_simulasyon_session")
+        users_config = {}
     
     # Test soruları
     questions = [
@@ -409,12 +567,16 @@ def main():
     simulation = EBARSSimulation(API_BASE_URL, SESSION_ID)
     simulation.load_questions(questions)
     
-    # Ajanları ekle
+    # Ajanları ekle - config'den user_id'leri al
+    agent_a_user = users_config.get("agent_a", {}).get("user_id", "sim_agent_a")
+    agent_b_user = users_config.get("agent_b", {}).get("user_id", "sim_agent_b")
+    agent_c_user = users_config.get("agent_c", {}).get("user_id", "sim_agent_c")
+    
     # Ajan A: İstikrarlı Başarısız
     simulation.add_agent(
         agent_id="agent_a",
         agent_name="Ajan A (Zorlanan)",
-        user_id="sim_agent_a",  # Test user ID
+        user_id=agent_a_user,
         feedback_strategy="negative",
         emoji_distribution={"❌": 0.7, "😐": 0.3}
     )
@@ -423,7 +585,7 @@ def main():
     simulation.add_agent(
         agent_id="agent_b",
         agent_name="Ajan B (Hızlı Öğrenen)",
-        user_id="sim_agent_b",  # Test user ID
+        user_id=agent_b_user,
         feedback_strategy="positive",
         emoji_distribution={"👍": 0.7, "😊": 0.3}
     )
@@ -432,7 +594,7 @@ def main():
     simulation.add_agent(
         agent_id="agent_c",
         agent_name="Ajan C (Dalgalı)",
-        user_id="sim_agent_c",  # Test user ID
+        user_id=agent_c_user,
         feedback_strategy="variable",
         emoji_distribution={}  # Variable strategy kendi içinde yönetir
     )
