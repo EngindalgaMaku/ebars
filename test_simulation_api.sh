@@ -44,21 +44,39 @@ if [ -z "$SESSION_ID" ]; then
 fi
 
 echo "🚀 Starting simulation for session: $SESSION_ID"
-SIM_START=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://localhost:8000/api/aprag/ebars/simulation/start \
+echo "Request payload: {\"session_id\": \"$SESSION_ID\", \"num_turns\": 3, \"num_agents\": 2}"
+echo "Calling: POST http://localhost:8000/api/aprag/ebars/simulation/start"
+echo ""
+
+# Timeout ile test et (30 saniye)
+SIM_START=$(curl -s -m 30 -w "\nHTTP_CODE:%{http_code}\nTIME_TOTAL:%{time_total}" -X POST http://localhost:8000/api/aprag/ebars/simulation/start \
   -H "Content-Type: application/json" \
   -d "{
     \"session_id\": \"$SESSION_ID\",
     \"num_turns\": 3,
     \"num_agents\": 2
-  }")
+  }" 2>&1)
+
 HTTP_CODE=$(echo "$SIM_START" | grep "HTTP_CODE" | cut -d: -f2)
-BODY=$(echo "$SIM_START" | sed '/HTTP_CODE/d')
+TIME_TOTAL=$(echo "$SIM_START" | grep "TIME_TOTAL" | cut -d: -f2)
+BODY=$(echo "$SIM_START" | sed '/HTTP_CODE/d' | sed '/TIME_TOTAL/d')
+
 echo "Status: $HTTP_CODE"
+echo "Time: ${TIME_TOTAL}s"
 echo "Response: $BODY"
-if [ "$HTTP_CODE" = "200" ]; then
+
+if [ -z "$HTTP_CODE" ]; then
+  echo "❌ No response received - endpoint may be hanging or timing out"
+  echo "Full curl output:"
+  echo "$SIM_START"
+elif [ "$HTTP_CODE" = "200" ]; then
   echo "✅ Simulation started successfully!"
+elif [ "$HTTP_CODE" = "502" ]; then
+  echo "❌ 502 Bad Gateway - API Gateway cannot reach backend service"
+elif [ "$HTTP_CODE" = "500" ]; then
+  echo "❌ 500 Internal Server Error - Check backend logs"
 else
-  echo "❌ Simulation start failed"
+  echo "❌ Simulation start failed with status $HTTP_CODE"
 fi
 
 echo ""
