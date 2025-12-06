@@ -3,7 +3,7 @@ Hybrid RAG Query Endpoint
 KB-Enhanced RAG: Chunks + Knowledge Base + QA Pairs
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import logging
@@ -38,6 +38,12 @@ def get_internal_api_gateway_url(url: str) -> str:
         logger.debug(f"Converting external URL ({url}) to internal Docker network URL")
         return "http://api-gateway:8000"
     return url
+
+
+def get_forwarded_headers(request: Request) -> Dict[str, str]:
+    """Extract and forward authentication headers"""
+    auth_header = request.headers.get("Authorization")
+    return {"Authorization": auth_header} if auth_header else {}
 
 
 # ============================================================================
@@ -445,7 +451,7 @@ async def rerank_documents(query: str, chunks: List[Dict]) -> Dict[str, Any]:
 # ============================================================================
 
 @router.post("/query", response_model=HybridRAGQueryResponse)
-async def hybrid_rag_query(request: HybridRAGQueryRequest):
+async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request):
     """
     KB-Enhanced RAG Query
     
@@ -474,7 +480,7 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest):
         with db.get_connection() as conn:
             cursor = conn.execute("""
                 INSERT INTO student_interactions
-                (user_id, session_id, query, response, timestamp, model_used)
+                (user_id, session_id, query, response, created_at, model_used)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (
                 request.user_id,
@@ -499,6 +505,7 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest):
             api_gateway_url = get_internal_api_gateway_url(API_GATEWAY_URL)
             session_response = requests.get(
                 f"{api_gateway_url}/sessions/{request.session_id}",
+                headers=get_forwarded_headers(http_request),
                 timeout=5
             )
             if session_response.status_code == 200:
@@ -746,6 +753,7 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest):
                 api_gateway_url = get_internal_api_gateway_url(API_GATEWAY_URL)
                 session_response = requests.get(
                     f"{api_gateway_url}/sessions/{request.session_id}",
+                    headers=get_forwarded_headers(http_request),
                     timeout=5
                 )
                 if session_response.status_code == 200:

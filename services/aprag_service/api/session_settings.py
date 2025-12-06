@@ -3,7 +3,7 @@ Session Settings API Endpoints
 Allows teachers to control educational features per session
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Request
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 import logging
@@ -80,9 +80,16 @@ def get_db() -> DatabaseManager:
     return db_manager
 
 
+def get_forwarded_headers(request: Request) -> Dict[str, str]:
+    """Extract and forward authentication headers"""
+    auth_header = request.headers.get("Authorization")
+    return {"Authorization": auth_header} if auth_header else {}
+
+
 @router.get("/{session_id}", response_model=SessionSettingsResponse)
 async def get_session_settings(
     session_id: str,
+    request: Request,
     db: DatabaseManager = Depends(get_db)
 ):
     """
@@ -126,7 +133,8 @@ async def get_session_settings(
         else:
             # Create default settings for session
             # Get the session owner (teacher) from API Gateway
-            # Do NOT use student_interactions user_id as that would be a student, not the teacher
+            # CRITICAL FIX: Always use teacher/admin user ID for session settings
+            # DO NOT use student_interactions user_id as that would be a student, not the teacher
             default_user_id = None
             candidate_user_id = None
             
@@ -138,40 +146,40 @@ async def get_session_settings(
                     api_gateway_url = "http://api-gateway:8000"
                 
                 # Fetch session metadata from API Gateway to get the teacher (created_by)
+                logger.info(f"🔍 Fetching session owner for session {session_id} from API Gateway...")
                 session_response = requests.get(
                     f"{api_gateway_url}/sessions/{session_id}",
+                    headers=get_forwarded_headers(request),
                     timeout=5
                 )
                 if session_response.status_code == 200:
                     session_data = session_response.json()
                     created_by = session_data.get('created_by')
-                    if created_by:
-                        candidate_user_id = created_by
-                        logger.info(f"Found session owner (teacher) from API Gateway: {created_by}")
-            except Exception as e:
-                logger.warning(f"Could not fetch session metadata from API Gateway: {e}")
-            
-            # Verify that the candidate user_id exists in users table (FOREIGN KEY constraint)
-            if candidate_user_id:
-                try:
-                    user_check = db.execute_query(
-                        "SELECT username FROM users WHERE username = ? LIMIT 1",
-                        (candidate_user_id,)
-                    )
-                    if user_check and len(user_check) > 0:
-                        default_user_id = candidate_user_id
-                        logger.info(f"Verified user exists in users table: {default_user_id}")
+                    if created_by and created_by.strip():
+                        candidate_user_id = created_by.strip()
+                        logger.info(f"✅ Found session owner (teacher/admin) from API Gateway: {candidate_user_id}")
                     else:
-                        logger.warning(f"User '{candidate_user_id}' from session not found in users table, will use admin")
-                except Exception as e:
-                    logger.warning(f"Could not verify user in users table: {e}")
+                        logger.warning(f"⚠️ Session data found but no created_by field: {session_data}")
+                else:
+                    logger.warning(f"⚠️ Failed to fetch session from API Gateway: {session_response.status_code}")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not fetch session metadata from API Gateway: {e}")
             
-            # Fallback: Use admin username
-            # Note: We don't check users table because it's in auth-service, not aprag-service
-            # The user_id is just stored as a string identifier for the teacher who manages the settings
-            if not default_user_id:
+            # Fallback strategy: Use 'admin' for session settings (teacher/admin permissions)
+            # Note: Session settings should NEVER use student user IDs
+            if not candidate_user_id:
+                candidate_user_id = "admin"
+                logger.info(f"🔧 Using 'admin' as fallback teacher ID for session {session_id}")
+            
+            # Final assignment - always use teacher/admin ID, never student ID
+            default_user_id = candidate_user_id
+            logger.info(f"🎯 Final user_id for session settings: {default_user_id} (teacher/admin)")
+            
+            # Double-check: Make sure we're not accidentally using a student ID
+            # Student IDs are typically numeric or start with 'student'
+            if default_user_id and (default_user_id.isdigit() or default_user_id.startswith('student')):
+                logger.warning(f"⚠️ Detected potential student ID '{default_user_id}', forcing to 'admin'")
                 default_user_id = "admin"
-                logger.info(f"Using 'admin' as fallback for session {session_id}")
             
             # Note: We don't verify user_id in users table anymore because:
             # 1. users table is in auth-service, not aprag-service
