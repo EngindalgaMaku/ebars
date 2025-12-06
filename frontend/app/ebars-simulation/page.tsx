@@ -121,7 +121,7 @@ export default function EBARSSimulationPage() {
   const loadSessions = async () => {
     try {
       setLoadingSessions(true);
-      const response = await fetch("/api/aprag/sessions");
+      const response = await fetch("/api/sessions");
       if (response.ok) {
         const data = await response.json();
         setSessions(data.sessions || []);
