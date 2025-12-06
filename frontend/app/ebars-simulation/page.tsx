@@ -68,7 +68,7 @@ interface Agent {
 }
 
 interface SimulationStatus {
-  id: string;
+  simulation_id: string; // Fixed: API returns simulation_id, not id
   status: "RUNNING" | "PAUSED" | "COMPLETED" | "FAILED";
   current_turn: number;
   total_turns: number;
@@ -190,8 +190,8 @@ export default function EBARSSimulationPage() {
       setActiveTab("monitoring");
       toast.success("Simülasyon başlatıldı!");
 
-      // Status monitoring başlat
-      monitorSimulation(data.id);
+      // Status monitoring başlat - FIX: Use correct field name
+      monitorSimulation(data.simulation_id);
     } catch (error) {
       console.error("Error starting simulation:", error);
       setError(
@@ -203,7 +203,7 @@ export default function EBARSSimulationPage() {
   };
 
   const stopSimulation = async () => {
-    if (!currentSimulation?.id) return;
+    if (!currentSimulation?.simulation_id) return;
 
     try {
       const response = await fetch(`${EBARS_API_BASE}/simulation/stop`, {
@@ -211,7 +211,9 @@ export default function EBARSSimulationPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ simulation_id: currentSimulation.id }),
+        body: JSON.stringify({
+          simulation_id: currentSimulation.simulation_id,
+        }),
       });
 
       if (response.ok) {
