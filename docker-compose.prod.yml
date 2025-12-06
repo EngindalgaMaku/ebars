@@ -86,6 +86,12 @@ services:
       - .env.production
     ports:
       - "${APRAG_SERVICE_PORT:-8007}:8007"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8007/health').read()"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
     environment:
       - HOST=0.0.0.0
       - PORT=8007

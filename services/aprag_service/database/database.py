@@ -2384,14 +2384,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to create qa_similarity_cache table: {e}", exc_info=True)
             # Don't raise - this is non-critical
-            else:
-                logger.warning(f"Migration 009 file not found. Expected paths: {possible_paths}")
-                # Apply migration directly if file not found
-                logger.info("Applying Student Interactions Response Column migration directly...")
-                self._apply_student_interactions_response_migration_directly(conn)
-                
-        except Exception as e:
-            logger.warning(f"Failed to apply Student Interactions Response Column migration (non-critical): {e}")
     
     def _apply_student_interactions_response_migration_directly(self, conn: sqlite3.Connection):
         """Apply Student Interactions Response Column migration directly (fallback if file not found)"""
