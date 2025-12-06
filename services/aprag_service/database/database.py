@@ -2344,6 +2344,19 @@ class DatabaseManager:
                 conn.executescript(migration_sql)
                 conn.commit()
                 logger.info("✅ Student Interactions Response Column migration (009) applied successfully")
+            else:
+                logger.warning(f"Migration 009 file not found. Expected paths: {possible_paths}")
+                # Apply migration directly if file not found
+                logger.info("Applying Student Interactions Response Column migration directly...")
+                self._apply_student_interactions_response_migration_directly(conn)
+                
+        except Exception as e:
+            logger.warning(f"Failed to apply Student Interactions Response Column migration (non-critical): {e}")
+            # Try direct migration as fallback
+            try:
+                self._apply_student_interactions_response_migration_directly(conn)
+            except Exception as direct_err:
+                logger.error(f"Direct migration also failed: {direct_err}")
     
     def create_qa_similarity_cache_table(self, conn: sqlite3.Connection):
         """Create qa_similarity_cache table if it doesn't exist"""
