@@ -15,12 +15,21 @@ import {
   User,
   Home,
   BarChart3,
+  Brain,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import NotificationSystem from "@/components/NotificationSystem";
 
-type TabType = "dashboard" | "sessions" | "upload" | "analytics" | "modules" | "assistant" | "query";
+type TabType =
+  | "dashboard"
+  | "sessions"
+  | "upload"
+  | "analytics"
+  | "modules"
+  | "assistant"
+  | "query"
+  | "ebars-simulation";
 
 interface TeacherLayoutProps {
   children: React.ReactNode;
@@ -77,6 +86,13 @@ const navigationItems: Array<{
     desc: "Soru & Cevap",
     path: "/education-assistant",
   },
+  {
+    id: "ebars-simulation",
+    name: "EBARS Simülasyon",
+    icon: Brain,
+    desc: "Emoji Tabanlı Sistem",
+    path: "/ebars-simulation",
+  },
 ];
 
 function TeacherLayout({
@@ -102,6 +118,9 @@ function TeacherLayout({
     }
     if (pathname === "/education-assistant") {
       return "assistant";
+    }
+    if (pathname === "/ebars-simulation") {
+      return "ebars-simulation";
     }
     // Default to dashboard for home page
     return "dashboard";
@@ -134,6 +153,14 @@ function TeacherLayout({
     if (tabId === "assistant") {
       if (pathname !== "/education-assistant") {
         router.push("/education-assistant");
+      }
+      return;
+    }
+
+    // Special handling for ebars-simulation tab - redirect to ebars-simulation page
+    if (tabId === "ebars-simulation") {
+      if (pathname !== "/ebars-simulation") {
+        router.push("/ebars-simulation");
       }
       return;
     }
@@ -224,10 +251,13 @@ function TeacherLayout({
           {navigationItems.map((item) => {
             const Icon = item.icon;
             // Only check pathname for specific routes (not for tabs on home page)
-            const isPathMatch = 
+            const isPathMatch =
               (item.id === "sessions" && pathname?.startsWith("/sessions/")) ||
               (item.id === "upload" && pathname === "/document-center") ||
-              (item.id === "assistant" && pathname === "/education-assistant");
+              (item.id === "assistant" &&
+                pathname === "/education-assistant") ||
+              (item.id === "ebars-simulation" &&
+                pathname === "/ebars-simulation");
             // Use activeTab prop as primary source, pathname only for specific routes
             const isActive = currentActiveTab === item.id || isPathMatch;
 
