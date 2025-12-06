@@ -6,31 +6,23 @@ Bloom Taksonomisi seviyelerine özel soru üretim prompt şablonları
 # Bloom Taksonomisi Prompt Şablonları
 # ===========================================
 
-REMEMBER_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için HATIRLAMA seviyesinde sorular üret.
+REMEMBER_PROMPT = """Sen bir TÜRKÇE eğitim uzmanısın ve "{topic_title}" konusu için HATIRLAMA seviyesinde çoktan seçmeli sorular üretiyorsun.
 
-⚠️ ÖNEMLİ: 
-- Aşağıdaki materyal SADECE "{topic_title}" konusuyla ilgilidir ve sadece REFERANS/REHBER olarak kullanılacaktır
-- Soruları KENDİ BİLGİN ve EĞİTİM DENEYİMİN ile üret, materyalden kopyalama
-- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
-- Sorular doğal, akıcı ve eğitimsel olmalı
-
-BLOOM SEVİYESİ: REMEMBER (Hatırlama)
-Bu seviyede öğrenci:
-- Bilgileri hatırlamalı
-- Tanımları, isimleri, tarihleri, sayıları bilmeli
-- Temel kavramları ezberlemeli
-
-KONU BAŞLIĞI: {topic_title}
-ANAHTAR KELİMELER: {keywords}
-REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
+MATERYAL:
 {chunks_text}
 
+KONU: {topic_title}
+ANAHTAR KELİMELER: {keywords}
+BLOOM SEVİYESİ: REMEMBER (Hatırlama) - Tanımlar, isimler, tarihler, sayılar, temel kavramlar
+
+SORU TÜRÜ: Çoktan seçmeli (4 seçenek: A, B, C, D)
+
 LÜTFEN ŞUNLARI YAP:
-1. "{topic_title}" konusu için {count} adet çoktan seçmeli soru üret
-2. Sorular HATIRLAMA seviyesinde olmalı (örnek: "X nedir?", "Y kaçtır?", "Z kimdir?")
-3. Sorular DOĞAL, AKICI ve GERÇEKÇİ olmalı - sanki bir öğretmen öğrencisine soruyormuş gibi
-4. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
-5. Doğru cevap konuyla ilgili doğru bilgi olmalı
+1. {count} adet doğal ve akıcı soru üret - sanki bir öğretmen öğrencisine soruyormuş gibi
+2. Sorular HATIRLAMA seviyesinde olmalı: "X nedir?", "Y kaçtır?", "Z kimdir?" gibi
+3. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
+4. "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+5. Köşeli parantez [ ] veya placeholder kullanma - gerçek, tamamlanmış sorular üret
 6. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
 7. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
 8. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
@@ -39,275 +31,284 @@ LÜTFEN ŞUNLARI YAP:
 {{
   "questions": [
     {{
-      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez veya placeholder kullanma)",
+      "question": "Hücre zarı hangi temel yapılardan oluşur?",
       "options": {{
-        "A": "Doğru cevap seçeneği",
-        "B": "Mantıklı çeldirici seçenek",
-        "C": "Mantıklı çeldirici seçenek",
-        "D": "Mantıklı çeldirici seçenek"
+        "A": "Fosfolipid çift katman, proteinler ve karbonhidratlar",
+        "B": "Sadece proteinler",
+        "C": "Sadece lipitler",
+        "D": "DNA ve RNA"
       }},
       "correct_answer": "A",
-      "explanation": "Doğru cevabın eğitimsel açıklaması - NEDEN doğru olduğunu, hangi kavramların önemli olduğunu açıkla (soruyla aynı şeyi tekrar etme)",
+      "explanation": "Hücre zarı fosfolipid çift katmanından oluşur. Proteinler zarın içinde ve üzerinde bulunur, taşıma ve sinyal işlevlerini üstlenir. Karbonhidratlar ise hücre tanıma süreçlerinde rol oynar.",
       "bloom_level": "remember"
     }}
   ]
 }}
 
-⚠️ KRİTİK: Soru metninde köşeli parantez [ ] veya placeholder kullanma. Gerçek, tamamlanmış sorular üret."""
+ÖNEMLİ JSON KURALLARI:
+1. Her alan arasında virgül (,) olmalı
+2. Son alanda virgül OLMAMALI
+3. Her obje arasında virgül olmalı
+4. Sadece geçerli JSON formatı kullan
+5. Tırnak işaretlerini doğru kapat
+6. Sadece JSON çıktısı ver, başka metin ekleme
+
+UNUTMA: Sorular doğal, akıcı ve gerçekçi olmalı. Köşeli parantez veya placeholder kullanma!"""
 
 
-UNDERSTAND_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için ANLAMA seviyesinde sorular üret.
+UNDERSTAND_PROMPT = """Sen bir TÜRKÇE eğitim uzmanısın ve "{topic_title}" konusu için ANLAMA seviyesinde çoktan seçmeli sorular üretiyorsun.
 
-⚠️ ÖNEMLİ: 
-- Aşağıdaki materyal sadece REFERANS/REHBER olarak kullanılacaktır
-- Soruları KENDİ BİLGİN ile üret, materyalden kopyalama
-- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
-- Sorular doğal, akıcı ve eğitimsel olmalı
-
-BLOOM SEVİYESİ: UNDERSTAND (Anlama)
-Bu seviyede öğrenci:
-- Bilgiyi kendi kelimeleriyle açıklamalı
-- Kavramlar arası ilişkileri anlamalı
-- Örnekler vermeli veya örnekleri tanımalı
-
-KONU BAŞLIĞI: {topic_title}
-ANAHTAR KELİMELER: {keywords}
-REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
+MATERYAL:
 {chunks_text}
 
+KONU: {topic_title}
+ANAHTAR KELİMELER: {keywords}
+BLOOM SEVİYESİ: UNDERSTAND (Anlama) - Bilgiyi açıklama, ilişkileri anlama, örnekler verme
+
+SORU TÜRÜ: Çoktan seçmeli (4 seçenek: A, B, C, D)
+
 LÜTFEN ŞUNLARI YAP:
-1. "{topic_title}" konusu için {count} adet ANLAMA seviyesinde soru üret
-2. Sorular "neden", "nasıl", "açıkla", "karşılaştır" gibi anlama gerektiren sorular olmalı
-3. Sorular DOĞAL, AKICI ve GERÇEKÇİ olmalı - sanki bir öğretmen öğrencisine soruyormuş gibi
+1. {count} adet doğal ve akıcı soru üret - sanki bir öğretmen öğrencisine soruyormuş gibi
+2. Sorular ANLAMA seviyesinde olmalı: "neden", "nasıl", "açıkla", "karşılaştır" gibi
+3. Örnek: "X kavramı neden önemlidir?", "Y nasıl çalışır?", "Z ve W arasındaki fark nedir?"
 4. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
-5. Örnek: "X kavramı neden önemlidir?", "Y nasıl çalışır?", "Z ve W arasındaki fark nedir?"
-6. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
-7. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
-8. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
+5. "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+6. Köşeli parantez [ ] veya placeholder kullanma - gerçek, tamamlanmış sorular üret
+7. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
+8. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
+9. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
   "questions": [
     {{
-      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez veya placeholder kullanma)",
+      "question": "Osmoz olayı ile difüzyon arasındaki temel fark nedir?",
       "options": {{
-        "A": "Doğru cevap seçeneği",
-        "B": "Mantıklı çeldirici seçenek",
-        "C": "Mantıklı çeldirici seçenek",
-        "D": "Mantıklı çeldirici seçenek"
+        "A": "Osmoz sadece su moleküllerinin yarı geçirgen zardan geçişidir, difüzyon ise herhangi bir maddenin yüksek konsantrasyondan düşük konsantrasyona geçişidir",
+        "B": "Osmoz ve difüzyon aynı şeydir",
+        "C": "Difüzyon sadece su için geçerlidir",
+        "D": "Osmoz sadece katı maddeler için geçerlidir"
       }},
       "correct_answer": "A",
-      "explanation": "Doğru cevabın eğitimsel açıklaması - NEDEN doğru olduğunu, hangi kavramların önemli olduğunu açıkla (soruyla aynı şeyi tekrar etme)",
+      "explanation": "Her iki olayda da moleküller konsantrasyon gradyanını takip eder ancak osmoz özellikle su hareketi için kullanılır ve yarı geçirgen zar gerektirir. Difüzyon daha genel bir kavramdır ve herhangi bir madde için geçerlidir.",
       "bloom_level": "understand"
     }}
   ]
 }}
 
-⚠️ KRİTİK: Soru metninde köşeli parantez [ ] veya placeholder kullanma. Gerçek, tamamlanmış sorular üret. "Materyalde bahsedilen" gibi ifadeler de kullanma."""
+ÖNEMLİ JSON KURALLARI:
+1. Her alan arasında virgül (,) olmalı
+2. Son alanda virgül OLMAMALI
+3. Her obje arasında virgül olmalı
+4. Sadece geçerli JSON formatı kullan
+5. Tırnak işaretlerini doğru kapat
+6. Sadece JSON çıktısı ver, başka metin ekleme
+
+UNUTMA: Sorular doğal, akıcı ve gerçekçi olmalı. Köşeli parantez veya placeholder kullanma!"""
 
 
-APPLY_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için UYGULAMA seviyesinde sorular üret.
+APPLY_PROMPT = """Sen bir TÜRKÇE eğitim uzmanısın ve "{topic_title}" konusu için UYGULAMA seviyesinde çoktan seçmeli sorular üretiyorsun.
 
-⚠️ ÖNEMLİ: 
-- Aşağıdaki materyal sadece REFERANS/REHBER olarak kullanılacaktır
-- Soruları KENDİ BİLGİN ile üret, materyalden kopyalama
-- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
-- Sorular doğal, akıcı ve eğitimsel olmalı
-
-BLOOM SEVİYESİ: APPLY (Uygulama)
-Bu seviyede öğrenci:
-- Öğrendiği bilgiyi yeni durumlara uygulamalı
-- Problem çözmeli
-- Kuralları kullanmalı
-- Yöntemleri uygulamalı
-
-KONU BAŞLIĞI: {topic_title}
-ANAHTAR KELİMELER: {keywords}
-REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
+MATERYAL:
 {chunks_text}
 
+KONU: {topic_title}
+ANAHTAR KELİMELER: {keywords}
+BLOOM SEVİYESİ: APPLY (Uygulama) - Bilgiyi yeni durumlara uygulama, problem çözme, kuralları kullanma
+
+SORU TÜRÜ: Çoktan seçmeli (4 seçenek: A, B, C, D)
+
 LÜTFEN ŞUNLARI YAP:
-1. "{topic_title}" konusu için {count} adet UYGULAMA seviyesinde soru üret
-2. Sorular problem çözme, uygulama, kullanım gerektirmeli
-3. Sorular DOĞAL, AKICI ve GERÇEKÇİ olmalı - sanki bir öğretmen öğrencisine soruyormuş gibi
+1. {count} adet doğal ve akıcı soru üret - sanki bir öğretmen öğrencisine soruyormuş gibi
+2. Sorular UYGULAMA seviyesinde olmalı: problem çözme, uygulama, kullanım gerektirmeli
+3. Örnek: "X durumunda Y yöntemini nasıl kullanırsın?", "Z problemi için hangi çözüm uygundur?"
 4. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
-5. Örnek: "X durumunda Y yöntemini nasıl kullanırsın?", "Z problemi için hangi çözüm uygundur?"
-6. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
-7. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
-8. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
+5. "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+6. Köşeli parantez [ ] veya placeholder kullanma - gerçek, tamamlanmış sorular üret
+7. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
+8. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
+9. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
   "questions": [
     {{
-      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez veya placeholder kullanma)",
+      "question": "Bir bilgisayar sisteminde RAM kapasitesi yetersiz olduğunda hangi çözüm uygulanmalıdır?",
       "options": {{
-        "A": "Doğru cevap seçeneği",
-        "B": "Mantıklı çeldirici seçenek",
-        "C": "Mantıklı çeldirici seçenek",
-        "D": "Mantıklı çeldirici seçenek"
+        "A": "RAM kapasitesini artırmak veya daha verimli bellek yönetimi yapmak",
+        "B": "İşlemciyi değiştirmek",
+        "C": "Sabit diski formatlamak",
+        "D": "İşletim sistemini kaldırmak"
       }},
       "correct_answer": "A",
-      "explanation": "Doğru cevabın açıklaması",
+      "explanation": "RAM yetersizliği durumunda en etkili çözüm RAM kapasitesini artırmak veya mevcut belleği daha verimli kullanmaktır. İşlemci veya sabit disk değişikliği bu sorunu çözmez.",
       "bloom_level": "apply"
     }}
   ]
 }}
 
-⚠️ KRİTİK: Soru metninde köşeli parantez [ ] veya placeholder kullanma. Gerçek, tamamlanmış sorular üret."""
+ÖNEMLİ JSON KURALLARI:
+1. Her alan arasında virgül (,) olmalı
+2. Son alanda virgül OLMAMALI
+3. Her obje arasında virgül olmalı
+4. Sadece geçerli JSON formatı kullan
+5. Tırnak işaretlerini doğru kapat
+6. Sadece JSON çıktısı ver, başka metin ekleme
+
+UNUTMA: Sorular doğal, akıcı ve gerçekçi olmalı. Köşeli parantez veya placeholder kullanma!"""
 
 
-ANALYZE_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için ANALİZ seviyesinde sorular üret.
+ANALYZE_PROMPT = """Sen bir TÜRKÇE eğitim uzmanısın ve "{topic_title}" konusu için ANALİZ seviyesinde çoktan seçmeli sorular üretiyorsun.
 
-⚠️ ÖNEMLİ: 
-- Aşağıdaki materyal sadece REFERANS/REHBER olarak kullanılacaktır
-- Soruları KENDİ BİLGİN ile üret, materyalden kopyalama
-- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
-- Sorular doğal, akıcı ve eğitimsel olmalı
-
-BLOOM SEVİYESİ: ANALYZE (Analiz)
-Bu seviyede öğrenci:
-- Bilgiyi parçalara ayırmalı
-- İlişkileri bulmalı
-- Neden-sonuç ilişkilerini anlamalı
-- Yapıyı analiz etmeli
-
-KONU BAŞLIĞI: {topic_title}
-ANAHTAR KELİMELER: {keywords}
-REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
+MATERYAL:
 {chunks_text}
 
+KONU: {topic_title}
+ANAHTAR KELİMELER: {keywords}
+BLOOM SEVİYESİ: ANALYZE (Analiz) - Bilgiyi parçalara ayırma, ilişkileri bulma, neden-sonuç ilişkilerini anlama
+
+SORU TÜRÜ: Çoktan seçmeli (4 seçenek: A, B, C, D)
+
 LÜTFEN ŞUNLARI YAP:
-1. "{topic_title}" konusu için {count} adet ANALİZ seviyesinde soru üret
-2. Sorular "neden", "nasıl ilişkili", "hangi parçalar", "yapı nedir" gibi analiz gerektirmeli
-3. Sorular DOĞAL, AKICI ve GERÇEKÇİ olmalı - sanki bir öğretmen öğrencisine soruyormuş gibi
+1. {count} adet doğal ve akıcı soru üret - sanki bir öğretmen öğrencisine soruyormuş gibi
+2. Sorular ANALİZ seviyesinde olmalı: "neden", "nasıl ilişkili", "hangi parçalar", "yapı nedir" gibi
+3. Örnek: "X ve Y arasındaki ilişki nedir?", "Z'nin yapısı nasıldır?", "W'nun nedenleri nelerdir?"
 4. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
-5. Örnek: "X ve Y arasındaki ilişki nedir?", "Z'nin yapısı nasıldır?", "W'nun nedenleri nelerdir?"
-6. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
-7. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
-8. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
+5. "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+6. Köşeli parantez [ ] veya placeholder kullanma - gerçek, tamamlanmış sorular üret
+7. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
+8. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
+9. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
   "questions": [
     {{
-      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez veya placeholder kullanma)",
+      "question": "İşlemci ve bellek arasındaki ilişkiyi en iyi hangi açıklama tanımlar?",
       "options": {{
-        "A": "Doğru cevap seçeneği",
-        "B": "Mantıklı çeldirici seçenek",
-        "C": "Mantıklı çeldirici seçenek",
-        "D": "Mantıklı çeldirici seçenek"
+        "A": "İşlemci bellekten veri okur, işler ve sonuçları belleğe yazar",
+        "B": "İşlemci ve bellek birbirinden bağımsızdır",
+        "C": "Bellek işlemciyi kontrol eder",
+        "D": "İşlemci sadece bellekten veri okur, yazmaz"
       }},
       "correct_answer": "A",
-      "explanation": "Doğru cevabın açıklaması",
+      "explanation": "İşlemci ve bellek arasında sürekli bir veri alışverişi vardır. İşlemci komutları ve verileri bellekten okur, işler ve sonuçları tekrar belleğe yazar. Bu ilişki bilgisayarın temel çalışma prensibidir.",
       "bloom_level": "analyze"
     }}
   ]
 }}
 
-⚠️ KRİTİK: Soru metninde köşeli parantez [ ] veya placeholder kullanma. Gerçek, tamamlanmış sorular üret."""
+ÖNEMLİ JSON KURALLARI:
+1. Her alan arasında virgül (,) olmalı
+2. Son alanda virgül OLMAMALI
+3. Her obje arasında virgül olmalı
+4. Sadece geçerli JSON formatı kullan
+5. Tırnak işaretlerini doğru kapat
+6. Sadece JSON çıktısı ver, başka metin ekleme
+
+UNUTMA: Sorular doğal, akıcı ve gerçekçi olmalı. Köşeli parantez veya placeholder kullanma!"""
 
 
-EVALUATE_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için DEĞERLENDİRME seviyesinde sorular üret.
+EVALUATE_PROMPT = """Sen bir TÜRKÇE eğitim uzmanısın ve "{topic_title}" konusu için DEĞERLENDİRME seviyesinde çoktan seçmeli sorular üretiyorsun.
 
-⚠️ ÖNEMLİ: 
-- Aşağıdaki materyal sadece REFERANS/REHBER olarak kullanılacaktır
-- Soruları KENDİ BİLGİN ile üret, materyalden kopyalama
-- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
-- Sorular doğal, akıcı ve eğitimsel olmalı
-
-BLOOM SEVİYESİ: EVALUATE (Değerlendirme)
-Bu seviyede öğrenci:
-- Bilgiyi değerlendirmeli
-- Eleştirel düşünmeli
-- Karşılaştırmalı
-- Yargıda bulunmalı
-
-KONU BAŞLIĞI: {topic_title}
-ANAHTAR KELİMELER: {keywords}
-REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
+MATERYAL:
 {chunks_text}
 
+KONU: {topic_title}
+ANAHTAR KELİMELER: {keywords}
+BLOOM SEVİYESİ: EVALUATE (Değerlendirme) - Bilgiyi değerlendirme, eleştirel düşünme, karşılaştırma, yargıda bulunma
+
+SORU TÜRÜ: Çoktan seçmeli (4 seçenek: A, B, C, D)
+
 LÜTFEN ŞUNLARI YAP:
-1. "{topic_title}" konusu için {count} adet DEĞERLENDİRME seviyesinde soru üret
-2. Sorular "hangisi daha iyi", "neden uygun", "eleştir", "karşılaştır" gibi değerlendirme gerektirmeli
-3. Sorular DOĞAL, AKICI ve GERÇEKÇİ olmalı - sanki bir öğretmen öğrencisine soruyormuş gibi
+1. {count} adet doğal ve akıcı soru üret - sanki bir öğretmen öğrencisine soruyormuş gibi
+2. Sorular DEĞERLENDİRME seviyesinde olmalı: "hangisi daha iyi", "neden uygun", "eleştir", "karşılaştır" gibi
+3. Örnek: "X ve Y arasında hangisi daha etkilidir?", "Z yaklaşımının avantajları nelerdir?"
 4. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
-5. Örnek: "X ve Y arasında hangisi daha etkilidir?", "Z yaklaşımının avantajları nelerdir?"
-6. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
-7. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
-8. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
+5. "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+6. Köşeli parantez [ ] veya placeholder kullanma - gerçek, tamamlanmış sorular üret
+7. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
+8. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
+9. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
   "questions": [
     {{
-      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez veya placeholder kullanma)",
+      "question": "Hangisi daha etkilidir: İşlemci soğutma türü olan hava ile soğutma tipi veya sıvı ile soğutma tipi?",
       "options": {{
-        "A": "Doğru cevap seçeneği",
-        "B": "Mantıklı çeldirici seçenek",
-        "C": "Mantıklı çeldirici seçenek",
-        "D": "Mantıklı çeldirici seçenek"
+        "A": "Sıvı soğutma daha etkilidir çünkü daha iyi ısı iletimine sahiptir",
+        "B": "Hava soğutma daha etkilidir",
+        "C": "Her iki yöntem de eşit derecede etkilidir",
+        "D": "Her iki yöntem de etkisizdir"
       }},
       "correct_answer": "A",
-      "explanation": "Doğru cevabın açıklaması",
+      "explanation": "Sıvı soğutma sistemleri genellikle hava soğutmalı sistemlerden daha etkilidir çünkü sıvılar havadan daha iyi ısı iletimine sahiptir. Bu, özellikle yüksek performanslı sistemlerde önemlidir.",
       "bloom_level": "evaluate"
     }}
   ]
 }}
 
-⚠️ KRİTİK: Soru metninde köşeli parantez [ ] veya placeholder kullanma. Gerçek, tamamlanmış sorular üret."""
+ÖNEMLİ JSON KURALLARI:
+1. Her alan arasında virgül (,) olmalı
+2. Son alanda virgül OLMAMALI
+3. Her obje arasında virgül olmalı
+4. Sadece geçerli JSON formatı kullan
+5. Tırnak işaretlerini doğru kapat
+6. Sadece JSON çıktısı ver, başka metin ekleme
+
+UNUTMA: Sorular doğal, akıcı ve gerçekçi olmalı. Köşeli parantez veya placeholder kullanma!"""
 
 
-CREATE_PROMPT = """Sen bir eğitim uzmanısın. "{topic_title}" konusu için YARATMA seviyesinde sorular üret.
+CREATE_PROMPT = """Sen bir TÜRKÇE eğitim uzmanısın ve "{topic_title}" konusu için YARATMA seviyesinde çoktan seçmeli sorular üretiyorsun.
 
-⚠️ ÖNEMLİ: 
-- Aşağıdaki materyal sadece REFERANS/REHBER olarak kullanılacaktır
-- Soruları KENDİ BİLGİN ile üret, materyalden kopyalama
-- "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
-- Sorular doğal, akıcı ve eğitimsel olmalı
-
-BLOOM SEVİYESİ: CREATE (Yaratma)
-Bu seviyede öğrenci:
-- Yeni bir şey oluşturmalı
-- Sentez yapmalı
-- Tasarım yapmalı
-- Özgün çözüm üretmeli
-
-KONU BAŞLIĞI: {topic_title}
-ANAHTAR KELİMELER: {keywords}
-REFERANS MATERYAL (Sadece konu hakkında fikir vermek için):
+MATERYAL:
 {chunks_text}
 
+KONU: {topic_title}
+ANAHTAR KELİMELER: {keywords}
+BLOOM SEVİYESİ: CREATE (Yaratma) - Yeni şey oluşturma, sentez yapma, tasarım yapma, özgün çözüm üretme
+
+SORU TÜRÜ: Çoktan seçmeli (4 seçenek: A, B, C, D)
+
 LÜTFEN ŞUNLARI YAP:
-1. "{topic_title}" konusu için {count} adet YARATMA seviyesinde soru üret
-2. Sorular "oluştur", "tasarla", "geliştir", "sentezle" gibi yaratma gerektirmeli
-3. Sorular DOĞAL, AKICI ve GERÇEKÇİ olmalı - sanki bir öğretmen öğrencisine soruyormuş gibi
+1. {count} adet doğal ve akıcı soru üret - sanki bir öğretmen öğrencisine soruyormuş gibi
+2. Sorular YARATMA seviyesinde olmalı: "oluştur", "tasarla", "geliştir", "sentezle" gibi
+3. Örnek: "X durumu için Y çözümü nasıl tasarlarsın?", "Z problemini çözmek için hangi yaklaşımı oluşturursun?"
 4. Sorular YAPMACIK veya MEKANİK olmamalı - günlük dilde nasıl soruluyorsa öyle sor
-5. Örnek: "X durumu için Y çözümü nasıl tasarlarsın?", "Z problemini çözmek için hangi yaklaşımı oluşturursun?"
-6. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
-7. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
-8. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
+5. "Materyalde bahsedilen", "Materyalde geçen" gibi ifadeler KULLANMA
+6. Köşeli parantez [ ] veya placeholder kullanma - gerçek, tamamlanmış sorular üret
+7. Yanlış şıklar MANTIKLI ÇELDİRİCİLER olmalı - öğrencinin yanlış anlayabileceği noktalar
+8. Açıklama EĞİTİMSEL DEĞER taşımalı - sadece "doğru cevap X'dir" demek yeterli değil, NEDEN doğru olduğunu açıkla
+9. Açıklama soruyla aynı şeyi TEKRAR ETMEMELİ - ek bilgi veya bağlam vermeli
 
 ÇIKTI FORMATI (JSON - SADECE JSON, BAŞKA METİN YOK):
 {{
   "questions": [
     {{
-      "question": "Konuyla ilgili doğal ve akıcı bir soru metni (köşeli parantez veya placeholder kullanma)",
+      "question": "Bir işleminin daha hızlı çalışmasını sağlamak için overclock işlemi yapma kararı verildi. İşlemcinin overclock edilmesi ile ne tür riskler ortaya çıkabilir?",
       "options": {{
-        "A": "Doğru cevap seçeneği",
-        "B": "Mantıklı çeldirici seçenek",
-        "C": "Mantıklı çeldirici seçenek",
-        "D": "Mantıklı çeldirici seçenek"
+        "A": "İşlemci daha fazla ısı üretir, daha fazla enerji tüketir ve daha kolay hasar görebilir",
+        "B": "İşlemci daha az ısı üretir",
+        "C": "İşlemci daha az enerji tüketir",
+        "D": "Hiçbir risk yoktur"
       }},
       "correct_answer": "A",
-      "explanation": "Doğru cevabın açıklaması",
+      "explanation": "Overclock işlemi işlemcinin normal çalışma hızının üzerine çıkarılmasıdır. Bu işlem daha fazla ısı üretimine, daha yüksek enerji tüketimine ve potansiyel olarak donanım hasarına yol açabilir. Bu nedenle dikkatli yapılmalı ve uygun soğutma sağlanmalıdır.",
       "bloom_level": "create"
     }}
   ]
 }}
 
-⚠️ KRİTİK: Soru metninde köşeli parantez [ ] veya placeholder kullanma. Gerçek, tamamlanmış sorular üret."""
+ÖNEMLİ JSON KURALLARI:
+1. Her alan arasında virgül (,) olmalı
+2. Son alanda virgül OLMAMALI
+3. Her obje arasında virgül olmalı
+4. Sadece geçerli JSON formatı kullan
+5. Tırnak işaretlerini doğru kapat
+6. Sadece JSON çıktısı ver, başka metin ekleme
+
+UNUTMA: Sorular doğal, akıcı ve gerçekçi olmalı. Köşeli parantez veya placeholder kullanma!"""
 
 
 # ===========================================

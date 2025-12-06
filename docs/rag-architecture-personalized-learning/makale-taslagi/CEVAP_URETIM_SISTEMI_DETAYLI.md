@@ -939,3 +939,5 @@ Cevap üretim sistemi, hybrid RAG mimarisi üzerine kurulmuş, LLM tabanlı bir 
 **Versiyon**: 1.0
 
 
+
+

@@ -561,3 +561,5 @@ Bu yapı sayesinde "Hücre Zarı" başlığı ve içeriği birlikte chunk'lanır
 **Versiyon**: 1.0
 
 
+
+
