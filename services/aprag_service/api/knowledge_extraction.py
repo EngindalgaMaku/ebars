@@ -454,7 +454,8 @@ async def get_session_model(session_id: str) -> str:
             api_gateway_url = "http://api-gateway:8000"
         
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(f"{api_gateway_url}/sessions/{session_id}")
+            headers = {"X-Internal-Service": "true"}  # Internal service-to-service call
+            response = await client.get(f"{api_gateway_url}/sessions/{session_id}", headers=headers)
             
             if response.status_code == 200:
                 session_data = response.json()

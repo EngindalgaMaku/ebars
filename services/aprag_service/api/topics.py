@@ -93,7 +93,7 @@ def get_session_model(session_id: str) -> Optional[str]:
         response = requests.get(
             f"{api_gateway_url}/sessions/{session_id}",
             timeout=10,
-            headers={"X-Internal-Request": "true"}
+            headers={"X-Internal-Service": "true"}  # Internal service-to-service call
         )
         
         if response.status_code == 200:
@@ -631,7 +631,10 @@ def get_session_model(session_id: str) -> Optional[str]:
                 response = requests.get(
                     f"{api_gateway_url}/sessions/{session_id}",
                     timeout=30,  # Increased timeout to 30 seconds
-                    headers={"Content-Type": "application/json"}
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Internal-Service": "true"  # Internal service-to-service call
+                    }
                 )
                 
                 if response.status_code == 200:

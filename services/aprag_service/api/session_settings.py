@@ -147,9 +147,11 @@ async def get_session_settings(
                 
                 # Fetch session metadata from API Gateway to get the teacher (created_by)
                 logger.info(f"🔍 Fetching session owner for session {session_id} from API Gateway...")
+                headers = get_forwarded_headers(request)
+                headers["X-Internal-Service"] = "true"  # Internal service-to-service call
                 session_response = requests.get(
                     f"{api_gateway_url}/sessions/{session_id}",
-                    headers=get_forwarded_headers(request),
+                    headers=headers,
                     timeout=5
                 )
                 if session_response.status_code == 200:

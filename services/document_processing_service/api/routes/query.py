@@ -44,16 +44,28 @@ async def rag_query(request: RAGQueryRequest):
         try:
             import os
             API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
+            headers = {"X-Internal-Service": "true"}  # Internal service-to-service call
             session_response = requests.get(
                 f"{API_GATEWAY_URL}/sessions/{request.session_id}",
+                headers=headers,
                 timeout=5
             )
             if session_response.status_code == 200:
                 session_data = session_response.json()
                 session_rag_settings = session_data.get("rag_settings", {}) or {}
                 logger.info(f"✅ Loaded session RAG settings: model={session_rag_settings.get('model')}, embedding_model={session_rag_settings.get('embedding_model')}")
+            elif session_response.status_code == 401:
+                # 401 Unauthorized - likely simulation or internal call without auth
+                # This is not critical, we'll use default settings
+                logger.debug(f"⚠️ Session settings require authentication (401) - using default settings for session {request.session_id}")
+            elif session_response.status_code == 404:
+                # Session not found - also not critical
+                logger.debug(f"⚠️ Session {request.session_id} not found - using default settings")
             else:
                 logger.warning(f"⚠️ Could not load session settings: {session_response.status_code}")
+        except requests.exceptions.RequestException as req_err:
+            # Network/timeout errors - not critical, use defaults
+            logger.debug(f"⚠️ Could not reach API Gateway for session settings: {req_err} - using default settings")
         except Exception as settings_err:
             logger.warning(f"⚠️ Error loading session RAG settings: {settings_err}")
         

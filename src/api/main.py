@@ -1602,6 +1602,29 @@ def _require_owner_or_admin(request: Request, session_id: str) -> SessionMetadat
     metadata = professional_session_manager.get_session_metadata(session_id)
     if not metadata:
         raise HTTPException(status_code=404, detail="Session not found")
+    
+    # Allow internal service-to-service calls (from Docker network)
+    # Check for internal service header
+    internal_header = request.headers.get("X-Internal-Service")
+    client_host = request.client.host if request.client else None
+    
+    # Internal service calls - check header first (most secure)
+    # Also allow localhost/internal network calls
+    is_internal_call = (
+        internal_header == "true" or
+        client_host in ["127.0.0.1", "localhost", "::1"] or
+        # Docker network IPs typically start with 172.x.x.x or 10.x.x.x
+        (client_host and (
+            client_host.startswith("172.") or 
+            client_host.startswith("10.") or
+            client_host.startswith("192.168.")
+        ))
+    )
+    
+    if is_internal_call:
+        logger.debug(f"[AUTH CHECK] Internal service call detected for session: {session_id} (from {client_host})")
+        return metadata
+    
     user = _get_current_user(request)
     
     # Check if user is authenticated

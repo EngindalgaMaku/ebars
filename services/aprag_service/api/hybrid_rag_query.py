@@ -478,18 +478,40 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
     interaction_id = None
     try:
         with db.get_connection() as conn:
-            cursor = conn.execute("""
-                INSERT INTO student_interactions
-                (user_id, session_id, query, response, created_at, model_used)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                request.user_id,
-                request.session_id,
-                request.query,
-                "Processing...",  # Temporary response, will be updated
-                datetime.now().isoformat(),
-                request.model or "llama-3.1-8b-instant"
-            ))
+            # Check if original_response column exists and is NOT NULL
+            cursor = conn.execute("PRAGMA table_info(student_interactions)")
+            columns_info = {row[1]: {'type': row[2], 'notnull': row[3]} for row in cursor.fetchall()}
+            
+            # Build INSERT statement based on available columns
+            if 'original_response' in columns_info and columns_info['original_response']['notnull']:
+                # original_response is NOT NULL, include it
+                cursor = conn.execute("""
+                    INSERT INTO student_interactions
+                    (user_id, session_id, query, original_response, response, created_at, model_used)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    request.user_id,
+                    request.session_id,
+                    request.query,
+                    "Processing...",  # Temporary original_response
+                    "Processing...",  # Temporary response, will be updated
+                    datetime.now().isoformat(),
+                    request.model or "llama-3.1-8b-instant"
+                ))
+            else:
+                # original_response is NULL or doesn't exist, use only response
+                cursor = conn.execute("""
+                    INSERT INTO student_interactions
+                    (user_id, session_id, query, response, created_at, model_used)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    request.user_id,
+                    request.session_id,
+                    request.query,
+                    "Processing...",  # Temporary response, will be updated
+                    datetime.now().isoformat(),
+                    request.model or "llama-3.1-8b-instant"
+                ))
             interaction_id = cursor.lastrowid
             conn.commit()
             logger.info(f"✅ Created interaction record: {interaction_id}")
@@ -503,11 +525,18 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
         try:
             # Use internal Docker network URL to avoid SSL errors
             api_gateway_url = get_internal_api_gateway_url(API_GATEWAY_URL)
+            headers = get_forwarded_headers(http_request)
+            
+            # Add internal service header for service-to-service calls
+            # This allows internal services to access session data without authentication
+            headers["X-Internal-Service"] = "true"
+            
             session_response = requests.get(
                 f"{api_gateway_url}/sessions/{request.session_id}",
-                headers=get_forwarded_headers(http_request),
+                headers=headers,
                 timeout=5
             )
+            
             if session_response.status_code == 200:
                 session_data = session_response.json()
                 session_rag_settings = session_data.get("rag_settings", {}) or {}
@@ -516,8 +545,18 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
                 logger.info(f"✅ Loaded session RAG settings: model={session_rag_settings.get('model')}, embedding_model={session_rag_settings.get('embedding_model')}")
                 if session_name:
                     logger.info(f"📚 Session name retrieved for course scope validation: '{session_name}'")
+            elif session_response.status_code == 401:
+                # 401 Unauthorized - likely simulation or internal call without auth
+                # This is not critical, we'll use default settings
+                logger.debug(f"⚠️ Session settings require authentication (401) - using default settings for session {request.session_id}")
+            elif session_response.status_code == 404:
+                # Session not found - also not critical
+                logger.debug(f"⚠️ Session {request.session_id} not found - using default settings")
             else:
                 logger.warning(f"⚠️ Could not load session settings: {session_response.status_code}")
+        except requests.exceptions.RequestException as req_err:
+            # Network/timeout errors - not critical, use defaults
+            logger.debug(f"⚠️ Could not reach API Gateway for session settings: {req_err} - using default settings")
         except Exception as settings_err:
             logger.warning(f"⚠️ Error loading session RAG settings: {settings_err}")
         
@@ -751,9 +790,11 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
             try:
                 # Use internal Docker network URL to avoid SSL errors
                 api_gateway_url = get_internal_api_gateway_url(API_GATEWAY_URL)
+                headers = get_forwarded_headers(http_request)
+                headers["X-Internal-Service"] = "true"  # Internal service-to-service call
                 session_response = requests.get(
                     f"{api_gateway_url}/sessions/{request.session_id}",
-                    headers=get_forwarded_headers(http_request),
+                    headers=headers,
                     timeout=5
                 )
                 if session_response.status_code == 200:

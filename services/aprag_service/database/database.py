@@ -2357,10 +2357,26 @@ class DatabaseManager:
         try:
             # Check if response column exists, if not add it
             cursor = conn.execute("PRAGMA table_info(student_interactions)")
-            columns = [row[1] for row in cursor.fetchall()]
+            columns_info = {row[1]: {'type': row[2], 'notnull': row[3], 'dflt_value': row[4]} for row in cursor.fetchall()}
+            columns = list(columns_info.keys())
             
             if 'response' not in columns:
                 conn.execute("ALTER TABLE student_interactions ADD COLUMN response TEXT DEFAULT NULL")
+            
+            # Ensure original_response has a default value if it's NOT NULL
+            # SQLite doesn't support ALTER COLUMN, but we can set default values for new inserts
+            # by ensuring existing records have values
+            if 'original_response' in columns_info and columns_info['original_response']['notnull']:
+                # Update any NULL original_response values to prevent constraint violations
+                try:
+                    conn.execute("""
+                        UPDATE student_interactions 
+                        SET original_response = COALESCE(original_response, response, 'Processing...')
+                        WHERE original_response IS NULL
+                    """)
+                    logger.info("Updated NULL original_response values to prevent constraint violations")
+                except Exception as e:
+                    logger.warning(f"Could not update original_response values: {e}")
             
             # Update empty response fields with data from other response columns (if they exist)
             # Priority: personalized_response > original_response > existing response
@@ -2379,6 +2395,34 @@ class DatabaseManager:
             # Check if columns exist before updating
             if 'personalized_response' in columns or 'original_response' in columns:
                 conn.execute(update_sql)
+            
+            # Ensure original_response is populated if it's NOT NULL
+            # This prevents constraint violations on future inserts
+            if 'original_response' in columns_info and columns_info['original_response']['notnull']:
+                try:
+                    # Update any NULL original_response values that might exist
+                    conn.execute("""
+                        UPDATE student_interactions 
+                        SET original_response = COALESCE(original_response, response, 'Processing...')
+                        WHERE original_response IS NULL
+                    """)
+                    logger.info("Updated NULL original_response values to prevent constraint violations")
+                except Exception as e:
+                    logger.warning(f"Could not update original_response values: {e}")
+            
+            # Ensure original_response is populated if it's NOT NULL
+            # This prevents constraint violations on future inserts
+            if 'original_response' in columns_info and columns_info['original_response']['notnull']:
+                try:
+                    # Update any NULL original_response values
+                    conn.execute("""
+                        UPDATE student_interactions 
+                        SET original_response = COALESCE(original_response, response, 'Processing...')
+                        WHERE original_response IS NULL
+                    """)
+                    logger.info("Updated NULL original_response values to prevent constraint violations")
+                except Exception as e:
+                    logger.warning(f"Could not update original_response values: {e}")
             
             # Add index for better performance on response queries
             conn.execute("""
