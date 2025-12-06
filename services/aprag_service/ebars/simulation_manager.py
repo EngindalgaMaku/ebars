@@ -18,6 +18,9 @@ from .feedback_handler import FeedbackHandler
 from .score_calculator import ComprehensionScoreCalculator
 import os
 
+# Import get_db function from router
+from .router import get_db
+
 logger = logging.getLogger(__name__)
 
 @dataclass
