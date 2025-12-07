@@ -52,19 +52,19 @@ async def get_status(session_id: Optional[str] = None):
         session_id: Optional session ID for session-level status
     """
     try:
-        logger.info(f"[APRAG SETTINGS] get_status called with session_id: {session_id}")
+        logger.debug(f"[APRAG SETTINGS] get_status called with session_id: {session_id}")
         
         # Get global status
         global_enabled = FeatureFlags.is_aprag_enabled(session_id=None)
-        logger.info(f"[APRAG SETTINGS] global_enabled: {global_enabled}")
+        logger.debug(f"[APRAG SETTINGS] global_enabled: {global_enabled}")
         
         # Get session-specific status if session_id provided
         enabled = FeatureFlags.is_aprag_enabled(session_id=session_id)
-        logger.info(f"[APRAG SETTINGS] is_aprag_enabled(session_id={session_id}): {enabled}")
+        logger.debug(f"[APRAG SETTINGS] is_aprag_enabled(session_id={session_id}): {enabled}")
         
         # Session-level flag (if session_id provided)
         session_enabled = enabled if session_id else None
-        logger.info(f"[APRAG SETTINGS] session_enabled: {session_enabled}")
+        logger.debug(f"[APRAG SETTINGS] session_enabled: {session_enabled}")
         
         # Get feature flags from environment variables and FeatureFlags
         feedback_enabled = os.getenv("APRAG_FEEDBACK_COLLECTION", "true").lower() == "true" if global_enabled else False
@@ -83,9 +83,22 @@ async def get_status(session_id: Optional[str] = None):
         # Check session-specific settings if session_id provided
         if session_id:
             try:
-                from database.database import DatabaseManager
-                db_path = os.getenv("APRAG_DB_PATH", "data/rag_assistant.db")
-                db = DatabaseManager(db_path)
+                # Use global db_manager if available, otherwise create one
+                # This avoids re-initializing database on every request
+                try:
+                    from main import db_manager
+                    if db_manager is None:
+                        from database.database import DatabaseManager
+                        db_path = os.getenv("APRAG_DB_PATH", "data/rag_assistant.db")
+                        db = DatabaseManager(db_path)
+                    else:
+                        db = db_manager
+                except ImportError:
+                    # Fallback if main module not available
+                    from database.database import DatabaseManager
+                    db_path = os.getenv("APRAG_DB_PATH", "data/rag_assistant.db")
+                    db = DatabaseManager(db_path)
+                
                 session_settings = db.execute_query(
                     "SELECT * FROM session_settings WHERE session_id = ?",
                     (session_id,)
@@ -109,15 +122,15 @@ async def get_status(session_id: Optional[str] = None):
                     ebars_enabled = False
                     if 'enable_ebars' in row_dict and row_dict['enable_ebars'] is not None:
                         ebars_enabled = bool(row_dict['enable_ebars'])
-                    logger.info(f"[APRAG SETTINGS] Session-specific overrides loaded for {session_id}: cacs={cacs_enabled}, zpd={zpd_enabled}, bloom={bloom_enabled}, ebars={ebars_enabled}")
+                    logger.debug(f"[APRAG SETTINGS] Session-specific overrides loaded for {session_id}: cacs={cacs_enabled}, zpd={zpd_enabled}, bloom={bloom_enabled}, ebars={ebars_enabled}")
             except Exception as e:
-                logger.warning(f"[APRAG SETTINGS] Could not load session-specific settings: {e}")
+                logger.debug(f"[APRAG SETTINGS] Could not load session-specific settings: {e}")
         
         # Initialize EBARS enabled status (default to False if not loaded from session settings)
         if 'ebars_enabled' not in locals():
             ebars_enabled = False
         
-        logger.info(f"[APRAG SETTINGS] Feature flags: feedback={feedback_enabled}, personalization={personalization_enabled}, recommendations={recommendations_enabled}, analytics={analytics_enabled}, cacs={cacs_enabled}, zpd={zpd_enabled}, bloom={bloom_enabled}, cognitive_load={cognitive_load_enabled}, emoji_feedback={emoji_feedback_enabled}, ebars={ebars_enabled}")
+        logger.debug(f"[APRAG SETTINGS] Feature flags: feedback={feedback_enabled}, personalization={personalization_enabled}, recommendations={recommendations_enabled}, analytics={analytics_enabled}, cacs={cacs_enabled}, zpd={zpd_enabled}, bloom={bloom_enabled}, cognitive_load={cognitive_load_enabled}, emoji_feedback={emoji_feedback_enabled}, ebars={ebars_enabled}")
         
         return {
             "enabled": enabled,

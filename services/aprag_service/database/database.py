@@ -100,30 +100,36 @@ class DatabaseManager:
                     logger.info("APRAG migrations applied successfully")
                 else:
                     logger.info("APRAG tables already exist")
-                    # Always try to apply migrations to ensure schema is up to date
-                    # (migration file uses IF NOT EXISTS, so it's safe)
-                    self.apply_aprag_migrations(conn)
-                    self.apply_topic_migrations(conn)
-                    self.apply_foreign_key_fix_migration(conn)
-                    self.apply_topic_progress_fk_removal_migration(conn)
-                    self.apply_qa_embeddings_migration(conn)
-                    self.apply_satisfaction_fix_migration(conn)
-                    self.apply_detailed_feedback_migration(conn)
-                    self.apply_session_settings_migration(conn)
-                    self.apply_session_settings_fk_removal_migration(conn)
-                    self.apply_document_global_scores_migration(conn)
-                    self.apply_avg_emoji_score_migration(conn)
+                    # Initialize migration tracking table
+                    self.ensure_migration_tracking_table(conn)
+                    
+                    # Only apply migrations that haven't been applied yet
+                    # Check each migration individually to avoid unnecessary work
+                    self.run_migration_if_needed(conn, "aprag_tables", self.apply_aprag_migrations)
+                    self.run_migration_if_needed(conn, "topic_tables", self.apply_topic_migrations)
+                    self.run_migration_if_needed(conn, "foreign_key_fix", self.apply_foreign_key_fix_migration)
+                    self.run_migration_if_needed(conn, "topic_progress_fk_removal", self.apply_topic_progress_fk_removal_migration)
+                    self.run_migration_if_needed(conn, "qa_embeddings", self.apply_qa_embeddings_migration)
+                    self.run_migration_if_needed(conn, "satisfaction_fix", self.apply_satisfaction_fix_migration)
+                    self.run_migration_if_needed(conn, "detailed_feedback", self.apply_detailed_feedback_migration)
+                    self.run_migration_if_needed(conn, "session_settings", self.apply_session_settings_migration)
+                    self.run_migration_if_needed(conn, "session_settings_fk_removal", self.apply_session_settings_fk_removal_migration)
+                    self.run_migration_if_needed(conn, "document_global_scores", self.apply_document_global_scores_migration)
+                    self.run_migration_if_needed(conn, "avg_emoji_score", self.apply_avg_emoji_score_migration)
                     # Skip analytics views during startup - they will be created on first use
-                    # self.apply_analytics_views(conn)  # Deferred to avoid startup delays
-                    self.apply_knowledge_base_tables_migration(conn)
-                    self.apply_ebars_migration(conn)
-                    self.apply_initial_test_tracking_migration(conn)
-                    self.apply_initial_test_two_stage_migration(conn)
-                    self.apply_completion_percentage_migration(conn)
-                    self.apply_question_pool_migration(conn)
-                    self.apply_student_interactions_response_migration(conn)
+                    # Analytics views are lazy-loaded, no need to track
+                    self.run_migration_if_needed(conn, "knowledge_base_tables", self.apply_knowledge_base_tables_migration)
+                    self.run_migration_if_needed(conn, "ebars_tables", self.apply_ebars_migration)
+                    self.run_migration_if_needed(conn, "initial_test_tracking", self.apply_initial_test_tracking_migration)
+                    self.run_migration_if_needed(conn, "initial_test_two_stage", self.apply_initial_test_two_stage_migration)
+                    self.run_migration_if_needed(conn, "completion_percentage", self.apply_completion_percentage_migration)
+                    self.run_migration_if_needed(conn, "question_pool", self.apply_question_pool_migration)
+                    self.run_migration_if_needed(conn, "student_interactions_response", self.apply_student_interactions_response_migration)
+                    
+                    # These are idempotent operations, safe to run always
                     self.create_qa_similarity_cache_table(conn)
                     self.ensure_feature_flags_table(conn)
+                    
                     conn.commit()
                     
                     # Mark migrations as applied
@@ -138,6 +144,58 @@ class DatabaseManager:
                 import threading
                 self._migrations_applied = threading.Event()
             self._migrations_applied.set()
+    
+    def ensure_migration_tracking_table(self, conn: sqlite3.Connection):
+        """Create migration tracking table if it doesn't exist"""
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    migration_name TEXT PRIMARY KEY,
+                    applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    applied_by TEXT DEFAULT 'aprag_service'
+                )
+            """)
+            conn.commit()
+        except Exception as e:
+            logger.warning(f"Could not create migration tracking table: {e}")
+    
+    def is_migration_applied(self, conn: sqlite3.Connection, migration_name: str) -> bool:
+        """Check if a migration has already been applied"""
+        try:
+            cursor = conn.execute(
+                "SELECT migration_name FROM schema_migrations WHERE migration_name = ?",
+                (migration_name,)
+            )
+            return cursor.fetchone() is not None
+        except Exception as e:
+            # If table doesn't exist, migration hasn't been applied
+            logger.debug(f"Could not check migration status for {migration_name}: {e}")
+            return False
+    
+    def mark_migration_applied(self, conn: sqlite3.Connection, migration_name: str):
+        """Mark a migration as applied"""
+        try:
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations (migration_name) VALUES (?)",
+                (migration_name,)
+            )
+            conn.commit()
+        except Exception as e:
+            logger.warning(f"Could not mark migration {migration_name} as applied: {e}")
+    
+    def run_migration_if_needed(self, conn: sqlite3.Connection, migration_name: str, migration_func):
+        """Run a migration only if it hasn't been applied yet"""
+        if not self.is_migration_applied(conn, migration_name):
+            try:
+                logger.info(f"Applying migration: {migration_name}")
+                migration_func(conn)
+                self.mark_migration_applied(conn, migration_name)
+                logger.info(f"Migration {migration_name} applied and marked as complete")
+            except Exception as e:
+                logger.warning(f"Migration {migration_name} failed: {e}")
+                # Don't mark as applied if it failed
+        else:
+            logger.debug(f"Migration {migration_name} already applied, skipping")
     
     def apply_aprag_migrations(self, conn: sqlite3.Connection):
         """Apply APRAG database migrations"""
@@ -1014,26 +1072,11 @@ class DatabaseManager:
             with open(views_path, 'r', encoding='utf-8') as f:
                 views_sql = f.read()
             
-            # Split SQL into individual view creation statements for better error handling
-            # SQLite views are separated by semicolons
-            view_statements = [stmt.strip() for stmt in views_sql.split(';') if stmt.strip() and not stmt.strip().startswith('--')]
-            
-            logger.debug(f"Creating {len(view_statements)} view statements...")
-            
-            # Execute each view creation separately for better error tracking
-            for i, statement in enumerate(view_statements, 1):
-                if not statement:
-                    continue
-                try:
-                    logger.debug(f"Executing view statement {i}/{len(view_statements)}...")
-                    conn.execute(statement)
-                    conn.commit()
-                    logger.debug(f"View statement {i} completed successfully")
-                except Exception as e:
-                    logger.warning(f"Error executing view statement {i}: {e}")
-                    # Continue with other views even if one fails
-                    conn.rollback()
-            
+            # Execute all views at once using executescript for better performance
+            # SQLite handles multiple CREATE VIEW statements efficiently
+            logger.debug("Executing analytics views SQL...")
+            conn.executescript(views_sql)
+            conn.commit()
             logger.info("Topic Analytics Views applied successfully")
                 
         except Exception as e:
@@ -1112,8 +1155,22 @@ class DatabaseManager:
             
             # If no foreign keys exist, migration was already applied
             if not fk_list:
-                logger.info("Session Settings FK removal migration already applied (no FK constraints found)")
+                logger.debug("Session Settings FK removal migration already applied (no FK constraints found)")
                 return
+            
+            # Also check if session_settings_new table exists (indicates partial migration)
+            cursor = conn.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='session_settings_new'
+            """)
+            if cursor.fetchone():
+                # Clean up partial migration
+                logger.info("session_settings_new table exists, cleaning up partial migration...")
+                try:
+                    conn.execute("DROP TABLE IF EXISTS session_settings_new")
+                    conn.commit()
+                except Exception as e:
+                    logger.warning(f"Could not drop session_settings_new table: {e}")
             
             logger.info("Applying Session Settings FK Removal migration...")
             

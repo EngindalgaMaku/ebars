@@ -2006,12 +2006,19 @@ export async function getAPRAGSettings(
     : "";
 
   try {
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
     const res = await fetch(`${getApiUrl()}/aprag/settings/status${params}`, {
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
       // If APRAG service is down or not configured, return disabled
@@ -2038,8 +2045,13 @@ export async function getAPRAGSettings(
 
     return res.json();
   } catch (error) {
-    console.error("Failed to get APRAG settings:", error);
-    // Return disabled if service is unreachable
+    // Handle timeout and network errors gracefully
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn("APRAG settings request timed out, returning disabled state");
+    } else {
+      console.error("Failed to get APRAG settings:", error);
+    }
+    // Return disabled if service is unreachable or timeout
     return {
       enabled: false,
       global_enabled: false,
