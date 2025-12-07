@@ -4941,10 +4941,13 @@ async def proxy_aprag_service(path: str, request: Request):
         # Build target URL
         target_url = f"{APRAG_SERVICE_URL}/api/aprag/{path}"
         
-        logger.info(f"Proxying {request.method} request to APRAG service: {target_url}")
+        logger.info(f"🎯 [API GATEWAY] Proxying {request.method} /api/aprag/{path} to APRAG service: {target_url}")
         
-        # Forward request to APRAG service
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        # Forward request to APRAG service with appropriate timeout
+        timeout_seconds = 60.0 if "simulation/start" in path else 30.0
+        logger.info(f"🎯 [API GATEWAY] Using timeout: {timeout_seconds}s for path: {path}")
+        
+        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
             response = await client.request(
                 method=request.method,
                 url=target_url,
@@ -4956,7 +4959,7 @@ async def proxy_aprag_service(path: str, request: Request):
         # Log response details for debugging
         content_length = len(response.content) if response.content else 0
         content_type = response.headers.get("content-type", "application/json")
-        logger.info(f"APRAG service response: status={response.status_code}, content_length={content_length}, content_type={content_type}")
+        logger.info(f"✅ [API GATEWAY] APRAG service response: status={response.status_code}, content_length={content_length}, content_type={content_type}, path={path}")
         
         # Prepare response headers (exclude content-encoding to avoid issues)
         response_headers = {}
@@ -5010,84 +5013,14 @@ async def proxy_aprag_service(path: str, request: Request):
             raise HTTPException(status_code=500, detail=f"Failed to create response: {str(response_err)}")
         
     except httpx.TimeoutException:
-        logger.error(f"APRAG service timeout for path: {path}")
-        raise HTTPException(status_code=504, detail="APRAG service timeout")
-    except httpx.RequestError as e:
-        logger.error(f"APRAG service request error: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=503, detail=f"APRAG service unavailable: {str(e)}")
-    except Exception as e:
-        logger.error(f"APRAG service proxy error: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"APRAG service proxy failed: {str(e)}")
-
-
-@app.api_route("/api/aprag/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-async def proxy_aprag_service_with_api_prefix(path: str, request: Request):
-    """
-    Proxy APRAG service requests with /api/aprag prefix
-    """
-    try:
-        logger.info(f"🎯 [API GATEWAY] Proxying {request.method} /api/aprag/{path} to APRAG service")
-        # Get request body if present
-        body = None
-        if request.method in ["POST", "PUT", "PATCH"]:
-            try:
-                body = await request.body()
-                logger.info(f"🎯 [API GATEWAY] Request body length: {len(body) if body else 0}")
-            except Exception as e:
-                logger.warning(f"⚠️ [API GATEWAY] Could not read request body: {e}")
-                body = None
-        
-        # Forward headers (including Authorization)
-        headers = dict(request.headers)
-        # Remove host header to avoid conflicts
-        headers.pop("host", None)
-        
-        # Build target URL
-        target_url = f"{APRAG_SERVICE_URL}/api/aprag/{path}"
-        
-        logger.info(f"🎯 [API GATEWAY] Target URL: {target_url}")
-        
-        # Forward request to APRAG service with longer timeout for simulation start
-        timeout_seconds = 60.0 if "simulation/start" in path else 30.0
-        logger.info(f"🎯 [API GATEWAY] Using timeout: {timeout_seconds}s")
-        
-        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
-            try:
-                response = await client.request(
-                    method=request.method,
-                    url=target_url,
-                    content=body,
-                    headers=headers,
-                    params=request.query_params
-                )
-                logger.info(f"✅ [API GATEWAY] APRAG service response: status={response.status_code}, content_length={len(response.content) if response.content else 0}")
-            except httpx.TimeoutException:
-                logger.error(f"❌ [API GATEWAY] APRAG service timeout after {timeout_seconds}s for path: {path}")
-                raise HTTPException(status_code=504, detail=f"APRAG service timeout after {timeout_seconds}s")
-        
-        # Return response from APRAG service
-        return Response(
-            content=response.content,
-            status_code=response.status_code,
-            headers=dict(response.headers),
-            media_type=response.headers.get("content-type", "application/json")
-        )
-        
-    except HTTPException:
-        raise
-    except httpx.TimeoutException:
         logger.error(f"❌ [API GATEWAY] APRAG service timeout for path: {path}", exc_info=True)
         raise HTTPException(status_code=504, detail="APRAG service timeout")
     except httpx.RequestError as e:
-        logger.error(f"❌ [API GATEWAY] APRAG service request error: {e}", exc_info=True)
+        logger.error(f"❌ [API GATEWAY] APRAG service request error for path {path}: {e}", exc_info=True)
         raise HTTPException(status_code=503, detail=f"APRAG service unavailable: {str(e)}")
     except Exception as e:
-        logger.error(f"❌ [API GATEWAY] APRAG proxy error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"APRAG proxy error: {str(e)}")
+        logger.error(f"❌ [API GATEWAY] APRAG service proxy error for path {path}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"APRAG service proxy failed: {str(e)}")
 
 
 if __name__ == "__main__":

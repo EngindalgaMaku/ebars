@@ -131,3 +131,4 @@ docker compose logs -f model-inference-service
 
 
 
+
