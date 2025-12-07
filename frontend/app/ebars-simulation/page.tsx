@@ -253,6 +253,12 @@ export default function EBARSSimulationPage() {
 
       console.log("✅ [FRONTEND] Simulation started successfully:", data.simulation_id);
       setCurrentSimulation(data);
+      
+      // Store simulation_id in localStorage for results tab
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('last_simulation_id', data.simulation_id);
+      }
+      
       setActiveTab("monitoring");
       toast.success("Simülasyon başlatıldı!");
 
@@ -804,34 +810,39 @@ export default function EBARSSimulationPage() {
           {/* Results Tab */}
           <TabsContent value="results" className="space-y-6">
             {(() => {
+              // Try to get simulation_id from multiple sources
+              const simulationIdFromState = currentSimulation?.simulation_id;
+              const simulationIdFromStorage = typeof window !== 'undefined' 
+                ? localStorage.getItem('last_simulation_id') 
+                : null;
+              const simulationId = simulationIdFromState || simulationIdFromStorage;
+              
               const status = currentSimulation?.status?.toLowerCase() || "";
               const isCompleted = status === "completed";
               const isFailed = status === "failed";
               const isStopped = status === "stopped";
-              const showResults = currentSimulation?.simulation_id && (isCompleted || isFailed || isStopped);
               
               console.log("🔍 [RESULTS TAB] Status check:", {
+                currentSimulation,
                 status: currentSimulation?.status,
                 statusLower: status,
                 isCompleted,
                 isFailed,
                 isStopped,
-                showResults,
-                simulationId: currentSimulation?.simulation_id
+                simulationIdFromState,
+                simulationIdFromStorage,
+                simulationId,
+                hasCurrentSimulation: !!currentSimulation
               });
               
-              // If we have a simulation_id but status is not set, try to show results anyway
-              // (maybe status endpoint hasn't updated yet but results are available)
-              if (currentSimulation?.simulation_id && !showResults) {
-                console.log("⚠️ [RESULTS TAB] Status not completed, but trying to load results anyway...");
+              // If we have a simulation_id, try to load results
+              // Results endpoint will handle the case if simulation is not completed
+              if (simulationId) {
+                console.log("✅ [RESULTS TAB] Loading results for simulation:", simulationId);
+                return <SimulationResultsView simulationId={simulationId} />;
               }
               
-              return showResults ? (
-                <SimulationResultsView simulationId={currentSimulation.simulation_id} />
-              ) : currentSimulation?.simulation_id ? (
-                // If we have simulation_id, try loading results anyway (maybe status is stale)
-                <SimulationResultsView simulationId={currentSimulation.simulation_id} />
-              ) : (
+              return (
                 <Card>
                   <CardContent className="text-center py-12">
                     <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
