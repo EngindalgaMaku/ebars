@@ -43,8 +43,40 @@ export function useEducationAssistant() {
 
   // Session Management
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
+  const [selectedSessionId, setSelectedSessionIdInternal] = useState<string>("");
   const [sessionRagSettings, setSessionRagSettings] = useState<any>(null);
+
+  // localStorage utility for selected session
+  const loadSelectedSession = useCallback((): string => {
+    try {
+      const saved = localStorage.getItem("education-assistant-selected-session");
+      return saved || "";
+    } catch (error) {
+      console.log("Selected session load error:", error);
+      return "";
+    }
+  }, []);
+
+  const saveSelectedSession = useCallback((sessionId: string) => {
+    try {
+      if (sessionId) {
+        localStorage.setItem("education-assistant-selected-session", sessionId);
+      } else {
+        localStorage.removeItem("education-assistant-selected-session");
+      }
+    } catch (error) {
+      console.log("Selected session save error:", error);
+    }
+  }, []);
+
+  // Wrapper for setSelectedSessionId that also saves to localStorage
+  const setSelectedSessionId = useCallback(
+    (sessionId: string) => {
+      setSelectedSessionIdInternal(sessionId);
+      saveSelectedSession(sessionId);
+    },
+    [saveSelectedSession]
+  );
 
   // Chat & Query States
   const [query, setQuery] = useState("");
@@ -201,20 +233,34 @@ export function useEducationAssistant() {
       const data = await listSessions();
       setSessions(data);
 
-      // Auto-select session only for teachers
+      // Only auto-select if no session is currently selected
       if (!selectedSessionId && data.length > 0 && !isStudent) {
-        const sortedSessions = [...data].sort(
-          (a, b) =>
-            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-        );
-        setSelectedSessionId(sortedSessions[0].session_id);
+        // First try to load saved session from localStorage
+        const savedSessionId = loadSelectedSession();
+        const savedSession = savedSessionId 
+          ? data.find((s) => s.session_id === savedSessionId && s.status === "active")
+          : null;
+        
+        if (savedSession) {
+          setSelectedSessionId(savedSessionId);
+        } else {
+          // Auto-select most recent active session
+          const sortedSessions = [...data].sort(
+            (a, b) =>
+              new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+          );
+          const firstActiveSession = sortedSessions.find((s) => s.status === "active");
+          if (firstActiveSession) {
+            setSelectedSessionId(firstActiveSession.session_id);
+          }
+        }
       }
     } catch (e: any) {
       setError(e.message || "Oturumlar yüklenemedi");
     } finally {
       setLoading(false);
     }
-  }, [selectedSessionId, isStudent]);
+  }, [selectedSessionId, isStudent, loadSelectedSession, setSelectedSessionId]);
 
   // Load session RAG settings
   const loadSessionRagSettings = useCallback(async () => {
@@ -592,13 +638,19 @@ export function useEducationAssistant() {
     setSourceModalOpen(false);
   }, []);
 
-  // Load chat history from localStorage on component mount
+  // Load chat history and selected session from localStorage on component mount
   useEffect(() => {
     const savedHistory = loadChatHistory();
     if (savedHistory.length > 0) {
       setChatHistory(savedHistory);
     }
-  }, [loadChatHistory]);
+    
+    // Load saved session ID (only set internal state, don't trigger save)
+    const savedSessionId = loadSelectedSession();
+    if (savedSessionId) {
+      setSelectedSessionIdInternal(savedSessionId);
+    }
+  }, [loadChatHistory, loadSelectedSession]);
 
   // Save chat history to localStorage whenever it changes
   useEffect(() => {
