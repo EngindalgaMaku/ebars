@@ -93,19 +93,19 @@ class SimulationAgent:
             # Use internal Docker network URL instead of localhost for container communication
             api_base_url = "http://aprag-service:8007"  # Use internal Docker network URL
             
-            import requests
-            # Use longer timeout for simulation queries (120 seconds)
-            # Also add X-Internal-Service header to bypass auth
-            response = requests.post(
-                f"{api_base_url}/api/aprag/hybrid-rag/query",
-                json={
-                    "user_id": self.user_id,
-                    "session_id": self.session_id,
-                    "query": question
-                },
-                headers={"X-Internal-Service": "true"},
-                timeout=120  # Increased timeout for simulation
-            )
+            # Use httpx.AsyncClient for TRUE async/parallel execution (not blocking)
+            # This allows multiple agents to query simultaneously without blocking each other
+            import httpx
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    f"{api_base_url}/api/aprag/hybrid-rag/query",
+                    json={
+                        "user_id": self.user_id,
+                        "session_id": self.session_id,
+                        "query": question
+                    },
+                    headers={"X-Internal-Service": "true"}
+                )
             
             processing_time = (time.time() - start_time) * 1000
             
@@ -413,16 +413,31 @@ class EBARSSimulation:
                     status_message=f"Running turn {turn}/{num_turns}"
                 )
                 
-                # Run turn for each agent
+                # Run turn for each agent IN PARALLEL
+                logger.info(f"🔄 [TURN {turn}] Running {len(self.agents)} agents in parallel...")
                 agents_completed = 0
+                
+                # Create tasks for all agents to run in parallel
+                agent_tasks = []
                 for agent in self.agents:
-                    try:
-                        await agent.run_turn(self.simulation_id, question)
+                    task = asyncio.create_task(
+                        agent.run_turn(self.simulation_id, question)
+                    )
+                    agent_tasks.append((agent, task))
+                
+                # Wait for all agents to complete in parallel
+                results = await asyncio.gather(
+                    *[task for _, task in agent_tasks],
+                    return_exceptions=True
+                )
+                
+                # Process results
+                for (agent, task), result in zip(agent_tasks, results):
+                    if isinstance(result, Exception):
+                        logger.error(f"❌ Agent {agent.agent_id} failed on turn {turn}: {result}")
+                    else:
                         agents_completed += 1
-                        await asyncio.sleep(1)  # Small delay between agents
-                    except Exception as e:
-                        logger.error(f"❌ Agent {agent.agent_id} failed on turn {turn}: {e}")
-                        # Continue with other agents
+                        logger.info(f"✅ Agent {agent.agent_id} completed turn {turn}")
                 
                 # Update progress after turn
                 self.db_manager.update_progress(

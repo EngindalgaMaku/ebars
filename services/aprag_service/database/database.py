@@ -44,6 +44,10 @@ class DatabaseManager:
         Yields:
             sqlite3.Connection: Database connection
         """
+        # Ensure database is initialized (only once per process)
+        if not hasattr(self, '_migrations_applied') or not self._migrations_applied.is_set():
+            self.init_database()
+        
         conn = sqlite3.connect(
             self.db_path,
             timeout=30.0,
