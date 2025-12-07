@@ -208,7 +208,7 @@ export default function EBARSSimulationPage() {
             } else if (statusLower === "failed") {
               toast.error("Simülasyon başarısız oldu");
             } else {
-              toast.warning("Simülasyon durduruldu");
+              toast.info("Simülasyon durduruldu");
             }
           }
         } else {
