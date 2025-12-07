@@ -168,10 +168,20 @@ export default function EBARSSimulationPage() {
           console.log("📊 Simulation status update:", status);
           setCurrentSimulation(status);
 
-          if (status.status === "COMPLETED" || status.status === "FAILED" || status.status === "stopped") {
+          const statusLower = status.status?.toLowerCase();
+          if (statusLower === "completed" || statusLower === "failed" || statusLower === "stopped") {
             clearInterval(intervalId);
             setIsRunning(false);
-            if (status.status === "COMPLETED" || status.status === "completed") {
+            
+            // Update currentSimulation state with latest status
+            setCurrentSimulation(prev => prev ? {
+              ...prev,
+              status: status.status,
+              current_turn: status.current_turn,
+              total_turns: status.total_turns
+            } : null);
+            
+            if (statusLower === "completed") {
               toast.success("Simülasyon tamamlandı!");
             } else {
               toast.error("Simülasyon durduruldu");
@@ -793,31 +803,57 @@ export default function EBARSSimulationPage() {
 
           {/* Results Tab */}
           <TabsContent value="results" className="space-y-6">
-            {currentSimulation && 
-             currentSimulation.simulation_id && 
-             (currentSimulation.status?.toUpperCase() === "COMPLETED" || 
-              currentSimulation.status?.toLowerCase() === "completed" ||
-              currentSimulation.status?.toUpperCase() === "FAILED" ||
-              currentSimulation.status?.toLowerCase() === "failed" ||
-              currentSimulation.status?.toLowerCase() === "stopped") ? (
-              <SimulationResultsView simulationId={currentSimulation.simulation_id} />
-            ) : (
-              <Card>
-                <CardContent className="text-center py-12">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    {currentSimulation?.status === "RUNNING" || currentSimulation?.status === "running"
-                      ? "Simülasyon Devam Ediyor"
-                      : "Henüz Sonuç Yok"}
-                  </h3>
-                  <p className="text-gray-500 mb-4">
-                    {currentSimulation?.status === "RUNNING" || currentSimulation?.status === "running"
-                      ? "Sonuçları görmek için simülasyonun tamamlanmasını bekleyin."
-                      : "Sonuçları görmek için önce bir simülasyon başlatın ve tamamlayın."}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+            {(() => {
+              const status = currentSimulation?.status?.toLowerCase() || "";
+              const isCompleted = status === "completed";
+              const isFailed = status === "failed";
+              const isStopped = status === "stopped";
+              const showResults = currentSimulation?.simulation_id && (isCompleted || isFailed || isStopped);
+              
+              console.log("🔍 [RESULTS TAB] Status check:", {
+                status: currentSimulation?.status,
+                statusLower: status,
+                isCompleted,
+                isFailed,
+                isStopped,
+                showResults,
+                simulationId: currentSimulation?.simulation_id
+              });
+              
+              // If we have a simulation_id but status is not set, try to show results anyway
+              // (maybe status endpoint hasn't updated yet but results are available)
+              if (currentSimulation?.simulation_id && !showResults) {
+                console.log("⚠️ [RESULTS TAB] Status not completed, but trying to load results anyway...");
+              }
+              
+              return showResults ? (
+                <SimulationResultsView simulationId={currentSimulation.simulation_id} />
+              ) : currentSimulation?.simulation_id ? (
+                // If we have simulation_id, try loading results anyway (maybe status is stale)
+                <SimulationResultsView simulationId={currentSimulation.simulation_id} />
+              ) : (
+                <Card>
+                  <CardContent className="text-center py-12">
+                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      {currentSimulation?.status?.toLowerCase() === "running"
+                        ? "Simülasyon Devam Ediyor"
+                        : "Henüz Sonuç Yok"}
+                    </h3>
+                    <p className="text-gray-500 mb-4">
+                      {currentSimulation?.status?.toLowerCase() === "running"
+                        ? "Sonuçları görmek için simülasyonun tamamlanmasını bekleyin."
+                        : `Sonuçları görmek için önce bir simülasyon başlatın ve tamamlayın. (Mevcut durum: ${currentSimulation?.status || "bilinmiyor"})`}
+                    </p>
+                    {currentSimulation?.simulation_id && (
+                      <p className="text-xs text-gray-400 mt-2">
+                        Simulation ID: {currentSimulation.simulation_id}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </TabsContent>
         </Tabs>
       </div>
