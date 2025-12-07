@@ -1356,7 +1356,7 @@ Aynı soru için 5 farklı zorluk seviyesinde cevap üret:
                 "json_mode": True,  # Force JSON output
                 "response_format": {"type": "json_object"}  # Structured output
             },
-            timeout=120
+            timeout=60  # Reduced timeout - fail faster if service is down
         )
         
         if response.status_code != 200:
@@ -1893,7 +1893,7 @@ SADECE JSON çıktısı ver, başka açıklama yapma."""
                 "json_mode": True,  # Force JSON output
                 "response_format": {"type": "json_object"}  # Structured output
             },
-            timeout=120
+            timeout=60  # Reduced timeout - fail faster if service is down
         )
         
         if response.status_code != 200:

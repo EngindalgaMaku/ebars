@@ -240,6 +240,8 @@ services:
       - CHROMADB_URL=${CHROMADB_URL:-http://${CHROMADB_HOST:-chromadb-service}:${CHROMADB_PORT:-8000}}
       - CHROMA_SERVICE_URL=${CHROMA_SERVICE_URL:-http://${CHROMADB_HOST:-chromadb-service}:${CHROMADB_PORT:-8000}}
       - GROQ_API_KEY=${GROQ_API_KEY}
+      # CRITICAL FIX: Use internal HTTP URL for API Gateway (not external HTTPS)
+      - API_GATEWAY_URL=${API_GATEWAY_URL:-http://api-gateway:8000}
     volumes:
       - session_data:/app/sessions
       # Mount source code for hot reload during development

@@ -1030,7 +1030,7 @@ async def rag_query(request: RAGQueryRequest):
                 try:
                     # Try to get session rag_settings to check if reranker is explicitly enabled
                     session_response = requests.get(
-                        f"{os.getenv('API_GATEWAY_URL', 'http://api-gateway:8001')}/sessions/{request.session_id}",
+                        f"{os.getenv('API_GATEWAY_URL', 'http://api-gateway:8000')}/sessions/{request.session_id}",
                         timeout=5
                     )
                     if session_response.status_code == 200:
@@ -1118,7 +1118,7 @@ async def rag_query(request: RAGQueryRequest):
                     try:
                         # Try to get session rag_settings from API Gateway for reranker_type
                         session_response = requests.get(
-                            f"{os.getenv('API_GATEWAY_URL', 'http://api-gateway:8001')}/sessions/{request.session_id}",
+                            f"{os.getenv('API_GATEWAY_URL', 'http://api-gateway:8000')}/sessions/{request.session_id}",
                             timeout=5
                         )
                         if session_response.status_code == 200:
@@ -1171,7 +1171,7 @@ async def rag_query(request: RAGQueryRequest):
                     min_score_threshold = 0.4  # Default
                     try:
                         session_response = requests.get(
-                            f"{os.getenv('API_GATEWAY_URL', 'http://api-gateway:8001')}/sessions/{request.session_id}",
+                            f"{os.getenv('API_GATEWAY_URL', 'http://api-gateway:8000')}/sessions/{request.session_id}",
                             timeout=5
                         )
                         if session_response.status_code == 200:

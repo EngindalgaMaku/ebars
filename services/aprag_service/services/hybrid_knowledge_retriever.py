@@ -488,11 +488,21 @@ En alakalı 1-3 konu seç. Sadece JSON çıktısı ver."""
             
             logger.info(f"🔍 Using embedding model: {embedding_model} for chunk retrieval")
             
-            response = requests.post(
-                f"{DOCUMENT_PROCESSING_URL}/query",
-                json=payload,
-                timeout=120  # Increased timeout for simulation queries
-            )
+            try:
+                response = requests.post(
+                    f"{DOCUMENT_PROCESSING_URL}/query",
+                    json=payload,
+                    timeout=60  # Reduced timeout - fail faster if service is down
+                )
+            except requests.exceptions.Timeout:
+                logger.error(f"⏱️ Timeout: Document-processing-service did not respond within 60 seconds")
+                raise Exception(f"Document processing service timeout. The service may be overloaded or unavailable. Please try again later.")
+            except requests.exceptions.ConnectionError as e:
+                logger.error(f"❌ Connection error: Cannot connect to document-processing-service at {DOCUMENT_PROCESSING_URL}")
+                raise Exception(f"Document processing service is not available. Please ensure the service is running.")
+            except Exception as e:
+                logger.error(f"❌ Unexpected error calling document-processing-service: {e}")
+                raise Exception(f"Failed to communicate with document processing service: {str(e)}")
             
             if response.status_code == 200:
                 data = response.json()
