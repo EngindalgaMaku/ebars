@@ -99,7 +99,7 @@ export default function EBARSSimulationPage() {
   const [config, setConfig] = useState<EBARSSimulationConfig>({
     session_id: "",
     num_agents: 3,
-    num_turns: 5,
+    num_turns: 10,  // Increased default turns for better results
     initial_difficulty: "INTERMEDIATE",
     adaptive_threshold: 0.7,
     feedback_mode: "AUTO",

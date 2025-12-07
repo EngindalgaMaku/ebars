@@ -107,7 +107,7 @@ class SubmitAnswerPreferenceRequest(BaseModel):
 class StartSimulationRequest(BaseModel):
     """Request model for starting a simulation"""
     session_id: str
-    num_turns: int = 20
+    num_turns: int = 10  # Default 10 turns for better results
     num_agents: int = 3
     questions: Optional[List[str]] = None
     config: Optional[Dict[str, Any]] = None
@@ -2272,10 +2272,12 @@ async def start_simulation(
             }
         ]
         
-        logger.info(f"🔧 [START ENDPOINT] Adding {request.num_agents} agents...")
-        for agent_config in agents_config[:request.num_agents]:
+        logger.info(f"🔧 [START ENDPOINT] Adding {request.num_agents} agents (available: {len(agents_config)})...")
+        agents_to_add = agents_config[:request.num_agents]
+        logger.info(f"🔧 [START ENDPOINT] Agents to add: {[a['agent_name'] for a in agents_to_add]}")
+        for agent_config in agents_to_add:
             simulation.add_agent(**agent_config)
-        logger.info(f"✅ [START ENDPOINT] Added {len(simulation.agents)} agents")
+        logger.info(f"✅ [START ENDPOINT] Added {len(simulation.agents)} agents: {[a.agent_name for a in simulation.agents]}")
         
         # Start simulation directly in background task
         # This is the CRITICAL FIX - use FastAPI's BackgroundTasks instead of asyncio.create_task

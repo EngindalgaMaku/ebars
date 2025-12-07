@@ -491,7 +491,7 @@ En alakalı 1-3 konu seç. Sadece JSON çıktısı ver."""
             response = requests.post(
                 f"{DOCUMENT_PROCESSING_URL}/query",
                 json=payload,
-                timeout=60  # Increased from 30 to 60 to handle slow LLM responses
+                timeout=120  # Increased timeout for simulation queries
             )
             
             if response.status_code == 200:

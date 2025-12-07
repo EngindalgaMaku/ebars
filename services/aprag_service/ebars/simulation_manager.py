@@ -94,6 +94,8 @@ class SimulationAgent:
             api_base_url = "http://aprag-service:8007"  # Use internal Docker network URL
             
             import requests
+            # Use longer timeout for simulation queries (120 seconds)
+            # Also add X-Internal-Service header to bypass auth
             response = requests.post(
                 f"{api_base_url}/api/aprag/hybrid-rag/query",
                 json={
@@ -101,7 +103,8 @@ class SimulationAgent:
                     "session_id": self.session_id,
                     "query": question
                 },
-                timeout=60
+                headers={"X-Internal-Service": "true"},
+                timeout=120  # Increased timeout for simulation
             )
             
             processing_time = (time.time() - start_time) * 1000
