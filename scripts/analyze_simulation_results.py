@@ -13,14 +13,20 @@ import statistics
 def get_db_path():
     """Database path'i bul - Docker ve local için"""
     # Önce environment variable'dan kontrol et
-    db_path = os.getenv("APRAG_DB_PATH") or os.getenv("DB_PATH")
+    db_path = os.getenv("APRAG_DB_PATH") or os.getenv("DB_PATH") or os.getenv("DATABASE_PATH")
     if db_path and os.path.exists(db_path):
         return db_path
     
+    # Script'in bulunduğu dizini bul
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)  # scripts/ -> project root
+    
     # Sonra olası path'leri kontrol et
     possible_paths = [
-        "/app/data/rag_assistant.db",  # Docker container path
-        "data/rag_assistant.db",  # Local path
+        "/app/data/rag_assistant.db",  # Docker container path (production)
+        os.path.join(project_root, "services", "aprag_service", "data", "rag_assistant.db"),  # Local path
+        os.path.join(project_root, "data", "rag_assistant.db"),  # Alternative local path
+        "data/rag_assistant.db",  # Relative path
         "../data/rag_assistant.db",
         "../../data/rag_assistant.db",
         "/data/rag_assistant.db",  # Alternative Docker path

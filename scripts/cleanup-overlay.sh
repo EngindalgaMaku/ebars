@@ -119,3 +119,4 @@ echo "   2. Remove specific containers: docker rm CONTAINER_ID"
 echo "   3. Check for orphaned volumes: docker volume ls"
 echo "   4. Restart Docker daemon: sudo systemctl restart docker"
 
+

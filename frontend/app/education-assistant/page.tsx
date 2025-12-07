@@ -322,21 +322,32 @@ function EducationAssistantContent() {
                   onSuggestionClick={handleSuggestionClick}
                 />
 
-                {/* Loading Indicators */}
-                <div className="space-y-3 mt-4">
-                  <QueryLoadingIndicator
-                    isLoading={isQuerying}
-                    message="Sorgunuz işleniyor..."
-                  />
-
-                  <SuggestionsLoadingIndicator
-                    isLoading={isSuggestionsLoading}
-                  />
-
-                  <RAGProcessingIndicator
-                    isLoading={isQuerying && ragProcessingStage !== undefined}
-                    stage={ragProcessingStage}
-                  />
+                {/* Loading Indicators - Only show one at a time */}
+                <div className="mt-4">
+                  {/* Priority 1: RAG Processing (if stage is available) */}
+                  {isQuerying && ragProcessingStage !== undefined ? (
+                    <RAGProcessingIndicator
+                      isLoading={true}
+                      stage={ragProcessingStage}
+                    />
+                  ) : (
+                    <>
+                      {/* Priority 2: Query Loading (if querying but no RAG stage) */}
+                      {isQuerying && (
+                        <QueryLoadingIndicator
+                          isLoading={true}
+                          message="Sorgunuz işleniyor..."
+                        />
+                      )}
+                      
+                      {/* Priority 3: Suggestions Loading (only if not querying) */}
+                      {!isQuerying && (
+                        <SuggestionsLoadingIndicator
+                          isLoading={isSuggestionsLoading}
+                        />
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             </div>

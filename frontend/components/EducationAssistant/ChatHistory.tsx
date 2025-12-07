@@ -610,8 +610,7 @@ export default function ChatHistory({
           {messages.map((message, index) => renderMessage(message, index))}
         </div>
 
-        {/* Loading indicator if currently querying */}
-        {isLoading && <div className="mt-4">{renderLoadingState()}</div>}
+        {/* Loading indicator removed - shown in QueryForm instead to avoid duplicate animations */}
       </div>
 
       {/* Scroll to Bottom Button */}

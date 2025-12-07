@@ -84,3 +84,4 @@ RERANKER_TYPE=bge  # ❌ Cloud API kullanıyorsanız gereksiz
 
 
 
+

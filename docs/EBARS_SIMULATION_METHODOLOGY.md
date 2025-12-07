@@ -155,25 +155,49 @@ Sistemin adaptasyon performansı aşağıdaki metriklerle ölçülmüştür:
 
 ### 5.2. Grafiksel Gösterim
 
-Makale için aşağıdaki grafikler hazırlanmalıdır:
+Makale için aşağıdaki grafikler otomatik olarak oluşturulabilir:
 
-1. **Anlama Skoru Trend Grafiği:**
+**Grafik Oluşturma Script'i:** `scripts/generate_simulation_charts.py`
+
+**Kullanım:**
+```bash
+# Server'da (Docker)
+docker exec aprag-service-prod python /app/scripts/generate_simulation_charts.py
+
+# Local'de
+python scripts/generate_simulation_charts.py
+```
+
+**Oluşturulan Grafikler:**
+
+1. **Şekil 4.1: Adaptasyon Başarısı (Anlama Skoru Trend Grafiği)**
+   - Dosya: `docs/charts/Sekil_4_1_Adaptasyon.png`
    - X ekseni: Turn numarası
-   - Y ekseni: Anlama skoru
-   - Her ajan için farklı renk çizgi
+   - Y ekseni: Anlama skoru (0-100)
+   - Her ajan için farklı renk çizgi:
+     - Ajan A (Zorlanan) - Scaffolding: Kırmızı
+     - Ajan B (Hızlı) - Promotion: Yeşil
+     - Ajan C (Dalgalı): Turuncu
 
-2. **Zorluk Seviyesi Değişim Grafiği:**
+2. **Şekil 4.2: Kararlılık Analizi (Ajan C Puan Değişimi)**
+   - Dosya: `docs/charts/Sekil_4_2_Kararlilik.png`
+   - X ekseni: Turn numarası
+   - Y ekseni: Anlama puanı
+   - Kritik eşik çizgileri (Histerezis bölgeleri)
+   - Zorluk seviyesi bölgeleri renklendirilmiş
+
+3. **Şekil 4.3: Zorluk Seviyesi Geçişleri**
+   - Dosya: `docs/charts/Sekil_4_3_Seviye_Gecisleri.png`
    - X ekseni: Turn numarası
    - Y ekseni: Zorluk seviyesi (kategorik)
    - Her ajan için farklı renk çizgi
+   - Agentlar arası adaptasyon karşılaştırması
 
-3. **Skor Delta Dağılımı:**
-   - Histogram veya box plot
-   - Ajanlar arası karşılaştırma
-
-4. **Transition Matrisi:**
-   - Zorluk seviyesi geçişlerinin görselleştirilmesi
-   - Ajanlar arası karşılaştırma
+**Grafik Özellikleri:**
+- Yüksek çözünürlük (300 DPI) - Akademik yayın kalitesi
+- Profesyonel görünüm ve format
+- Türkçe etiketler ve başlıklar
+- Makale için hazır format
 
 ## 6. Metodolojik Sınırlamalar
 

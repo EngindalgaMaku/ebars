@@ -1,7 +1,7 @@
-# EBARS Simulasyon Analiz Script'i - PowerShell (Windows)
+# EBARS Simulasyon Grafikleri Olustur - PowerShell (Windows)
 # Encoding: UTF-8
 
-Write-Host "EBARS Simulasyon Sonuclarini Analiz Ediyorum..." -ForegroundColor Cyan
+Write-Host "EBARS Simulasyon Grafiklerini Olusturuyorum..." -ForegroundColor Cyan
 Write-Host ""
 
 # Docker container kontrolu
@@ -13,7 +13,7 @@ $ErrorActionPreference = "Continue"
 if ($LASTEXITCODE -eq 0 -and $containerCheck -like "*aprag-service-prod*") {
     $dockerRunning = $true
     Write-Host "Docker container bulundu, container icinde calistiriliyor..." -ForegroundColor Yellow
-    docker exec aprag-service-prod python /app/scripts/analyze_simulation_results.py
+    docker exec aprag-service-prod python /app/scripts/generate_simulation_charts.py
     if ($LASTEXITCODE -ne 0) {
         $dockerRunning = $false
         Write-Host "Docker container'da calistirma basarisiz, local'de deneniyor..." -ForegroundColor Yellow
@@ -29,16 +29,16 @@ if (-not $dockerRunning) {
     $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
     $projectRoot = Split-Path -Parent $scriptPath
     Set-Location $projectRoot
-    python scripts/analyze_simulation_results.py
+    python scripts/generate_simulation_charts.py
 }
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
-    Write-Host "Analiz tamamlandi!" -ForegroundColor Green
-    Write-Host "Rapor: docs/SIMULATION_RESULTS_ANALYSIS.md" -ForegroundColor Yellow
+    Write-Host "Grafikler olusturuldu!" -ForegroundColor Green
+    Write-Host "Konum: docs/charts/" -ForegroundColor Yellow
 } else {
     Write-Host ""
-    Write-Host "Hata: Analiz tamamlanamadi! (Exit code: $LASTEXITCODE)" -ForegroundColor Red
+    Write-Host "Hata: Grafikler olusturulamadi! (Exit code: $LASTEXITCODE)" -ForegroundColor Red
     Write-Host "Not: Docker Desktop'in calistigindan veya local database'in mevcut oldugundan emin olun." -ForegroundColor Yellow
     exit 1
 }

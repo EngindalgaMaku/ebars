@@ -62,3 +62,4 @@ echo "   1. Restart Docker daemon: sudo systemctl restart docker"
 echo "   2. Check for Docker system issues: docker system events"
 echo "   3. Consider removing specific large images manually"
 
+
