@@ -113,7 +113,8 @@ class DatabaseManager:
                     self.apply_session_settings_fk_removal_migration(conn)
                     self.apply_document_global_scores_migration(conn)
                     self.apply_avg_emoji_score_migration(conn)
-                    self.apply_analytics_views(conn)
+                    # Skip analytics views during startup - they will be created on first use
+                    # self.apply_analytics_views(conn)  # Deferred to avoid startup delays
                     self.apply_knowledge_base_tables_migration(conn)
                     self.apply_ebars_migration(conn)
                     self.apply_initial_test_tracking_migration(conn)
@@ -965,12 +966,34 @@ class DatabaseManager:
         except Exception as e:
             logger.warning(f"Failed to apply Detailed Feedback migration (non-critical): {e}")
     
-    def apply_analytics_views(self, conn: sqlite3.Connection):
-        """Apply Topic Analytics Views"""
+    def apply_analytics_views(self, conn: sqlite3.Connection, force: bool = False):
+        """Apply Topic Analytics Views
+        
+        Args:
+            conn: Database connection
+            force: If True, recreate views even if they exist
+        """
         try:
+            # Check if views already exist
+            if not force:
+                cursor = conn.execute("""
+                    SELECT name FROM sqlite_master
+                    WHERE type='view' AND name IN (
+                        'topic_mastery_analytics',
+                        'student_topic_progress_analytics',
+                        'topic_difficulty_analysis',
+                        'topic_recommendation_insights'
+                    )
+                """)
+                existing_views = [row[0] for row in cursor.fetchall()]
+                if len(existing_views) == 4:
+                    logger.info("Topic Analytics Views already exist, skipping creation")
+                    return
+            
             logger.info("Applying Topic Analytics Views...")
             
             # Drop existing views first to ensure they're updated
+            logger.debug("Dropping existing analytics views...")
             drop_views_sql = """
                 DROP VIEW IF EXISTS topic_mastery_analytics;
                 DROP VIEW IF EXISTS student_topic_progress_analytics;
@@ -978,23 +1001,43 @@ class DatabaseManager:
                 DROP VIEW IF EXISTS topic_recommendation_insights;
             """
             conn.executescript(drop_views_sql)
+            logger.debug("Existing views dropped")
             
             # Read analytics views SQL file
             views_path = os.path.join(os.path.dirname(__file__), "topic_analytics_views.sql")
             
-            if os.path.exists(views_path):
-                with open(views_path, 'r', encoding='utf-8') as f:
-                    views_sql = f.read()
-                
-                # Execute views creation
-                conn.executescript(views_sql)
-                conn.commit()
-                logger.info("Topic Analytics Views applied successfully")
-            else:
+            if not os.path.exists(views_path):
                 logger.warning(f"Topic Analytics Views file not found at: {views_path}")
+                return
+            
+            logger.debug(f"Reading SQL file from: {views_path}")
+            with open(views_path, 'r', encoding='utf-8') as f:
+                views_sql = f.read()
+            
+            # Split SQL into individual view creation statements for better error handling
+            # SQLite views are separated by semicolons
+            view_statements = [stmt.strip() for stmt in views_sql.split(';') if stmt.strip() and not stmt.strip().startswith('--')]
+            
+            logger.debug(f"Creating {len(view_statements)} view statements...")
+            
+            # Execute each view creation separately for better error tracking
+            for i, statement in enumerate(view_statements, 1):
+                if not statement:
+                    continue
+                try:
+                    logger.debug(f"Executing view statement {i}/{len(view_statements)}...")
+                    conn.execute(statement)
+                    conn.commit()
+                    logger.debug(f"View statement {i} completed successfully")
+                except Exception as e:
+                    logger.warning(f"Error executing view statement {i}: {e}")
+                    # Continue with other views even if one fails
+                    conn.rollback()
+            
+            logger.info("Topic Analytics Views applied successfully")
                 
         except Exception as e:
-            logger.warning(f"Failed to apply Topic Analytics Views (non-critical): {e}")
+            logger.warning(f"Failed to apply Topic Analytics Views (non-critical): {e}", exc_info=True)
     
     def apply_session_settings_migration(self, conn: sqlite3.Connection):
         """Apply Session Settings migration (006_create_session_settings.sql)"""

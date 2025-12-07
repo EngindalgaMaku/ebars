@@ -42,6 +42,28 @@ class AnalyticsResponse(BaseModel):
     time_analysis: Dict[str, Any]
 
 
+def ensure_analytics_views(db: DatabaseManager):
+    """Ensure analytics views are created (lazy loading)"""
+    try:
+        with db.get_connection() as conn:
+            # Check if views exist
+            cursor = conn.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='view' AND name IN (
+                    'topic_mastery_analytics',
+                    'student_topic_progress_analytics',
+                    'topic_difficulty_analysis',
+                    'topic_recommendation_insights'
+                )
+            """)
+            existing_views = [row[0] for row in cursor.fetchall()]
+            if len(existing_views) < 4:
+                logger.info("Analytics views not found, creating them now...")
+                db.apply_analytics_views(conn, force=False)
+    except Exception as e:
+        logger.warning(f"Failed to ensure analytics views exist: {e}")
+
+
 def get_db() -> DatabaseManager:
     """Dependency to get database manager"""
     global db_manager
@@ -461,6 +483,9 @@ async def get_topic_mastery_overview(
     Returns heatmap data showing student performance across topics
     """
     try:
+        # Ensure analytics views exist (lazy loading)
+        ensure_analytics_views(db)
+        
         # Get topic mastery analytics from view
         query = """
             SELECT
@@ -541,6 +566,9 @@ async def get_student_topic_progress(
     Get individual student progress across topics
     """
     try:
+        # Ensure analytics views exist (lazy loading)
+        ensure_analytics_views(db)
+        
         # Build query with optional session filter
         base_query = """
             SELECT
@@ -623,6 +651,9 @@ async def get_topic_difficulty_analysis(
     Analyze topic difficulty vs student performance correlation
     """
     try:
+        # Ensure analytics views exist (lazy loading)
+        ensure_analytics_views(db)
+        
         # Build query with optional session filter
         base_query = """
             SELECT
@@ -710,6 +741,9 @@ async def get_topic_recommendation_insights(
     Get AI-powered topic recommendations and intervention strategies
     """
     try:
+        # Ensure analytics views exist (lazy loading)
+        ensure_analytics_views(db)
+        
         # Get recommendation insights from view
         query = """
             SELECT
