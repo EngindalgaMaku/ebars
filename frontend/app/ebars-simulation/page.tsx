@@ -166,6 +166,27 @@ export default function EBARSSimulationPage() {
         if (response.ok) {
           const status = await response.json();
           console.log("📊 Simulation status update:", status);
+          
+          // Calculate completion percentage if not provided by backend
+          if (status.completion_percentage === undefined || status.completion_percentage === null) {
+            const currentTurn = status.current_turn || 0;
+            const totalTurns = status.num_turns || status.total_turns || 1;
+            if (status.status?.toLowerCase() === 'completed' || 
+                status.status?.toLowerCase() === 'failed' || 
+                status.status?.toLowerCase() === 'stopped') {
+              status.completion_percentage = 100.0;
+            } else if (currentTurn > 0 && totalTurns > 0) {
+              status.completion_percentage = Math.min(100.0, (currentTurn / totalTurns) * 100.0);
+            } else {
+              status.completion_percentage = 0.0;
+            }
+          }
+          
+          // Ensure total_turns is set
+          if (!status.total_turns && status.num_turns) {
+            status.total_turns = status.num_turns;
+          }
+          
           setCurrentSimulation(status);
 
           const statusLower = status.status?.toLowerCase();
@@ -178,13 +199,16 @@ export default function EBARSSimulationPage() {
               ...prev,
               status: status.status,
               current_turn: status.current_turn,
-              total_turns: status.total_turns
+              total_turns: status.total_turns || status.num_turns,
+              completion_percentage: 100.0  // Always 100% when finished
             } : null);
             
             if (statusLower === "completed") {
               toast.success("Simülasyon tamamlandı!");
+            } else if (statusLower === "failed") {
+              toast.error("Simülasyon başarısız oldu");
             } else {
-              toast.error("Simülasyon durduruldu");
+              toast.warning("Simülasyon durduruldu");
             }
           }
         } else {
@@ -668,12 +692,20 @@ export default function EBARSSimulationPage() {
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-orange-600">
-                          {Math.round(
-                            currentSimulation.completion_percentage || 0
-                          )}
+                          {currentSimulation.status?.toLowerCase() === 'completed' 
+                            ? 100 
+                            : Math.round(currentSimulation.completion_percentage || 0)}
                           %
                         </div>
-                        <div className="text-sm text-gray-500">Tamamlanma</div>
+                        <div className="text-sm text-gray-500">
+                          {currentSimulation.status?.toLowerCase() === 'completed' 
+                            ? 'Tamamlandı' 
+                            : currentSimulation.status?.toLowerCase() === 'failed'
+                            ? 'Başarısız'
+                            : currentSimulation.status?.toLowerCase() === 'stopped'
+                            ? 'Durduruldu'
+                            : 'Tamamlanma'}
+                        </div>
                       </div>
                     </div>
 
@@ -916,6 +948,7 @@ function SimulationResultsView({ simulationId }: { simulationId: string }) {
         "Agent",
         "Agent Type",
         "Question",
+        "Answer",
         "Answer Length",
         "Emoji",
         "Score",
@@ -932,7 +965,8 @@ function SimulationResultsView({ simulationId }: { simulationId: string }) {
         turn.turn_number || "",
         turn.agent_name || turn.agent_id || "",
         turn.agent_type || "",
-        (turn.question || "").substring(0, 100),
+        turn.question || "",
+        turn.answer || "", // Cevabın kendisi
         turn.answer_length || 0,
         turn.emoji_feedback || "",
         turn.comprehension_score?.toFixed(2) || "0.00",
@@ -1003,6 +1037,141 @@ function SimulationResultsView({ simulationId }: { simulationId: string }) {
     }
   };
 
+  const exportToExcel = async () => {
+    if (!results || !results.turns) return;
+
+    setExporting(true);
+    try {
+      // Dynamic import for xlsx library
+      const XLSX = await import("xlsx");
+
+      // Prepare data for Excel
+      const worksheetData = [
+        // Header row
+        [
+          "Tur",
+          "Agent",
+          "Agent Tipi",
+          "Soru",
+          "Cevap",
+          "Cevap Uzunluğu",
+          "Emoji",
+          "Skor",
+          "Skor Değişimi",
+          "Zorluk Seviyesi",
+          "Seviye Geçişi",
+          "İşlem Süresi (ms)",
+          "Geri Bildirim Gönderildi",
+          "Zaman Damgası",
+        ],
+        // Data rows
+        ...results.turns.map((turn: any) => [
+          turn.turn_number || "",
+          turn.agent_name || turn.agent_id || "",
+          turn.agent_type || "",
+          turn.question || "",
+          turn.answer || "", // Cevabın kendisi
+          turn.answer_length || 0,
+          turn.emoji_feedback || "",
+          turn.comprehension_score?.toFixed(2) || "0.00",
+          turn.score_delta?.toFixed(2) || "0.00",
+          turn.difficulty_level || "",
+          turn.level_transition || "",
+          turn.processing_time_ms || 0,
+          turn.feedback_sent ? "Evet" : "Hayır",
+          turn.timestamp ? new Date(turn.timestamp).toLocaleString("tr-TR") : "",
+        ]),
+      ];
+
+      // Create worksheet
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+      // Set column widths
+      worksheet["!cols"] = [
+        { wch: 6 },  // Turn
+        { wch: 15 }, // Agent
+        { wch: 12 }, // Agent Type
+        { wch: 50 }, // Question
+        { wch: 80 }, // Answer (cevabın kendisi - daha geniş)
+        { wch: 12 }, // Answer Length
+        { wch: 8 },  // Emoji
+        { wch: 8 },  // Score
+        { wch: 12 }, // Score Change
+        { wch: 15 }, // Difficulty Level
+        { wch: 15 }, // Level Transition
+        { wch: 15 }, // Processing Time
+        { wch: 18 }, // Feedback Sent
+        { wch: 20 }, // Timestamp
+      ];
+
+      // Create workbook
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Simülasyon Sonuçları");
+
+      // Add summary sheet if available
+      if (results.simulation_info && results.agents) {
+        const summaryData = [
+          ["Simülasyon Özeti", ""],
+          ["Simülasyon ID", simulationId],
+          ["Durum", results.simulation_info.status || ""],
+          ["Toplam Tur", results.simulation_info.total_turns || 0],
+          ["Agent Sayısı", results.simulation_info.num_agents || 0],
+          ["Süre (saniye)", results.simulation_info.duration_seconds?.toFixed(2) || "N/A"],
+          ["Başlangıç", results.simulation_info.started_at ? new Date(results.simulation_info.started_at).toLocaleString("tr-TR") : "N/A"],
+          ["Bitiş", results.simulation_info.completed_at ? new Date(results.simulation_info.completed_at).toLocaleString("tr-TR") : "N/A"],
+          ["", ""],
+          ["Agent Performansı", ""],
+          ["Agent", "Agent Tipi", "Başlangıç Skoru", "Bitiş Skoru"],
+          ...results.agents.map((agent: any) => [
+            agent.agent_name || agent.agent_id || "",
+            agent.agent_type || "",
+            agent.initial_score?.toFixed(2) || "0.00",
+            agent.final_score?.toFixed(2) || "0.00",
+          ]),
+        ];
+
+        const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+        summarySheet["!cols"] = [
+          { wch: 20 },
+          { wch: 15 },
+          { wch: 15 },
+          { wch: 15 },
+        ];
+        XLSX.utils.book_append_sheet(workbook, summarySheet, "Özet");
+      }
+
+      // Generate Excel file
+      const excelBuffer = XLSX.write(workbook, {
+        type: "array",
+        bookType: "xlsx",
+      });
+
+      // Create blob and download
+      const blob = new Blob([excelBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute(
+        "download",
+        `ebars_simulation_${simulationId.substring(0, 8)}_${new Date().toISOString().split("T")[0]}.xlsx`
+      );
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success("Excel dosyası indirildi!");
+    } catch (err) {
+      console.error("Error exporting Excel:", err);
+      toast.error("Excel export başarısız oldu");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -1058,7 +1227,21 @@ function SimulationResultsView({ simulationId }: { simulationId: string }) {
               <BarChart3 className="h-5 w-5" />
               Simülasyon Özeti
             </CardTitle>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={exportToExcel}
+                disabled={exporting}
+                variant="default"
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {exporting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Excel İndir
+              </Button>
               <Button
                 onClick={exportToCSV}
                 disabled={exporting}
@@ -1216,6 +1399,7 @@ function SimulationResultsView({ simulationId }: { simulationId: string }) {
                     <th className="text-left p-2">Turn</th>
                     <th className="text-left p-2">Agent</th>
                     <th className="text-left p-2">Soru</th>
+                    <th className="text-center p-2">Cevap</th>
                     <th className="text-center p-2">Cevap Uzunluğu</th>
                     <th className="text-center p-2">Emoji</th>
                     <th className="text-center p-2">Skor</th>
@@ -1230,6 +1414,10 @@ function SimulationResultsView({ simulationId }: { simulationId: string }) {
                       <td className="p-2">{turn.agent_name || turn.agent_id || ""}</td>
                       <td className="p-2 max-w-xs truncate" title={turn.question}>
                         {(turn.question || "").substring(0, 50)}...
+                      </td>
+                      <td className="p-2 max-w-md truncate" title={turn.answer}>
+                        {(turn.answer || "").substring(0, 100)}
+                        {turn.answer && turn.answer.length > 100 ? "..." : ""}
                       </td>
                       <td className="p-2 text-center">{turn.answer_length || 0}</td>
                       <td className="p-2 text-center text-lg">

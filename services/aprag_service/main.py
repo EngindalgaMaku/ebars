@@ -283,9 +283,10 @@ if SCORING_AVAILABLE and FeatureFlags.is_cacs_enabled():
     app.include_router(scoring.router, prefix="/api/aprag/scoring", tags=["CACS Scoring"])
     logger.info("CACS Scoring endpoints enabled")
 
-if EMOJI_FEEDBACK_AVAILABLE and FeatureFlags.is_emoji_feedback_enabled():
+# Always include emoji feedback router - feature flag check is done inside endpoints
+if EMOJI_FEEDBACK_AVAILABLE:
     app.include_router(emoji_feedback.router, prefix="/api/aprag/emoji-feedback", tags=["Emoji Feedback"])
-    logger.info("Emoji Feedback endpoints enabled")
+    logger.info("Emoji Feedback endpoints registered (feature flag checked per request)")
 
 if PROGRESSIVE_ASSESSMENT_AVAILABLE and FeatureFlags.is_progressive_assessment_enabled():
     app.include_router(progressive_assessment.router, prefix="/api/aprag/progressive-assessment", tags=["Progressive Assessment"])

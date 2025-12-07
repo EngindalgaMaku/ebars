@@ -327,6 +327,18 @@ class SimulationDatabaseManager:
                 
                 agents = [dict(agent) for agent in agents_cursor.fetchall()]
                 
+                # Calculate completion percentage
+                current_turn = row['current_turn'] or 0
+                num_turns = row['num_turns'] or 1
+                completion_percentage = 0.0
+                
+                if row['status'] in ['completed', 'failed', 'stopped']:
+                    # If simulation is finished, it's 100% complete
+                    completion_percentage = 100.0
+                elif current_turn > 0 and num_turns > 0:
+                    # Calculate based on current turn
+                    completion_percentage = min(100.0, (current_turn / num_turns) * 100.0)
+                
                 return {
                     'success': True,
                     'simulation_id': row['simulation_id'],
@@ -334,7 +346,8 @@ class SimulationDatabaseManager:
                     'status': row['status'],
                     'num_agents': row['num_agents'],
                     'num_turns': row['num_turns'],
-                    'current_turn': row['current_turn'] or 0,
+                    'total_turns': row['num_turns'],  # Add alias for frontend compatibility
+                    'current_turn': current_turn,
                     'agents_completed': row['agents_completed'] or 0,
                     'status_message': row['status_message'],
                     'started_at': row['started_at'],
@@ -342,6 +355,7 @@ class SimulationDatabaseManager:
                     'created_at': row['created_at'],
                     'progress_updated': row['progress_updated'],
                     'error_message': row['error_message'],
+                    'completion_percentage': completion_percentage,
                     'agents': agents
                 }
                 
