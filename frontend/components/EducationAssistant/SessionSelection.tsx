@@ -52,8 +52,8 @@ export default function SessionSelection({
         <select
           value={selectedSessionId}
           onChange={(e) => onSessionChange(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white shadow-sm"
-          disabled={loading || isStudent}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white shadow-sm cursor-pointer"
+          disabled={isStudent}
         >
           <option value="">
             {useDirectLLM
