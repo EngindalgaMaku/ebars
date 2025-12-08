@@ -1751,124 +1751,127 @@ async def classify_question(request: QuestionClassificationRequest):
                     # Don't call conn.rollback() here - connection is already closed by context manager
                     raise HTTPException(status_code=500, detail=error_msg)
             
-            # Update topic progress if interaction_id is provided
-            if request.interaction_id:
+            # Update topic progress if user_id is available (either from interaction_id or request)
+            # This ensures topic progress is tracked even when interaction_id is not available
+            user_id = None
+            if request.user_id:
+                user_id = str(request.user_id)
+            elif request.interaction_id:
+                # Try to get user_id from student_interactions if not provided directly
                 try:
                     with db.get_connection() as conn:
-                        # Get user_id from interaction_id or request
-                        user_id = None
-                        if request.interaction_id:
-                            # Try to get user_id from student_interactions
-                            user_cursor = conn.execute(
-                                "SELECT user_id FROM student_interactions WHERE interaction_id = ?",
-                                (request.interaction_id,)
+                        user_cursor = conn.execute(
+                            "SELECT user_id FROM student_interactions WHERE interaction_id = ?",
+                            (request.interaction_id,)
+                        )
+                        user_row = user_cursor.fetchone()
+                        if user_row:
+                            user_id = str(user_row[0]) if user_row[0] else None
+                except Exception as e:
+                    logger.warning(f"Could not get user_id from interaction_id {request.interaction_id}: {e}")
+            
+            # Update topic progress if we have user_id
+            if user_id:
+                try:
+                    with db.get_connection() as conn:
+                        # Check if APRAG is enabled for mastery calculation and recommendations
+                        aprag_enabled = FeatureFlags.is_aprag_enabled(request.session_id)
+                        
+                        # Get current topic progress
+                        cursor = conn.execute("""
+                            SELECT 
+                                questions_asked,
+                                average_understanding,
+                                average_satisfaction,
+                                mastery_score,
+                                mastery_level
+                            FROM topic_progress
+                            WHERE user_id = ? AND session_id = ? AND topic_id = ?
+                        """, (user_id, request.session_id, classification["topic_id"]))
+                        
+                        current_progress = cursor.fetchone()
+                        current_progress_dict = dict(current_progress) if current_progress else {}
+                        
+                        # Get updated questions_asked count
+                        new_questions_asked = (current_progress_dict.get("questions_asked", 0) or 0) + 1
+                        
+                        # Calculate mastery score and level
+                        mastery_score = None
+                        mastery_level = None
+                        
+                        if aprag_enabled:
+                            # Get recent interactions for mastery calculation
+                            recent_interactions = get_recent_interactions_for_topic(
+                                user_id, request.session_id, classification["topic_id"], db, limit=5
                             )
-                            user_row = user_cursor.fetchone()
-                            if user_row:
-                                user_id = str(user_row[0]) if user_row[0] else None
-                        
-                        # Fallback to request.user_id if available
-                        if not user_id and request.user_id:
-                            user_id = str(request.user_id)
-                        
-                        # Only update topic progress if we have user_id
-                        if user_id:
-                            # Check if APRAG is enabled for mastery calculation and recommendations
-                            aprag_enabled = FeatureFlags.is_aprag_enabled(request.session_id)
                             
-                            # Get current topic progress
-                            cursor = conn.execute("""
-                                SELECT 
-                                    questions_asked,
-                                    average_understanding,
-                                    average_satisfaction,
-                                    mastery_score,
-                                    mastery_level
-                                FROM topic_progress
-                                WHERE user_id = ? AND session_id = ? AND topic_id = ?
-                            """, (user_id, request.session_id, classification["topic_id"]))
-                            
-                            current_progress = cursor.fetchone()
-                            current_progress_dict = dict(current_progress) if current_progress else {}
-                            
-                            # Get updated questions_asked count
-                            new_questions_asked = (current_progress_dict.get("questions_asked", 0) or 0) + 1
+                            # Prepare topic progress data for mastery calculation
+                            topic_progress_data = {
+                                "questions_asked": new_questions_asked,
+                                "average_understanding": current_progress_dict.get("average_understanding") or 0.0,
+                                "average_satisfaction": current_progress_dict.get("average_satisfaction") or 0.0,
+                            }
                             
                             # Calculate mastery score and level
-                            mastery_score = None
-                            mastery_level = None
-                            
-                            if aprag_enabled:
-                                # Get recent interactions for mastery calculation
-                                recent_interactions = get_recent_interactions_for_topic(
-                                    user_id, request.session_id, classification["topic_id"], db, limit=5
-                                )
-                                
-                                # Prepare topic progress data for mastery calculation
-                                topic_progress_data = {
-                                    "questions_asked": new_questions_asked,
-                                    "average_understanding": current_progress_dict.get("average_understanding") or 0.0,
-                                    "average_satisfaction": current_progress_dict.get("average_satisfaction") or 0.0,
-                                }
-                                
-                                # Calculate mastery score and level
-                                mastery_score = calculate_mastery_score(topic_progress_data, recent_interactions)
+                            mastery_score = calculate_mastery_score(topic_progress_data, recent_interactions)
+                            mastery_level = determine_mastery_level(mastery_score, new_questions_asked)
+                        else:
+                            # APRAG disabled: Use simple logic based on questions_asked
+                            if new_questions_asked > 0:
+                                mastery_score = min(new_questions_asked / 10.0, 0.3)  # Max 0.3 without feedback
                                 mastery_level = determine_mastery_level(mastery_score, new_questions_asked)
                             else:
-                                # APRAG disabled: Use simple logic based on questions_asked
-                                if new_questions_asked > 0:
-                                    mastery_score = min(new_questions_asked / 10.0, 0.3)  # Max 0.3 without feedback
-                                    mastery_level = determine_mastery_level(mastery_score, new_questions_asked)
-                                else:
-                                    mastery_score = 0.0
-                                    mastery_level = "not_started"
-                            
-                            # Update mastery fields if calculated
-                            if mastery_score is not None and mastery_level is not None:
-                                # Verify topic_id exists in course_topics table before inserting
-                                # Try course_topics first (correct table name), fallback to topics if exists
-                                topic_check = None
+                                mastery_score = 0.0
+                                mastery_level = "not_started"
+                        
+                        # Update mastery fields if calculated
+                        if mastery_score is not None and mastery_level is not None:
+                            # Verify topic_id exists in course_topics table before inserting
+                            # Try course_topics first (correct table name), fallback to topics if exists
+                            topic_check = None
+                            try:
+                                topic_check = conn.execute(
+                                    "SELECT topic_id FROM course_topics WHERE topic_id = ?",
+                                    (classification["topic_id"],)
+                                ).fetchone()
+                            except Exception as e:
+                                # If course_topics doesn't exist, try topics table
+                                logger.debug(f"course_topics table not found, trying topics: {e}")
                                 try:
                                     topic_check = conn.execute(
-                                        "SELECT topic_id FROM course_topics WHERE topic_id = ?",
+                                        "SELECT topic_id FROM topics WHERE topic_id = ?",
                                         (classification["topic_id"],)
                                     ).fetchone()
-                                except Exception as e:
-                                    # If course_topics doesn't exist, try topics table
-                                    logger.debug(f"course_topics table not found, trying topics: {e}")
-                                    try:
-                                        topic_check = conn.execute(
-                                            "SELECT topic_id FROM topics WHERE topic_id = ?",
-                                            (classification["topic_id"],)
-                                        ).fetchone()
-                                    except Exception:
-                                        pass
+                                except Exception:
+                                    pass
+                            
+                            if not topic_check:
+                                logger.warning(f"Topic ID {classification['topic_id']} does not exist in course_topics/topics table. Skipping topic_progress update.")
+                            else:
+                                conn.execute("""
+                                    INSERT OR REPLACE INTO topic_progress (
+                                        user_id, session_id, topic_id,
+                                        questions_asked, last_question_timestamp,
+                                        mastery_score, mastery_level, updated_at
+                                    ) VALUES (?, ?, ?, COALESCE((
+                                        SELECT questions_asked FROM topic_progress 
+                                        WHERE user_id = ? AND session_id = ? AND topic_id = ?
+                                    ), 0) + 1, CURRENT_TIMESTAMP, ?, ?, CURRENT_TIMESTAMP)
+                                """, (
+                                    user_id, request.session_id, classification["topic_id"],
+                                    user_id, request.session_id, classification["topic_id"],
+                                    mastery_score, mastery_level
+                                ))
                                 
-                                if not topic_check:
-                                    logger.warning(f"Topic ID {classification['topic_id']} does not exist in course_topics/topics table. Skipping topic_progress update.")
-                                else:
-                                    conn.execute("""
-                                        INSERT OR REPLACE INTO topic_progress (
-                                            user_id, session_id, topic_id,
-                                            questions_asked, last_question_timestamp,
-                                            mastery_score, mastery_level, updated_at
-                                        ) VALUES (?, ?, ?, COALESCE((
-                                            SELECT questions_asked FROM topic_progress 
-                                            WHERE user_id = ? AND session_id = ? AND topic_id = ?
-                                        ), 0) + 1, CURRENT_TIMESTAMP, ?, ?, CURRENT_TIMESTAMP)
-                                    """, (
-                                        user_id, request.session_id, classification["topic_id"],
-                                        user_id, request.session_id, classification["topic_id"],
-                                        mastery_score, mastery_level
-                                    ))
-                                    
-                                    conn.commit()
-                                    logger.info(f"Updated topic progress for user {user_id}, topic {classification['topic_id']}")
+                                conn.commit()
+                                logger.info(f"✅ Updated topic progress for user {user_id}, topic {classification['topic_id']}: questions_asked={new_questions_asked}, mastery_score={mastery_score}, mastery_level={mastery_level}")
                 
                 except Exception as e:
-                    logger.error(f"Error updating topic progress: {e}")
+                    logger.error(f"Error updating topic progress: {e}", exc_info=True)
                     # Don't fail the entire request if progress update fails
                     pass
+            else:
+                logger.warning(f"⚠️ Cannot update topic progress: user_id is None (interaction_id={request.interaction_id}, user_id={request.user_id})")
             
             return classification
             
