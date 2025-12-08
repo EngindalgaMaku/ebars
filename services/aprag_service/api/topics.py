@@ -1873,7 +1873,29 @@ async def classify_question(request: QuestionClassificationRequest):
             else:
                 logger.warning(f"⚠️ Cannot update topic progress: user_id is None (interaction_id={request.interaction_id}, user_id={request.user_id})")
             
-            return classification
+            # Check if mastery is achieved and generate recommendation (only if APRAG is enabled)
+            recommendation = None
+            if user_id and request.interaction_id and FeatureFlags.is_aprag_enabled(request.session_id):
+                try:
+                    recommendation = await generate_topic_recommendation(
+                        user_id, request.session_id, classification["topic_id"], db
+                    )
+                except Exception as e:
+                    logger.warning(f"Error generating topic recommendation: {e}")
+            
+            response = {
+                "success": True,
+                "topic_id": classification["topic_id"],
+                "topic_title": classification.get("topic_title", ""),
+                "confidence_score": classification["confidence_score"],
+                "question_complexity": classification["question_complexity"],
+                "question_type": classification["question_type"]
+            }
+            
+            if recommendation:
+                response["recommendation"] = recommendation
+            
+            return response
             
         except HTTPException:
             raise
@@ -1885,30 +1907,6 @@ async def classify_question(request: QuestionClassificationRequest):
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise HTTPException(status_code=500, detail=error_msg)
-        
-        # Check if mastery is achieved and generate recommendation (only if APRAG is enabled)
-        recommendation = None
-        if user_id and request.interaction_id and FeatureFlags.is_aprag_enabled(request.session_id):
-            try:
-                recommendation = await generate_topic_recommendation(
-                    user_id, request.session_id, classification["topic_id"], db
-                )
-            except Exception as e:
-                logger.warning(f"Error generating topic recommendation: {e}")
-        
-        response = {
-            "success": True,
-            "topic_id": classification["topic_id"],
-            "topic_title": classification.get("topic_title", ""),
-            "confidence_score": classification["confidence_score"],
-            "question_complexity": classification["question_complexity"],
-            "question_type": classification["question_type"]
-        }
-        
-        if recommendation:
-            response["recommendation"] = recommendation
-        
-        return response
         
     except HTTPException:
         raise

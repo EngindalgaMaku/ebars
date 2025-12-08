@@ -4582,6 +4582,70 @@ async def get_student_progress_proxy(user_id: str, session_id: str, request: Req
             "next_recommended_topic": None
         }
 
+@app.api_route("/api/aprag/emoji-feedback", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_emoji_feedback_base(request: Request):
+    """Proxy to APRAG service for emoji feedback base endpoint"""
+    try:
+        body = await request.json() if request.method in ["POST", "PUT", "PATCH"] else None
+        headers = dict(request.headers)
+        headers.pop("host", None)
+        
+        target_url = f"{APRAG_SERVICE_URL}/api/aprag/emoji-feedback"
+        
+        logger.info(f"🎯 [API GATEWAY] Proxying emoji-feedback base: {request.method} /api/aprag/emoji-feedback to {target_url}")
+        
+        response = requests.request(
+            method=request.method,
+            url=target_url,
+            json=body,
+            headers=headers,
+            params=request.query_params,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error(f"❌ Emoji-feedback proxy error: {response.status_code} - {response.text}")
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+    except HTTPException:
+        raise
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ Emoji-feedback service unavailable: {e}")
+        raise HTTPException(status_code=503, detail="Emoji feedback service unavailable")
+
+@app.api_route("/api/aprag/emoji-feedback/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_emoji_feedback(path: str, request: Request):
+    """Proxy to APRAG service for emoji feedback endpoints with sub-paths"""
+    try:
+        body = await request.json() if request.method in ["POST", "PUT", "PATCH"] else None
+        headers = dict(request.headers)
+        headers.pop("host", None)
+        
+        target_url = f"{APRAG_SERVICE_URL}/api/aprag/emoji-feedback/{path}"
+        
+        logger.info(f"🎯 [API GATEWAY] Proxying emoji-feedback: {request.method} /api/aprag/emoji-feedback/{path} to {target_url}")
+        
+        response = requests.request(
+            method=request.method,
+            url=target_url,
+            json=body,
+            headers=headers,
+            params=request.query_params,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error(f"❌ Emoji-feedback proxy error: {response.status_code} - {response.text}")
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+    except HTTPException:
+        raise
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ Emoji-feedback service unavailable: {e}")
+        raise HTTPException(status_code=503, detail="Emoji feedback service unavailable")
+
 
 @app.post("/chunks/improve-single")
 async def improve_single_chunk_proxy(request: Request):
@@ -4922,6 +4986,10 @@ async def proxy_aprag_service(path: str, request: Request):
         # This should have been handled by the specific route above
         # If we reach here, the specific route wasn't matched
         logger.warning(f"⚠️ [ROUTE WARNING] classify-question caught by catch-all route. This shouldn't happen!")
+    
+    # Log emoji-feedback requests for debugging
+    if "emoji-feedback" in path:
+        logger.info(f"🎯 [API GATEWAY] Emoji-feedback request detected: path={path}, method={request.method}")
     
     try:
         # Get request body if present
