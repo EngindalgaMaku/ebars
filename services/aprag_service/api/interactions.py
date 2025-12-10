@@ -3,7 +3,7 @@ Interaction logging endpoints
 Records student queries and responses
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Dict, Any
 import logging
@@ -374,11 +374,16 @@ async def get_session_interactions(
                 user_id_normalized_map[uid_str] = uid_str  # Also map string to itself if already string
         
         logger.info(f"Fetching user info for {len(normalized_user_ids)} unique users: {normalized_user_ids}")
+        logger.info(f"User ID mapping: {user_id_normalized_map}")
         
         # Fetch user information from Auth service (using normalized string IDs)
         user_info_map = await get_user_info_from_auth_service(normalized_user_ids)
         
         logger.info(f"Received user info for {len([k for k, v in user_info_map.items() if v is not None])} users")
+        logger.info(f"User info map keys: {list(user_info_map.keys())}")
+        for key, value in user_info_map.items():
+            if value:
+                logger.info(f"  User {key}: username={value.get('username')}, first_name={value.get('first_name')}, last_name={value.get('last_name')}")
         
         # Parse JSON fields and merge user information
         for interaction in interactions:
@@ -396,14 +401,31 @@ async def get_session_interactions(
             
             # Get user info from Auth service - use normalized ID for lookup
             user_id = interaction.get("user_id")
-            normalized_id = user_id_normalized_map.get(user_id, str(user_id).strip() if user_id is not None else "")
-            user_info = user_info_map.get(normalized_id)
+            # Try multiple lookup strategies
+            normalized_id = user_id_normalized_map.get(user_id)
+            if not normalized_id and user_id is not None:
+                normalized_id = str(user_id).strip()
+            
+            # Try to get user info with multiple key variations
+            user_info = None
+            if normalized_id:
+                user_info = user_info_map.get(normalized_id)
+                # If not found, try with original user_id as string
+                if not user_info and user_id is not None:
+                    user_info = user_info_map.get(str(user_id).strip())
+                # If still not found, try with original user_id as integer (if numeric)
+                if not user_info and user_id is not None and str(user_id).strip().isdigit():
+                    user_info = user_info_map.get(str(int(user_id)).strip())
+            
+            logger.info(f"🔍 Looking up user_id={user_id} (type={type(user_id).__name__}, normalized={normalized_id}), found={user_info is not None}")
             
             if user_info:
                 # User found in Auth service
                 first_name = user_info.get("first_name", "").strip()
                 last_name = user_info.get("last_name", "").strip()
                 username = user_info.get("username", "").strip()
+                
+                logger.info(f"📝 User {user_id} data: first_name='{first_name}', last_name='{last_name}', username='{username}'")
                 
                 interaction["first_name"] = first_name
                 interaction["last_name"] = last_name
@@ -421,7 +443,7 @@ async def get_session_interactions(
                 else:
                     interaction["student_name"] = f"Öğrenci ({user_id})"
                 
-                logger.debug(f"✅ User {user_id} found: {interaction['student_name']}")
+                logger.info(f"✅ User {user_id} found: student_name='{interaction['student_name']}'")
             else:
                 # User not found in Auth service
                 interaction["first_name"] = ""
@@ -586,17 +608,28 @@ async def delete_interaction(interaction_id: int, db: DatabaseManager = Depends(
 @router.delete("/session/{session_id}/bulk")
 async def delete_session_interactions(
     session_id: str,
-    interaction_ids: Optional[List[int]] = None,
-    delete_all: bool = False,
+    interaction_ids: Optional[str] = Query(None, description="Comma-separated list of interaction IDs"),
+    delete_all: Optional[str] = Query(None, description="Set to 'true' to delete all interactions"),
     db: DatabaseManager = Depends(get_db)
 ):
     """
     Delete multiple interactions for a session
-    - If delete_all=True, delete all interactions for the session
+    - If delete_all='true', delete all interactions for the session
     - If interaction_ids is provided, delete only those interactions
     """
     try:
-        if delete_all:
+        # Parse delete_all from query string
+        delete_all_bool = delete_all and delete_all.lower() == "true"
+        
+        # Parse interaction_ids from comma-separated string
+        parsed_interaction_ids = None
+        if interaction_ids:
+            try:
+                parsed_interaction_ids = [int(id.strip()) for id in interaction_ids.split(",") if id.strip()]
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid interaction_ids format. Must be comma-separated integers")
+        
+        if delete_all_bool:
             # Delete all interactions for the session
             delete_query = "DELETE FROM student_interactions WHERE session_id = ?"
             db.execute_query(delete_query, (session_id,))
@@ -607,25 +640,25 @@ async def delete_session_interactions(
                 "message": "All interactions deleted successfully",
                 "session_id": session_id
             }
-        elif interaction_ids:
+        elif parsed_interaction_ids:
             # Delete specific interactions
-            if not interaction_ids:
+            if not parsed_interaction_ids:
                 raise HTTPException(status_code=400, detail="No interaction IDs provided")
             
-            placeholders = ",".join(["?"] * len(interaction_ids))
+            placeholders = ",".join(["?"] * len(parsed_interaction_ids))
             delete_query = f"DELETE FROM student_interactions WHERE interaction_id IN ({placeholders}) AND session_id = ?"
-            db.execute_query(delete_query, tuple(interaction_ids) + (session_id,))
+            db.execute_query(delete_query, tuple(parsed_interaction_ids) + (session_id,))
             
-            logger.info(f"Deleted {len(interaction_ids)} interactions for session {session_id}")
+            logger.info(f"Deleted {len(parsed_interaction_ids)} interactions for session {session_id}")
             
             return {
                 "message": "Interactions deleted successfully",
                 "session_id": session_id,
-                "deleted_count": len(interaction_ids),
-                "interaction_ids": interaction_ids
+                "deleted_count": len(parsed_interaction_ids),
+                "interaction_ids": parsed_interaction_ids
             }
         else:
-            raise HTTPException(status_code=400, detail="Either delete_all=True or interaction_ids must be provided")
+            raise HTTPException(status_code=400, detail="Either delete_all=true or interaction_ids must be provided")
         
     except HTTPException:
         raise
