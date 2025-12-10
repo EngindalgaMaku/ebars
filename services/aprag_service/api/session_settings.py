@@ -101,6 +101,11 @@ async def get_session_settings(
     try:
         logger.info(f"Getting session settings for session: {session_id}")
         
+        # Ensure db is properly resolved (handle dependency injection issues)
+        # FastAPI dependency injection sometimes fails, so we check and fix it
+        if not hasattr(db, 'execute_query') or not isinstance(db, DatabaseManager):
+            db = get_db()
+        
         # Get existing settings
         result = db.execute_query(
             "SELECT * FROM session_settings WHERE session_id = ?",
@@ -257,6 +262,11 @@ async def update_session_settings(
     
     try:
         logger.info(f"Updating session settings for session: {session_id} by user: {user_id}")
+        
+        # Ensure db is properly resolved (handle dependency injection issues)
+        # FastAPI dependency injection sometimes fails, so we check and fix it
+        if not hasattr(db, 'execute_query') or not isinstance(db, DatabaseManager):
+            db = get_db()
         
         # Get current settings first
         current_result = db.execute_query(
@@ -442,6 +452,11 @@ async def reset_session_settings(
     try:
         logger.info(f"Resetting session settings for session: {session_id} by user: {user_id}")
         
+        # Ensure db is properly resolved (handle dependency injection issues)
+        # FastAPI dependency injection sometimes fails, so we check and fix it
+        if not hasattr(db, 'execute_query') or not isinstance(db, DatabaseManager):
+            db = get_db()
+        
         # Delete existing settings
         db.execute_update(
             "DELETE FROM session_settings WHERE session_id = ?",
@@ -563,6 +578,11 @@ async def apply_settings_preset(
     
     try:
         logger.info(f"Applying preset '{preset_name}' to session: {session_id} by user: {user_id}")
+        
+        # Ensure db is properly resolved (handle dependency injection issues)
+        # FastAPI dependency injection sometimes fails, so we check and fix it
+        if not hasattr(db, 'execute_query') or not isinstance(db, DatabaseManager):
+            db = get_db()
         
         # Get presets
         presets_response = await get_settings_presets()
