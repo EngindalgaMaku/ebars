@@ -461,12 +461,21 @@ export function useStudentChat({
         // This ensures topic progress is tracked regardless of APRAG status
         if (sessionId && user?.id) {
           try {
+            console.log(`🔵 [TOPIC_PROGRESS] Calling classifyQuestion:`, {
+              question: query.substring(0, 100),
+              session_id: sessionId,
+              user_id: user.id.toString(),
+              interaction_id: apragInteractionId || undefined,
+            });
+            
             const classificationResult = await classifyQuestion({
               question: query,
               session_id: sessionId,
               interaction_id: apragInteractionId || undefined, // Optional: only if available
               user_id: user.id.toString(), // Always include user_id for topic progress tracking
             });
+            
+            console.log(`✅ [TOPIC_PROGRESS] Classification result:`, classificationResult);
             
             // Check if there's a topic recommendation (mastery achieved)
             if (classificationResult?.recommendation) {
@@ -492,12 +501,24 @@ export function useStudentChat({
               }
             }
           } catch (classificationError) {
-            console.warn(
-              "Question classification for topic progress failed:",
+            console.error(
+              "❌ [TOPIC_PROGRESS] Question classification failed:",
               classificationError
             );
+            // Log full error details for debugging
+            if (classificationError instanceof Error) {
+              console.error("   Error message:", classificationError.message);
+              console.error("   Error stack:", classificationError.stack);
+            }
             // Don't throw - topic progress is non-critical
           }
+        } else {
+          console.warn(`⚠️ [TOPIC_PROGRESS] Skipping classification:`, {
+            hasSessionId: !!sessionId,
+            hasUserId: !!user?.id,
+            sessionId,
+            userId: user?.id,
+          });
         }
 
         // Generate suggestions asynchronously (non-blocking) if not already in response

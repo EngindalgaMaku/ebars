@@ -12,6 +12,7 @@ import json
 from datetime import datetime
 import requests
 import os
+import sqlite3
 
 logger = logging.getLogger(__name__)
 
@@ -1621,6 +1622,13 @@ async def classify_question(request: QuestionClassificationRequest):
     Classify a question to a topic and update topic progress.
     This endpoint works regardless of APRAG status to ensure topic progress is always tracked.
     """
+    # CRITICAL: Log request details at the start
+    logger.info(f"🔵 [CLASSIFY_QUESTION] Received request:")
+    logger.info(f"   - question: '{request.question[:100]}...' (length: {len(request.question)})")
+    logger.info(f"   - session_id: {request.session_id}")
+    logger.info(f"   - user_id: {request.user_id}")
+    logger.info(f"   - interaction_id: {request.interaction_id}")
+    
     db = get_db()
     
     try:
@@ -1814,7 +1822,13 @@ async def classify_question(request: QuestionClassificationRequest):
                 logger.warning(f"⚠️ No user_id or interaction_id provided in request")
             
             # Update topic progress if we have user_id
-            logger.info(f"📊 Topic progress update check: user_id={user_id}, topic_id={classification.get('topic_id')}, session_id={request.session_id}")
+            logger.info(f"📊 [TOPIC_PROGRESS] Update check:")
+            logger.info(f"   - user_id: {user_id}")
+            logger.info(f"   - topic_id: {classification.get('topic_id')}")
+            logger.info(f"   - topic_title: {classification.get('topic_title', 'N/A')}")
+            logger.info(f"   - session_id: {request.session_id}")
+            logger.info(f"   - classification: {classification}")
+            
             if user_id:
                 try:
                     with db.get_connection() as conn:
@@ -1934,23 +1948,70 @@ async def classify_question(request: QuestionClassificationRequest):
                                 logger.warning(f"⚠️ Topic ID {classification['topic_id']} does not exist. Skipping topic_progress update.")
                                 logger.warning(f"⚠️ This may indicate a topic classification error or missing topic in database.")
                             else:
-                                conn.execute("""
-                                    INSERT OR REPLACE INTO topic_progress (
-                                        user_id, session_id, topic_id,
-                                        questions_asked, last_question_timestamp,
-                                        mastery_score, mastery_level, updated_at
-                                    ) VALUES (?, ?, ?, COALESCE((
-                                        SELECT questions_asked FROM topic_progress 
-                                        WHERE user_id = ? AND session_id = ? AND topic_id = ?
-                                    ), 0) + 1, CURRENT_TIMESTAMP, ?, ?, CURRENT_TIMESTAMP)
-                                """, (
-                                    user_id, request.session_id, classification["topic_id"],
-                                    user_id, request.session_id, classification["topic_id"],
-                                    mastery_score, mastery_level
-                                ))
+                                # Get current questions_asked count
+                                current_cursor = conn.execute("""
+                                    SELECT questions_asked FROM topic_progress 
+                                    WHERE user_id = ? AND session_id = ? AND topic_id = ?
+                                """, (user_id, request.session_id, classification["topic_id"]))
+                                current_row = current_cursor.fetchone()
+                                new_questions_asked = (current_row[0] if current_row else 0) + 1
                                 
-                                conn.commit()
-                                logger.info(f"✅ SUCCESS: Updated topic progress for user {user_id}, topic {classification['topic_id']} ({classification.get('topic_title', 'N/A')}): questions_asked={new_questions_asked}, mastery_score={mastery_score:.3f}, mastery_level={mastery_level}")
+                                # Insert or update topic progress
+                                # Note: If FK constraint error occurs, it means migration hasn't been applied
+                                # The migration should remove FK constraint to users table
+                                try:
+                                    conn.execute("""
+                                        INSERT OR REPLACE INTO topic_progress (
+                                            user_id, session_id, topic_id,
+                                            questions_asked, last_question_timestamp,
+                                            mastery_score, mastery_level, updated_at
+                                        ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, CURRENT_TIMESTAMP)
+                                    """, (
+                                        user_id, request.session_id, classification["topic_id"],
+                                        new_questions_asked,
+                                        mastery_score, mastery_level
+                                    ))
+                                    conn.commit()
+                                    logger.info(f"✅ SUCCESS: Updated topic progress for user {user_id}, topic {classification['topic_id']} ({classification.get('topic_title', 'N/A')}): questions_asked={new_questions_asked}, mastery_score={mastery_score:.3f}, mastery_level={mastery_level}")
+                                    
+                                except sqlite3.IntegrityError as fk_error:
+                                    # FOREIGN KEY constraint error - migration likely not applied
+                                    error_msg = str(fk_error)
+                                    if "FOREIGN KEY" in error_msg.upper():
+                                        logger.error(f"❌ FOREIGN KEY constraint error: {fk_error}")
+                                        logger.error(f"❌ This indicates that migration '010_remove_topic_progress_fk_to_users' has not been applied on the server.")
+                                        logger.error(f"❌ Please apply the migration manually or restart the service to trigger automatic migration.")
+                                        logger.error(f"❌ Error details - user_id: {user_id}, topic_id: {classification['topic_id']}, session_id: {request.session_id}")
+                                        
+                                        # Try to apply migration on-the-fly as a workaround
+                                        try:
+                                            logger.info("🔄 Attempting to apply migration on-the-fly...")
+                                            # Use the existing db instance to apply migration
+                                            db.apply_topic_progress_fk_removal_migration(conn)
+                                            conn.commit()
+                                            
+                                            # Retry the insert after migration
+                                            logger.info("🔄 Retrying topic progress update after migration...")
+                                            conn.execute("""
+                                                INSERT OR REPLACE INTO topic_progress (
+                                                    user_id, session_id, topic_id,
+                                                    questions_asked, last_question_timestamp,
+                                                    mastery_score, mastery_level, updated_at
+                                                ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, CURRENT_TIMESTAMP)
+                                            """, (
+                                                user_id, request.session_id, classification["topic_id"],
+                                                new_questions_asked,
+                                                mastery_score, mastery_level
+                                            ))
+                                            conn.commit()
+                                            logger.info(f"✅ SUCCESS (after migration): Updated topic progress for user {user_id}, topic {classification['topic_id']}: questions_asked={new_questions_asked}")
+                                        except Exception as migration_err:
+                                            logger.error(f"❌ Failed to apply migration on-the-fly: {migration_err}", exc_info=True)
+                                            # Don't fail the entire request - topic progress is non-critical
+                                            pass
+                                    else:
+                                        # Other integrity error
+                                        raise
                                 
                                 # Verify the update was successful
                                 verify_cursor = conn.execute("""
@@ -1995,6 +2056,7 @@ async def classify_question(request: QuestionClassificationRequest):
             if recommendation:
                 response["recommendation"] = recommendation
             
+            logger.info(f"✅ [CLASSIFY_QUESTION] Returning response: {response}")
             return response
             
         except HTTPException:
