@@ -622,6 +622,93 @@ export default function SessionPage() {
     }
   }, [activeTab]);
 
+  // Delete interaction handler
+  const handleDeleteInteraction = async (interactionId: number) => {
+    if (!confirm("Bu soru-cevap çiftini silmek istediğinize emin misiniz?")) {
+      return;
+    }
+
+    try {
+      setDeletingInteractions(true);
+      await deleteInteraction(interactionId);
+      // Refresh interactions
+      await fetchInteractions(interactionsPage);
+      setSelectedInteractions(new Set());
+    } catch (error: any) {
+      console.error("Failed to delete interaction:", error);
+      alert("Silme işlemi başarısız oldu: " + (error.message || "Bilinmeyen hata"));
+    } finally {
+      setDeletingInteractions(false);
+    }
+  };
+
+  // Delete selected interactions
+  const handleDeleteSelected = async () => {
+    if (selectedInteractions.size === 0) {
+      alert("Lütfen silmek istediğiniz soruları seçin");
+      return;
+    }
+
+    if (!confirm(`${selectedInteractions.size} soru-cevap çiftini silmek istediğinize emin misiniz?`)) {
+      return;
+    }
+
+    try {
+      setDeletingInteractions(true);
+      await deleteSessionInteractions(sessionId, {
+        interactionIds: Array.from(selectedInteractions),
+      });
+      // Refresh interactions
+      await fetchInteractions(interactionsPage);
+      setSelectedInteractions(new Set());
+    } catch (error: any) {
+      console.error("Failed to delete interactions:", error);
+      alert("Silme işlemi başarısız oldu: " + (error.message || "Bilinmeyen hata"));
+    } finally {
+      setDeletingInteractions(false);
+    }
+  };
+
+  // Delete all interactions
+  const handleDeleteAll = async () => {
+    if (!confirm("Tüm soru-cevap çiftlerini silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
+      return;
+    }
+
+    try {
+      setDeletingInteractions(true);
+      await deleteSessionInteractions(sessionId, { deleteAll: true });
+      // Refresh interactions
+      await fetchInteractions(interactionsPage);
+      setSelectedInteractions(new Set());
+    } catch (error: any) {
+      console.error("Failed to delete all interactions:", error);
+      alert("Silme işlemi başarısız oldu: " + (error.message || "Bilinmeyen hata"));
+    } finally {
+      setDeletingInteractions(false);
+    }
+  };
+
+  // Toggle selection
+  const toggleSelection = (interactionId: number) => {
+    const newSelected = new Set(selectedInteractions);
+    if (newSelected.has(interactionId)) {
+      newSelected.delete(interactionId);
+    } else {
+      newSelected.add(interactionId);
+    }
+    setSelectedInteractions(newSelected);
+  };
+
+  // Toggle select all
+  const toggleSelectAll = () => {
+    if (selectedInteractions.size === interactions.length) {
+      setSelectedInteractions(new Set());
+    } else {
+      setSelectedInteractions(new Set(interactions.map((i) => i.interaction_id)));
+    }
+  };
+
   // Clear messages after some time
   useEffect(() => {
     if (error) {
