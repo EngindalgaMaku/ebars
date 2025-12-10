@@ -515,11 +515,75 @@ export default function StudentChatPage() {
           <div className="hidden md:block mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100">
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
               <span>📖 {selectedSessionData.document_count || 0} Döküman</span>
+              
+              {/* Embedding Model with Tooltip */}
               {selectedSessionData.rag_settings?.embedding_model && (
-                <span className="truncate">
-                  🔮 {selectedSessionData.rag_settings.embedding_model}
-                </span>
+                <div className="group relative inline-block">
+                  <span className="truncate cursor-help">
+                    🔮 {selectedSessionData.rag_settings.embedding_model}
+                  </span>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-50">
+                    <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 shadow-lg w-64">
+                      <div className="font-semibold mb-1">🔮 Embedding Modeli</div>
+                      <p className="text-gray-300 leading-relaxed">
+                        Sorularınız ve dökümanlarınız bu model ile sayısal değerlere dönüştürülür. 
+                        Bu sayede sistem, sorunuzla en ilgili bilgileri bulabilir.
+                      </p>
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                        <div className="border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
+              
+              {/* LLM Model with Tooltip */}
+              {selectedSessionData.rag_settings?.model && (
+                <div className="group relative inline-block">
+                  <span className="truncate cursor-help">
+                    🤖 {selectedSessionData.rag_settings.model}
+                  </span>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-50">
+                    <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 shadow-lg w-64">
+                      <div className="font-semibold mb-1">🤖 LLM Modeli</div>
+                      <p className="text-gray-300 leading-relaxed">
+                        Bu yapay zeka modeli, bulunan bilgileri kullanarak size özel cevaplar üretir. 
+                        Sorularınıza doğal dilde, anlaşılır açıklamalar yapar.
+                      </p>
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                        <div className="border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Reranking Info with Tooltip */}
+              {selectedSessionData.rag_settings?.use_rerank && (
+                <div className="group relative inline-block">
+                  <span className="truncate cursor-help">
+                    ⭐ Yeniden Sıralama
+                    {selectedSessionData.rag_settings?.reranker_type && (
+                      <span className="ml-1 opacity-75">
+                        ({selectedSessionData.rag_settings.reranker_type})
+                      </span>
+                    )}
+                  </span>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-50">
+                    <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 shadow-lg w-64">
+                      <div className="font-semibold mb-1">⭐ Yeniden Sıralama (Reranking)</div>
+                      <p className="text-gray-300 leading-relaxed">
+                        Sistem, bulunan bilgileri sorunuzla en uyumlu olanlardan en az uyumlu olanlara doğru yeniden sıralar. 
+                        Bu sayede en doğru ve ilgili cevapları alırsınız.
+                      </p>
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                        <div className="border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {selectedSessionData.rag_settings?.chunk_strategy && (
                 <span className="truncate">
                   ✂️ {selectedSessionData.rag_settings.chunk_strategy}
