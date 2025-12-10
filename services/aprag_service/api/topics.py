@@ -1645,12 +1645,12 @@ async def classify_question(request: QuestionClassificationRequest):
             )
         
         # Classify question using LLM
-        logger.info(f"Starting classification for question: {request.question}")
-        logger.info(f"Available topics: {[t['topic_id'] for t in topics]}")
+        logger.info(f"🎯 Starting classification for question: '{request.question}'")
+        logger.info(f"📚 Available topics ({len(topics)}): {[(t['topic_id'], t.get('topic_title', 'N/A')) for t in topics[:10]]}")
         
         try:
             classification = classify_question_with_llm(request.question, topics, request.session_id)
-            logger.info(f"Raw classification result from LLM: {classification}")
+            logger.info(f"✅ Classification result from LLM: topic_id={classification.get('topic_id')}, topic_title='{classification.get('topic_title', 'N/A')}', confidence={classification.get('confidence_score', 'N/A')}")
             
             # Ensure classification is a dictionary
             if not isinstance(classification, dict):
@@ -1669,14 +1669,42 @@ async def classify_question(request: QuestionClassificationRequest):
             
             # Ensure topic_id exists in the topics list
             topic_ids = [str(topic['topic_id']) for topic in topics]
+            topic_titles = {str(topic['topic_id']): topic.get('topic_title', 'N/A') for topic in topics}
+            
+            logger.info(f"🔍 Validating topic_id: {classification['topic_id']} (type: {type(classification['topic_id'])})")
+            logger.info(f"📋 Available topic IDs: {topic_ids}")
+            
             if str(classification["topic_id"]) not in topic_ids:
-                logger.warning(f"Topic ID {classification['topic_id']} not found in session topics. Available topics: {topic_ids}")
-                if topics:
+                logger.warning(f"⚠️ Topic ID {classification['topic_id']} not found in session topics. Available topics: {topic_ids}")
+                logger.warning(f"⚠️ Classification result: {classification}")
+                
+                # ENHANCED: Try to find topic by title match before using fallback
+                topic_title = classification.get("topic_title", "")
+                if topic_title:
+                    logger.info(f"🔍 Attempting to find topic by title: '{topic_title}'")
+                    matched_topic = None
+                    for topic in topics:
+                        topic_title_lower = topic.get('topic_title', '').lower()
+                        if topic_title.lower() in topic_title_lower or topic_title_lower in topic_title.lower():
+                            matched_topic = topic
+                            logger.info(f"✅ Found topic by title match: {matched_topic['topic_id']} - {matched_topic.get('topic_title')}")
+                            break
+                    
+                    if matched_topic:
+                        classification["topic_id"] = matched_topic["topic_id"]
+                        classification["topic_title"] = matched_topic.get("topic_title", topic_title)
+                        logger.info(f"🔄 Updated classification to use matched topic_id: {classification['topic_id']}")
+                    elif topics:
+                        classification["topic_id"] = topics[0]["topic_id"]
+                        classification["topic_title"] = topics[0].get("topic_title", "Unknown")
+                        logger.warning(f"⚠️ Using fallback topic_id: {classification['topic_id']} (first topic in list)")
+                elif topics:
                     classification["topic_id"] = topics[0]["topic_id"]
-                    logger.warning(f"Using fallback topic_id: {classification['topic_id']}")
+                    classification["topic_title"] = topics[0].get("topic_title", "Unknown")
+                    logger.warning(f"⚠️ Using fallback topic_id: {classification['topic_id']} (first topic in list)")
                 else:
                     error_msg = "No topics available for classification"
-                    logger.error(error_msg)
+                    logger.error(f"❌ {error_msg}")
                     raise HTTPException(status_code=404, detail=error_msg)
             
             # Ensure topic_id is an integer
@@ -1756,6 +1784,7 @@ async def classify_question(request: QuestionClassificationRequest):
             user_id = None
             if request.user_id:
                 user_id = str(request.user_id)
+                logger.info(f"✅ Using user_id from request: {user_id}")
             elif request.interaction_id:
                 # Try to get user_id from student_interactions if not provided directly
                 try:
@@ -1767,10 +1796,16 @@ async def classify_question(request: QuestionClassificationRequest):
                         user_row = user_cursor.fetchone()
                         if user_row:
                             user_id = str(user_row[0]) if user_row[0] else None
+                            logger.info(f"✅ Retrieved user_id from interaction_id: {user_id}")
+                        else:
+                            logger.warning(f"⚠️ No user_id found for interaction_id {request.interaction_id}")
                 except Exception as e:
-                    logger.warning(f"Could not get user_id from interaction_id {request.interaction_id}: {e}")
+                    logger.warning(f"⚠️ Could not get user_id from interaction_id {request.interaction_id}: {e}")
+            else:
+                logger.warning(f"⚠️ No user_id or interaction_id provided in request")
             
             # Update topic progress if we have user_id
+            logger.info(f"📊 Topic progress update check: user_id={user_id}, topic_id={classification.get('topic_id')}, session_id={request.session_id}")
             if user_id:
                 try:
                     with db.get_connection() as conn:
@@ -1826,27 +1861,69 @@ async def classify_question(request: QuestionClassificationRequest):
                         
                         # Update mastery fields if calculated
                         if mastery_score is not None and mastery_level is not None:
-                            # Verify topic_id exists in course_topics table before inserting
-                            # Try course_topics first (correct table name), fallback to topics if exists
+                            # ENHANCED: More flexible topic check with better logging
                             topic_check = None
+                            topic_title = classification.get("topic_title", "Unknown")
+                            
+                            logger.info(f"🔍 Checking topic existence for topic_id={classification['topic_id']}, topic_title='{topic_title}'")
+                            
+                            # Try course_topics first (correct table name), fallback to topics if exists
                             try:
                                 topic_check = conn.execute(
-                                    "SELECT topic_id FROM course_topics WHERE topic_id = ?",
+                                    "SELECT topic_id, topic_title FROM course_topics WHERE topic_id = ?",
                                     (classification["topic_id"],)
                                 ).fetchone()
+                                if topic_check:
+                                    logger.info(f"✅ Topic found in course_topics: {dict(topic_check)}")
                             except Exception as e:
                                 # If course_topics doesn't exist, try topics table
                                 logger.debug(f"course_topics table not found, trying topics: {e}")
                                 try:
                                     topic_check = conn.execute(
-                                        "SELECT topic_id FROM topics WHERE topic_id = ?",
+                                        "SELECT topic_id, topic_title FROM topics WHERE topic_id = ?",
                                         (classification["topic_id"],)
                                     ).fetchone()
-                                except Exception:
-                                    pass
+                                    if topic_check:
+                                        logger.info(f"✅ Topic found in topics table: {dict(topic_check)}")
+                                except Exception as topic_err:
+                                    logger.warning(f"⚠️ Error checking topics table: {topic_err}")
+                            
+                            # ENHANCED: If topic not found, try to find by title (fuzzy match)
+                            if not topic_check:
+                                logger.warning(f"⚠️ Topic ID {classification['topic_id']} not found in course_topics/topics table.")
+                                logger.info(f"🔍 Attempting to find topic by title: '{topic_title}'")
+                                
+                                # Try to find topic by title in course_topics
+                                try:
+                                    title_match = conn.execute(
+                                        "SELECT topic_id, topic_title FROM course_topics WHERE topic_title LIKE ? OR topic_title = ?",
+                                        (f"%{topic_title}%", topic_title)
+                                    ).fetchone()
+                                    if title_match:
+                                        matched_topic = dict(title_match)
+                                        logger.info(f"✅ Found topic by title match: {matched_topic}")
+                                        # Update classification with correct topic_id
+                                        classification["topic_id"] = matched_topic["topic_id"]
+                                        topic_check = title_match
+                                        logger.info(f"🔄 Updated classification topic_id to {classification['topic_id']} based on title match")
+                                except Exception as title_err:
+                                    logger.warning(f"⚠️ Error searching by title: {title_err}")
+                            
+                            # ENHANCED: If still not found, check if topic exists in session topics (from earlier query)
+                            if not topic_check:
+                                # Check if topic_id was in the original topics list
+                                topic_ids_from_query = [t['topic_id'] for t in topics if 'topic_id' in t]
+                                if classification["topic_id"] in topic_ids_from_query:
+                                    logger.info(f"✅ Topic ID {classification['topic_id']} exists in session topics list, proceeding with update")
+                                    # Topic exists in session, proceed with update even if not in course_topics
+                                    topic_check = {"topic_id": classification["topic_id"]}
+                                else:
+                                    logger.error(f"❌ Topic ID {classification['topic_id']} does not exist in course_topics/topics table or session topics. Available topic IDs: {topic_ids_from_query}")
+                                    logger.error(f"❌ Classification result: {classification}")
                             
                             if not topic_check:
-                                logger.warning(f"Topic ID {classification['topic_id']} does not exist in course_topics/topics table. Skipping topic_progress update.")
+                                logger.warning(f"⚠️ Topic ID {classification['topic_id']} does not exist. Skipping topic_progress update.")
+                                logger.warning(f"⚠️ This may indicate a topic classification error or missing topic in database.")
                             else:
                                 conn.execute("""
                                     INSERT OR REPLACE INTO topic_progress (
@@ -1864,10 +1941,24 @@ async def classify_question(request: QuestionClassificationRequest):
                                 ))
                                 
                                 conn.commit()
-                                logger.info(f"✅ Updated topic progress for user {user_id}, topic {classification['topic_id']}: questions_asked={new_questions_asked}, mastery_score={mastery_score}, mastery_level={mastery_level}")
+                                logger.info(f"✅ SUCCESS: Updated topic progress for user {user_id}, topic {classification['topic_id']} ({classification.get('topic_title', 'N/A')}): questions_asked={new_questions_asked}, mastery_score={mastery_score:.3f}, mastery_level={mastery_level}")
+                                
+                                # Verify the update was successful
+                                verify_cursor = conn.execute("""
+                                    SELECT questions_asked, mastery_score, mastery_level 
+                                    FROM topic_progress 
+                                    WHERE user_id = ? AND session_id = ? AND topic_id = ?
+                                """, (user_id, request.session_id, classification["topic_id"]))
+                                verify_result = verify_cursor.fetchone()
+                                if verify_result:
+                                    verify_dict = dict(verify_result)
+                                    logger.info(f"✅ VERIFIED: Topic progress in DB - questions_asked={verify_dict.get('questions_asked')}, mastery_score={verify_dict.get('mastery_score')}, mastery_level={verify_dict.get('mastery_level')}")
+                                else:
+                                    logger.error(f"❌ VERIFICATION FAILED: Topic progress not found in DB after update!")
                 
                 except Exception as e:
-                    logger.error(f"Error updating topic progress: {e}", exc_info=True)
+                    logger.error(f"❌ ERROR updating topic progress: {e}", exc_info=True)
+                    logger.error(f"❌ Error details - user_id: {user_id}, topic_id: {classification.get('topic_id')}, session_id: {request.session_id}")
                     # Don't fail the entire request if progress update fails
                     pass
             else:

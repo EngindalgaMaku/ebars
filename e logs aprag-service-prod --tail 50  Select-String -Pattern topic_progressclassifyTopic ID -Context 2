@@ -1,0 +1,75 @@
+warning: in the working copy of 'frontend/hooks/useStudentChat.ts', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/frontend/hooks/useStudentChat.ts b/frontend/hooks/useStudentChat.ts[m
+[1mindex b5fe71f..54c6fe2 100644[m
+[1m--- a/frontend/hooks/useStudentChat.ts[m
+[1m+++ b/frontend/hooks/useStudentChat.ts[m
+[36m@@ -160,6 +160,26 @@[m [mexport function useStudentChat({[m
+           return history;[m
+         });[m
+ [m
+[32m+[m[32m        // IMPORTANT: Hybrid RAG (KB + QA + Chunks) is ALWAYS used regardless of EBARS status[m
+[32m+[m[32m        // EBARS only controls emoji feedback and adaptive response features[m
+[32m+[m[32m        // Hybrid RAG = Knowledge Base + QA Pairs + Chunks (always active)[m
+[32m+[m[41m        [m
+[32m+[m[32m        // Check EBARS status for emoji feedback and adaptive response features[m
+[32m+[m[32m        let ebarsEnabled = false;[m
+[32m+[m[32m        try {[m
+[32m+[m[32m          const apragSettings = await getAPRAGSettings(sessionId);[m
+[32m+[m[32m          ebarsEnabled = apragSettings.settings?.enable_ebars || false;[m
+[32m+[m[32m          console.log([m
+[32m+[m[32m            `🔍 EBARS Status: ${ebarsEnabled ? "ENABLED" : "DISABLED"} (emoji feedback & adaptive response)`[m
+[32m+[m[32m          );[m
+[32m+[m[32m        } catch (ebarsCheckError) {[m
+[32m+[m[32m          console.warn([m
+[32m+[m[32m            "⚠️ Could not check EBARS status:",[m
+[32m+[m[32m            ebarsCheckError[m
+[32m+[m[32m          );[m
+[32m+[m[32m          ebarsEnabled = false; // Default to disabled if check fails[m
+[32m+[m[32m        }[m
+[32m+[m
+         // Prepare classic RAG payload (for metadata / APRAG logging)[m
+         const payload: any = {[m
+           session_id: sessionId,[m
+[36m@@ -185,6 +205,7 @@[m [mexport function useStudentChat({[m
+           payload.embedding_model = sessionRagSettings.embedding_model;[m
+         }[m
+ [m
+[32m+[m[32m        // ALWAYS use Hybrid RAG (KB + QA + Chunks) - this is independent of EBARS[m
+         // KB-Enhanced RAG payload (Hybrid RAG)[m
+         // IMPORTANT: Use session's embedding_model to match collection dimension[m
+         const hybridPayload = {[m
+[36m@@ -241,27 +262,29 @@[m [mexport function useStudentChat({[m
+           // Clear progress state[m
+           setAsyncTaskProgress(null);[m
+         } else {[m
+[31m-          // SYNC RAG PATH: Direct hybrid RAG call[m
+[32m+[m[32m          // SYNC RAG PATH: Direct hybrid RAG call (always uses Hybrid RAG)[m
+[32m+[m[32m          console.log("✅ Using Hybrid RAG query (KB + QA + Chunks)");[m
+           result = await hybridRAGQuery(hybridPayload);[m
+           actualDurationMs = Date.now() - startTime;[m
+         }[m
+ [m
+[31m-        // Store debug info from hybrid RAG response[m
+[32m+[m[32m        // Store debug info from Hybrid RAG response[m
+         const hybridDebugInfo = result.debug_info || {};[m
+ [m
+         // Check if APRAG is enabled for adaptive learning[m
+[32m+[m[32m        // NOTE: APRAG Adaptive Query works with Hybrid RAG[m
+[32m+[m[32m        // EBARS only controls emoji feedback and adaptive response features[m
+         let finalResponse = result.answer;[m
+         let apragInteractionId: number | null = null;[m
+         let pedagogicalInfo: any = null;[m
+ [m
+[32m+[m[32m        // Process APRAG Adaptive Query if user is logged in[m
+[32m+[m[32m        // EBARS status only affects emoji feedback, not the adaptive query itself[m
+         if (user?.id) {[m
+           try {[m
+             // Check APRAG status and EBARS enabled[m
+             const apragSettings = await getAPRAGSettings(sessionId);[m
+             [m
+[31m-            // Check if EBARS is enabled for this session[m
+[31m-            const ebarsEnabled = apragSettings.settings?.enable_ebars || false;[m
+[31m-            [m
+             // Use APRAG Adaptive Query if APRAG is enabled AND (CACS is enabled OR EBARS is enabled)[m
+             // EBARS uses adaptive query for personalized responses[m
+             if (apragSettings.enabled && (apragSettings.features.cacs || ebarsEnabled)) {[m
