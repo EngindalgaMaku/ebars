@@ -1182,6 +1182,19 @@ En alakalı 1-3 konu seç. Sadece JSON çıktısı ver."""
                 # Use summary as main content
                 summary = kb["content"].get("topic_summary", "")
                 
+                # ENHANCED: Use quality score in final_score calculation
+                quality_score = kb.get("quality_score", 1.0)  # Default to 1.0 if not available
+                # Normalize quality_score to 0-1 range if needed
+                if quality_score > 1.0:
+                    quality_score = quality_score / 100.0  # Assume percentage format
+                elif quality_score < 0.0:
+                    quality_score = 0.0
+                
+                # Calculate final score with quality adjustment
+                # Higher quality KB gets higher weight
+                adjusted_relevance = kb["relevance_score"] * quality_score
+                final_score = adjusted_relevance * 0.3  # 30% weight
+                
                 merged.append({
                     "content": summary,
                     "source": "knowledge_base",
@@ -1189,12 +1202,12 @@ En alakalı 1-3 konu seç. Sadece JSON çıktısı ver."""
                     "topic_title": kb["topic_title"],
                     "topic_id": kb["topic_id"],
                     "original_score": kb["relevance_score"],
-                    "final_score": kb["relevance_score"] * 0.3,  # 30% weight
+                    "final_score": final_score,
                     "metadata": {
-                        "quality_score": kb["quality_score"],
-                        "concepts": kb["content"]["key_concepts"],
-                        "objectives": kb["content"]["learning_objectives"],
-                        "examples": kb["content"]["examples"]
+                        "quality_score": kb.get("quality_score", 1.0),
+                        "concepts": kb["content"].get("key_concepts", []),
+                        "objectives": kb["content"].get("learning_objectives", []),
+                        "examples": kb["content"].get("examples", [])
                     }
                 })
             
@@ -1202,8 +1215,8 @@ En alakalı 1-3 konu seç. Sadece JSON çıktısı ver."""
             for qa in qa_matches[:3]:  # Top 3 QA matches
                 if qa["similarity_score"] > 0.85:  # Only high similarity
                     content = f"SORU: {qa['question']}\n\nCEVAP: {qa['answer']}"
-                    if qa.get("explanation"):
-                        content += f"\n\nAÇIKLAMA: {qa['explanation']}"
+                    # ENHANCED: Always include explanation if available (for context building)
+                    explanation = qa.get("explanation", "")
                     
                     merged.append({
                         "content": content,
@@ -1213,10 +1226,12 @@ En alakalı 1-3 konu seç. Sadece JSON çıktısı ver."""
                         "original_score": qa["similarity_score"],
                         "final_score": qa["similarity_score"] * 0.3,  # 30% weight
                         "metadata": {
-                            "difficulty": qa["difficulty_level"],
-                            "question_type": qa["question_type"],
-                            "bloom_level": qa["bloom_level"],
-                            "times_asked": qa["times_asked"]
+                            "question": qa.get("question", ""),
+                            "explanation": explanation,  # Store explanation in metadata for context building
+                            "difficulty": qa.get("difficulty_level", ""),
+                            "question_type": qa.get("question_type", ""),
+                            "bloom_level": qa.get("bloom_level", ""),
+                            "times_asked": qa.get("times_asked", 0)
                         }
                     })
         
@@ -1301,8 +1316,77 @@ En alakalı 1-3 konu seç. Sadece JSON çıktısı ver."""
         current_length = 0
         
         for i, result in enumerate(merged_results):
-            content = result["content"]
             source = result["source"]
+            content = result["content"]
+            metadata = result.get("metadata", {})
+            
+            # ENHANCED: Format KB content with all information (summary + concepts + objectives + examples)
+            if source == "knowledge_base":
+                # Get KB content from metadata if available (from _merge_results)
+                kb_metadata = metadata
+                concepts = kb_metadata.get("concepts", [])
+                objectives = kb_metadata.get("objectives", [])
+                examples = kb_metadata.get("examples", [])
+                
+                # Build comprehensive KB content
+                kb_content_parts = [content]  # Start with summary
+                
+                if concepts:
+                    # Format concepts (handle both dict and string formats)
+                    concepts_list = []
+                    for c in concepts:
+                        if isinstance(c, dict):
+                            concept_text = c.get("concept", "") or c.get("name", "")
+                            if concept_text:
+                                concepts_list.append(concept_text)
+                        elif isinstance(c, str) and c.strip():
+                            concepts_list.append(c.strip())
+                    
+                    if concepts_list:
+                        kb_content_parts.append(f"\n📌 Anahtar Kavramlar: {', '.join(concepts_list[:10])}")  # Limit to 10 concepts
+                
+                if objectives:
+                    # Format objectives (handle both dict and string formats)
+                    objectives_list = []
+                    for o in objectives:
+                        if isinstance(o, dict):
+                            obj_text = o.get("objective", "") or o.get("name", "")
+                            if obj_text:
+                                objectives_list.append(obj_text)
+                        elif isinstance(o, str) and o.strip():
+                            objectives_list.append(o.strip())
+                    
+                    if objectives_list:
+                        kb_content_parts.append(f"\n🎯 Öğrenme Hedefleri: {', '.join(objectives_list[:5])}")  # Limit to 5 objectives
+                
+                if examples:
+                    # Format examples (handle both dict and string formats)
+                    examples_list = []
+                    for e in examples:
+                        if isinstance(e, dict):
+                            ex_text = e.get("example", "") or e.get("text", "") or e.get("name", "")
+                            if ex_text:
+                                examples_list.append(ex_text)
+                        elif isinstance(e, str) and e.strip():
+                            examples_list.append(e.strip())
+                    
+                    if examples_list:
+                        kb_content_parts.append(f"\n💡 Örnekler: {', '.join(examples_list[:3])}")  # Limit to 3 examples
+                
+                content = "\n".join(kb_content_parts)
+            
+            # ENHANCED: Format QA content with explanation if available
+            elif source == "qa_pair":
+                # Check if explanation is in metadata or content already includes it
+                explanation = metadata.get("explanation", "")
+                question = metadata.get("question", "")
+                
+                # If content is just answer and we have explanation, add it
+                if explanation and question and not explanation in content:
+                    # Content might already be formatted as "SORU: ...\n\nCEVAP: ..." from _merge_results
+                    # Check if explanation is missing
+                    if "AÇIKLAMA:" not in content and "explanation" not in content.lower():
+                        content = f"{content}\n\n💡 Açıklama: {explanation}"
             
             # Format with source label
             if include_sources:
@@ -1318,7 +1402,18 @@ En alakalı 1-3 konu seç. Sadece JSON çıktısı ver."""
             
             # Check length limit
             if current_length + len(formatted) > max_chars:
-                break
+                # Try to truncate if KB content is too long
+                if source == "knowledge_base" and len(formatted) > (max_chars - current_length):
+                    # Truncate KB content but keep summary
+                    remaining_chars = max_chars - current_length - 50  # Reserve space for label
+                    if remaining_chars > 100:
+                        # Keep summary and truncate additional info
+                        summary_part = content.split("\n")[0]  # First line is summary
+                        formatted = f"[{source_label} #{i+1}]\n{summary_part[:remaining_chars]}...\n"
+                    else:
+                        break  # Not enough space, skip this item
+                else:
+                    break
             
             context_parts.append(formatted)
             current_length += len(formatted)

@@ -777,8 +777,9 @@ export default function StudentChatPage() {
                                 formatTimestamp(message.timestamp)}
                             </span>
 
-                            {/* Emoji Feedback */}
-                            {message.aprag_interaction_id &&
+                            {/* Emoji Feedback - Only show if EBARS is enabled */}
+                            {ebarsEnabled &&
+                              message.aprag_interaction_id &&
                               user &&
                               selectedSession && (
                                 <QuickEmojiFeedback
@@ -787,15 +788,13 @@ export default function StudentChatPage() {
                                   sessionId={selectedSession}
                                   onFeedbackSubmitted={() => {
                                     // Trigger EBARS refresh after emoji feedback
-                                    if (ebarsEnabled) {
-                                      setTimeout(
-                                        () =>
-                                          setEbarsRefreshTrigger(
-                                            (prev) => prev + 1
-                                          ),
-                                        500
-                                      );
-                                    }
+                                    setTimeout(
+                                      () =>
+                                        setEbarsRefreshTrigger(
+                                          (prev) => prev + 1
+                                        ),
+                                      500
+                                    );
                                   }}
                                 />
                               )}

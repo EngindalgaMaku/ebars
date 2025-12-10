@@ -1000,3 +1000,8 @@ ile eğitim materyallerinin etkili bir şekilde yönetilmesini ve RAG sisteminde
 **Versiyon:** 1.0.0  
 **Yazar:** EBARS Development Team
 
+
+
+
+
+

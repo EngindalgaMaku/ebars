@@ -299,3 +299,8 @@ Makalenizde şu karşılaştırmaları yapın:
 **Sonuç:** ✅ Yüksek özgünlük, düşük kopya makale riski
 
 
+
+
+
+
+

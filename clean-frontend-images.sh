@@ -77,3 +77,8 @@ docker images | grep -E "(frontend|rag.*frontend)" || echo "  (image kalmadı)"
 
 
 
+
+
+
+
+

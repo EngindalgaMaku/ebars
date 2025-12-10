@@ -91,36 +91,44 @@ export default function EmojiFeedback({
   const [pendingEmoji, setPendingEmoji] = useState<
     "😊" | "👍" | "😐" | "❌" | null
   >(null);
+  const [ebarsEnabled, setEbarsEnabled] = useState<boolean>(false);
   const { isEnabled, features, isLoading } = useAPRAGSettings(sessionId);
 
-  // Debug logging
-  if (typeof window !== 'undefined') {
-    console.log('[EmojiFeedback] Debug:', {
-      sessionId,
-      isEnabled,
-      feedback_collection: features.feedback_collection,
-      isLoading,
-      interactionId,
-      userId,
-      compact,
-      showDetailedModal
-    });
+  // Check EBARS status
+  React.useEffect(() => {
+    async function checkEBARS() {
+      try {
+        const result = await checkEBARSEnabled(sessionId);
+        setEbarsEnabled(result.isEnabled);
+      } catch (error) {
+        console.warn('[EmojiFeedback] Failed to check EBARS status:', error);
+        setEbarsEnabled(false);
+      }
+    }
+    if (sessionId) {
+      checkEBARS();
+    }
+  }, [sessionId]);
+
+  // Don't render if EBARS is disabled, APRAG is disabled, or emoji feedback is disabled
+  const allowRender = ebarsEnabled && isEnabled && features.feedback_collection;
+  
+  // Early return if EBARS is disabled
+  if (!isLoading && !ebarsEnabled) {
+    return null; // Don't render emoji feedback if EBARS is disabled
   }
 
-  // Don't render if APRAG or emoji feedback is disabled
-  // TEMPORARY: Allow rendering even if disabled for debugging
-  const allowRender = isEnabled && features.feedback_collection;
   if (!isLoading && !allowRender) {
     if (typeof window !== 'undefined') {
       console.warn('[EmojiFeedback] Not rendering:', {
-        reason: !isEnabled ? 'APRAG disabled' : 'feedback_collection disabled',
+        reason: !ebarsEnabled ? 'EBARS disabled' : !isEnabled ? 'APRAG disabled' : 'feedback_collection disabled',
+        ebarsEnabled,
         isEnabled,
         feedback_collection: features.feedback_collection,
         isLoading
       });
     }
-    // TEMPORARY: Still render for debugging, but show a warning
-    console.warn('[EmojiFeedback] FORCING RENDER FOR DEBUGGING - Remove this after fixing!');
+    return null; // Don't render if not allowed
   }
 
   const handleEmojiClick = async (

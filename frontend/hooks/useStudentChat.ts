@@ -185,6 +185,7 @@ export function useStudentChat({
           payload.embedding_model = sessionRagSettings.embedding_model;
         }
 
+        // ALWAYS use Hybrid RAG (KB + QA + Chunks) - this is independent of EBARS
         // KB-Enhanced RAG payload (Hybrid RAG)
         // IMPORTANT: Use session's embedding_model to match collection dimension
         const hybridPayload = {
@@ -241,19 +242,23 @@ export function useStudentChat({
           // Clear progress state
           setAsyncTaskProgress(null);
         } else {
-          // SYNC RAG PATH: Direct hybrid RAG call
+          // SYNC RAG PATH: Direct hybrid RAG call (always uses Hybrid RAG)
+          console.log("✅ Using Hybrid RAG query (KB + QA + Chunks)");
           result = await hybridRAGQuery(hybridPayload);
           actualDurationMs = Date.now() - startTime;
         }
 
-        // Store debug info from hybrid RAG response
+        // Store debug info from Hybrid RAG response
         const hybridDebugInfo = result.debug_info || {};
 
         // Check if APRAG is enabled for adaptive learning
+        // NOTE: APRAG Adaptive Query works with Hybrid RAG
+        // EBARS only controls emoji feedback and adaptive response features
         let finalResponse = result.answer;
         let apragInteractionId: number | null = null;
         let pedagogicalInfo: any = null;
 
+        // Process APRAG Adaptive Query if user is logged in
         if (user?.id) {
           try {
             // Check APRAG status and EBARS enabled

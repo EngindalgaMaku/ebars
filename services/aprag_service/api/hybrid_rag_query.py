@@ -770,14 +770,30 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
             
             # Then, add KB results (preserve them!)
             for kb_item in kb_results:
+                # ENHANCED: Include all KB content in metadata for context building
+                kb_content = kb_item.get("content", {})
+                quality_score = kb_item.get("quality_score", 1.0)
+                # Normalize quality_score
+                if quality_score > 1.0:
+                    quality_score = quality_score / 100.0
+                elif quality_score < 0.0:
+                    quality_score = 0.0
+                
+                # Calculate final score with quality adjustment
+                adjusted_relevance = kb_item.get("relevance_score", 0.0) * quality_score
+                
                 updated_merged.append({
                     "source": "knowledge_base",
-                    "content": kb_item.get("content", {}).get("topic_summary", ""),
+                    "content": kb_content.get("topic_summary", ""),
                     "score": kb_item.get("relevance_score", 0.0),
-                    "final_score": kb_item.get("relevance_score", 0.0),
+                    "final_score": adjusted_relevance,
                     "metadata": {
                         "topic_id": kb_item.get("topic_id"),
                         "topic_title": kb_item.get("topic_title", ""),
+                        "quality_score": quality_score,
+                        "concepts": kb_content.get("key_concepts", []),  # For context building
+                        "objectives": kb_content.get("learning_objectives", []),  # For context building
+                        "examples": kb_content.get("examples", []),  # For context building
                         "source_type": "knowledge_base",  # For frontend compatibility
                         "source": "knowledge_base",  # For frontend compatibility
                         "filename": "unknown"  # For frontend grouping
@@ -786,6 +802,7 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
             
             # Finally, add QA pairs (preserve them!)
             for qa_item in qa_matches:
+                # ENHANCED: Include explanation in metadata for context building
                 updated_merged.append({
                     "source": "qa_pair",
                     "content": qa_item.get("answer", ""),
@@ -794,6 +811,7 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
                     "metadata": {
                         "qa_id": qa_item.get("qa_id"),
                         "question": qa_item.get("question", ""),
+                        "explanation": qa_item.get("explanation", ""),  # For context building
                         "source_type": "qa_pair",  # For frontend compatibility
                         "source": "qa_pair",  # For frontend compatibility
                         "filename": "qa_pairs"  # For frontend grouping
@@ -813,14 +831,30 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
             if kb_results and kb_in_merged == 0:
                 logger.warning(f"⚠️ KB results found ({len(kb_results)}) but not in merged_results, adding them...")
                 for kb_item in kb_results:
+                    # ENHANCED: Include all KB content in metadata for context building
+                    kb_content = kb_item.get("content", {})
+                    quality_score = kb_item.get("quality_score", 1.0)
+                    # Normalize quality_score
+                    if quality_score > 1.0:
+                        quality_score = quality_score / 100.0
+                    elif quality_score < 0.0:
+                        quality_score = 0.0
+                    
+                    # Calculate final score with quality adjustment
+                    adjusted_relevance = kb_item.get("relevance_score", 0.0) * quality_score
+                    
                     merged_results.append({
                         "source": "knowledge_base",
-                        "content": kb_item.get("content", {}).get("topic_summary", ""),
+                        "content": kb_content.get("topic_summary", ""),
                         "score": kb_item.get("relevance_score", 0.0),
-                        "final_score": kb_item.get("relevance_score", 0.0),
+                        "final_score": adjusted_relevance,
                         "metadata": {
                             "topic_id": kb_item.get("topic_id"),
                             "topic_title": kb_item.get("topic_title", ""),
+                            "quality_score": quality_score,
+                            "concepts": kb_content.get("key_concepts", []),  # For context building
+                            "objectives": kb_content.get("learning_objectives", []),  # For context building
+                            "examples": kb_content.get("examples", []),  # For context building
                             "source_type": "knowledge_base",  # For frontend compatibility
                             "source": "knowledge_base",  # For frontend compatibility
                             "filename": "unknown"  # For frontend grouping
@@ -830,6 +864,7 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
             if qa_matches and qa_in_merged == 0:
                 logger.warning(f"⚠️ QA matches found ({len(qa_matches)}) but not in merged_results, adding them...")
                 for qa_item in qa_matches:
+                    # ENHANCED: Include explanation in metadata for context building
                     merged_results.append({
                         "source": "qa_pair",
                         "content": qa_item.get("answer", ""),
@@ -838,6 +873,7 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
                         "metadata": {
                             "qa_id": qa_item.get("qa_id"),
                             "question": qa_item.get("question", ""),
+                            "explanation": qa_item.get("explanation", ""),  # For context building
                             "source_type": "qa_pair",  # For frontend compatibility
                             "source": "qa_pair",  # For frontend compatibility
                             "filename": "qa_pairs"  # For frontend grouping

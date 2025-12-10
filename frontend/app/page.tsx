@@ -2633,7 +2633,8 @@ export default function HomePage() {
                                     </div>
                                   </div>
 
-                                  {/* Emoji Feedback Component */}
+                                  {/* Emoji Feedback Component - Only show if EBARS is enabled */}
+                                  {/* Note: EmojiFeedback component also checks EBARS internally */}
                                   {message.aprag_interaction_id &&
                                     user?.id &&
                                     selectedSessionId && (

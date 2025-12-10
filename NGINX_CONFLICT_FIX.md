@@ -111,3 +111,8 @@ Uyarı kritik değil, Nginx çalışıyor. Ama düzeltmek daha iyi. Önce hangi 
 
 
 
+
+
+
+
+
