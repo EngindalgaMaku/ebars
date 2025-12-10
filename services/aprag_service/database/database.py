@@ -463,8 +463,11 @@ class DatabaseManager:
                 logger.error(f"Fallback migration also failed: {fallback_err}", exc_info=True)
     
     def _apply_topic_progress_migration_directly(self, conn: sqlite3.Connection):
-        """Apply topic_progress migration directly (fallback method)"""
+        """Apply topic_progress migration directly - RECREATES TABLE to remove FK constraint"""
         try:
+            # CRITICAL: Disable foreign keys during migration
+            conn.execute("PRAGMA foreign_keys = OFF")
+            
             # Check if table exists
             cursor = conn.execute("""
                 SELECT name FROM sqlite_master 
@@ -473,57 +476,99 @@ class DatabaseManager:
             table_exists = cursor.fetchone() is not None
             
             if table_exists:
-                # Check current schema
-                cursor = conn.execute("PRAGMA table_info(topic_progress)")
-                columns = {row[1]: row[2] for row in cursor.fetchall()}
+                # Check if FK to users exists
+                cursor = conn.execute("PRAGMA foreign_key_list(topic_progress)")
+                fks = cursor.fetchall()
+                has_users_fk = any(fk[2] == 'users' for fk in fks) if fks else False
                 
-                # Add ALL missing columns if needed
-                # Required columns for topic_progress table
-                required_columns = {
-                    'average_understanding': 'DECIMAL(3,2)',
-                    'average_satisfaction': 'DECIMAL(3,2)',
-                    'mastery_score': 'DECIMAL(3,2)',
-                    'mastery_level': 'VARCHAR(20)',
-                    'is_ready_for_next': 'BOOLEAN DEFAULT FALSE',
-                    'readiness_score': 'DECIMAL(3,2)',
-                    'time_spent_minutes': 'INTEGER DEFAULT 0',
-                    'first_question_timestamp': 'TIMESTAMP',
-                    'last_question_timestamp': 'TIMESTAMP',
-                    'updated_at': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-                }
-                
-                # Add progress_id if needed (handle both 'id' and 'progress_id')
-                if 'id' in columns and 'progress_id' not in columns:
-                    logger.info("Adding progress_id column...")
+                if has_users_fk:
+                    logger.warning("⚠️ FK to users detected - recreating table to remove it...")
+                    # Get all data first
+                    cursor = conn.execute("SELECT * FROM topic_progress")
+                    old_data = cursor.fetchall()
+                    old_columns = [description[0] for description in cursor.description]
+                    
+                    # Drop old table
+                    logger.info("Dropping old topic_progress table...")
+                    conn.execute("DROP TABLE IF EXISTS topic_progress")
+                    
+                    # Create new table WITHOUT FK to users
+                    logger.info("Creating new topic_progress table without FK to users...")
                     conn.execute("""
-                        ALTER TABLE topic_progress 
-                        ADD COLUMN progress_id INTEGER
+                        CREATE TABLE topic_progress (
+                            progress_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id VARCHAR(255) NOT NULL,
+                            session_id VARCHAR(255) NOT NULL,
+                            topic_id INTEGER NOT NULL,
+                            questions_asked INTEGER DEFAULT 0,
+                            average_understanding DECIMAL(3,2),
+                            average_satisfaction DECIMAL(3,2),
+                            last_question_timestamp TIMESTAMP,
+                            mastery_level VARCHAR(20),
+                            mastery_score DECIMAL(3,2),
+                            is_ready_for_next BOOLEAN DEFAULT FALSE,
+                            readiness_score DECIMAL(3,2),
+                            time_spent_minutes INTEGER DEFAULT 0,
+                            first_question_timestamp TIMESTAMP,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(user_id, session_id, topic_id),
+                            FOREIGN KEY (topic_id) REFERENCES course_topics(topic_id) ON DELETE CASCADE
+                        )
+                    """)
+                    
+                    # Restore data if any
+                    if old_data:
+                        logger.info(f"Restoring {len(old_data)} rows...")
+                        for row in old_data:
+                            row_dict = dict(zip(old_columns, row))
+                            try:
+                                conn.execute("""
+                                    INSERT INTO topic_progress (
+                                        user_id, session_id, topic_id, questions_asked,
+                                        average_understanding, average_satisfaction,
+                                        last_question_timestamp, mastery_level, mastery_score,
+                                        is_ready_for_next, readiness_score, time_spent_minutes,
+                                        first_question_timestamp, created_at, updated_at
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (
+                                    str(row_dict.get('user_id', '')),
+                                    row_dict.get('session_id', ''),
+                                    row_dict.get('topic_id'),
+                                    row_dict.get('questions_asked', 0),
+                                    row_dict.get('average_understanding'),
+                                    row_dict.get('average_satisfaction'),
+                                    row_dict.get('last_question_timestamp'),
+                                    row_dict.get('mastery_level'),
+                                    row_dict.get('mastery_score'),
+                                    row_dict.get('is_ready_for_next', False),
+                                    row_dict.get('readiness_score'),
+                                    row_dict.get('time_spent_minutes', 0),
+                                    row_dict.get('first_question_timestamp'),
+                                    row_dict.get('created_at'),
+                                    row_dict.get('updated_at')
+                                ))
+                            except Exception as restore_err:
+                                logger.warning(f"⚠️ Could not restore row: {restore_err}")
+                    
+                    # Create indexes
+                    conn.execute("""
+                        CREATE INDEX IF NOT EXISTS idx_topic_progress_user_topic 
+                        ON topic_progress(user_id, topic_id)
                     """)
                     conn.execute("""
-                        UPDATE topic_progress 
-                        SET progress_id = id
+                        CREATE INDEX IF NOT EXISTS idx_topic_progress_session 
+                        ON topic_progress(session_id)
                     """)
-                
-                # Add all missing columns
-                for col_name, col_def in required_columns.items():
-                    if col_name not in columns:
-                        logger.info(f"Adding {col_name} column...")
-                        try:
-                            conn.execute(f"""
-                                ALTER TABLE topic_progress 
-                                ADD COLUMN {col_name} {col_def}
-                            """)
-                            logger.info(f"✅ Added {col_name} column")
-                        except Exception as col_err:
-                            logger.warning(f"⚠️ Failed to add {col_name} column: {col_err}")
-                
-                # Change user_id to VARCHAR if it's INTEGER (SQLite limitation - can't change type directly)
-                # This will be handled in queries with CAST if needed
-                if columns.get('user_id') == 'INTEGER':
-                    logger.info("Note: user_id is INTEGER, will use CAST in queries if needed")
-                
-                conn.commit()
-                logger.info("✅ Topic Progress migration applied directly - all required columns added")
+                    conn.execute("""
+                        CREATE INDEX IF NOT EXISTS idx_topic_progress_topic 
+                        ON topic_progress(topic_id)
+                    """)
+                    
+                    conn.commit()
+                    logger.info("✅ Topic Progress table recreated without FK to users")
+                else:
+                    logger.info("✅ No FK to users - table schema is correct")
             else:
                 # Create table with correct schema
                 logger.info("Creating topic_progress table with correct schema...")
@@ -566,8 +611,17 @@ class DatabaseManager:
                 
                 conn.commit()
                 logger.info("Topic Progress table created with correct schema")
+            
+            # Re-enable foreign keys
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.commit()
                 
         except Exception as e:
+            # Re-enable foreign keys even on error
+            try:
+                conn.execute("PRAGMA foreign_keys = ON")
+            except:
+                pass
             logger.error(f"Failed to apply topic_progress migration directly: {e}", exc_info=True)
             raise
     
