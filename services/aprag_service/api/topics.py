@@ -1714,28 +1714,32 @@ async def classify_question(request: QuestionClassificationRequest):
                 error_msg = f"Invalid topic_id format: {classification['topic_id']}"
                 logger.error(error_msg)
             
-            # Save mapping if interaction_id is provided
-            if request.interaction_id:
+            # Save mapping if interaction_id is provided and valid
+            # CRITICAL: Check if interaction_id is valid (not None, not -1, not 0, and exists in database)
+            valid_interaction_id = None
+            if request.interaction_id and request.interaction_id not in [None, -1, 0]:
                 try:
                     with db.get_connection() as conn:
-                        # Get user_id from interaction if not provided
-                        if not request.user_id:
-                            cursor = conn.execute(
-                                "SELECT user_id FROM student_interactions WHERE interaction_id = ?",
-                                (request.interaction_id,)
-                            )
-                            result = cursor.fetchone()
-                            if result:
-                                user_id = result[0]
-                            else:
-                                user_id = "unknown_user"
-                                logger.warning(f"No user_id found for interaction_id {request.interaction_id}, using 'unknown_user'")
+                        # Verify interaction_id exists in student_interactions table
+                        verify_cursor = conn.execute(
+                            "SELECT interaction_id FROM student_interactions WHERE interaction_id = ?",
+                            (request.interaction_id,)
+                        )
+                        if verify_cursor.fetchone():
+                            valid_interaction_id = request.interaction_id
+                            logger.info(f"✅ Valid interaction_id found: {valid_interaction_id}")
                         else:
-                            user_id = request.user_id
-                        
+                            logger.warning(f"⚠️ interaction_id {request.interaction_id} does not exist in student_interactions table. Skipping question_topic_mapping insert.")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not verify interaction_id {request.interaction_id}: {e}. Skipping question_topic_mapping insert.")
+            
+            # Save mapping only if we have a valid interaction_id
+            if valid_interaction_id:
+                try:
+                    with db.get_connection() as conn:
                         # Log values before insertion for debugging
                         logger.info(f"Attempting to insert into question_topic_mapping with values:")
-                        logger.info(f"- interaction_id: {request.interaction_id} (type: {type(request.interaction_id)})")
+                        logger.info(f"- interaction_id: {valid_interaction_id} (type: {type(valid_interaction_id)})")
                         logger.info(f"- topic_id: {classification['topic_id']} (type: {type(classification['topic_id'])})")
                         logger.info(f"- confidence_score: {classification['confidence_score']} (type: {type(classification['confidence_score'])})")
                         
@@ -1760,7 +1764,7 @@ async def classify_question(request: QuestionClassificationRequest):
                                 question_type
                             ) VALUES (?, ?, ?, ?, ?, ?)
                         """, (
-                            request.interaction_id,
+                            valid_interaction_id,
                             classification["topic_id"],
                             float(classification["confidence_score"]),
                             "llm_classification",
@@ -1771,13 +1775,18 @@ async def classify_question(request: QuestionClassificationRequest):
                         mapping_id = cursor.lastrowid
                         conn.commit()
                         
-                        logger.info(f"Successfully saved question-topic mapping with ID {mapping_id}")
+                        logger.info(f"✅ Successfully saved question-topic mapping with ID {mapping_id}")
                     
                 except Exception as e:
+                    # CRITICAL: Don't fail the entire request if mapping save fails
+                    # Topic progress update is more important than mapping
                     error_msg = f"Error saving question-topic mapping: {str(e)}"
                     logger.error(error_msg, exc_info=True)
-                    # Don't call conn.rollback() here - connection is already closed by context manager
-                    raise HTTPException(status_code=500, detail=error_msg)
+                    # Log warning but continue - don't raise exception
+                    logger.warning(f"⚠️ Continuing despite question-topic mapping error. Topic progress will still be updated if user_id is available.")
+            elif request.interaction_id:
+                # interaction_id was provided but is invalid
+                logger.warning(f"⚠️ Invalid interaction_id provided ({request.interaction_id}). Skipping question_topic_mapping insert. Topic progress will still be updated if user_id is available.")
             
             # Update topic progress if user_id is available (either from interaction_id or request)
             # This ensures topic progress is tracked even when interaction_id is not available
