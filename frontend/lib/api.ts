@@ -1457,6 +1457,61 @@ export async function getSessionInteractions(
   return res.json();
 }
 
+// Delete a single interaction
+export async function deleteInteraction(
+  interactionId: number
+): Promise<{ message: string; interaction_id: number }> {
+  const token = tokenManager.getAccessToken?.() || null;
+  const res = await fetch(`${getApiUrl()}/aprag/interactions/${interactionId}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+
+  return res.json();
+}
+
+// Delete multiple interactions or all interactions for a session
+export async function deleteSessionInteractions(
+  sessionId: string,
+  options: {
+    interactionIds?: number[];
+    deleteAll?: boolean;
+  }
+): Promise<{ message: string; session_id: string; deleted_count?: number }> {
+  const token = tokenManager.getAccessToken?.() || null;
+  const { interactionIds, deleteAll } = options;
+
+  let url = `${getApiUrl()}/aprag/interactions/session/${sessionId}/bulk?`;
+  if (deleteAll) {
+    url += "delete_all=true";
+  } else if (interactionIds && interactionIds.length > 0) {
+    url += `interaction_ids=${interactionIds.join(",")}`;
+  } else {
+    throw new Error("Either deleteAll or interactionIds must be provided");
+  }
+
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+
+  return res.json();
+}
+
 // Get total student interactions count
 export async function getTotalInteractions(
   sessionIds?: string[]

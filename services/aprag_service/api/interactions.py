@@ -120,13 +120,12 @@ async def get_user_info_from_auth_service(user_ids: List[str]) -> Dict[str, Dict
                                 user_data = response.json()
                                 user_info_map[user_id_str] = {
                                     "id": user_data.get("id"),
-                                    "username": user_data.get("username"),
-                                    "first_name": user_data.get("first_name", ""),
-                                    "last_name": user_data.get("last_name", ""),
-                                    "student_name": f"{user_data.get('first_name', '')} {user_data.get('last_name', '')}".strip()
+                                    "username": user_data.get("username", "").strip(),
+                                    "first_name": user_data.get("first_name", "").strip(),
+                                    "last_name": user_data.get("last_name", "").strip(),
                                 }
                                 user_found = True
-                                logger.info(f"✅ Found user {user_id_str} by ID: {user_info_map[user_id_str].get('student_name', 'N/A')}")
+                                logger.info(f"✅ Found user {user_id_str} by ID: {user_info_map[user_id_str].get('username', 'N/A')}")
                         except httpx.RequestError as e:
                             logger.debug(f"ID lookup failed for {user_id_str}: {e}")
                     
@@ -138,13 +137,12 @@ async def get_user_info_from_auth_service(user_ids: List[str]) -> Dict[str, Dict
                                 user_data = response.json()
                                 user_info_map[user_id_str] = {
                                     "id": user_data.get("id"),
-                                    "username": user_data.get("username"),
-                                    "first_name": user_data.get("first_name", ""),
-                                    "last_name": user_data.get("last_name", ""),
-                                    "student_name": f"{user_data.get('first_name', '')} {user_data.get('last_name', '')}".strip()
+                                    "username": user_data.get("username", "").strip(),
+                                    "first_name": user_data.get("first_name", "").strip(),
+                                    "last_name": user_data.get("last_name", "").strip(),
                                 }
                                 user_found = True
-                                logger.info(f"✅ Found user {user_id_str} by username: {user_info_map[user_id_str].get('student_name', 'N/A')}")
+                                logger.info(f"✅ Found user {user_id_str} by username: {user_info_map[user_id_str].get('username', 'N/A')}")
                         except httpx.RequestError as e:
                             logger.debug(f"Username lookup failed for {user_id_str}: {e}")
                             # Log response details for debugging
@@ -403,10 +401,26 @@ async def get_session_interactions(
             
             if user_info:
                 # User found in Auth service
-                interaction["first_name"] = user_info.get("first_name", "")
-                interaction["last_name"] = user_info.get("last_name", "")
-                interaction["username"] = user_info.get("username", "")
-                interaction["student_name"] = user_info.get("student_name", f"Öğrenci ({user_id})")
+                first_name = user_info.get("first_name", "").strip()
+                last_name = user_info.get("last_name", "").strip()
+                username = user_info.get("username", "").strip()
+                
+                interaction["first_name"] = first_name
+                interaction["last_name"] = last_name
+                interaction["username"] = username
+                
+                # Build student_name: prefer first_name + last_name, fallback to username, then "Öğrenci"
+                if first_name and last_name:
+                    interaction["student_name"] = f"{first_name} {last_name}"
+                elif first_name:
+                    interaction["student_name"] = first_name
+                elif last_name:
+                    interaction["student_name"] = last_name
+                elif username:
+                    interaction["student_name"] = username
+                else:
+                    interaction["student_name"] = f"Öğrenci ({user_id})"
+                
                 logger.debug(f"✅ User {user_id} found: {interaction['student_name']}")
             else:
                 # User not found in Auth service
@@ -535,5 +549,90 @@ async def get_interaction(interaction_id: int, db: DatabaseManager = Depends(get
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get interaction: {str(e)}"
+        )
+
+
+@router.delete("/{interaction_id}")
+async def delete_interaction(interaction_id: int, db: DatabaseManager = Depends(get_db)):
+    """
+    Delete a specific interaction by ID
+    """
+    try:
+        # Check if interaction exists
+        check_query = "SELECT interaction_id FROM student_interactions WHERE interaction_id = ?"
+        result = db.execute_query(check_query, (interaction_id,))
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Interaction not found")
+        
+        # Delete the interaction
+        delete_query = "DELETE FROM student_interactions WHERE interaction_id = ?"
+        db.execute_query(delete_query, (interaction_id,))
+        
+        logger.info(f"Deleted interaction {interaction_id}")
+        
+        return {"message": "Interaction deleted successfully", "interaction_id": interaction_id}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete interaction: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete interaction: {str(e)}"
+        )
+
+
+@router.delete("/session/{session_id}/bulk")
+async def delete_session_interactions(
+    session_id: str,
+    interaction_ids: Optional[List[int]] = None,
+    delete_all: bool = False,
+    db: DatabaseManager = Depends(get_db)
+):
+    """
+    Delete multiple interactions for a session
+    - If delete_all=True, delete all interactions for the session
+    - If interaction_ids is provided, delete only those interactions
+    """
+    try:
+        if delete_all:
+            # Delete all interactions for the session
+            delete_query = "DELETE FROM student_interactions WHERE session_id = ?"
+            db.execute_query(delete_query, (session_id,))
+            
+            logger.info(f"Deleted all interactions for session {session_id}")
+            
+            return {
+                "message": "All interactions deleted successfully",
+                "session_id": session_id
+            }
+        elif interaction_ids:
+            # Delete specific interactions
+            if not interaction_ids:
+                raise HTTPException(status_code=400, detail="No interaction IDs provided")
+            
+            placeholders = ",".join(["?"] * len(interaction_ids))
+            delete_query = f"DELETE FROM student_interactions WHERE interaction_id IN ({placeholders}) AND session_id = ?"
+            db.execute_query(delete_query, tuple(interaction_ids) + (session_id,))
+            
+            logger.info(f"Deleted {len(interaction_ids)} interactions for session {session_id}")
+            
+            return {
+                "message": "Interactions deleted successfully",
+                "session_id": session_id,
+                "deleted_count": len(interaction_ids),
+                "interaction_ids": interaction_ids
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Either delete_all=True or interaction_ids must be provided")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete interactions: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete interactions: {str(e)}"
         )
 

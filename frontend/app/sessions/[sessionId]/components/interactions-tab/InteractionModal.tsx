@@ -49,12 +49,19 @@ export function InteractionModal({
     if (interaction.first_name && interaction.last_name) {
       return `${interaction.first_name} ${interaction.last_name}`;
     }
-    if (interaction.first_name || interaction.last_name) {
-      return interaction.first_name || interaction.last_name;
+    if (interaction.first_name) {
+      return interaction.first_name;
+    }
+    if (interaction.last_name) {
+      return interaction.last_name;
+    }
+    if (interaction.username) {
+      return interaction.username;
     }
     if (
       interaction.student_name &&
-      !interaction.student_name.startsWith("Öğrenci (ID:")
+      !interaction.student_name.startsWith("Öğrenci (ID:") &&
+      !interaction.student_name.startsWith("Öğrenci (")
     ) {
       return interaction.student_name;
     }
@@ -205,7 +212,9 @@ export function InteractionModal({
             <CardContent>
               <div className="prose prose-sm max-w-none">
                 <div className="text-foreground whitespace-pre-wrap text-sm leading-relaxed">
-                  {responseText}
+                  {!responseText || responseText.trim() === "" || responseText.toLowerCase() === "processing"
+                    ? "Cevap henüz hazırlanıyor..."
+                    : responseText}
                 </div>
               </div>
 

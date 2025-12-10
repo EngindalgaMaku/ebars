@@ -12,6 +12,8 @@ import {
   getApiUrl,
   listAvailableModels,
   getSession,
+  deleteInteraction,
+  deleteSessionInteractions,
 } from "@/lib/api";
 import { ModelManagement } from "./components/rag-settings-tab/ModelManagement";
 import TopicManagementPanel from "@/components/TopicManagementPanel";
@@ -46,6 +48,9 @@ import {
   Layers,
   Database,
   ChevronRight,
+  Trash2,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 
 export default function SessionPage() {
@@ -109,6 +114,8 @@ export default function SessionPage() {
   const [interactionsPage, setInteractionsPage] = useState(1);
   const [interactionsTotal, setInteractionsTotal] = useState(0);
   const INTERACTIONS_PER_PAGE = 10;
+  const [selectedInteractions, setSelectedInteractions] = useState<Set<number>>(new Set());
+  const [deletingInteractions, setDeletingInteractions] = useState(false);
   const [activeTab, setActiveTab] = useState<
     | "genel"
     | "chunks"
@@ -1756,20 +1763,57 @@ export default function SessionPage() {
                       </div>
                     ) : (
                       <>
+                        {/* Action buttons */}
+                        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={toggleSelectAll}
+                              className="p-2 hover:bg-muted rounded-md transition-colors"
+                              title={selectedInteractions.size === interactions.length ? "Tümünü kaldır" : "Tümünü seç"}
+                            >
+                              {selectedInteractions.size === interactions.length ? (
+                                <CheckSquare className="w-5 h-5 text-primary" />
+                              ) : (
+                                <Square className="w-5 h-5 text-muted-foreground" />
+                              )}
+                            </button>
+                            {selectedInteractions.size > 0 && (
+                              <button
+                                onClick={handleDeleteSelected}
+                                disabled={deletingInteractions}
+                                className="px-3 py-1.5 text-sm bg-red-500 text-white rounded-md hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Seçilenleri Sil ({selectedInteractions.size})
+                              </button>
+                            )}
+                            <button
+                              onClick={handleDeleteAll}
+                              disabled={deletingInteractions || interactions.length === 0}
+                              className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Tümünü Sil
+                            </button>
+                          </div>
+                        </div>
                         <div className="space-y-4">
                           {interactions.map((interaction, index) => {
-                            // Get student name: prefer first_name + last_name, fallback to student_name, then "Bilinmeyen Öğrenci"
+                            // Get student name: prefer first_name + last_name, fallback to username, then student_name, then "Bilinmeyen Öğrenci"
                             const studentName =
                               interaction.first_name && interaction.last_name
                                 ? `${interaction.first_name} ${interaction.last_name}`
-                                : interaction.first_name ||
-                                  interaction.last_name
-                                ? interaction.first_name ||
-                                  interaction.last_name
+                                : interaction.first_name
+                                ? interaction.first_name
+                                : interaction.last_name
+                                ? interaction.last_name
+                                : interaction.username
+                                ? interaction.username
                                 : interaction.student_name &&
                                   !interaction.student_name.startsWith(
                                     "Öğrenci (ID:"
-                                  )
+                                  ) &&
+                                  !interaction.student_name.startsWith("Öğrenci (")
                                 ? interaction.student_name
                                 : "Bilinmeyen Öğrenci";
 
@@ -1777,6 +1821,17 @@ export default function SessionPage() {
                               <Card key={interaction.interaction_id}>
                                 <CardContent className="p-4">
                                   <div className="flex items-start gap-3 mb-3">
+                                    <button
+                                      onClick={() => toggleSelection(interaction.interaction_id)}
+                                      className="flex-shrink-0 p-1 hover:bg-muted rounded transition-colors"
+                                      title={selectedInteractions.has(interaction.interaction_id) ? "Seçimi kaldır" : "Seç"}
+                                    >
+                                      {selectedInteractions.has(interaction.interaction_id) ? (
+                                        <CheckSquare className="w-4 h-4 text-primary" />
+                                      ) : (
+                                        <Square className="w-4 h-4 text-muted-foreground" />
+                                      )}
+                                    </button>
                                     <div className="flex-shrink-0 w-7 h-7 bg-primary/10 text-primary rounded flex items-center justify-center font-medium text-sm">
                                       {(interactionsPage - 1) *
                                         INTERACTIONS_PER_PAGE +
@@ -1836,8 +1891,13 @@ export default function SessionPage() {
                                         Cevap
                                       </p>
                                       <p className="text-sm text-foreground whitespace-pre-wrap">
-                                        {interaction.personalized_response ||
-                                          interaction.original_response}
+                                        {(() => {
+                                          const response = interaction.personalized_response || interaction.original_response;
+                                          if (!response || response.trim() === "" || response.toLowerCase() === "processing") {
+                                            return "Cevap henüz hazırlanıyor...";
+                                          }
+                                          return response;
+                                        })()}
                                       </p>
                                     </div>
                                     {interaction.sources &&
@@ -1864,6 +1924,16 @@ export default function SessionPage() {
                                           </div>
                                         </div>
                                       )}
+                                  </div>
+                                  <div className="flex items-center justify-end mt-3 pt-3 border-t border-border">
+                                    <button
+                                      onClick={() => handleDeleteInteraction(interaction.interaction_id)}
+                                      disabled={deletingInteractions}
+                                      className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      title="Sil"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
                                   </div>
                                 </CardContent>
                               </Card>

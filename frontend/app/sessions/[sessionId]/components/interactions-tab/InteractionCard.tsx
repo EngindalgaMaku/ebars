@@ -37,12 +37,19 @@ export function InteractionCard({
     if (interaction.first_name && interaction.last_name) {
       return `${interaction.first_name} ${interaction.last_name}`;
     }
-    if (interaction.first_name || interaction.last_name) {
-      return interaction.first_name || interaction.last_name;
+    if (interaction.first_name) {
+      return interaction.first_name;
+    }
+    if (interaction.last_name) {
+      return interaction.last_name;
+    }
+    if (interaction.username) {
+      return interaction.username;
     }
     if (
       interaction.student_name &&
-      !interaction.student_name.startsWith("Öğrenci (ID:")
+      !interaction.student_name.startsWith("Öğrenci (ID:") &&
+      !interaction.student_name.startsWith("Öğrenci (")
     ) {
       return interaction.student_name;
     }
@@ -144,7 +151,12 @@ export function InteractionCard({
               <p className="text-sm font-semibold text-green-600">Cevap</p>
             </div>
             <div className="text-sm text-foreground pl-5 whitespace-pre-wrap">
-              {showFullContent ? responseText : truncateText(responseText, 200)}
+              {(() => {
+                if (!responseText || responseText.trim() === "" || responseText.toLowerCase() === "processing") {
+                  return "Cevap henüz hazırlanıyor...";
+                }
+                return showFullContent ? responseText : truncateText(responseText, 200);
+              })()}
             </div>
           </div>
 
@@ -237,10 +249,17 @@ export function InteractionCardMobile({
   const studentName =
     interaction.first_name && interaction.last_name
       ? `${interaction.first_name} ${interaction.last_name}`
-      : interaction.first_name ||
-        interaction.last_name ||
-        interaction.student_name ||
-        "Bilinmeyen Öğrenci";
+      : interaction.first_name
+      ? interaction.first_name
+      : interaction.last_name
+      ? interaction.last_name
+      : interaction.username
+      ? interaction.username
+      : interaction.student_name &&
+        !interaction.student_name.startsWith("Öğrenci (ID:") &&
+        !interaction.student_name.startsWith("Öğrenci (")
+      ? interaction.student_name
+      : "Bilinmeyen Öğrenci";
 
   return (
     <Card className="border-l-4 border-l-primary">
