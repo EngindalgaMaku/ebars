@@ -377,14 +377,18 @@ class DatabaseManager:
                 fks = cursor.fetchall()
                 has_users_fk = any(fk[2] == 'users' for fk in fks) if fks else False
                 
-                # If table has correct schema and no FK to users, migration already applied
-                if has_average_understanding and has_average_satisfaction and has_progress_id and not has_users_fk:
-                    logger.info("Topic progress FK removal migration already applied (correct schema, no FK to users)")
-                    return
-                
                 logger.info(f"Topic progress schema check: average_understanding={has_average_understanding}, "
                           f"average_satisfaction={has_average_satisfaction}, progress_id={has_progress_id}, "
                           f"has_users_fk={has_users_fk}")
+                
+                # CRITICAL FIX: If FK to users exists, migration MUST be applied
+                # If table has correct schema BUT still has FK to users, migration needs to be applied
+                if has_average_understanding and has_average_satisfaction and has_progress_id and not has_users_fk:
+                    logger.info("Topic progress FK removal migration already applied (correct schema, no FK to users)")
+                    return
+                elif has_users_fk:
+                    logger.warning(f"⚠️ Topic progress table has FK to users table - migration MUST be applied!")
+                    # Continue to apply migration
             
             logger.info("Applying Topic Progress FK Removal migration...")
             
@@ -417,15 +421,28 @@ class DatabaseManager:
                     cursor = conn.execute("PRAGMA table_info(topic_progress)")
                     old_columns = {row[1]: row[2] for row in cursor.fetchall()}
                     
-                    # Check if we need to migrate (if table has old schema)
-                    has_old_schema = 'id' in old_columns or 'average_understanding' not in old_columns
+                    # Check FK to users - CRITICAL: If FK exists, migration MUST be applied
+                    cursor = conn.execute("PRAGMA foreign_key_list(topic_progress)")
+                    fks = cursor.fetchall()
+                    has_users_fk = any(fk[2] == 'users' for fk in fks) if fks else False
                     
-                    if has_old_schema:
-                        logger.info("Old schema detected, applying migration with data copy...")
-                        # Apply migration using Python (safer)
-                        self._apply_topic_progress_migration_with_data_copy(conn, old_columns)
+                    # Check if we need to migrate (if table has old schema OR has FK to users)
+                    has_old_schema = 'id' in old_columns or 'average_understanding' not in old_columns
+                    needs_migration = has_old_schema or has_users_fk
+                    
+                    if needs_migration:
+                        if has_users_fk:
+                            logger.warning(f"⚠️ FOREIGN KEY constraint to users table detected - applying migration to remove it")
+                        if has_old_schema:
+                            logger.info("Old schema detected, applying migration with data copy...")
+                            # Apply migration using Python (safer)
+                            self._apply_topic_progress_migration_with_data_copy(conn, old_columns)
+                        else:
+                            # Schema is correct but FK exists - need to recreate table without FK
+                            logger.info("Schema is correct but FK to users exists - recreating table without FK...")
+                            self._apply_topic_progress_migration_with_data_copy(conn, old_columns)
                     else:
-                        logger.info("Schema already up to date, skipping migration")
+                        logger.info("Schema already up to date and no FK to users - skipping migration")
                 else:
                     # Table doesn't exist, just create it with correct schema
                     logger.info("Table doesn't exist, creating with correct schema...")
@@ -557,7 +574,10 @@ class DatabaseManager:
     def _apply_topic_progress_migration_with_data_copy(self, conn: sqlite3.Connection, old_columns: dict):
         """Apply topic_progress migration with data copy (handles old schema)"""
         try:
-            logger.info("Creating new topic_progress table with correct schema...")
+            logger.info("Creating new topic_progress table with correct schema (without FK to users)...")
+            
+            # CRITICAL: Disable foreign key constraints during migration
+            conn.execute("PRAGMA foreign_keys = OFF")
             
             # Create new table
             conn.execute("""
@@ -725,10 +745,18 @@ class DatabaseManager:
                 ON topic_progress(topic_id)
             """)
             
+            # Re-enable foreign key constraints
+            conn.execute("PRAGMA foreign_keys = ON")
+            
             conn.commit()
-            logger.info("✅ Topic Progress migration with data copy applied successfully")
+            logger.info("✅ Topic Progress migration with data copy applied successfully (FK to users removed)")
             
         except Exception as e:
+            # Re-enable foreign key constraints even on error
+            try:
+                conn.execute("PRAGMA foreign_keys = ON")
+            except:
+                pass
             logger.error(f"Failed to apply topic_progress migration with data copy: {e}", exc_info=True)
             conn.rollback()
             raise
