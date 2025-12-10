@@ -1830,6 +1830,7 @@ async def classify_question(request: QuestionClassificationRequest):
             logger.info(f"   - classification: {classification}")
             
             if user_id:
+                logger.info(f"✅ [TOPIC_PROGRESS] user_id is available, proceeding with update...")
                 try:
                     with db.get_connection() as conn:
                         # Check if APRAG is enabled for mastery calculation and recommendations
@@ -2029,8 +2030,11 @@ async def classify_question(request: QuestionClassificationRequest):
                 except Exception as e:
                     logger.error(f"❌ ERROR updating topic progress: {e}", exc_info=True)
                     logger.error(f"❌ Error details - user_id: {user_id}, topic_id: {classification.get('topic_id')}, session_id: {request.session_id}")
+                    logger.error(f"❌ Full exception traceback:", exc_info=True)
                     # Don't fail the entire request if progress update fails
-                    pass
+                    # But log it clearly so we can debug
+                    import traceback
+                    logger.error(f"❌ Traceback: {traceback.format_exc()}")
             else:
                 logger.warning(f"⚠️ Cannot update topic progress: user_id is None (interaction_id={request.interaction_id}, user_id={request.user_id})")
             
