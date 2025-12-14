@@ -75,6 +75,7 @@ interface TestConfig {
   testMethods: string[];
   includeManualQuestions: boolean;
   customQuestions: string[];
+  customExpectedAnswers: Record<number, string>; // Map of question index to expected answer
   enableBenchmark: boolean;
   exportFormat: string[];
 }
@@ -83,6 +84,7 @@ interface TestConfig {
 interface QuestionDetail {
   question_id: number;
   question: string;
+  expected_answer?: string;  // Ground truth answer
   methodologies: {
     [key: string]: {
       response: string;
@@ -93,6 +95,7 @@ interface QuestionDetail {
       precision_at_10: number;
       retrieval_count: number;
       accuracy: number;
+      answer_quality_similarity?: number | null;  // LLM response vs ground truth similarity
     };
   };
 }
@@ -120,6 +123,8 @@ interface TestResult {
     avgResponseTime: number;
     totalQuestions: number;
     correctAnswers: number;
+    answerQualitySimilarity?: number | null;  // LLM response vs ground truth similarity
+    answerQualityAvailable?: number;  // Number of questions with ground truth
   };
   methodComparison: {
     eduBars: MethodResults;
@@ -141,6 +146,8 @@ interface MethodResults {
   precisionAt10: number;
   avgResponseTime: number;
   accuracy: number;
+  answerQualitySimilarity?: number | null;  // LLM response vs ground truth similarity
+  answerQualityAvailable?: number;  // Number of questions with ground truth
 }
 
 interface BenchmarkResults {
@@ -168,6 +175,7 @@ export default function TestSimulationPage() {
     testMethods: ["eduBars", "basicRag"],
     includeManualQuestions: false,
     customQuestions: [],
+    customExpectedAnswers: {},
     enableBenchmark: true,
     exportFormat: ["json", "csv"],
   });
@@ -275,6 +283,16 @@ export default function TestSimulationPage() {
         config.numQuestions
       );
 
+      // Prepare expected answers map (convert to 0-based index for backend)
+      const expectedAnswers: Record<number, string> = {};
+      testQuestions.forEach((question, index) => {
+        // Find the original index in customQuestions
+        const originalIndex = config.customQuestions.indexOf(question);
+        if (originalIndex !== -1 && config.customExpectedAnswers[originalIndex]) {
+          expectedAnswers[index] = config.customExpectedAnswers[originalIndex];
+        }
+      });
+
       // Real API call to start test with session info
       const response = await fetch("/api/test-simulation/start", {
         method: "POST",
@@ -289,6 +307,7 @@ export default function TestSimulationPage() {
           exportFormats: config.exportFormat,
           sessionId: selectedSessionId,
           sessionSettings: selectedSession?.rag_settings || null,
+          expectedAnswers: Object.keys(expectedAnswers).length > 0 ? expectedAnswers : undefined,
         }),
       });
 
@@ -538,6 +557,19 @@ export default function TestSimulationPage() {
             currentTest.methodComparison.basicRag.precisionAt5.toFixed(1),
             currentTest.methodComparison.llmOnly.precisionAt5.toFixed(1),
             currentTest.benchmarkComparison.ekoBot.precisionAt5.toFixed(1),
+          ],
+          [
+            "Answer Quality Similarity",
+            currentTest.methodComparison.eduBars.answerQualitySimilarity !== null && currentTest.methodComparison.eduBars.answerQualitySimilarity !== undefined
+              ? currentTest.methodComparison.eduBars.answerQualitySimilarity.toFixed(3)
+              : "N/A",
+            currentTest.methodComparison.basicRag.answerQualitySimilarity !== null && currentTest.methodComparison.basicRag.answerQualitySimilarity !== undefined
+              ? currentTest.methodComparison.basicRag.answerQualitySimilarity.toFixed(3)
+              : "N/A",
+            currentTest.methodComparison.llmOnly.answerQualitySimilarity !== null && currentTest.methodComparison.llmOnly.answerQualitySimilarity !== undefined
+              ? currentTest.methodComparison.llmOnly.answerQualitySimilarity.toFixed(3)
+              : "N/A",
+            "N/A",
           ],
           [
             "Precision@10 (%)",
@@ -987,6 +1019,9 @@ export default function TestSimulationPage() {
                   <CardDescription>
                     Tarih dersi chunk'larını test etmek için sorularınızı buraya
                     yapıştırın. Her satırda bir soru olacak şekilde düzenleyin.
+                    <br />
+                    <strong>Opsiyonel:</strong> Ground truth (beklenen cevap) eklemek için 
+                    her satırda <code className="bg-gray-100 px-1 rounded">Soru|Cevap</code> formatını kullanın.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -996,13 +1031,18 @@ export default function TestSimulationPage() {
                       id="questionText"
                       value={questionText}
                       onChange={(e) => setQuestionText(e.target.value)}
-                      placeholder="Test sorularını buraya kopyalayın (her satırda bir soru)&#10;&#10;Örnek:&#10;Osmanlı İmparatorluğu hangi yüzyılda kuruldu?&#10;Fatih Sultan Mehmet hangi şehri fethetti?&#10;Tanzimat Fermanı ne zaman ilan edildi?&#10;Kurtuluş Savaşı hangi yıllarda yapıldı?"
+                      placeholder="Test sorularını buraya kopyalayın (her satırda bir soru)&#10;&#10;Örnek (sadece sorular):&#10;Osmanlı İmparatorluğu hangi yüzyılda kuruldu?&#10;Fatih Sultan Mehmet hangi şehri fethetti?&#10;&#10;Örnek (sorular + beklenen cevaplar):&#10;Osmanlı İmparatorluğu hangi yüzyılda kuruldu?|13. yüzyıl&#10;Fatih Sultan Mehmet hangi şehri fethetti?|İstanbul&#10;Tanzimat Fermanı ne zaman ilan edildi?|1839&#10;&#10;Not: | işareti ile soru ve cevabı ayırın. Cevap opsiyoneldir."
                       className="min-h-[200px] resize-y"
                       rows={12}
                     />
                     <div className="flex items-center justify-between text-sm text-gray-500">
                       <span>
                         {config.customQuestions.length} soru tespit edildi
+                        {Object.keys(config.customExpectedAnswers || {}).length > 0 && (
+                          <span className="ml-2 text-blue-600">
+                            ({Object.keys(config.customExpectedAnswers || {}).length} soru için beklenen cevap var)
+                          </span>
+                        )}
                       </span>
                       <span>Maksimum 100 soru</span>
                     </div>
@@ -1024,6 +1064,11 @@ export default function TestSimulationPage() {
                           config.numQuestions
                         )}{" "}
                         soru ile çalışacak
+                        {Object.keys(config.customExpectedAnswers || {}).length > 0 && (
+                          <span className="block mt-1 text-blue-600">
+                            💡 {Object.keys(config.customExpectedAnswers || {}).length} soru için Answer Quality metriği hesaplanacak
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1326,6 +1371,9 @@ export default function TestSimulationPage() {
                               Avg Response (ms)
                             </th>
                             <th className="text-center p-2">Accuracy (%)</th>
+                            <th className="text-center p-2">
+                              Answer Quality (vs Ground Truth)
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1409,6 +1457,28 @@ export default function TestSimulationPage() {
                                     >
                                       {results.accuracy.toFixed(1)}%
                                     </span>
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    {results.answerQualitySimilarity !== null && results.answerQualitySimilarity !== undefined ? (
+                                      <span
+                                        className={`font-medium ${
+                                          results.answerQualitySimilarity >= 0.7
+                                            ? "text-green-600"
+                                            : results.answerQualitySimilarity >= 0.5
+                                            ? "text-yellow-600"
+                                            : "text-red-600"
+                                        }`}
+                                      >
+                                        {results.answerQualitySimilarity.toFixed(3)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-gray-400 text-sm">N/A</span>
+                                    )}
+                                    {results.answerQualityAvailable !== undefined && results.answerQualityAvailable > 0 && (
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        ({results.answerQualityAvailable} soru)
+                                      </div>
+                                    )}
                                   </td>
                                 </tr>
                               );
@@ -2385,6 +2455,16 @@ export default function TestSimulationPage() {
                                 <h4 className="font-semibold text-gray-900 mb-3">
                                   {question.question}
                                 </h4>
+                                {question.expected_answer && (
+                                  <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <div className="text-xs text-blue-700 font-medium mb-1">
+                                      Beklenen Cevap (Ground Truth):
+                                    </div>
+                                    <div className="text-sm text-blue-900">
+                                      {question.expected_answer}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
@@ -2464,6 +2544,24 @@ export default function TestSimulationPage() {
                                             ms
                                           </span>
                                         </div>
+                                        {results.answer_quality_similarity !== null && results.answer_quality_similarity !== undefined && (
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-600">
+                                              Answer Quality (vs Ground Truth):
+                                            </span>
+                                            <span
+                                              className={`font-medium ${
+                                                results.answer_quality_similarity >= 0.7
+                                                  ? "text-green-600"
+                                                  : results.answer_quality_similarity >= 0.5
+                                                  ? "text-yellow-600"
+                                                  : "text-red-600"
+                                              }`}
+                                            >
+                                              {results.answer_quality_similarity.toFixed(3)}
+                                            </span>
+                                          </div>
+                                        )}
                                       </div>
 
                                       <div className="mt-4 pt-3 border-t">
