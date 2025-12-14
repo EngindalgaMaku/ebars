@@ -2281,7 +2281,7 @@ export default function TestSimulationPage() {
                           Soru Bazında Başarı Oranı
                       </CardTitle>
                       <CardDescription>
-                        Her soru için metodoloji bazında başarılı yanıt oranı (cosine similarity > 0.5 olan sorular, max similarity bazlı)
+                        Her soru için metodoloji bazında başarılı yanıt oranı (cosine similarity {'>'} 0.5 olan sorular, max similarity bazlı)
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
