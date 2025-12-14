@@ -29,7 +29,7 @@ type TabType =
   | "modules"
   | "assistant"
   | "query"
-  | "ebars-simulation";
+  | "test-simulation";
 
 interface TeacherLayoutProps {
   children: React.ReactNode;
@@ -87,11 +87,11 @@ const navigationItems: Array<{
     path: "/education-assistant",
   },
   {
-    id: "ebars-simulation",
-    name: "EBARS Simülasyon",
+    id: "test-simulation",
+    name: "Test Simülasyon",
     icon: Brain,
-    desc: "Emoji Tabanlı Sistem",
-    path: "/ebars-simulation",
+    desc: "Metodoloji Test Sistemi",
+    path: "/test-simulation",
   },
 ];
 
@@ -119,8 +119,8 @@ function TeacherLayout({
     if (pathname === "/education-assistant") {
       return "assistant";
     }
-    if (pathname === "/ebars-simulation") {
-      return "ebars-simulation";
+    if (pathname === "/test-simulation") {
+      return "test-simulation";
     }
     // Default to dashboard for home page
     return "dashboard";
@@ -157,10 +157,10 @@ function TeacherLayout({
       return;
     }
 
-    // Special handling for ebars-simulation tab - redirect to ebars-simulation page
-    if (tabId === "ebars-simulation") {
-      if (pathname !== "/ebars-simulation") {
-        router.push("/ebars-simulation");
+    // Special handling for test-simulation tab - redirect to test-simulation page
+    if (tabId === "test-simulation") {
+      if (pathname !== "/test-simulation") {
+        router.push("/test-simulation");
       }
       return;
     }
@@ -256,8 +256,8 @@ function TeacherLayout({
               (item.id === "upload" && pathname === "/document-center") ||
               (item.id === "assistant" &&
                 pathname === "/education-assistant") ||
-              (item.id === "ebars-simulation" &&
-                pathname === "/ebars-simulation");
+              (item.id === "test-simulation" &&
+                pathname === "/test-simulation");
             // Use activeTab prop as primary source, pathname only for specific routes
             const isActive = currentActiveTab === item.id || isPathMatch;
 

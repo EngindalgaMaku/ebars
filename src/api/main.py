@@ -4005,6 +4005,11 @@ from src.api.rag_tests_routes import router as rag_tests_router
 app.include_router(rag_tests_router)
 logger.info("✅ RAG Tests routes registered")
 
+# Include Test Simulation Router
+from src.api.test_simulation_routes import router as test_simulation_router
+app.include_router(test_simulation_router)
+logger.info("✅ Test Simulation routes registered")
+
 # APRAG Service Proxy Endpoints
 
 @app.post("/api/aprag/interactions")

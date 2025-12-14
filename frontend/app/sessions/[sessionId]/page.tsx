@@ -67,7 +67,7 @@ export default function SessionPage() {
     | "modules"
     | "assistant"
     | "query"
-    | "ebars-simulation";
+    | "test-simulation";
   const handleTabChange = (tab: TabType) => {
     // Navigate to main page, which will handle the tab change
     router.push("/");
@@ -114,7 +114,9 @@ export default function SessionPage() {
   const [interactionsPage, setInteractionsPage] = useState(1);
   const [interactionsTotal, setInteractionsTotal] = useState(0);
   const INTERACTIONS_PER_PAGE = 10;
-  const [selectedInteractions, setSelectedInteractions] = useState<Set<number>>(new Set());
+  const [selectedInteractions, setSelectedInteractions] = useState<Set<number>>(
+    new Set()
+  );
   const [deletingInteractions, setDeletingInteractions] = useState(false);
   const [activeTab, setActiveTab] = useState<
     | "genel"
@@ -636,7 +638,9 @@ export default function SessionPage() {
       setSelectedInteractions(new Set());
     } catch (error: any) {
       console.error("Failed to delete interaction:", error);
-      alert("Silme işlemi başarısız oldu: " + (error.message || "Bilinmeyen hata"));
+      alert(
+        "Silme işlemi başarısız oldu: " + (error.message || "Bilinmeyen hata")
+      );
     } finally {
       setDeletingInteractions(false);
     }
@@ -649,7 +653,11 @@ export default function SessionPage() {
       return;
     }
 
-    if (!confirm(`${selectedInteractions.size} soru-cevap çiftini silmek istediğinize emin misiniz?`)) {
+    if (
+      !confirm(
+        `${selectedInteractions.size} soru-cevap çiftini silmek istediğinize emin misiniz?`
+      )
+    ) {
       return;
     }
 
@@ -663,7 +671,9 @@ export default function SessionPage() {
       setSelectedInteractions(new Set());
     } catch (error: any) {
       console.error("Failed to delete interactions:", error);
-      alert("Silme işlemi başarısız oldu: " + (error.message || "Bilinmeyen hata"));
+      alert(
+        "Silme işlemi başarısız oldu: " + (error.message || "Bilinmeyen hata")
+      );
     } finally {
       setDeletingInteractions(false);
     }
@@ -671,7 +681,11 @@ export default function SessionPage() {
 
   // Delete all interactions
   const handleDeleteAll = async () => {
-    if (!confirm("Tüm soru-cevap çiftlerini silmek istediğinize emin misiniz? Bu işlem geri alınamaz!")) {
+    if (
+      !confirm(
+        "Tüm soru-cevap çiftlerini silmek istediğinize emin misiniz? Bu işlem geri alınamaz!"
+      )
+    ) {
       return;
     }
 
@@ -683,7 +697,9 @@ export default function SessionPage() {
       setSelectedInteractions(new Set());
     } catch (error: any) {
       console.error("Failed to delete all interactions:", error);
-      alert("Silme işlemi başarısız oldu: " + (error.message || "Bilinmeyen hata"));
+      alert(
+        "Silme işlemi başarısız oldu: " + (error.message || "Bilinmeyen hata")
+      );
     } finally {
       setDeletingInteractions(false);
     }
@@ -705,7 +721,9 @@ export default function SessionPage() {
     if (selectedInteractions.size === interactions.length) {
       setSelectedInteractions(new Set());
     } else {
-      setSelectedInteractions(new Set(interactions.map((i) => i.interaction_id)));
+      setSelectedInteractions(
+        new Set(interactions.map((i) => i.interaction_id))
+      );
     }
   };
 
@@ -1856,9 +1874,15 @@ export default function SessionPage() {
                             <button
                               onClick={toggleSelectAll}
                               className="p-2 hover:bg-muted rounded-md transition-colors"
-                              title={selectedInteractions.size === interactions.length ? "Tümünü kaldır" : "Tümünü seç"}
+                              title={
+                                selectedInteractions.size ===
+                                interactions.length
+                                  ? "Tümünü kaldır"
+                                  : "Tümünü seç"
+                              }
                             >
-                              {selectedInteractions.size === interactions.length ? (
+                              {selectedInteractions.size ===
+                              interactions.length ? (
                                 <CheckSquare className="w-5 h-5 text-primary" />
                               ) : (
                                 <Square className="w-5 h-5 text-muted-foreground" />
@@ -1876,7 +1900,10 @@ export default function SessionPage() {
                             )}
                             <button
                               onClick={handleDeleteAll}
-                              disabled={deletingInteractions || interactions.length === 0}
+                              disabled={
+                                deletingInteractions ||
+                                interactions.length === 0
+                              }
                               className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -1900,7 +1927,9 @@ export default function SessionPage() {
                                   !interaction.student_name.startsWith(
                                     "Öğrenci (ID:"
                                   ) &&
-                                  !interaction.student_name.startsWith("Öğrenci (")
+                                  !interaction.student_name.startsWith(
+                                    "Öğrenci ("
+                                  )
                                 ? interaction.student_name
                                 : "Bilinmeyen Öğrenci";
 
@@ -1909,11 +1938,23 @@ export default function SessionPage() {
                                 <CardContent className="p-4">
                                   <div className="flex items-start gap-3 mb-3">
                                     <button
-                                      onClick={() => toggleSelection(interaction.interaction_id)}
+                                      onClick={() =>
+                                        toggleSelection(
+                                          interaction.interaction_id
+                                        )
+                                      }
                                       className="flex-shrink-0 p-1 hover:bg-muted rounded transition-colors"
-                                      title={selectedInteractions.has(interaction.interaction_id) ? "Seçimi kaldır" : "Seç"}
+                                      title={
+                                        selectedInteractions.has(
+                                          interaction.interaction_id
+                                        )
+                                          ? "Seçimi kaldır"
+                                          : "Seç"
+                                      }
                                     >
-                                      {selectedInteractions.has(interaction.interaction_id) ? (
+                                      {selectedInteractions.has(
+                                        interaction.interaction_id
+                                      ) ? (
                                         <CheckSquare className="w-4 h-4 text-primary" />
                                       ) : (
                                         <Square className="w-4 h-4 text-muted-foreground" />
@@ -1979,8 +2020,15 @@ export default function SessionPage() {
                                       </p>
                                       <p className="text-sm text-foreground whitespace-pre-wrap">
                                         {(() => {
-                                          const response = interaction.personalized_response || interaction.original_response;
-                                          if (!response || response.trim() === "" || response.toLowerCase() === "processing") {
+                                          const response =
+                                            interaction.personalized_response ||
+                                            interaction.original_response;
+                                          if (
+                                            !response ||
+                                            response.trim() === "" ||
+                                            response.toLowerCase() ===
+                                              "processing"
+                                          ) {
                                             return "Cevap henüz hazırlanıyor...";
                                           }
                                           return response;
@@ -2014,7 +2062,11 @@ export default function SessionPage() {
                                   </div>
                                   <div className="flex items-center justify-end mt-3 pt-3 border-t border-border">
                                     <button
-                                      onClick={() => handleDeleteInteraction(interaction.interaction_id)}
+                                      onClick={() =>
+                                        handleDeleteInteraction(
+                                          interaction.interaction_id
+                                        )
+                                      }
                                       disabled={deletingInteractions}
                                       className="p-2 text-red-500 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                       title="Sil"

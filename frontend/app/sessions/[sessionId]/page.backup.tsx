@@ -59,7 +59,7 @@ export default function SessionPage() {
     | "modules"
     | "assistant"
     | "query"
-    | "ebars-simulation";
+    | "test-simulation";
   const handleTabChange = (tab: TabType) => {
     // Navigate to main page, which will handle the tab change
     router.push("/");

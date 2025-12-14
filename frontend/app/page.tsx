@@ -549,7 +549,7 @@ export default function HomePage() {
     | "modules"
     | "assistant"
     | "query"
-    | "ebars-simulation";
+    | "test-simulation";
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
 
   // Read tab from URL on mount and when URL changes (for navigation from other pages)
@@ -568,7 +568,7 @@ export default function HomePage() {
         "modules",
         "assistant",
         "query",
-        "ebars-simulation",
+        "test-simulation",
       ].includes(tabParam)
     ) {
       setActiveTab(tabParam as TabType);

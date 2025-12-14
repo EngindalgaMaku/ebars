@@ -29,6 +29,9 @@ htmlcov/
 coverage.xml
 performance_test_results.json
 
+# Documentation
+/docs/
+
 # Test ve Cache
 .pytest_cache/
 .cache/
@@ -101,3 +104,11 @@ pnpm-lock.yaml
 *.gguf
 chromadb/
 chroma_data/
+
+# Çok uzun dosya adları olan PDF'ler ve referans dosyalar
+**/RAG\ makaleler\ Genel/**
+**/*ANSWERING\ AGRICULTURE\ QUESTIONS*
+# Çok uzun yol adlarına sahip tüm PDF dosyaları
+**/*/*/*/*/*/*.pdf
+# 150+ karakter uzunluğundaki dosya yolları
+**/GPT-4\ AS\ AN\ AGRONOMIST\ ASSISTANT*
