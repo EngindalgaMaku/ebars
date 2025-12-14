@@ -746,6 +746,38 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     # Calculate execution time
     execution_time_info = calculate_execution_time(test_data)
     
+    # Prepare per-question results for frontend display
+    all_results = test_data.get("results", [])
+    questions_data = {}
+    
+    for result in all_results:
+        question_id = result.get("question_id")
+        question_text = result.get("question", "")
+        methodology = result.get("methodology", "")
+        metrics = result.get("metrics", {})
+        
+        if question_id not in questions_data:
+            questions_data[question_id] = {
+                "question_id": question_id,
+                "question": question_text,
+                "methodologies": {}
+            }
+        
+        # Add methodology-specific results
+        questions_data[question_id]["methodologies"][methodology] = {
+            "response": result.get("response", ""),
+            "response_time_ms": metrics.get("response_time_ms", 0),
+            "cosine_similarity": metrics.get("cosine_similarity", 0.0),
+            "max_similarity": metrics.get("max_similarity", 0.0),
+            "precision_at_5": metrics.get("precision_at_5", 0.0),
+            "precision_at_10": metrics.get("precision_at_10", 0.0),
+            "retrieval_count": metrics.get("retrieval_count", 0),
+            "accuracy": metrics.get("accuracy", 0.0)
+        }
+    
+    # Convert to list sorted by question_id
+    questions_list = sorted(questions_data.values(), key=lambda x: x["question_id"])
+    
     return {
         "success": True,
         "testId": test_id,
@@ -757,7 +789,10 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         "metrics": metrics,
         "methodComparison": method_comparison,
         "benchmarkComparison": benchmark_comparison,
-        # Add link to detailed results endpoint
+        # HER SORU İÇİN DETAYLI SONUÇLAR - Frontend'de gösterilebilir
+        "questions": questions_list,
+        "total_questions_in_results": len(questions_list),
+        # Link to even more detailed endpoint (with document-level similarity)
         "detailedResultsUrl": f"/api/test-simulation/results/{test_id}/detailed",
         "detailedResultsAvailable": True
     }
@@ -812,16 +847,72 @@ async def get_test_results(test_id: str, format: str = "json", request: Request 
         results_summary = process_test_results(test_data)
         
         if format.lower() == "csv":
-            # Generate CSV export
-            csv_data = generate_csv_export(results_summary)
+            # Generate CSV export with ALL details
+            csv_data = generate_csv_export(test_data)
             return {
                 "success": True,
                 "format": "csv",
                 "data": csv_data,
-                "summary": results_summary["summary"]
+                "summary": results_summary["summary"],
+                "test_id": test_id,
+                "test_name": test_data.get("test_name", ""),
+                "total_questions": test_data.get("total_questions", 0),
+                "total_results": len(test_data.get("results", []))
             }
         else:
-            # Return JSON format with detailed results
+            # Return JSON format with COMPREHENSIVE details for thesis
+            all_results = test_data.get("results", [])
+            execution_time_info = calculate_execution_time(test_data)
+            
+            # Group results by question for easier viewing
+            questions_data = {}
+            
+            for result in all_results:
+                question_id = result.get("question_id")
+                question_text = result.get("question", "")
+                methodology = result.get("methodology", "")
+                metrics = result.get("metrics", {})
+                sources = result.get("sources", [])
+                
+                if question_id not in questions_data:
+                    questions_data[question_id] = {
+                        "question_id": question_id,
+                        "question": question_text,
+                        "methodologies": {}
+                    }
+                
+                # Extract source details with similarity scores
+                source_details = []
+                for i, source in enumerate(sources):
+                    source_details.append({
+                        "index": i + 1,
+                        "content": source.get("content", source.get("chunk_text", "")),
+                        "cosine_similarity": source.get("score", 0.0),
+                        "crag_score": source.get("crag_score"),  # Optional
+                        "metadata": source.get("metadata", {})
+                    })
+                
+                # Add methodology-specific results with ALL details
+                questions_data[question_id]["methodologies"][methodology] = {
+                    "response": result.get("response", ""),
+                    "response_length": len(result.get("response", "")),
+                    "response_time_ms": metrics.get("response_time_ms", 0),
+                    "cosine_similarity": metrics.get("cosine_similarity", 0.0),
+                    "max_similarity": metrics.get("max_similarity", 0.0),
+                    "precision_at_5": metrics.get("precision_at_5", 0.0),
+                    "precision_at_10": metrics.get("precision_at_10", 0.0),
+                    "context_relevance": metrics.get("context_relevance", 0.0),
+                    "retrieval_count": metrics.get("retrieval_count", 0),
+                    "accuracy": metrics.get("accuracy", 0.0),
+                    "sources": source_details,  # ALL retrieved documents with details
+                    "sources_count": len(sources),
+                    "config": result.get("config", ""),
+                    "timestamp": result.get("timestamp")
+                }
+            
+            # Convert to list sorted by question_id
+            questions_list = sorted(questions_data.values(), key=lambda x: x["question_id"])
+            
             return {
                 "success": True,
                 "format": "json",
@@ -830,13 +921,18 @@ async def get_test_results(test_id: str, format: str = "json", request: Request 
                 "session_id": test_data.get("session_id", ""),
                 "start_time": test_data.get("start_time"),
                 "end_time": test_data.get("end_time"),
-                "execution_time": calculate_execution_time(test_data),
+                "execution_time": execution_time_info,
                 "status": test_data.get("status", "unknown"),
-                "results": results_summary,
-                # Add detailed per-question results (for thesis analysis)
-                "detailed_results": test_data.get("results", []),
-                # Note: For even more detailed analysis with per-document similarity scores,
-                # use /api/test-simulation/results/{test_id}/detailed endpoint
+                "summary": results_summary["summary"],
+                "methodology_metrics": results_summary.get("methodology_metrics", {}),
+                "comparative_analysis": results_summary.get("comparative_analysis", {}),
+                # COMPREHENSIVE per-question results - HER SORU İÇİN TÜM DETAYLAR
+                "questions": questions_list,
+                "total_questions": len(questions_list),
+                # Raw results with ALL fields (for complete data export)
+                "raw_results": all_results,
+                # Link to even more detailed endpoint
+                "more_detailed_url": f"/api/test-simulation/results/{test_id}/detailed"
             }
             
     except Exception as e:
@@ -1300,36 +1396,88 @@ def generate_benchmark_comparison(test_data: Dict[str, Any]) -> Dict[str, Any]:
     return comparison
 
 def generate_csv_export(test_data: Dict[str, Any]) -> str:
-    """Generate CSV export of test results"""
+    """Generate comprehensive CSV export with ALL details for thesis analysis"""
     
     output = io.StringIO()
     writer = csv.writer(output)
     
-    # Write header
+    # Write comprehensive header with ALL fields for thesis analysis
     writer.writerow([
-        "Test ID", "Test Name", "Question ID", "Question", "Methodology",
-        "Cosine Similarity", "Precision@5", "Precision@10", "Context Relevance",
-        "Response Time (ms)", "Retrieval Count", "Accuracy (%)", "Config", "Timestamp"
+        "Test ID", "Test Name", "Session ID", "Question ID", "Question", "Methodology",
+        "LLM Response", "Response Length (chars)", 
+        "Cosine Similarity", "Max Similarity", "Precision@5", "Precision@10", 
+        "Context Relevance", "Response Time (ms)", "Retrieval Count", "Accuracy (%)",
+        "Source Count", 
+        "Source 1 Content", "Source 1 Similarity", 
+        "Source 2 Content", "Source 2 Similarity",
+        "Source 3 Content", "Source 3 Similarity",
+        "Source 4 Content", "Source 4 Similarity",
+        "Source 5 Content", "Source 5 Similarity",
+        "Config", "Timestamp", "Start Time", "End Time", "Execution Time (s)"
     ])
     
-    # Write detailed results
+    # Get execution time info
+    exec_time_info = calculate_execution_time(test_data)
+    exec_time_seconds = exec_time_info.get("total_seconds", exec_time_info.get("elapsed_seconds", 0))
+    
+    # Write detailed results - EVERY question-methodology combination
     for result in test_data.get("results", []):
         metrics = result.get("metrics", {})
+        sources = result.get("sources", [])
+        response = result.get("response", "")
+        
+        # Extract source content and similarity scores (up to 5 sources)
+        source_data = []
+        for source in sources[:5]:
+            content = source.get("content", source.get("chunk_text", ""))
+            similarity = source.get("score", 0.0)
+            source_data.append({
+                "content": content,
+                "similarity": similarity
+            })
+        
+        # Pad with empty data if less than 5 sources
+        while len(source_data) < 5:
+            source_data.append({"content": "", "similarity": ""})
+        
         writer.writerow([
             test_data["test_id"],
             test_data.get("test_name", ""),
+            test_data.get("session_id", ""),
             result["question_id"],
-            result["question"][:100] + "..." if len(result["question"]) > 100 else result["question"],
+            result["question"],  # Full question text, no truncation
             result["methodology"],
+            response,  # Full LLM response - complete text
+            len(response),
             round(metrics.get("cosine_similarity", 0), 4),
+            round(metrics.get("max_similarity", 0), 4),
             round(metrics.get("precision_at_5", 0) * 100, 2),
             round(metrics.get("precision_at_10", 0) * 100, 2),
             round(metrics.get("context_relevance", 0), 4),
             round(metrics.get("response_time_ms", 0), 2),
             metrics.get("retrieval_count", 0),
             round(metrics.get("accuracy", 0), 2),
+            len(sources),
+            # Source 1
+            source_data[0]["content"],
+            round(source_data[0]["similarity"], 4) if source_data[0]["similarity"] != "" else "",
+            # Source 2
+            source_data[1]["content"] if len(source_data) > 1 else "",
+            round(source_data[1]["similarity"], 4) if len(source_data) > 1 and source_data[1]["similarity"] != "" else "",
+            # Source 3
+            source_data[2]["content"] if len(source_data) > 2 else "",
+            round(source_data[2]["similarity"], 4) if len(source_data) > 2 and source_data[2]["similarity"] != "" else "",
+            # Source 4
+            source_data[3]["content"] if len(source_data) > 3 else "",
+            round(source_data[3]["similarity"], 4) if len(source_data) > 3 and source_data[3]["similarity"] != "" else "",
+            # Source 5
+            source_data[4]["content"] if len(source_data) > 4 else "",
+            round(source_data[4]["similarity"], 4) if len(source_data) > 4 and source_data[4]["similarity"] != "" else "",
             result.get("config", ""),
-            result["timestamp"]
+            result.get("timestamp", ""),
+            test_data.get("start_time", ""),
+            test_data.get("end_time", ""),
+            round(exec_time_seconds, 2) if exec_time_seconds else ""
         ])
     
     return output.getvalue()

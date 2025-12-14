@@ -262,6 +262,10 @@ class RAGQueryRequest(BaseModel):
     
     # Additional eBars parameters
     use_ebars_personalization: Optional[bool] = True  # eBars kişiselleştirme kullan
+    
+    # CRAG and APRAG control parameters (for test simulation)
+    use_crag: Optional[bool] = None  # Enable/disable CRAG evaluation (None = use session default)
+    disable_aprag: Optional[bool] = None  # Disable APRAG personalization (None = use session default)
 
 class RAGQueryResponse(BaseModel):
     answer: str
@@ -1893,6 +1897,9 @@ async def rag_query(req: RAGQueryRequest, request: Request):
             # FIX: Frontend explicitly sends False, respect it (don't use 'or' which treats False as falsy)
             "use_direct_llm": req.use_direct_llm if req.use_direct_llm is not None else bool(saved_settings.get("use_direct_llm")),
             "embedding_model": req.embedding_model or saved_settings.get("embedding_model"),
+            # CRAG and APRAG control (for test simulation)
+            "use_crag": req.use_crag if req.use_crag is not None else saved_settings.get("use_crag", None),
+            "disable_aprag": req.disable_aprag if req.disable_aprag is not None else saved_settings.get("disable_aprag", None),
         }
         
         # If use_direct_llm is True, route directly to Model Inference Service
@@ -2007,8 +2014,11 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                 from src.utils.aprag_middleware import personalize_response_async, log_interaction_async, get_user_id_from_request
                 user_id = get_user_id_from_request(request)
                 
-                # Try personalization (non-blocking, with timeout)
-                if user_id != "anonymous":
+                # Check if APRAG is disabled (for test simulation)
+                disable_aprag = effective.get("disable_aprag", False)
+                
+                # Try personalization (non-blocking, with timeout) - only if not disabled
+                if user_id != "anonymous" and not disable_aprag:
                     try:
                         personalized = await personalize_response_async(
                             user_id=user_id,
@@ -2022,6 +2032,8 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                             logger.info(f"APRAG: Personalized response for user {user_id}")
                     except Exception as pers_err:
                         logger.debug(f"APRAG personalization failed (non-critical): {pers_err}")
+                elif disable_aprag:
+                    logger.info("APRAG: Personalization disabled (test simulation mode)")
                 
                 # Log interaction (async, non-blocking)
                 asyncio.create_task(log_interaction_async(
@@ -2095,6 +2107,7 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                 "chain_type": effective["chain_type"],
                 "embedding_model": effective["embedding_model"],
                 "session_name": session_name,
+                "use_crag": effective["use_crag"],  # Pass CRAG control to Document Processing Service
             }
             try:
                 response = requests.post(
@@ -2130,6 +2143,7 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                 "chain_type": effective["chain_type"],
                 "embedding_model": effective["embedding_model"],
                 "session_name": session_name,  # Add session name for course scope validation
+                "use_crag": effective["use_crag"],  # Pass CRAG control to Document Processing Service
             }
             response = requests.post(
                 f"{DOCUMENT_PROCESSOR_URL}/query",
@@ -2158,6 +2172,7 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                 "chain_type": effective["chain_type"],
                 "embedding_model": effective["embedding_model"],
                 "session_name": session_name,  # Add session name for course scope validation
+                "use_crag": effective["use_crag"],  # Pass CRAG control to Document Processing Service
             }
             try:
                 # Use session for connection pooling and better error handling
@@ -2290,8 +2305,11 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                 "use_ebars_personalization": req.use_ebars_personalization
             }
             
-            # Try personalization with quality parameters (non-blocking, with timeout)
-            if user_id != "anonymous" and req.use_ebars_personalization:
+            # Check if APRAG is disabled (for test simulation)
+            disable_aprag = effective.get("disable_aprag", False)
+            
+            # Try personalization with quality parameters (non-blocking, with timeout) - only if not disabled
+            if user_id != "anonymous" and req.use_ebars_personalization and not disable_aprag:
                 try:
                     personalized = await personalize_response_async(
                         user_id=user_id,
@@ -2311,6 +2329,8 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                         logger.info(f"APRAG: Personalized response for user {user_id} with quality params: {quality_params}")
                 except Exception as pers_err:
                     logger.debug(f"APRAG personalization failed (non-critical): {pers_err}")
+            elif disable_aprag:
+                logger.info("APRAG: Personalization disabled (test simulation mode)")
             
             # Log interaction with quality parameters (async, non-blocking)
             asyncio.create_task(log_interaction_async(

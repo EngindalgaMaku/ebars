@@ -8,6 +8,7 @@ from models.schemas import RAGQueryRequest, RAGQueryResponse, RetrieveRequest, R
 from core.chromadb_client import get_chroma_client
 from core.embedding_service import get_embeddings_direct
 from services.reranker import Reranker
+from services.crag_evaluator import CRAGEvaluator
 from utils.helpers import format_collection_name
 from utils.logger import logger
 from config import MODEL_INFERENCER_URL, DEFAULT_EMBEDDING_MODEL
@@ -208,6 +209,18 @@ async def rag_query(request: RAGQueryRequest):
             context_docs = _apply_rerank(request.query, context_docs)
         else:
             logger.info(f"⏭️ Rerank disabled: Skipping reranking")
+        
+        # Step 6.5: CRAG Evaluation (optional, only if use_crag=True)
+        # NOTE: CRAG is independent from external rerank service (Alibaba API)
+        # CRAG has its own internal reranker for evaluation purposes
+        if request.use_crag is True and context_docs:
+            logger.info(f"🔍 CRAG evaluation enabled: Applying CRAG evaluation to {len(context_docs)} documents")
+            context_docs = _apply_crag_evaluation(request.query, context_docs)
+        elif request.use_crag is False:
+            logger.info(f"⏭️ CRAG evaluation explicitly disabled: Skipping CRAG evaluation")
+        else:
+            # use_crag is None - use default behavior (CRAG disabled by default, independent of rerank)
+            logger.info(f"⏭️ CRAG evaluation (default): Skipping (use_crag not specified)")
         
         # Step 7: Generate answer (skip if skip_llm=True)
         if request.skip_llm:

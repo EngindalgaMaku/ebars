@@ -79,6 +79,24 @@ interface TestConfig {
   exportFormat: string[];
 }
 
+// Question Detail Interface
+interface QuestionDetail {
+  question_id: number;
+  question: string;
+  methodologies: {
+    [key: string]: {
+      response: string;
+      response_time_ms: number;
+      cosine_similarity: number;
+      max_similarity: number;
+      precision_at_5: number;
+      precision_at_10: number;
+      retrieval_count: number;
+      accuracy: number;
+    };
+  };
+}
+
 // Test Results Interface
 interface TestResult {
   testId: string;
@@ -87,6 +105,14 @@ interface TestResult {
   progress: number;
   startTime: string;
   endTime?: string;
+  executionTime?: {
+    total_seconds?: number;
+    total_minutes?: number;
+    formatted?: string;
+    elapsed_seconds?: number;
+    elapsed_minutes?: number;
+    status?: string;
+  };
   metrics: {
     cosineSimilarity: number;
     precisionAt5: number;
@@ -104,6 +130,9 @@ interface TestResult {
     ekoBot: BenchmarkResults;
     current: BenchmarkResults;
   };
+  questions?: QuestionDetail[]; // Detailed per-question results
+  detailedResultsUrl?: string;
+  detailedResultsAvailable?: boolean;
 }
 
 interface MethodResults {
@@ -359,11 +388,15 @@ export default function TestSimulationPage() {
             progress: status.progress,
             status: status.status,
             endTime: status.endTime,
+            executionTime: status.executionTime || prevTest.executionTime,
             metrics: status.metrics || prevTest.metrics,
             methodComparison:
               status.methodComparison || prevTest.methodComparison,
             benchmarkComparison:
               status.benchmarkComparison || prevTest.benchmarkComparison,
+            questions: status.questions || prevTest.questions,
+            detailedResultsUrl: status.detailedResultsUrl,
+            detailedResultsAvailable: status.detailedResultsAvailable,
           };
         });
 
@@ -491,7 +524,7 @@ export default function TestSimulationPage() {
         toast.success(`${format.toUpperCase()} dosyası indirildi (fallback)!`);
       } else if (format === "csv") {
         const csvData = [
-          ["Metric", "EduBars", "Basic RAG", "LLM Only", "Benchmark"],
+                          ["Metric", "AkıllıRehber", "Basic RAG", "LLM Only", "Benchmark"],
           [
             "Cosine Similarity",
             currentTest.methodComparison.eduBars.cosineSimilarity.toFixed(3),
@@ -571,7 +604,7 @@ export default function TestSimulationPage() {
               Metodoloji Test Simülasyonu
             </h1>
             <p className="text-gray-600 mt-1">
-              RAG Sistemi Performans Analizi ve Karşılaştırma Testleri
+              AkıllıRehber Performans Analizi ve Karşılaştırma Testleri
             </p>
           </div>
         </div>
@@ -588,7 +621,7 @@ export default function TestSimulationPage() {
 
         {/* Main Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger
               value="configuration"
               className="flex items-center gap-2"
@@ -603,6 +636,10 @@ export default function TestSimulationPage() {
             <TabsTrigger value="results" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Sonuçlar
+            </TabsTrigger>
+            <TabsTrigger value="detailed" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Detaylı Rapor
             </TabsTrigger>
           </TabsList>
 
@@ -665,7 +702,7 @@ export default function TestSimulationPage() {
                         {
                           id: "eduBars",
                           label:
-                            "EduBars Tam Sistem (APRAG Kişiselleştirme KAPALI)",
+                            "AkıllıRehber Tam Sistem (APRAG Kişiselleştirme KAPALI)",
                         },
                         {
                           id: "basicRag",
@@ -1218,14 +1255,21 @@ export default function TestSimulationPage() {
                       <div>
                         <div className="text-sm text-gray-500">Test Süresi</div>
                         <div className="text-lg font-semibold">
-                          {currentTest.endTime
-                            ? Math.round(
-                                (new Date(currentTest.endTime).getTime() -
-                                  new Date(currentTest.startTime).getTime()) /
-                                  1000
-                              )
-                            : 0}
-                          s
+                          {currentTest.executionTime?.formatted ||
+                            (currentTest.executionTime?.total_seconds
+                              ? `${Math.round(
+                                  Math.max(
+                                    0,
+                                    currentTest.executionTime.total_seconds
+                                  )
+                                )}s`
+                              : currentTest.endTime
+                              ? Math.round(
+                                  (new Date(currentTest.endTime).getTime() -
+                                    new Date(currentTest.startTime).getTime()) /
+                                    1000
+                                ) + "s"
+                              : "0s")}
                         </div>
                       </div>
                       <div>
@@ -1288,7 +1332,7 @@ export default function TestSimulationPage() {
                           {Object.entries(currentTest.methodComparison).map(
                             ([method, results]) => {
                               const methodNames: Record<string, string> = {
-                                eduBars: "EduBars Tam Sistem",
+                                eduBars: "AkıllıRehber Tam Sistem",
                                 basicRag: "Basit RAG",
                                 llmOnly: "Sadece LLM",
                               };
@@ -1393,13 +1437,16 @@ export default function TestSimulationPage() {
                             .filter(([method]) =>
                               config.testMethods.includes(method)
                             )
+                            .filter(
+                              ([, results]) =>
+                                results.cosineSimilarity > 0
+                            ) // Filter out zero similarity results
                             .map(([method, results]) => ({
                               name:
                                 {
-                                  eduBars: "EduBars",
-                                  singleModel: "Tek Model",
-                                  twoStageRetrieval: "İki Aşama",
-                                  singleStageRetrieval: "Tek Aşama",
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "Basit RAG",
+                                  llmOnly: "Sadece LLM",
                                 }[method] || method,
                               cosine: results.cosineSimilarity,
                               precision5: results.precisionAt5,
@@ -1469,10 +1516,14 @@ export default function TestSimulationPage() {
                             .filter(([method]) =>
                               config.testMethods.includes(method)
                             )
+                            .filter(
+                              ([, results]) =>
+                                results.cosineSimilarity > 0
+                            ) // Filter out zero similarity results
                             .map(([method, results]) => ({
                               name:
                                 {
-                                  eduBars: "EduBars",
+                                  eduBars: "AkıllıRehber",
                                   basicRag: "Basit RAG",
                                   llmOnly: "Sadece LLM",
                                 }[method] || method,
@@ -1555,7 +1606,7 @@ export default function TestSimulationPage() {
 
                               const methodName =
                                 {
-                                  eduBars: "EduBars",
+                                  eduBars: "AkıllıRehber",
                                   singleModel: "TekModel",
                                   twoStageRetrieval: "IkiAsama",
                                   singleStageRetrieval: "TekAsama",
@@ -1581,7 +1632,7 @@ export default function TestSimulationPage() {
                         {config.testMethods.map((method, index) => {
                           const methodName =
                             {
-                              eduBars: "EduBars",
+                              eduBars: "AkıllıRehber",
                               basicRag: "BasitRAG",
                               llmOnly: "SadeceLLM",
                             }[method] || method;
@@ -1597,7 +1648,7 @@ export default function TestSimulationPage() {
                               key={method}
                               name={
                                 {
-                                  EduBars: "EduBars",
+                                  AkıllıRehber: "AkıllıRehber",
                                   TekModel: "Tek Model",
                                   IkiAsama: "İki Aşama",
                                   TekAsama: "Tek Aşama",
@@ -1734,6 +1785,200 @@ export default function TestSimulationPage() {
                   </h3>
                   <p className="text-gray-500 mb-4">
                     Sonuçları görmek için önce bir test başlatın ve tamamlayın.
+                  </p>
+                  <Button
+                    onClick={() => setActiveTab("configuration")}
+                    variant="outline"
+                  >
+                    Test Başlat
+                    <ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Detailed Results Tab */}
+          <TabsContent value="detailed" className="space-y-6">
+            {currentTest && currentTest.status === "completed" ? (
+              currentTest.questions && currentTest.questions.length > 0 ? (
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="h-5 w-5" />
+                        Detaylı Sorgu Sonuçları
+                      </CardTitle>
+                      <CardDescription>
+                        Her sorgu için metodoloji bazında detaylı sonuçlar
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-6">
+                        {currentTest.questions.map((question) => (
+                          <div
+                            key={question.question_id}
+                            className="border rounded-lg p-4 space-y-4"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge variant="outline">
+                                    Soru #{question.question_id}
+                                  </Badge>
+                                </div>
+                                <h4 className="font-semibold text-gray-900 mb-3">
+                                  {question.question}
+                                </h4>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {Object.entries(question.methodologies).map(
+                                ([method, results]) => {
+                                  const methodNames: Record<string, string> = {
+                                    eduBars: "AkıllıRehber Tam Sistem",
+                                    basicRag: "Basit RAG",
+                                    llmOnly: "Sadece LLM",
+                                  };
+
+                                  return (
+                                    <div
+                                      key={method}
+                                      className="border rounded-lg p-4 bg-gray-50"
+                                    >
+                                      <h5 className="font-medium text-sm mb-3 text-gray-700">
+                                        {methodNames[method] || method}
+                                      </h5>
+
+                                      <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-600">
+                                            Cosine Similarity:
+                                          </span>
+                                          <span
+                                            className={`font-medium ${
+                                              results.cosine_similarity >= 0.7
+                                                ? "text-green-600"
+                                                : results.cosine_similarity >=
+                                                  0.5
+                                                ? "text-yellow-600"
+                                                : "text-red-600"
+                                            }`}
+                                          >
+                                            {results.cosine_similarity.toFixed(
+                                              3
+                                            )}
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-600">
+                                            Max Similarity:
+                                          </span>
+                                          <span className="font-medium">
+                                            {results.max_similarity.toFixed(3)}
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-600">
+                                            Precision@5:
+                                          </span>
+                                          <span className="font-medium">
+                                            {(
+                                              results.precision_at_5 * 100
+                                            ).toFixed(1)}
+                                            %
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-600">
+                                            Retrieval Count:
+                                          </span>
+                                          <span className="font-medium">
+                                            {results.retrieval_count}
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-600">
+                                            Response Time:
+                                          </span>
+                                          <span className="font-medium">
+                                            {Math.round(
+                                              results.response_time_ms
+                                            )}
+                                            ms
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="mt-4 pt-3 border-t">
+                                        <div className="text-xs text-gray-500 mb-1">
+                                          LLM Yanıtı:
+                                        </div>
+                                        <div className="text-sm text-gray-700 bg-white p-2 rounded border max-h-32 overflow-y-auto">
+                                          {results.response ||
+                                            "Yanıt alınamadı"}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="text-center py-12">
+                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Detaylı Sonuçlar Henüz Hazır Değil
+                    </h3>
+                    <p className="text-gray-500 mb-4">
+                      Detaylı sorgu sonuçları yükleniyor...
+                    </p>
+                    {currentTest.detailedResultsUrl && (
+                      <Button
+                        onClick={() => {
+                          window.open(
+                            currentTest.detailedResultsUrl,
+                            "_blank"
+                          );
+                        }}
+                        variant="outline"
+                      >
+                        <FileText className="mr-2 h-4 w-4" />
+                        Detaylı Raporu Aç
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            ) : currentTest && currentTest.status === "running" ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Test Devam Ediyor
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    Detaylı sonuçları görmek için testin tamamlanmasını bekleyin.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Henüz Detaylı Sonuç Yok
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    Detaylı sonuçları görmek için önce bir test başlatın ve tamamlayın.
                   </p>
                   <Button
                     onClick={() => setActiveTab("configuration")}

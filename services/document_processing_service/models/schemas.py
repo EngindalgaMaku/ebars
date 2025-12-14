@@ -41,6 +41,7 @@ class RAGQueryRequest(BaseModel):
     max_tokens: Optional[int] = 2048  # Answer length: 1024 (short), 2048 (normal), 4096 (detailed)
     conversation_history: Optional[List[Dict[str, str]]] = None  # [{"role": "user", "content": "..."}]
     skip_llm: Optional[bool] = False  # If True, skip LLM generation and return only chunks
+    use_crag: Optional[bool] = None  # Enable/disable CRAG evaluation (None = use default/rerank setting)
 
 
 class RAGQueryResponse(BaseModel):
