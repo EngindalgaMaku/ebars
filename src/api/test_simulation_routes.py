@@ -192,59 +192,103 @@ class TestSummary(BaseModel):
 # ===== METRIC CALCULATION FUNCTIONS =====
 
 def calculate_cosine_similarity(query: str, response: str, retrieved_docs: List[str]) -> float:
-    """Calculate cosine similarity using basic word overlap approach"""
-    if not response or not retrieved_docs:
+    """
+    Calculate cosine similarity between query and retrieved documents.
+    This measures how well the retrieved documents match the query.
+    """
+    if not query or not retrieved_docs:
         return 0.0
     
     try:
         # Combine retrieved documents as context
-        context = " ".join(retrieved_docs)
+        context = " ".join([doc for doc in retrieved_docs if doc])  # Filter empty docs
+        
+        if not context:
+            return 0.0
         
         # Simple word-based similarity calculation
-        query_words = set(query.lower().split())
-        context_words = set(context.lower().split())
+        # Normalize: lowercase and remove punctuation
+        import re
+        query_clean = re.sub(r'[^\w\s]', ' ', query.lower())
+        context_clean = re.sub(r'[^\w\s]', ' ', context.lower())
         
-        # Remove common stop words
-        stop_words = {'the', 'is', 'at', 'which', 'on', 'and', 'a', 'to', 'are', 'as', 'was', 've', 'for', 'with', 'of', 'in', 'that', 'have', 'i', 'it', 'not', 'or', 'be', 'an', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'she', 'use', 'her', 'now', 'air', 'day', 'men', 'get', 'has', 'him', 've', 'da', 'de', 'bir', 'bu', 've', 'ile', 'için', 'olan', 'her', 'daha', 'çok', 'gibi', 'kadar'}
+        query_words = set(query_clean.split())
+        context_words = set(context_clean.split())
+        
+        # Remove common stop words (less aggressive for Turkish)
+        stop_words = {
+            # English
+            'the', 'is', 'at', 'which', 'on', 'and', 'a', 'to', 'are', 'as', 'was', 
+            'for', 'with', 'of', 'in', 'that', 'have', 'i', 'it', 'not', 'or', 'be', 
+            'an', 'you', 'all', 'can', 'had', 'her', 'one', 'our', 'out', 'get', 'has', 
+            'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'see', 'two', 
+            'way', 'who', 'boy', 'did', 'she', 'use', 'air', 'day', 'men',
+            # Turkish - only very common words
+            've', 'ile', 'için', 'olan', 'daha', 'çok', 'gibi', 'kadar', 'da', 'de'
+        }
         
         query_words = query_words - stop_words
         context_words = context_words - stop_words
         
-        if not query_words or not context_words:
+        if not query_words:
             return 0.0
         
-        # Calculate Jaccard similarity as approximation
+        if not context_words:
+            return 0.0
+        
+        # Calculate Jaccard similarity as approximation of cosine similarity
         intersection = len(query_words.intersection(context_words))
         union = len(query_words.union(context_words))
         
         if union == 0:
             return 0.0
-            
-        # Convert to cosine-like similarity (0-1 range)
-        similarity = intersection / union
         
-        # Apply scaling to make it more similar to cosine similarity
-        return min(similarity * 1.5, 1.0)
+        # Jaccard similarity (intersection/union)
+        jaccard = intersection / union
+        
+        # Convert to cosine-like similarity with better scaling
+        # Use sqrt to make it more similar to cosine similarity behavior
+        similarity = (intersection / len(query_words)) * (intersection / len(context_words))
+        
+        # Combine with Jaccard for better accuracy
+        combined = (similarity * 0.6 + jaccard * 0.4)
+        
+        return min(combined, 1.0)
         
     except Exception as e:
         logger.warning(f"Cosine similarity calculation failed: {e}")
+        import traceback
+        logger.debug(f"Traceback: {traceback.format_exc()}")
         return 0.0
 
 def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k: int = 5) -> float:
-    """Calculate Precision@k metric"""
+    """
+    Calculate Precision@k using system's cosine similarity scores only.
+    Uses the system's "score" field (cosine similarity from embedding search).
+    """
     if not retrieved_docs or k <= 0:
         return 0.0
     
     try:
-        # Take top k documents
+        # Take top k documents (already sorted by system)
         top_k_docs = retrieved_docs[:k]
         
-        # Simple relevance scoring based on score threshold
+        # Use ONLY system's cosine similarity scores (score field)
         relevant_count = 0
         for doc in top_k_docs:
-            score = doc.get('score', 0)
-            # Consider relevant if score > 0.5
-            if score > 0.5:
+            # Get cosine similarity score (from embedding search)
+            score = doc.get('score', 0.0)
+            
+            # Normalize if score is in percentage format (0-100) to 0-1 range
+            if score > 1.0:
+                if score <= 100.0:
+                    score = score / 100.0  # Percentage format
+                elif score <= 10.0:
+                    score = score / 10.0  # ms-marco format (0-10)
+            
+            # Consider relevant if cosine similarity score > 0.4 (system's typical threshold)
+            # This matches the system's min_score_threshold for cosine similarity
+            if score > 0.4:
                 relevant_count += 1
         
         precision = relevant_count / min(k, len(top_k_docs))
@@ -635,12 +679,17 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         }
     }
     
+    # Calculate execution time
+    execution_time_info = calculate_execution_time(test_data)
+    
     return {
         "success": True,
         "testId": test_id,
         "status": test_data["status"],
         "progress": round(progress_percentage, 1),
+        "startTime": test_data.get("start_time"),
         "endTime": test_data.get("end_time"),
+        "executionTime": execution_time_info,
         "metrics": metrics,
         "methodComparison": method_comparison,
         "benchmarkComparison": benchmark_comparison
@@ -705,17 +754,147 @@ async def get_test_results(test_id: str, format: str = "json", request: Request 
                 "summary": results_summary["summary"]
             }
         else:
-            # Return JSON format
+            # Return JSON format with detailed results
             return {
                 "success": True,
                 "format": "json",
                 "test_id": test_id,
-                "results": results_summary
+                "test_name": test_data.get("test_name", ""),
+                "session_id": test_data.get("session_id", ""),
+                "start_time": test_data.get("start_time"),
+                "end_time": test_data.get("end_time"),
+                "execution_time": calculate_execution_time(test_data),
+                "status": test_data.get("status", "unknown"),
+                "results": results_summary,
+                # Add detailed per-question results
+                "detailed_results": test_data.get("results", [])
             }
             
     except Exception as e:
         logger.error(f"Failed to get test results: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get test results: {str(e)}")
+
+@router.get("/results/{test_id}/detailed", summary="Get Detailed Test Results")
+async def get_detailed_test_results(test_id: str, request: Request = None) -> Dict[str, Any]:
+    """
+    Get detailed test results with per-question metrics.
+    Includes: question, response, similarity scores, retrieved documents, etc.
+    """
+    from src.api.main import _require_owner_or_admin
+    
+    if test_id not in TEST_RESULTS_STORAGE:
+        raise HTTPException(status_code=404, detail="Test not found")
+    
+    test_data = TEST_RESULTS_STORAGE[test_id]
+    # Require authentication to access test results
+    if request:
+        _require_owner_or_admin(request, test_data.get("session_id", ""))
+    
+    test_data = TEST_RESULTS_STORAGE[test_id]
+    
+    try:
+        results = test_data.get("results", [])
+        
+        # Group results by question for easier analysis
+        questions_detail = []
+        for result in results:
+            sources = result.get("sources", [])
+            metrics = result.get("metrics", {})
+            
+            # Extract detailed source information
+            source_details = []
+            for i, source in enumerate(sources):
+                source_details.append({
+                    "index": i + 1,
+                    "content_preview": source.get("content", source.get("chunk_text", ""))[:200] + "..." if len(source.get("content", source.get("chunk_text", ""))) > 200 else source.get("content", source.get("chunk_text", "")),
+                    "content_length": len(source.get("content", source.get("chunk_text", ""))),
+                    "cosine_similarity": source.get("score", 0.0),
+                    "crag_score": source.get("crag_score"),  # Optional, different metric
+                    "metadata": source.get("metadata", {})
+                })
+            
+            question_detail = {
+                "question_id": result.get("question_id"),
+                "question": result.get("question"),
+                "methodology": result.get("methodology"),
+                "response": result.get("response", ""),
+                "response_length": len(result.get("response", "")),
+                "response_time_ms": metrics.get("response_time_ms", 0),
+                "metrics": {
+                    "cosine_similarity": metrics.get("cosine_similarity", 0.0),
+                    "max_similarity": metrics.get("max_similarity", 0.0),
+                    "precision_at_5": metrics.get("precision_at_5", 0.0),
+                    "precision_at_10": metrics.get("precision_at_10", 0.0),
+                    "context_relevance": metrics.get("context_relevance", 0.0),
+                    "retrieval_count": metrics.get("retrieval_count", 0),
+                    "accuracy": metrics.get("accuracy", 0.0)
+                },
+                "sources": {
+                    "count": len(sources),
+                    "details": source_details,
+                    "average_similarity": sum(s.get("score", 0.0) for s in sources) / len(sources) if sources else 0.0,
+                    "max_similarity": max((s.get("score", 0.0) for s in sources), default=0.0)
+                },
+                "config": result.get("config", ""),
+                "timestamp": result.get("timestamp")
+            }
+            questions_detail.append(question_detail)
+        
+        # Calculate summary statistics by methodology
+        methodology_summary = {}
+        for result in results:
+            method = result.get("methodology")
+            if method not in methodology_summary:
+                methodology_summary[method] = {
+                    "question_count": 0,
+                    "avg_cosine_similarity": [],
+                    "avg_response_time": [],
+                    "avg_precision_at_5": [],
+                    "total_responses": 0,
+                    "total_chars": 0
+                }
+            
+            summary = methodology_summary[method]
+            summary["question_count"] += 1
+            metrics = result.get("metrics", {})
+            summary["avg_cosine_similarity"].append(metrics.get("cosine_similarity", 0.0))
+            summary["avg_response_time"].append(metrics.get("response_time_ms", 0))
+            summary["avg_precision_at_5"].append(metrics.get("precision_at_5", 0.0))
+            summary["total_responses"] += 1
+            summary["total_chars"] += len(result.get("response", ""))
+        
+        # Calculate averages
+        for method, summary in methodology_summary.items():
+            if summary["avg_cosine_similarity"]:
+                summary["avg_cosine_similarity"] = sum(summary["avg_cosine_similarity"]) / len(summary["avg_cosine_similarity"])
+                summary["avg_response_time"] = sum(summary["avg_response_time"]) / len(summary["avg_response_time"])
+                summary["avg_precision_at_5"] = sum(summary["avg_precision_at_5"]) / len(summary["avg_precision_at_5"])
+            else:
+                summary["avg_cosine_similarity"] = 0.0
+                summary["avg_response_time"] = 0.0
+                summary["avg_precision_at_5"] = 0.0
+        
+        return {
+            "success": True,
+            "test_id": test_id,
+            "test_name": test_data.get("test_name", ""),
+            "session_id": test_data.get("session_id", ""),
+            "start_time": test_data.get("start_time"),
+            "end_time": test_data.get("end_time"),
+            "execution_time": calculate_execution_time(test_data),
+            "status": test_data.get("status", "unknown"),
+            "total_questions": test_data.get("total_questions", 0),
+            "methodologies": list(methodology_summary.keys()),
+            "methodology_summary": methodology_summary,
+            "questions": questions_detail,
+            "total_results": len(questions_detail)
+        }
+            
+    except Exception as e:
+        logger.error(f"Failed to get detailed test results: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to get detailed test results: {str(e)}")
 
 @router.get("/benchmark-comparison/{test_id}", summary="Get Benchmark Comparison")
 async def get_benchmark_comparison(test_id: str, request: Request) -> Dict[str, Any]:
@@ -806,28 +985,43 @@ async def execute_full_test_simulation(
                     continue
                 
                 if result["success"]:
-                    # Calculate metrics
-                    # Document Processing Service returns sources with "content" key, not "chunk_text"
-                    retrieved_docs = [doc.get("content", doc.get("chunk_text", "")) for doc in result["sources"]]
+                    # Use REAL metrics from the system - cosine similarity scores only
+                    # Document Processing Service returns sources with "score" (cosine similarity from embedding search)
+                    # CRAG score is a different metric (reranker), we don't use it for cosine similarity
+                    sources = result.get("sources", [])
                     
-                    # Debug logging for cosine similarity calculation
-                    logger.debug(f"Question {idx + 1}: Retrieved {len(retrieved_docs)} docs, sources count: {len(result.get('sources', []))}")
-                    if retrieved_docs:
-                        logger.debug(f"First doc length: {len(retrieved_docs[0])} chars, preview: {retrieved_docs[0][:100]}...")
+                    # Extract system's cosine similarity scores (from embedding search)
+                    if sources:
+                        # Use ONLY the system's cosine similarity scores (score field)
+                        similarity_scores = [doc.get("score", 0.0) for doc in sources]
+                        
+                        # Average cosine similarity
+                        avg_similarity = sum(similarity_scores) / len(similarity_scores) if similarity_scores else 0.0
+                        
+                        # Top score (best match)
+                        max_similarity = max(similarity_scores) if similarity_scores else 0.0
                     else:
-                        logger.warning(f"⚠️ No retrieved documents for question {idx + 1}! Sources format: {[list(doc.keys()) for doc in result.get('sources', [])[:2]]}")
+                        avg_similarity = 0.0
+                        max_similarity = 0.0
+                        similarity_scores = []
                     
-                    # Calculate cosine similarity first to use in accuracy calculation
-                    cosine_sim = calculate_cosine_similarity(question, result["response"], retrieved_docs)
+                    # Use system's cosine similarity scores for precision calculation
+                    # Precision@k: how many of top-k have cosine similarity score above threshold
+                    precision_at_5 = calculate_precision_at_k(sources, question, 5)
+                    precision_at_10 = calculate_precision_at_k(sources, question, 10)
+                    
+                    # Context relevance: average cosine similarity of retrieved docs
+                    context_relevance = avg_similarity if sources else 0.0
                     
                     metrics = {
-                        "cosine_similarity": cosine_sim,
-                        "precision_at_5": calculate_precision_at_k(result["sources"], question, 5),
-                        "precision_at_10": calculate_precision_at_k(result["sources"], question, 10),
-                        "context_relevance": calculate_context_relevance(question, retrieved_docs),
+                        "cosine_similarity": avg_similarity,  # System's average cosine similarity score
+                        "max_similarity": max_similarity,  # Best match cosine similarity score
+                        "precision_at_5": precision_at_5,
+                        "precision_at_10": precision_at_10,
+                        "context_relevance": context_relevance,
                         "response_time_ms": result["execution_time_ms"],
-                        "retrieval_count": len(result["sources"]),
-                        "accuracy": min(cosine_sim * 100, 100)  # Convert to percentage
+                        "retrieval_count": len(sources),
+                        "accuracy": min(avg_similarity * 100, 100)  # Convert to percentage
                     }
                     
                     # Store result
@@ -1085,21 +1279,39 @@ def generate_recommendations(benchmark_comparison: Dict[str, Any]) -> List[str]:
 def calculate_execution_time(test_data: Dict[str, Any]) -> Dict[str, Any]:
     """Calculate total execution time"""
     
-    start_time = datetime.fromisoformat(test_data["start_time"])
-    end_time_str = test_data.get("end_time")
-    
-    if end_time_str:
-        end_time = datetime.fromisoformat(end_time_str)
-        total_seconds = (end_time - start_time).total_seconds()
+    try:
+        start_time = datetime.fromisoformat(test_data["start_time"])
+        end_time_str = test_data.get("end_time")
         
+        if end_time_str:
+            end_time = datetime.fromisoformat(end_time_str)
+            total_seconds = (end_time - start_time).total_seconds()
+            
+            # Ensure non-negative duration
+            if total_seconds < 0:
+                logger.warning(f"Negative duration detected: {total_seconds}s. Using current time instead.")
+                total_seconds = (datetime.utcnow() - start_time).total_seconds()
+            
+            return {
+                "total_seconds": round(total_seconds, 2),
+                "total_minutes": round(total_seconds / 60, 2),
+                "total_hours": round(total_seconds / 3600, 2),
+                "start_time": test_data["start_time"],
+                "end_time": end_time_str
+            }
+        else:
+            # Still running - calculate elapsed time
+            elapsed_seconds = (datetime.utcnow() - datetime.fromisoformat(test_data["start_time"])).total_seconds()
+            return {
+                "status": "running",
+                "elapsed_seconds": round(elapsed_seconds, 2),
+                "elapsed_minutes": round(elapsed_seconds / 60, 2),
+                "start_time": test_data["start_time"]
+            }
+    except Exception as e:
+        logger.error(f"Error calculating execution time: {e}")
         return {
-            "total_seconds": round(total_seconds, 2),
-            "total_minutes": round(total_seconds / 60, 2),
-            "start_time": test_data["start_time"],
-            "end_time": end_time_str
-        }
-    else:
-        return {
-            "status": "running",
-            "start_time": test_data["start_time"]
+            "status": "error",
+            "error": str(e),
+            "start_time": test_data.get("start_time", "unknown")
         }

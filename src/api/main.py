@@ -2125,18 +2125,40 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                 "session_name": session_name,  # Add session name for course scope validation
             }
             try:
-                response = requests.post(
+                # Use session for connection pooling and better error handling
+                session = requests.Session()
+                session.headers.update({
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "Connection": "keep-alive"
+                })
+                response = session.post(
                     f"{DOCUMENT_PROCESSOR_URL}/query",
                     json=payload,
-                    headers={"Content-Type": "application/json", "Accept": "application/json"},
-                    timeout=120
+                    timeout=120,
+                    stream=False  # Disable streaming to avoid connection issues
                 )
-            except requests.exceptions.RequestException as e:
-                logger.error(f"Failed to connect to Document Processing Service: {e}")
+            except requests.exceptions.Timeout as e:
+                logger.error(f"Document Processing Service timeout: {e}")
+                raise HTTPException(
+                    status_code=504,
+                    detail=f"Document Processing Service timeout: {str(e)}"
+                )
+            except requests.exceptions.ConnectionError as e:
+                logger.error(f"Document Processing Service connection error: {e}")
                 raise HTTPException(
                     status_code=503,
                     detail=f"Document Processing Service unavailable: {str(e)}"
                 )
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Document Processing Service request error: {e}")
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Document Processing Service error: {str(e)}"
+                )
+            finally:
+                if 'session' in locals():
+                    session.close()
             if response.status_code != 200:
                 raise HTTPException(
                     status_code=response.status_code,
