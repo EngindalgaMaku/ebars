@@ -657,29 +657,78 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
             results_by_method[method].append(result["metrics"])
         
         # Calculate averages for each method
+        # Filter out results with similarity = 0 (failed/unsuccessful queries)
         for method, method_metrics in results_by_method.items():
             if method_metrics:
-                method_comparison[method] = {
-                    "cosineSimilarity": sum(m["cosine_similarity"] for m in method_metrics) / len(method_metrics),
-                    "precisionAt5": sum(m["precision_at_5"] for m in method_metrics) / len(method_metrics) * 100,
-                    "precisionAt10": sum(m["precision_at_10"] for m in method_metrics) / len(method_metrics) * 100,
-                    "avgResponseTime": sum(m["response_time_ms"] for m in method_metrics) / len(method_metrics),
-                    "accuracy": sum(m.get("accuracy", 0) for m in method_metrics) / len(method_metrics)
-                }
+                # Filter out zero similarity results for chart/visualization
+                filtered_metrics = [m for m in method_metrics if m.get("cosine_similarity", 0) > 0]
+                
+                if filtered_metrics:
+                    # Calculate averages only from successful queries (similarity > 0)
+                    method_comparison[method] = {
+                        "cosineSimilarity": sum(m["cosine_similarity"] for m in filtered_metrics) / len(filtered_metrics),
+                        "precisionAt5": sum(m["precision_at_5"] for m in filtered_metrics) / len(filtered_metrics) * 100,
+                        "precisionAt10": sum(m["precision_at_10"] for m in filtered_metrics) / len(filtered_metrics) * 100,
+                        "avgResponseTime": sum(m["response_time_ms"] for m in filtered_metrics) / len(filtered_metrics),
+                        "accuracy": sum(m.get("accuracy", 0) for m in filtered_metrics) / len(filtered_metrics),
+                        "successfulQueries": len(filtered_metrics),
+                        "totalQueries": len(method_metrics)
+                    }
+                else:
+                    # All queries failed
+                    method_comparison[method] = {
+                        "cosineSimilarity": 0.0,
+                        "precisionAt5": 0.0,
+                        "precisionAt10": 0.0,
+                        "avgResponseTime": 0.0,
+                        "accuracy": 0.0,
+                        "successfulQueries": 0,
+                        "totalQueries": len(method_metrics)
+                    }
         
         # Overall metrics
         all_metrics = [result["metrics"] for result in test_data["results"]]
         if all_metrics:
-            metrics = {
-                "cosineSimilarity": sum(m["cosine_similarity"] for m in all_metrics) / len(all_metrics),
-                "precisionAt5": sum(m["precision_at_5"] for m in all_metrics) / len(all_metrics) * 100,
-                "precisionAt10": sum(m["precision_at_10"] for m in all_metrics) / len(all_metrics) * 100,
-                "avgResponseTime": sum(m["response_time_ms"] for m in all_metrics) / len(all_metrics),
-                "totalQuestions": test_data["total_questions"],
-                "correctAnswers": len([m for m in all_metrics if m["cosine_similarity"] > 0.5])
-            }
+            # Filter out zero similarity results for overall metrics (chart visualization)
+            filtered_all_metrics = [m for m in all_metrics if m.get("cosine_similarity", 0) > 0]
+            
+            # Count correct answers per unique question (not per methodology)
+            # A question is "correct" if at least one methodology has similarity > 0.5
+            unique_questions = set()
+            correct_questions = set()
+            for result in test_data["results"]:
+                question_id = result.get("question_id")
+                if question_id:
+                    unique_questions.add(question_id)
+                    if result.get("metrics", {}).get("cosine_similarity", 0) > 0.5:
+                        correct_questions.add(question_id)
+            
+            # Calculate metrics from filtered (successful) queries only
+            if filtered_all_metrics:
+                metrics = {
+                    "cosineSimilarity": sum(m["cosine_similarity"] for m in filtered_all_metrics) / len(filtered_all_metrics),
+                    "precisionAt5": sum(m["precision_at_5"] for m in filtered_all_metrics) / len(filtered_all_metrics) * 100,
+                    "precisionAt10": sum(m["precision_at_10"] for m in filtered_all_metrics) / len(filtered_all_metrics) * 100,
+                    "avgResponseTime": sum(m["response_time_ms"] for m in filtered_all_metrics) / len(filtered_all_metrics),
+                    "totalQuestions": test_data["total_questions"],
+                    "correctAnswers": len(correct_questions),  # Unique questions with similarity > 0.5
+                    "successfulQueries": len(filtered_all_metrics),
+                    "totalQueries": len(all_metrics)
+                }
+            else:
+                # All queries failed
+                metrics = {
+                    "cosineSimilarity": 0.0,
+                    "precisionAt5": 0.0,
+                    "precisionAt10": 0.0,
+                    "avgResponseTime": 0.0,
+                    "totalQuestions": test_data["total_questions"],
+                    "correctAnswers": 0,
+                    "successfulQueries": 0,
+                    "totalQueries": len(all_metrics)
+                }
     
-    # Benchmark comparison
+    # Benchmark comparison (using filtered metrics - similarity > 0)
     benchmark_comparison = {
         "ekoBot": {
             "cosineSimilarity": EKOBOT_BENCHMARKS["cosine_similarity"],
@@ -687,10 +736,11 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
             "label": "EkoBot Referans"
         },
         "current": {
-            "cosineSimilarity": metrics["cosineSimilarity"],
-            "precisionAt5": metrics["precisionAt5"],
-            "label": "Mevcut Test"
-        }
+            "cosineSimilarity": metrics["cosineSimilarity"],  # Already filtered (similarity > 0)
+            "precisionAt5": metrics["precisionAt5"],  # Already filtered
+            "label": "Mevcut Test (Başarılı Sorgular)"
+        },
+        "note": "Grafiklerde similarity > 0 olan başarılı sorgular gösterilmektedir"
     }
     
     # Calculate execution time
@@ -706,7 +756,10 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         "executionTime": execution_time_info,
         "metrics": metrics,
         "methodComparison": method_comparison,
-        "benchmarkComparison": benchmark_comparison
+        "benchmarkComparison": benchmark_comparison,
+        # Add link to detailed results endpoint
+        "detailedResultsUrl": f"/api/test-simulation/results/{test_id}/detailed",
+        "detailedResultsAvailable": True
     }
 
 @router.post("/stop/{test_id}", summary="Stop Test Simulation")
@@ -780,8 +833,10 @@ async def get_test_results(test_id: str, format: str = "json", request: Request 
                 "execution_time": calculate_execution_time(test_data),
                 "status": test_data.get("status", "unknown"),
                 "results": results_summary,
-                # Add detailed per-question results
-                "detailed_results": test_data.get("results", [])
+                # Add detailed per-question results (for thesis analysis)
+                "detailed_results": test_data.get("results", []),
+                # Note: For even more detailed analysis with per-document similarity scores,
+                # use /api/test-simulation/results/{test_id}/detailed endpoint
             }
             
     except Exception as e:
@@ -1119,19 +1174,39 @@ def process_test_results(test_data: Dict[str, Any]) -> Dict[str, Any]:
         methodology_results[method].append(result)
     
     # Calculate aggregated metrics for each methodology
+    # Filter out zero similarity results for visualization
     methodology_metrics = {}
     for method, method_results in methodology_results.items():
         metrics_list = [r["metrics"] for r in method_results if "metrics" in r]
         
         if metrics_list:
-            avg_metrics = {
-                "avg_cosine_similarity": sum(m["cosine_similarity"] for m in metrics_list) / len(metrics_list),
-                "avg_precision_at_5": sum(m["precision_at_5"] for m in metrics_list) / len(metrics_list),
-                "avg_context_relevance": sum(m["context_relevance"] for m in metrics_list) / len(metrics_list),
-                "avg_response_time": sum(m["response_time_ms"] for m in metrics_list) / len(metrics_list),
-                "total_questions": len(method_results),
-                "success_rate": len(metrics_list) / len(method_results) * 100
-            }
+            # Filter out zero similarity results (failed queries)
+            filtered_metrics = [m for m in metrics_list if m.get("cosine_similarity", 0) > 0]
+            
+            if filtered_metrics:
+                # Calculate averages from successful queries only
+                avg_metrics = {
+                    "avg_cosine_similarity": sum(m["cosine_similarity"] for m in filtered_metrics) / len(filtered_metrics),
+                    "avg_precision_at_5": sum(m["precision_at_5"] for m in filtered_metrics) / len(filtered_metrics),
+                    "avg_context_relevance": sum(m["context_relevance"] for m in filtered_metrics) / len(filtered_metrics),
+                    "avg_response_time": sum(m["response_time_ms"] for m in filtered_metrics) / len(filtered_metrics),
+                    "total_questions": len(method_results),
+                    "successful_questions": len(filtered_metrics),
+                    "failed_questions": len(metrics_list) - len(filtered_metrics),
+                    "success_rate": len(filtered_metrics) / len(method_results) * 100
+                }
+            else:
+                # All queries failed
+                avg_metrics = {
+                    "avg_cosine_similarity": 0.0,
+                    "avg_precision_at_5": 0.0,
+                    "avg_context_relevance": 0.0,
+                    "avg_response_time": 0.0,
+                    "total_questions": len(method_results),
+                    "successful_questions": 0,
+                    "failed_questions": len(metrics_list),
+                    "success_rate": 0.0
+                }
             methodology_metrics[method] = avg_metrics
     
     # Determine best performing methodology
@@ -1172,15 +1247,24 @@ def generate_benchmark_comparison(test_data: Dict[str, Any]) -> Dict[str, Any]:
         return {"status": "no_results"}
     
     # Calculate system averages
+    # Filter out zero similarity results for benchmark comparison
     metrics_list = [r["metrics"] for r in results if "metrics" in r]
     if not metrics_list:
         return {"status": "no_metrics"}
     
+    # Filter out failed queries (similarity = 0)
+    filtered_metrics = [m for m in metrics_list if m.get("cosine_similarity", 0) > 0]
+    
+    if not filtered_metrics:
+        return {"status": "no_successful_queries", "note": "All queries had similarity = 0"}
+    
     system_averages = {
-        "cosine_similarity": sum(m["cosine_similarity"] for m in metrics_list) / len(metrics_list),
-        "precision_at_5": sum(m["precision_at_5"] for m in metrics_list) / len(metrics_list),
-        "avg_response_time": sum(m["response_time_ms"] for m in metrics_list) / len(metrics_list),
-        "context_relevance": sum(m["context_relevance"] for m in metrics_list) / len(metrics_list)
+        "cosine_similarity": sum(m["cosine_similarity"] for m in filtered_metrics) / len(filtered_metrics),
+        "precision_at_5": sum(m["precision_at_5"] for m in filtered_metrics) / len(filtered_metrics),
+        "avg_response_time": sum(m["response_time_ms"] for m in filtered_metrics) / len(filtered_metrics),
+        "context_relevance": sum(m["context_relevance"] for m in filtered_metrics) / len(filtered_metrics),
+        "successful_queries": len(filtered_metrics),
+        "total_queries": len(metrics_list)
     }
     
     # Compare against benchmarks
@@ -1330,10 +1414,16 @@ def calculate_execution_time(test_data: Dict[str, Any]) -> Dict[str, Any]:
                 logger.warning(f"Negative duration detected: {total_seconds}s. Using current time instead.")
                 total_seconds = (datetime.utcnow() - start_time).total_seconds()
             
+            # Ensure positive duration
+            if total_seconds < 0:
+                logger.warning(f"Negative duration detected: {total_seconds}s. Using current time instead.")
+                total_seconds = (datetime.utcnow() - start_time).total_seconds()
+            
             return {
-                "total_seconds": round(total_seconds, 2),
-                "total_minutes": round(total_seconds / 60, 2),
-                "total_hours": round(total_seconds / 3600, 2),
+                "total_seconds": round(max(0, total_seconds), 2),  # Ensure non-negative
+                "total_minutes": round(max(0, total_seconds) / 60, 2),
+                "total_hours": round(max(0, total_seconds) / 3600, 2),
+                "formatted": f"{int(max(0, total_seconds) // 60)}m {int(max(0, total_seconds) % 60)}s",  # Human-readable format
                 "start_time": test_data["start_time"],
                 "end_time": end_time_str
             }
