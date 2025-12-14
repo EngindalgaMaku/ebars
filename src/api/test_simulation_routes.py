@@ -38,8 +38,13 @@ DOCUMENT_PROCESSOR_URL = os.getenv('DOCUMENT_PROCESSOR_URL', 'http://document-pr
 MODEL_INFERENCE_URL = os.getenv('MODEL_INFERENCE_URL', 'https://model-inferencer-awe3elsvra-ew.a.run.app')
 
 # API Gateway URL - for test simulation to call its own endpoints
-# In Docker: use service name, in local: use localhost
-API_GATEWAY_URL = os.getenv('API_GATEWAY_URL', os.getenv('API_GATEWAY_INTERNAL_URL', 'http://localhost:8000'))
+# In Docker: use service name or localhost, in local: use localhost
+# Force HTTP (not HTTPS) for internal Docker network calls
+api_gateway_url = os.getenv('API_GATEWAY_URL', os.getenv('API_GATEWAY_INTERNAL_URL', 'http://localhost:8000'))
+# Ensure HTTP (not HTTPS) for internal calls
+if api_gateway_url.startswith('https://'):
+    api_gateway_url = api_gateway_url.replace('https://', 'http://')
+API_GATEWAY_URL = api_gateway_url
 
 # Global test results storage with SQLite persistence
 TEST_RESULTS_STORAGE: Dict[str, Any] = {}
@@ -341,7 +346,8 @@ async def execute_edubars_full_system(session_id: str, question: str, session_se
     try:
         # EduBars Full System: Session model + CRAG + external reranker + retrieval (APRAG disabled)
         # Call API Gateway's own /rag/query endpoint (which routes to Document Processing Service)
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        # Disable SSL verification for internal Docker network calls
+        async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
             response = await client.post(
                 f"{API_GATEWAY_URL}/rag/query",
                 json={
@@ -398,7 +404,8 @@ async def execute_basic_rag(session_id: str, question: str, session_settings: Op
     try:
         # Basic RAG: Session model + retrieval only (no CRAG, no reranker)
         # Call API Gateway's own /rag/query endpoint
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        # Disable SSL verification for internal Docker network calls
+        async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
             response = await client.post(
                 f"{API_GATEWAY_URL}/rag/query",
                 json={
@@ -462,7 +469,8 @@ async def execute_llm_only(question: str, session_settings: Optional[Dict[str, A
             model_name = session_settings.get("model", "llama-3.1-8b-instant")
         
         # Direct LLM call without any retrieval
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        # Disable SSL verification for internal Docker network calls
+        async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
             if model_provider == "groq":
                 response = await client.post(
                     f"{MODEL_INFERENCE_URL}/models/generate",
