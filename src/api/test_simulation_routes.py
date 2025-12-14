@@ -506,11 +506,16 @@ async def start_test_simulation(
         raise HTTPException(status_code=500, detail=f"Failed to start test simulation: {str(e)}")
 
 @router.get("/status/{test_id}", summary="Get Test Status")
-async def get_test_status(test_id: str) -> Dict[str, Any]:
+async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     """Get current status of running test simulation with methodology data"""
+    from src.api.main import _require_owner_or_admin
     
     if test_id not in TEST_RESULTS_STORAGE:
         raise HTTPException(status_code=404, detail="Test not found")
+    
+    test_data = TEST_RESULTS_STORAGE[test_id]
+    # Require authentication to access test results
+    _require_owner_or_admin(request, test_data.get("session_id", ""))
     
     test_data = TEST_RESULTS_STORAGE[test_id]
     
@@ -591,11 +596,16 @@ async def get_test_status(test_id: str) -> Dict[str, Any]:
     }
 
 @router.post("/stop/{test_id}", summary="Stop Test Simulation")
-async def stop_test_simulation(test_id: str) -> Dict[str, Any]:
+async def stop_test_simulation(test_id: str, request: Request) -> Dict[str, Any]:
     """Stop a running test simulation"""
+    from src.api.main import _require_owner_or_admin
     
     if test_id not in TEST_RESULTS_STORAGE:
         raise HTTPException(status_code=404, detail="Test not found")
+    
+    test_data = TEST_RESULTS_STORAGE[test_id]
+    # Require authentication to stop test
+    _require_owner_or_admin(request, test_data.get("session_id", ""))
     
     test_data = TEST_RESULTS_STORAGE[test_id]
     
@@ -616,11 +626,17 @@ async def stop_test_simulation(test_id: str) -> Dict[str, Any]:
     }
 
 @router.get("/results/{test_id}", summary="Get Test Results")
-async def get_test_results(test_id: str, format: str = "json") -> Dict[str, Any]:
+async def get_test_results(test_id: str, format: str = "json", request: Request = None) -> Dict[str, Any]:
     """Get comprehensive test results with metrics and comparisons"""
+    from src.api.main import _require_owner_or_admin
     
     if test_id not in TEST_RESULTS_STORAGE:
         raise HTTPException(status_code=404, detail="Test not found")
+    
+    test_data = TEST_RESULTS_STORAGE[test_id]
+    # Require authentication to access test results
+    if request:
+        _require_owner_or_admin(request, test_data.get("session_id", ""))
     
     test_data = TEST_RESULTS_STORAGE[test_id]
     
@@ -651,11 +667,16 @@ async def get_test_results(test_id: str, format: str = "json") -> Dict[str, Any]
         raise HTTPException(status_code=500, detail=f"Failed to get test results: {str(e)}")
 
 @router.get("/benchmark-comparison/{test_id}", summary="Get Benchmark Comparison")
-async def get_benchmark_comparison(test_id: str) -> Dict[str, Any]:
+async def get_benchmark_comparison(test_id: str, request: Request) -> Dict[str, Any]:
     """Get detailed benchmark comparison against EkoBot reference values"""
+    from src.api.main import _require_owner_or_admin
     
     if test_id not in TEST_RESULTS_STORAGE:
         raise HTTPException(status_code=404, detail="Test not found")
+    
+    test_data = TEST_RESULTS_STORAGE[test_id]
+    # Require authentication to access benchmark comparison
+    _require_owner_or_admin(request, test_data.get("session_id", ""))
     
     test_data = TEST_RESULTS_STORAGE[test_id]
     
