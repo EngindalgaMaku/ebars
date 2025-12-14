@@ -4011,10 +4011,9 @@ from src.api.rag_tests_routes import router as rag_tests_router
 app.include_router(rag_tests_router)
 logger.info("✅ RAG Tests routes registered")
 
-# Include Test Simulation Router
-from src.api.test_simulation_routes import router as test_simulation_router
-app.include_router(test_simulation_router)
-logger.info("✅ Test Simulation routes registered")
+# Test Simulation Router already included above (line 98) with /api prefix
+# Removing duplicate include to prevent routing conflicts
+logger.info("✅ Test Simulation routes already registered with /api prefix")
 
 # APRAG Service Proxy Endpoints
 
