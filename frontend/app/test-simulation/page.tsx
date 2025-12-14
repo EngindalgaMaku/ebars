@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import TeacherLayout from "../components/TeacherLayout";
-import { getSession, SessionMeta } from "@/lib/api";
+import { getSession, SessionMeta, listSessions } from "@/lib/api";
 import {
   Card,
   CardContent,
@@ -161,17 +161,13 @@ export default function TestSimulationPage() {
   const fetchAvailableSessions = async () => {
     try {
       setLoadingSessions(true);
-      const response = await fetch("/api/sessions");
-      if (!response.ok) {
-        throw new Error("Sessions yüklenemedi");
-      }
-      const data = await response.json();
-      setAvailableSessions(data.sessions || []);
+      const data = await listSessions();
+      setAvailableSessions(data || []);
 
       // Auto-select first session if available
-      if (data.sessions && data.sessions.length > 0) {
-        setSelectedSessionId(data.sessions[0].session_id);
-        await fetchSessionDetails(data.sessions[0].session_id);
+      if (data && data.length > 0) {
+        setSelectedSessionId(data[0].session_id);
+        await fetchSessionDetails(data[0].session_id);
       }
     } catch (error) {
       console.error("Error fetching sessions:", error);
