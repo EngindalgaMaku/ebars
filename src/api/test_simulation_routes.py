@@ -413,30 +413,6 @@ async def calculate_answer_quality_similarity(llm_response: str, ground_truth: s
     This measures answer quality - how well the LLM's response matches the expected answer.
     """
     return await calculate_semantic_similarity(llm_response, ground_truth)
-        logger.warning(f"Query-response similarity calculation failed: {e}")
-        # Fallback to simple keyword-based similarity
-        try:
-            query_words = set(query.lower().split())
-            response_words = set(response.lower().split())
-            
-            # Remove common stop words
-            stop_words = {'the', 'is', 'at', 'which', 'on', 'and', 'a', 'to', 'are', 'as', 'was', 've', 'for', 'with', 'of', 'in', 'bir', 'bu', 've', 'ile', 'için', 'olan', 'olan', 'ki', 'da', 'de'}
-            query_words = query_words - stop_words
-            response_words = response_words - stop_words
-            
-            if not query_words:
-                return 0.0
-            
-            # Jaccard similarity
-            intersection = len(query_words.intersection(response_words))
-            union = len(query_words.union(response_words))
-            
-            if union == 0:
-                return 0.0
-            
-            return intersection / union
-        except:
-            return 0.0
 
 # ===== METHODOLOGY EXECUTION FUNCTIONS =====
 
