@@ -90,12 +90,22 @@ DEFAULT_TEST_QUESTIONS = [
 
 # ===== REQUEST/RESPONSE MODELS =====
 
+class TestStartRequest(BaseModel):
+    """Test start request model"""
+    testName: str = Field(..., description="Name of the test")
+    questions: List[str] = Field(..., description="List of questions to test")
+    methods: List[str] = Field(..., description="Test methods: eduBars, basicRag, llmOnly")
+    enableBenchmark: bool = Field(default=True, description="Enable EkoBot benchmark comparison")
+    exportFormats: List[str] = Field(default=["json", "csv"], description="Export formats")
+    sessionId: str = Field(..., description="Session ID for testing")
+    sessionSettings: Optional[Dict[str, Any]] = Field(default=None, description="Session RAG settings")
+
 class TestConfiguration(BaseModel):
     """Test configuration model"""
     session_id: str = Field(..., description="Session ID for testing")
-    test_questions: Optional[List[Dict[str, Any]]] = Field(default=None, description="Custom questions (optional)")
-    use_default_questions: bool = Field(default=True, description="Use default 30-question set")
-    methodologies: List[str] = Field(default=["edubars", "single_model", "two_stage", "single_stage"], description="Test methodologies")
+    session_settings: Optional[Dict[str, Any]] = Field(default=None, description="Session RAG settings")
+    test_questions: Optional[List[str]] = Field(default=None, description="Custom questions")
+    methodologies: List[str] = Field(default=["eduBars", "basicRag", "llmOnly"], description="Test methodologies")
     benchmark_comparison: bool = Field(default=True, description="Enable EkoBot benchmark comparison")
     export_format: str = Field(default="json", description="Export format: json, csv")
     
@@ -219,22 +229,25 @@ def calculate_context_relevance(query: str, context_docs: List[str]) -> float:
 
 # ===== METHODOLOGY EXECUTION FUNCTIONS =====
 
-async def execute_edubars_method(session_id: str, question: str) -> Dict[str, Any]:
-    """Execute EduBars methodology (Advanced RAG)"""
+async def execute_edubars_full_system(session_id: str, question: str, session_settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Execute EduBars Full System (APRAG Personalization DISABLED)"""
     start_time = time.time()
     
     try:
-        # Use the main RAG endpoint with EduBars configuration
+        # EduBars Full System: Session model + CRAG + external reranker + retrieval (APRAG disabled)
         response = requests.post(
             f"{os.getenv('API_GATEWAY_URL', 'http://localhost:8000')}/rag/query",
             json={
                 "session_id": session_id,
                 "query": question,
                 "top_k": 5,
-                "use_rerank": True,
+                "use_rerank": True,  # External reranker service enabled
                 "min_score": 0.1,
                 "max_context_chars": 8000,
-                "use_direct_llm": False
+                "use_direct_llm": False,
+                "disable_aprag": True,  # CRITICAL: Disable APRAG personalization for academic study
+                "use_crag": True,  # Enable CRAG evaluation for quality control
+                "session_settings": session_settings  # Use dynamic session settings
             },
             timeout=120
         )
@@ -244,15 +257,16 @@ async def execute_edubars_method(session_id: str, question: str) -> Dict[str, An
         if response.status_code == 200:
             result = response.json()
             return {
-                "method": "edubars",
+                "method": "eduBars",
                 "response": result.get("answer", ""),
                 "sources": result.get("sources", []),
                 "execution_time_ms": execution_time,
-                "success": True
+                "success": True,
+                "config": "Full System (APRAG OFF, CRAG ON, Reranker ON)"
             }
         else:
             return {
-                "method": "edubars",
+                "method": "eduBars",
                 "response": "",
                 "sources": [],
                 "execution_time_ms": execution_time,
@@ -263,7 +277,7 @@ async def execute_edubars_method(session_id: str, question: str) -> Dict[str, An
     except Exception as e:
         execution_time = (time.time() - start_time) * 1000
         return {
-            "method": "edubars",
+            "method": "eduBars",
             "response": "",
             "sources": [],
             "execution_time_ms": execution_time,
@@ -271,123 +285,25 @@ async def execute_edubars_method(session_id: str, question: str) -> Dict[str, An
             "error": str(e)
         }
 
-async def execute_single_model_method(question: str, model: str = "gpt-4o") -> Dict[str, Any]:
-    """Execute Single Model methodology (Direct LLM)"""
+async def execute_basic_rag(session_id: str, question: str, session_settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Execute Basic RAG (no CRAG, no reranker)"""
     start_time = time.time()
     
     try:
-        # Direct LLM call without RAG
-        response = requests.post(
-            f"{MODEL_INFERENCE_URL}/models/generate",
-            json={
-                "prompt": f"Question: {question}\n\nPlease provide a comprehensive answer:",
-                "model": "llama-3.1-8b-instant",  # Use available model
-                "temperature": 0.7,
-                "max_tokens": 2048
-            },
-            timeout=120
-        )
-        
-        execution_time = (time.time() - start_time) * 1000
-        
-        if response.status_code == 200:
-            result = response.json()
-            return {
-                "method": "single_model",
-                "response": result.get("response", ""),
-                "sources": [],
-                "execution_time_ms": execution_time,
-                "success": True
-            }
-        else:
-            return {
-                "method": "single_model",
-                "response": "",
-                "sources": [],
-                "execution_time_ms": execution_time,
-                "success": False,
-                "error": f"API Error: {response.status_code}"
-            }
-            
-    except Exception as e:
-        execution_time = (time.time() - start_time) * 1000
-        return {
-            "method": "single_model",
-            "response": "",
-            "sources": [],
-            "execution_time_ms": execution_time,
-            "success": False,
-            "error": str(e)
-        }
-
-async def execute_two_stage_retrieval(session_id: str, question: str) -> Dict[str, Any]:
-    """Execute Two-stage retrieval methodology"""
-    start_time = time.time()
-    
-    try:
-        # Use RAG with reranking enabled
-        response = requests.post(
-            f"{os.getenv('API_GATEWAY_URL', 'http://localhost:8000')}/rag/query",
-            json={
-                "session_id": session_id,
-                "query": question,
-                "top_k": 10,  # Get more docs for reranking
-                "use_rerank": True,
-                "min_score": 0.2,
-                "max_context_chars": 8000,
-                "use_direct_llm": False
-            },
-            timeout=120
-        )
-        
-        execution_time = (time.time() - start_time) * 1000
-        
-        if response.status_code == 200:
-            result = response.json()
-            return {
-                "method": "two_stage",
-                "response": result.get("answer", ""),
-                "sources": result.get("sources", []),
-                "execution_time_ms": execution_time,
-                "success": True
-            }
-        else:
-            return {
-                "method": "two_stage",
-                "response": "",
-                "sources": [],
-                "execution_time_ms": execution_time,
-                "success": False,
-                "error": f"API Error: {response.status_code}"
-            }
-            
-    except Exception as e:
-        execution_time = (time.time() - start_time) * 1000
-        return {
-            "method": "two_stage",
-            "response": "",
-            "sources": [],
-            "execution_time_ms": execution_time,
-            "success": False,
-            "error": str(e)
-        }
-
-async def execute_single_stage_retrieval(session_id: str, question: str) -> Dict[str, Any]:
-    """Execute Single-stage retrieval methodology"""
-    start_time = time.time()
-    
-    try:
-        # Use RAG without reranking
+        # Basic RAG: Session model + retrieval only (no CRAG, no reranker)
         response = requests.post(
             f"{os.getenv('API_GATEWAY_URL', 'http://localhost:8000')}/rag/query",
             json={
                 "session_id": session_id,
                 "query": question,
                 "top_k": 5,
-                "use_rerank": False,  # Disable reranking for single-stage
+                "use_rerank": False,  # No external reranker
                 "min_score": 0.1,
                 "max_context_chars": 6000,
-                "use_direct_llm": False
+                "use_direct_llm": False,
+                "disable_aprag": True,  # No personalization
+                "use_crag": False,  # No CRAG evaluation
+                "session_settings": session_settings
             },
             timeout=120
         )
@@ -397,15 +313,16 @@ async def execute_single_stage_retrieval(session_id: str, question: str) -> Dict
         if response.status_code == 200:
             result = response.json()
             return {
-                "method": "single_stage",
+                "method": "basicRag",
                 "response": result.get("answer", ""),
                 "sources": result.get("sources", []),
                 "execution_time_ms": execution_time,
-                "success": True
+                "success": True,
+                "config": "Basic RAG (no CRAG, no Reranker)"
             }
         else:
             return {
-                "method": "single_stage",
+                "method": "basicRag",
                 "response": "",
                 "sources": [],
                 "execution_time_ms": execution_time,
@@ -416,7 +333,78 @@ async def execute_single_stage_retrieval(session_id: str, question: str) -> Dict
     except Exception as e:
         execution_time = (time.time() - start_time) * 1000
         return {
-            "method": "single_stage",
+            "method": "basicRag",
+            "response": "",
+            "sources": [],
+            "execution_time_ms": execution_time,
+            "success": False,
+            "error": str(e)
+        }
+
+async def execute_llm_only(question: str, session_settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Execute LLM Only (no retrieval)"""
+    start_time = time.time()
+    
+    try:
+        # Determine model from session settings or use default
+        model_provider = "groq"
+        model_name = "llama-3.1-8b-instant"
+        
+        if session_settings:
+            model_provider = session_settings.get("provider", "groq")
+            model_name = session_settings.get("model", "llama-3.1-8b-instant")
+        
+        # Direct LLM call without any retrieval
+        if model_provider == "groq":
+            response = requests.post(
+                f"{MODEL_INFERENCE_URL}/models/generate",
+                json={
+                    "prompt": f"Question: {question}\n\nPlease provide a comprehensive answer:",
+                    "model": model_name,
+                    "temperature": 0.7,
+                    "max_tokens": 2048
+                },
+                timeout=120
+            )
+        else:
+            # Use direct LLM endpoint through main API
+            response = requests.post(
+                f"{os.getenv('API_GATEWAY_URL', 'http://localhost:8000')}/rag/query",
+                json={
+                    "query": question,
+                    "use_direct_llm": True,  # Direct LLM without retrieval
+                    "disable_aprag": True,
+                    "session_settings": session_settings
+                },
+                timeout=120
+            )
+        
+        execution_time = (time.time() - start_time) * 1000
+        
+        if response.status_code == 200:
+            result = response.json()
+            return {
+                "method": "llmOnly",
+                "response": result.get("response", result.get("answer", "")),
+                "sources": [],  # No retrieval sources
+                "execution_time_ms": execution_time,
+                "success": True,
+                "config": f"LLM Only ({model_provider}/{model_name})"
+            }
+        else:
+            return {
+                "method": "llmOnly",
+                "response": "",
+                "sources": [],
+                "execution_time_ms": execution_time,
+                "success": False,
+                "error": f"API Error: {response.status_code}"
+            }
+            
+    except Exception as e:
+        execution_time = (time.time() - start_time) * 1000
+        return {
+            "method": "llmOnly",
             "response": "",
             "sources": [],
             "execution_time_ms": execution_time,
@@ -428,36 +416,51 @@ async def execute_single_stage_retrieval(session_id: str, question: str) -> Dict
 
 @router.post("/start", summary="Start Test Simulation")
 async def start_test_simulation(
-    config: TestConfiguration,
+    request_data: TestStartRequest,
     background_tasks: BackgroundTasks,
     request: Request
 ) -> Dict[str, Any]:
     """
-    Start a comprehensive test simulation with multiple methodologies
+    Start a comprehensive test simulation with corrected methodologies
     """
     from src.api.main import _require_owner_or_admin
     
     # Verify access to session
-    _require_owner_or_admin(request, config.session_id)
+    _require_owner_or_admin(request, request_data.sessionId)
     
     try:
         # Generate unique test ID
         test_id = str(uuid.uuid4())
         
-        # Determine questions to use
-        if config.use_default_questions:
-            test_questions = DEFAULT_TEST_QUESTIONS.copy()
-        else:
-            test_questions = config.test_questions or DEFAULT_TEST_QUESTIONS.copy()
+        # Convert questions to proper format
+        test_questions = []
+        for i, question in enumerate(request_data.questions):
+            test_questions.append({
+                "id": i + 1,
+                "question": question,
+                "category": "custom"
+            })
+        
+        # Create configuration object
+        config = TestConfiguration(
+            session_id=request_data.sessionId,
+            session_settings=request_data.sessionSettings,
+            test_questions=request_data.questions,
+            methodologies=request_data.methods,
+            benchmark_comparison=request_data.enableBenchmark,
+            export_format="json"
+        )
         
         # Initialize test progress
         test_progress = {
             "test_id": test_id,
-            "session_id": config.session_id,
+            "test_name": request_data.testName,
+            "session_id": request_data.sessionId,
+            "session_settings": request_data.sessionSettings,
             "status": "running",
             "current_question": 0,
             "total_questions": len(test_questions),
-            "current_methodology": config.methodologies[0] if config.methodologies else "edubars",
+            "current_methodology": request_data.methods[0] if request_data.methods else "eduBars",
             "completed_methodologies": [],
             "start_time": datetime.utcnow().isoformat(),
             "estimated_completion": None,
@@ -480,11 +483,11 @@ async def start_test_simulation(
         
         return {
             "success": True,
-            "test_id": test_id,
+            "testId": test_id,  # Use camelCase for frontend compatibility
             "message": "Test simulation started",
             "total_questions": len(test_questions),
-            "methodologies": config.methodologies,
-            "estimated_duration_minutes": len(test_questions) * len(config.methodologies) * 0.5  # 30 seconds per test
+            "methodologies": request_data.methods,
+            "estimated_duration_minutes": len(test_questions) * len(request_data.methods) * 0.5
         }
         
     except Exception as e:
@@ -493,7 +496,7 @@ async def start_test_simulation(
 
 @router.get("/status/{test_id}", summary="Get Test Status")
 async def get_test_status(test_id: str) -> Dict[str, Any]:
-    """Get current status of running test simulation"""
+    """Get current status of running test simulation with methodology data"""
     
     if test_id not in TEST_RESULTS_STORAGE:
         raise HTTPException(status_code=404, detail="Test not found")
@@ -501,37 +504,79 @@ async def get_test_status(test_id: str) -> Dict[str, Any]:
     test_data = TEST_RESULTS_STORAGE[test_id]
     
     # Calculate progress percentage
-    if test_data["total_questions"] > 0:
-        progress_percentage = (test_data["current_question"] / test_data["total_questions"]) * 100
+    total_operations = test_data["total_questions"] * len(test_data.get("configuration", {}).get("methodologies", []))
+    current_operations = len(test_data.get("results", []))
+    
+    if total_operations > 0:
+        progress_percentage = (current_operations / total_operations) * 100
     else:
         progress_percentage = 0.0
     
-    # Estimate completion time
-    if test_data["status"] == "running" and test_data["current_question"] > 0:
-        elapsed_time = time.time() - datetime.fromisoformat(test_data["start_time"]).timestamp()
-        avg_time_per_question = elapsed_time / test_data["current_question"]
-        remaining_questions = test_data["total_questions"] - test_data["current_question"]
-        estimated_remaining_seconds = remaining_questions * avg_time_per_question
-        estimated_completion = datetime.fromtimestamp(time.time() + estimated_remaining_seconds).isoformat()
-        test_data["estimated_completion"] = estimated_completion
+    # Calculate metrics and method comparison
+    method_comparison = {}
+    metrics = {
+        "cosineSimilarity": 0,
+        "precisionAt5": 0,
+        "precisionAt10": 0,
+        "avgResponseTime": 0,
+        "totalQuestions": test_data["total_questions"],
+        "correctAnswers": 0
+    }
+    
+    if test_data.get("results"):
+        results_by_method = {}
+        for result in test_data["results"]:
+            method = result["methodology"]
+            if method not in results_by_method:
+                results_by_method[method] = []
+            results_by_method[method].append(result["metrics"])
+        
+        # Calculate averages for each method
+        for method, method_metrics in results_by_method.items():
+            if method_metrics:
+                method_comparison[method] = {
+                    "cosineSimilarity": sum(m["cosine_similarity"] for m in method_metrics) / len(method_metrics),
+                    "precisionAt5": sum(m["precision_at_5"] for m in method_metrics) / len(method_metrics) * 100,
+                    "precisionAt10": sum(m["precision_at_10"] for m in method_metrics) / len(method_metrics) * 100,
+                    "avgResponseTime": sum(m["response_time_ms"] for m in method_metrics) / len(method_metrics),
+                    "accuracy": sum(m.get("accuracy", 0) for m in method_metrics) / len(method_metrics)
+                }
+        
+        # Overall metrics
+        all_metrics = [result["metrics"] for result in test_data["results"]]
+        if all_metrics:
+            metrics = {
+                "cosineSimilarity": sum(m["cosine_similarity"] for m in all_metrics) / len(all_metrics),
+                "precisionAt5": sum(m["precision_at_5"] for m in all_metrics) / len(all_metrics) * 100,
+                "precisionAt10": sum(m["precision_at_10"] for m in all_metrics) / len(all_metrics) * 100,
+                "avgResponseTime": sum(m["response_time_ms"] for m in all_metrics) / len(all_metrics),
+                "totalQuestions": test_data["total_questions"],
+                "correctAnswers": len([m for m in all_metrics if m["cosine_similarity"] > 0.5])
+            }
+    
+    # Benchmark comparison
+    benchmark_comparison = {
+        "ekoBot": {
+            "cosineSimilarity": EKOBOT_BENCHMARKS["cosine_similarity"],
+            "precisionAt5": EKOBOT_BENCHMARKS["precision_at_5"] * 100,
+            "label": "EkoBot Referans"
+        },
+        "current": {
+            "cosineSimilarity": metrics["cosineSimilarity"],
+            "precisionAt5": metrics["precisionAt5"],
+            "label": "Mevcut Test"
+        }
+    }
     
     return {
         "success": True,
-        "test_id": test_id,
+        "testId": test_id,
         "status": test_data["status"],
-        "progress": {
-            "current_question": test_data["current_question"],
-            "total_questions": test_data["total_questions"],
-            "percentage": round(progress_percentage, 1),
-            "current_methodology": test_data["current_methodology"],
-            "completed_methodologies": test_data["completed_methodologies"]
-        },
-        "timing": {
-            "start_time": test_data["start_time"],
-            "estimated_completion": test_data.get("estimated_completion"),
-        },
-        "current_metrics": test_data.get("current_metrics", {}),
-        "partial_results": len(test_data.get("results", []))
+        "progress": round(progress_percentage, 1),
+        "endTime": test_data.get("end_time"),
+        "metrics": metrics,
+        "methodComparison": method_comparison,
+        "benchmarkComparison": benchmark_comparison
     }
 
 @router.post("/stop/{test_id}", summary="Stop Test Simulation")
@@ -626,16 +671,21 @@ async def execute_full_test_simulation(
     config: TestConfiguration,
     test_questions: List[Dict[str, Any]]
 ):
-    """Background task to execute full test simulation"""
+    """Background task to execute full test simulation with corrected methodology"""
     
     test_data = TEST_RESULTS_STORAGE[test_id]
+    session_settings = config.session_settings
     
     try:
         all_results = []
         
+        logger.info(f"Starting test simulation {test_id} with methods: {config.methodologies}")
+        logger.info(f"Session settings: {session_settings}")
+        
         # Execute test for each methodology
         for methodology in config.methodologies:
             test_data["current_methodology"] = methodology
+            logger.info(f"Testing methodology: {methodology}")
             
             for idx, question_data in enumerate(test_questions):
                 test_data["current_question"] = idx + 1
@@ -643,16 +693,17 @@ async def execute_full_test_simulation(
                 question = question_data["question"]
                 question_id = question_data["id"]
                 
-                # Execute method based on methodology
-                if methodology == "edubars":
-                    result = await execute_edubars_method(config.session_id, question)
-                elif methodology == "single_model":
-                    result = await execute_single_model_method(question)
-                elif methodology == "two_stage":
-                    result = await execute_two_stage_retrieval(config.session_id, question)
-                elif methodology == "single_stage":
-                    result = await execute_single_stage_retrieval(config.session_id, question)
+                logger.info(f"Processing question {idx + 1}/{len(test_questions)} for {methodology}")
+                
+                # Execute method based on corrected methodology
+                if methodology == "eduBars":
+                    result = await execute_edubars_full_system(config.session_id, question, session_settings)
+                elif methodology == "basicRag":
+                    result = await execute_basic_rag(config.session_id, question, session_settings)
+                elif methodology == "llmOnly":
+                    result = await execute_llm_only(question, session_settings)
                 else:
+                    logger.warning(f"Unknown methodology: {methodology}")
                     continue
                 
                 if result["success"]:
@@ -662,9 +713,11 @@ async def execute_full_test_simulation(
                     metrics = {
                         "cosine_similarity": calculate_cosine_similarity(question, result["response"], retrieved_docs),
                         "precision_at_5": calculate_precision_at_k(result["sources"], question, 5),
+                        "precision_at_10": calculate_precision_at_k(result["sources"], question, 10),
                         "context_relevance": calculate_context_relevance(question, retrieved_docs),
                         "response_time_ms": result["execution_time_ms"],
-                        "retrieval_count": len(result["sources"])
+                        "retrieval_count": len(result["sources"]),
+                        "accuracy": min(metrics.get("cosine_similarity", 0) * 100, 100)  # Convert to percentage
                     }
                     
                     # Store result
@@ -675,24 +728,30 @@ async def execute_full_test_simulation(
                         "response": result["response"],
                         "sources": result["sources"],
                         "metrics": metrics,
+                        "config": result.get("config", ""),
                         "timestamp": datetime.utcnow().isoformat()
                     }
                     
                     all_results.append(test_result)
                     test_data["current_metrics"] = metrics
+                    
+                    logger.info(f"Question {idx + 1} completed: Cosine={metrics['cosine_similarity']:.3f}, Time={metrics['response_time_ms']:.0f}ms")
+                else:
+                    logger.error(f"Question {idx + 1} failed for {methodology}: {result.get('error', 'Unknown error')}")
                 
                 # Small delay to prevent overwhelming the system
                 await asyncio.sleep(0.1)
             
             # Mark methodology as completed
             test_data["completed_methodologies"].append(methodology)
+            logger.info(f"Completed methodology: {methodology}")
         
         # Store final results
         test_data["results"] = all_results
         test_data["status"] = "completed"
         test_data["end_time"] = datetime.utcnow().isoformat()
         
-        logger.info(f"Test simulation {test_id} completed with {len(all_results)} results")
+        logger.info(f"Test simulation {test_id} completed successfully with {len(all_results)} results")
         
     except Exception as e:
         logger.error(f"Test simulation {test_id} failed: {e}")
@@ -814,7 +873,7 @@ def generate_benchmark_comparison(test_data: Dict[str, Any]) -> Dict[str, Any]:
     
     return comparison
 
-def generate_csv_export(results_summary: Dict[str, Any]) -> str:
+def generate_csv_export(test_data: Dict[str, Any]) -> str:
     """Generate CSV export of test results"""
     
     output = io.StringIO()
@@ -822,24 +881,28 @@ def generate_csv_export(results_summary: Dict[str, Any]) -> str:
     
     # Write header
     writer.writerow([
-        "Test ID", "Question ID", "Question", "Methodology", 
-        "Cosine Similarity", "Precision@5", "Context Relevance", 
-        "Response Time (ms)", "Retrieval Count", "Timestamp"
+        "Test ID", "Test Name", "Question ID", "Question", "Methodology",
+        "Cosine Similarity", "Precision@5", "Precision@10", "Context Relevance",
+        "Response Time (ms)", "Retrieval Count", "Accuracy (%)", "Config", "Timestamp"
     ])
     
     # Write detailed results
-    for result in results_summary.get("detailed_results", []):
+    for result in test_data.get("results", []):
         metrics = result.get("metrics", {})
         writer.writerow([
-            results_summary["summary"]["test_id"],
+            test_data["test_id"],
+            test_data.get("test_name", ""),
             result["question_id"],
             result["question"][:100] + "..." if len(result["question"]) > 100 else result["question"],
             result["methodology"],
             round(metrics.get("cosine_similarity", 0), 4),
-            round(metrics.get("precision_at_5", 0), 4),
+            round(metrics.get("precision_at_5", 0) * 100, 2),
+            round(metrics.get("precision_at_10", 0) * 100, 2),
             round(metrics.get("context_relevance", 0), 4),
             round(metrics.get("response_time_ms", 0), 2),
             metrics.get("retrieval_count", 0),
+            round(metrics.get("accuracy", 0), 2),
+            result.get("config", ""),
             result["timestamp"]
         ])
     

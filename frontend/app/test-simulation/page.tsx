@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import TeacherLayout from "../components/TeacherLayout";
+import { getSession, SessionMeta } from "@/lib/api";
 import {
   Card,
   CardContent,
@@ -43,6 +44,7 @@ import {
   BookOpen,
   Users,
   Award,
+  Database,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
@@ -95,9 +97,8 @@ interface TestResult {
   };
   methodComparison: {
     eduBars: MethodResults;
-    singleModel: MethodResults;
-    twoStageRetrieval: MethodResults;
-    singleStageRetrieval: MethodResults;
+    basicRag: MethodResults;
+    llmOnly: MethodResults;
   };
   benchmarkComparison: {
     ekoBot: BenchmarkResults;
@@ -119,49 +120,23 @@ interface BenchmarkResults {
   label: string;
 }
 
-// Pre-defined test questions
-const DEFAULT_QUESTIONS = [
-  "Türkiye'nin başkenti neresidir?",
-  "Fotosentez süreci nasıl gerçekleşir?",
-  "İkinci Dünya Savaşı hangi yıllarda yaşandı?",
-  "Matematikte türev nedir?",
-  "Osmanlı İmparatorluğu ne zaman kuruldu?",
-  "DNA'nın yapısını kim keşfetti?",
-  "Küresel ısınmanın nedenleri nelerdir?",
-  "Shakespeare'in en ünlü eserleri hangileridir?",
-  "Atom nasıl yapılandırılmıştır?",
-  "Türkiye'nin en yüksek dağı hangisidir?",
-  "Evrim teorisini kim ortaya attı?",
-  "Rönesans dönemi hangi yüzyıllarda yaşandı?",
-  "Elektrik akımı nasıl oluşur?",
-  "Ay'ın evreleri neden oluşur?",
-  "Mendel'in kalıtım yasaları nelerdir?",
-  "Türk edebiyatının önemli temsilcileri kimlerdir?",
-  "Coğrafi keşifler hangi dönemde yaşandı?",
-  "Enzimler nasıl çalışır?",
-  "Birinci Dünya Savaşı'nın nedenleri nelerdir?",
-  "Güneş sistemi nasıl oluştu?",
-  "Hücre bölünmesi nasıl gerçekleşir?",
-  "Türkiye'nin iklim özellikleri nelerdir?",
-  "Kimyasal bağ türleri nelerdir?",
-  "Sanayi Devrimi'nin etkileri nelerdir?",
-  "Ekosistem nedir ve nasıl çalışır?",
-  "Türkiye'nin jeopolitik konumu nasıldır?",
-  "Protein sentezi nasıl gerçekleşir?",
-  "Türk müziğinin özellikleri nelerdir?",
-  "Enerji korunumu yasası nedir?",
-  "Cumhuriyet'in ilk yılları nasıl geçti?",
-];
-
 export default function TestSimulationPage() {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("configuration");
+
+  // Session State
+  const [availableSessions, setAvailableSessions] = useState<SessionMeta[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
+  const [selectedSession, setSelectedSession] = useState<SessionMeta | null>(
+    null
+  );
+  const [loadingSessions, setLoadingSessions] = useState(false);
 
   // Test Configuration State
   const [config, setConfig] = useState<TestConfig>({
     testName: "",
     numQuestions: 30,
-    testMethods: ["eduBars", "singleModel"],
+    testMethods: ["eduBars", "basicRag"],
     includeManualQuestions: false,
     customQuestions: [],
     enableBenchmark: true,
@@ -174,29 +149,86 @@ export default function TestSimulationPage() {
   const [error, setError] = useState<string | null>(null);
 
   // UI State
-  const [customQuestion, setCustomQuestion] = useState("");
+  const [questionText, setQuestionText] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    fetchAvailableSessions();
   }, []);
 
-  const addCustomQuestion = () => {
-    if (customQuestion.trim() && config.customQuestions.length < 30) {
-      setConfig({
-        ...config,
-        customQuestions: [...config.customQuestions, customQuestion.trim()],
-      });
-      setCustomQuestion("");
+  // Fetch available sessions for selection
+  const fetchAvailableSessions = async () => {
+    try {
+      setLoadingSessions(true);
+      const response = await fetch("/api/sessions");
+      if (!response.ok) {
+        throw new Error("Sessions yüklenemedi");
+      }
+      const data = await response.json();
+      setAvailableSessions(data.sessions || []);
+
+      // Auto-select first session if available
+      if (data.sessions && data.sessions.length > 0) {
+        setSelectedSessionId(data.sessions[0].session_id);
+        await fetchSessionDetails(data.sessions[0].session_id);
+      }
+    } catch (error) {
+      console.error("Error fetching sessions:", error);
+      setError("Ders oturumları yüklenemedi");
+    } finally {
+      setLoadingSessions(false);
     }
   };
 
-  const removeCustomQuestion = (index: number) => {
+  // Fetch specific session details
+  const fetchSessionDetails = async (sessionId: string) => {
+    try {
+      if (!sessionId) return;
+      const sessionData = await getSession(sessionId);
+      setSelectedSession(sessionData);
+    } catch (error) {
+      console.error("Error fetching session details:", error);
+      setError("Ders oturumu bilgileri alınamadı");
+    }
+  };
+
+  // Handle session selection change
+  const handleSessionChange = async (sessionId: string) => {
+    setSelectedSessionId(sessionId);
+    await fetchSessionDetails(sessionId);
+  };
+
+  const importQuestionsFromText = () => {
+    const questions = questionText
+      .split("\n")
+      .map((q) => q.trim())
+      .filter((q) => q.length > 0)
+      .slice(0, 100); // Limit to 100 questions max
+
     setConfig({
       ...config,
-      customQuestions: config.customQuestions.filter((_, i) => i !== index),
+      customQuestions: questions,
+      numQuestions: Math.min(questions.length, 100),
     });
   };
+
+  // Auto-import questions when text changes
+  React.useEffect(() => {
+    if (questionText.trim()) {
+      const questions = questionText
+        .split("\n")
+        .map((q) => q.trim())
+        .filter((q) => q.length > 0)
+        .slice(0, 100);
+
+      setConfig((prev) => ({
+        ...prev,
+        customQuestions: questions,
+        numQuestions: Math.min(questions.length, 100),
+      }));
+    }
+  }, [questionText]);
 
   const startTest = async () => {
     if (!config.testName.trim()) {
@@ -208,15 +240,17 @@ export default function TestSimulationPage() {
       setIsRunning(true);
       setError(null);
 
-      const testQuestions = [
-        ...DEFAULT_QUESTIONS.slice(
-          0,
-          Math.max(0, config.numQuestions - config.customQuestions.length)
-        ),
-        ...config.customQuestions,
-      ].slice(0, config.numQuestions);
+      if (config.customQuestions.length === 0) {
+        toast.error("Lütfen test sorularını girin");
+        return;
+      }
 
-      // Real API call to start test
+      const testQuestions = config.customQuestions.slice(
+        0,
+        config.numQuestions
+      );
+
+      // Real API call to start test with session info
       const response = await fetch("/api/test-simulation/start", {
         method: "POST",
         headers: {
@@ -228,6 +262,8 @@ export default function TestSimulationPage() {
           methods: config.testMethods,
           enableBenchmark: config.enableBenchmark,
           exportFormats: config.exportFormat,
+          sessionId: selectedSessionId,
+          sessionSettings: selectedSession?.rag_settings || null,
         }),
       });
 
@@ -263,21 +299,14 @@ export default function TestSimulationPage() {
             avgResponseTime: 0,
             accuracy: 0,
           },
-          singleModel: {
+          basicRag: {
             cosineSimilarity: 0,
             precisionAt5: 0,
             precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
-          twoStageRetrieval: {
-            cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
-            avgResponseTime: 0,
-            accuracy: 0,
-          },
-          singleStageRetrieval: {
+          llmOnly: {
             cosineSimilarity: 0,
             precisionAt5: 0,
             precisionAt10: 0,
@@ -466,72 +495,40 @@ export default function TestSimulationPage() {
         toast.success(`${format.toUpperCase()} dosyası indirildi (fallback)!`);
       } else if (format === "csv") {
         const csvData = [
-          [
-            "Metric",
-            "EduBars",
-            "Single Model",
-            "Two-Stage",
-            "Single-Stage",
-            "Benchmark",
-          ],
+          ["Metric", "EduBars", "Basic RAG", "LLM Only", "Benchmark"],
           [
             "Cosine Similarity",
             currentTest.methodComparison.eduBars.cosineSimilarity.toFixed(3),
-            currentTest.methodComparison.singleModel.cosineSimilarity.toFixed(
-              3
-            ),
-            currentTest.methodComparison.twoStageRetrieval.cosineSimilarity.toFixed(
-              3
-            ),
-            currentTest.methodComparison.singleStageRetrieval.cosineSimilarity.toFixed(
-              3
-            ),
+            currentTest.methodComparison.basicRag.cosineSimilarity.toFixed(3),
+            currentTest.methodComparison.llmOnly.cosineSimilarity.toFixed(3),
             currentTest.benchmarkComparison.ekoBot.cosineSimilarity.toFixed(3),
           ],
           [
             "Precision@5 (%)",
             currentTest.methodComparison.eduBars.precisionAt5.toFixed(1),
-            currentTest.methodComparison.singleModel.precisionAt5.toFixed(1),
-            currentTest.methodComparison.twoStageRetrieval.precisionAt5.toFixed(
-              1
-            ),
-            currentTest.methodComparison.singleStageRetrieval.precisionAt5.toFixed(
-              1
-            ),
+            currentTest.methodComparison.basicRag.precisionAt5.toFixed(1),
+            currentTest.methodComparison.llmOnly.precisionAt5.toFixed(1),
             currentTest.benchmarkComparison.ekoBot.precisionAt5.toFixed(1),
           ],
           [
             "Precision@10 (%)",
             currentTest.methodComparison.eduBars.precisionAt10.toFixed(1),
-            currentTest.methodComparison.singleModel.precisionAt10.toFixed(1),
-            currentTest.methodComparison.twoStageRetrieval.precisionAt10.toFixed(
-              1
-            ),
-            currentTest.methodComparison.singleStageRetrieval.precisionAt10.toFixed(
-              1
-            ),
+            currentTest.methodComparison.basicRag.precisionAt10.toFixed(1),
+            currentTest.methodComparison.llmOnly.precisionAt10.toFixed(1),
             "N/A",
           ],
           [
             "Avg Response Time (ms)",
             currentTest.methodComparison.eduBars.avgResponseTime.toFixed(0),
-            currentTest.methodComparison.singleModel.avgResponseTime.toFixed(0),
-            currentTest.methodComparison.twoStageRetrieval.avgResponseTime.toFixed(
-              0
-            ),
-            currentTest.methodComparison.singleStageRetrieval.avgResponseTime.toFixed(
-              0
-            ),
+            currentTest.methodComparison.basicRag.avgResponseTime.toFixed(0),
+            currentTest.methodComparison.llmOnly.avgResponseTime.toFixed(0),
             "N/A",
           ],
           [
             "Accuracy (%)",
             currentTest.methodComparison.eduBars.accuracy.toFixed(1),
-            currentTest.methodComparison.singleModel.accuracy.toFixed(1),
-            currentTest.methodComparison.twoStageRetrieval.accuracy.toFixed(1),
-            currentTest.methodComparison.singleStageRetrieval.accuracy.toFixed(
-              1
-            ),
+            currentTest.methodComparison.basicRag.accuracy.toFixed(1),
+            currentTest.methodComparison.llmOnly.accuracy.toFixed(1),
             "N/A",
           ],
         ];
@@ -646,17 +643,22 @@ export default function TestSimulationPage() {
                       id="numQuestions"
                       type="number"
                       min="1"
-                      max="30"
+                      max={Math.max(1, config.customQuestions.length)}
                       value={config.numQuestions}
                       onChange={(e) =>
                         setConfig({
                           ...config,
-                          numQuestions: parseInt(e.target.value) || 1,
+                          numQuestions: Math.min(
+                            parseInt(e.target.value) || 1,
+                            config.customQuestions.length
+                          ),
                         })
                       }
+                      disabled={config.customQuestions.length === 0}
                     />
                     <p className="text-sm text-gray-500">
-                      Test edilecek toplam soru sayısı (1-30)
+                      Test edilecek soru sayısı (maksimum:{" "}
+                      {config.customQuestions.length || 0})
                     </p>
                   </div>
 
@@ -664,16 +666,16 @@ export default function TestSimulationPage() {
                     <Label>Test Metodları</Label>
                     <div className="space-y-2">
                       {[
-                        { id: "eduBars", label: "EduBars (Önerilen Sistem)" },
-                        { id: "singleModel", label: "Tek Model (GPT-4o)" },
                         {
-                          id: "twoStageRetrieval",
-                          label: "İki Aşama Retrieval",
+                          id: "eduBars",
+                          label:
+                            "EduBars Tam Sistem (APRAG Kişiselleştirme KAPALI)",
                         },
                         {
-                          id: "singleStageRetrieval",
-                          label: "Tek Aşama Retrieval",
+                          id: "basicRag",
+                          label: "Basit RAG (CRAG ve Reranker yok)",
                         },
+                        { id: "llmOnly", label: "Sadece LLM (Retrieval yok)" },
                       ].map((method) => (
                         <label
                           key={method.id}
@@ -707,6 +709,121 @@ export default function TestSimulationPage() {
                       ))}
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Session Selection */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5 text-indigo-500" />
+                    Ders Oturumu Seçimi
+                  </CardTitle>
+                  <CardDescription>
+                    Test için kullanılacak ders oturumunu seçin
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="sessionSelect">Ders Oturumu</Label>
+                    <select
+                      id="sessionSelect"
+                      value={selectedSessionId}
+                      onChange={(e) => handleSessionChange(e.target.value)}
+                      disabled={loadingSessions}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white shadow-sm"
+                    >
+                      {loadingSessions ? (
+                        <option value="">Oturumlar yükleniyor...</option>
+                      ) : availableSessions.length === 0 ? (
+                        <option value="">Ders oturumu bulunamadı</option>
+                      ) : (
+                        <>
+                          <option value="">Oturum seçin...</option>
+                          {availableSessions.map((session) => (
+                            <option
+                              key={session.session_id}
+                              value={session.session_id}
+                            >
+                              {session.name} (
+                              {session.description || "Açıklama yok"})
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  {selectedSession && selectedSession.rag_settings && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h4 className="text-sm font-medium text-blue-800 mb-2 flex items-center gap-2">
+                        <Settings className="h-4 w-4" />
+                        Mevcut Model Ayarları
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-blue-600 font-medium">
+                            AI Provider:
+                          </span>
+                          <span className="ml-2 text-gray-700">
+                            {selectedSession.rag_settings.provider ||
+                              "Belirtilmemiş"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-blue-600 font-medium">
+                            AI Model:
+                          </span>
+                          <span className="ml-2 text-gray-700">
+                            {selectedSession.rag_settings.model ||
+                              "Belirtilmemiş"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-blue-600 font-medium">
+                            Embedding Provider:
+                          </span>
+                          <span className="ml-2 text-gray-700">
+                            {selectedSession.rag_settings.embedding_provider ||
+                              "Belirtilmemiş"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-blue-600 font-medium">
+                            Embedding Model:
+                          </span>
+                          <span className="ml-2 text-gray-700">
+                            {selectedSession.rag_settings.embedding_model ||
+                              "Belirtilmemiş"}
+                          </span>
+                        </div>
+                        {selectedSession.rag_settings.use_reranker_service && (
+                          <div className="md:col-span-2">
+                            <span className="text-blue-600 font-medium">
+                              Reranker:
+                            </span>
+                            <span className="ml-2 text-gray-700">
+                              {selectedSession.rag_settings.reranker_type ||
+                                "Etkin"}{" "}
+                              (Harici servis)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-3 p-2 bg-blue-100 rounded text-xs text-blue-700">
+                        💡 Bu ayarlar test sırasında tüm metodlar için
+                        kullanılacak
+                      </div>
+                    </div>
+                  )}
+
+                  {!selectedSession && selectedSessionId && (
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="text-sm text-yellow-800">
+                        Seçilen oturum yükleniyor...
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -803,7 +920,10 @@ export default function TestSimulationPage() {
                       disabled={
                         isRunning ||
                         !config.testName.trim() ||
-                        config.testMethods.length === 0
+                        config.testMethods.length === 0 ||
+                        config.customQuestions.length === 0 ||
+                        !selectedSessionId ||
+                        !selectedSession
                       }
                       className="w-full"
                       size="lg"
@@ -824,81 +944,54 @@ export default function TestSimulationPage() {
                 </CardContent>
               </Card>
 
-              {/* Custom Questions */}
+              {/* Question Input */}
               <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BookOpen className="h-5 w-5 text-green-500" />
-                    Soru Seti Yönetimi
+                    Test Soruları
                   </CardTitle>
                   <CardDescription>
-                    30 adet hazır soru mevcut. İsteğe bağlı özel sorular
-                    ekleyebilirsiniz.
+                    Tarih dersi chunk'larını test etmek için sorularınızı buraya
+                    yapıştırın. Her satırda bir soru olacak şekilde düzenleyin.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Özel Sorular Ekle</Label>
-                      <p className="text-sm text-gray-500">
-                        Test için özel sorular ekleyebilirsiniz (
-                        {config.customQuestions.length}/30)
-                      </p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={config.includeManualQuestions}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          includeManualQuestions: e.target.checked,
-                        })
-                      }
-                      className="w-4 h-4 text-blue-600"
+                  <div className="space-y-2">
+                    <Label htmlFor="questionText">Test Soruları</Label>
+                    <Textarea
+                      id="questionText"
+                      value={questionText}
+                      onChange={(e) => setQuestionText(e.target.value)}
+                      placeholder="Test sorularını buraya kopyalayın (her satırda bir soru)&#10;&#10;Örnek:&#10;Osmanlı İmparatorluğu hangi yüzyılda kuruldu?&#10;Fatih Sultan Mehmet hangi şehri fethetti?&#10;Tanzimat Fermanı ne zaman ilan edildi?&#10;Kurtuluş Savaşı hangi yıllarda yapıldı?"
+                      className="min-h-[200px] resize-y"
+                      rows={12}
                     />
+                    <div className="flex items-center justify-between text-sm text-gray-500">
+                      <span>
+                        {config.customQuestions.length} soru tespit edildi
+                      </span>
+                      <span>Maksimum 100 soru</span>
+                    </div>
                   </div>
 
-                  {config.includeManualQuestions && (
-                    <div className="space-y-4">
-                      <div className="flex gap-2">
-                        <Input
-                          value={customQuestion}
-                          onChange={(e) => setCustomQuestion(e.target.value)}
-                          placeholder="Yeni soru girin..."
-                          onKeyPress={(e) =>
-                            e.key === "Enter" && addCustomQuestion()
-                          }
-                        />
-                        <Button
-                          onClick={addCustomQuestion}
-                          disabled={
-                            !customQuestion.trim() ||
-                            config.customQuestions.length >= 30
-                          }
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
+                  {config.customQuestions.length > 0 && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-green-800">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="text-sm font-medium">
+                          {config.customQuestions.length} soru başarıyla
+                          yüklendi
+                        </span>
                       </div>
-
-                      {config.customQuestions.length > 0 && (
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                          {config.customQuestions.map((question, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center justify-between p-2 bg-gray-50 rounded-lg"
-                            >
-                              <span className="text-sm flex-1">{question}</span>
-                              <Button
-                                onClick={() => removeCustomQuestion(index)}
-                                size="sm"
-                                variant="outline"
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <div className="text-xs text-green-600 mt-1">
+                        Test{" "}
+                        {Math.min(
+                          config.customQuestions.length,
+                          config.numQuestions
+                        )}{" "}
+                        soru ile çalışacak
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -1199,10 +1292,9 @@ export default function TestSimulationPage() {
                           {Object.entries(currentTest.methodComparison).map(
                             ([method, results]) => {
                               const methodNames: Record<string, string> = {
-                                eduBars: "EduBars",
-                                singleModel: "Tek Model",
-                                twoStageRetrieval: "İki Aşama",
-                                singleStageRetrieval: "Tek Aşama",
+                                eduBars: "EduBars Tam Sistem",
+                                basicRag: "Basit RAG",
+                                llmOnly: "Sadece LLM",
                               };
 
                               return (
@@ -1385,9 +1477,8 @@ export default function TestSimulationPage() {
                               name:
                                 {
                                   eduBars: "EduBars",
-                                  singleModel: "Tek Model",
-                                  twoStageRetrieval: "İki Aşama",
-                                  singleStageRetrieval: "Tek Aşama",
+                                  basicRag: "Basit RAG",
+                                  llmOnly: "Sadece LLM",
                                 }[method] || method,
                               responseTime: results.avgResponseTime,
                             }))}
@@ -1495,9 +1586,8 @@ export default function TestSimulationPage() {
                           const methodName =
                             {
                               eduBars: "EduBars",
-                              singleModel: "TekModel",
-                              twoStageRetrieval: "IkiAsama",
-                              singleStageRetrieval: "TekAsama",
+                              basicRag: "BasitRAG",
+                              llmOnly: "SadeceLLM",
                             }[method] || method;
 
                           const colors = [
