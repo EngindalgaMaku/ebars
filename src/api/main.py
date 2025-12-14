@@ -2099,6 +2099,7 @@ async def rag_query(req: RAGQueryRequest, request: Request):
             response = requests.post(
                 f"{DOCUMENT_PROCESSOR_URL}/query",
                 json=payload,
+                headers={"Content-Type": "application/json", "Accept": "application/json"},
                 timeout=120
             )
             elapsed_ms = int((time.time() - request_start_time) * 1000)
@@ -2123,11 +2124,19 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                 "embedding_model": effective["embedding_model"],
                 "session_name": session_name,  # Add session name for course scope validation
             }
-            response = requests.post(
-                f"{DOCUMENT_PROCESSOR_URL}/query",
-                json=payload,
-                timeout=120
-            )
+            try:
+                response = requests.post(
+                    f"{DOCUMENT_PROCESSOR_URL}/query",
+                    json=payload,
+                    headers={"Content-Type": "application/json", "Accept": "application/json"},
+                    timeout=120
+                )
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Failed to connect to Document Processing Service: {e}")
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Document Processing Service unavailable: {str(e)}"
+                )
             if response.status_code != 200:
                 raise HTTPException(
                     status_code=response.status_code,

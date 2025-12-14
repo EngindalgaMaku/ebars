@@ -809,14 +809,17 @@ async def execute_full_test_simulation(
                     # Calculate metrics
                     retrieved_docs = [doc.get("chunk_text", "") for doc in result["sources"]]
                     
+                    # Calculate cosine similarity first to use in accuracy calculation
+                    cosine_sim = calculate_cosine_similarity(question, result["response"], retrieved_docs)
+                    
                     metrics = {
-                        "cosine_similarity": calculate_cosine_similarity(question, result["response"], retrieved_docs),
+                        "cosine_similarity": cosine_sim,
                         "precision_at_5": calculate_precision_at_k(result["sources"], question, 5),
                         "precision_at_10": calculate_precision_at_k(result["sources"], question, 10),
                         "context_relevance": calculate_context_relevance(question, retrieved_docs),
                         "response_time_ms": result["execution_time_ms"],
                         "retrieval_count": len(result["sources"]),
-                        "accuracy": min(metrics.get("cosine_similarity", 0) * 100, 100)  # Convert to percentage
+                        "accuracy": min(cosine_sim * 100, 100)  # Convert to percentage
                     }
                     
                     # Store result
