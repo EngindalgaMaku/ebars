@@ -807,7 +807,15 @@ async def execute_full_test_simulation(
                 
                 if result["success"]:
                     # Calculate metrics
-                    retrieved_docs = [doc.get("chunk_text", "") for doc in result["sources"]]
+                    # Document Processing Service returns sources with "content" key, not "chunk_text"
+                    retrieved_docs = [doc.get("content", doc.get("chunk_text", "")) for doc in result["sources"]]
+                    
+                    # Debug logging for cosine similarity calculation
+                    logger.debug(f"Question {idx + 1}: Retrieved {len(retrieved_docs)} docs, sources count: {len(result.get('sources', []))}")
+                    if retrieved_docs:
+                        logger.debug(f"First doc length: {len(retrieved_docs[0])} chars, preview: {retrieved_docs[0][:100]}...")
+                    else:
+                        logger.warning(f"⚠️ No retrieved documents for question {idx + 1}! Sources format: {[list(doc.keys()) for doc in result.get('sources', [])[:2]]}")
                     
                     # Calculate cosine similarity first to use in accuracy calculation
                     cosine_sim = calculate_cosine_similarity(question, result["response"], retrieved_docs)
