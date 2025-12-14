@@ -163,7 +163,7 @@ function ClientProviderInner({ children }: { children: React.ReactNode }) {
                 {/* Başlık */}
                 <div className="flex flex-col">
                   <span className="font-bold text-lg text-gray-900">
-                    RAG Temelli Eğitim Asistanı
+                    AkıllıRehber
                   </span>
                   <span className="text-sm text-gray-600">
                     Yapay Zeka Destekli Öğretim Platformu

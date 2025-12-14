@@ -1828,9 +1828,9 @@ export default function HomePage() {
     if (!isStudent) return;
     const courseName = selectedCourse?.name?.trim();
     if (studentView === "chat" && courseName) {
-      document.title = `${courseName} | Online Kütüphane`;
+      document.title = `${courseName} | AkıllıRehber`;
     } else {
-      document.title = "Online Kütüphane";
+      document.title = "AkıllıRehber";
     }
   }, [userRole, user?.role_name, studentView, selectedCourse?.name]);
 
@@ -1938,7 +1938,7 @@ export default function HomePage() {
             <div className="text-center mb-12">
               <div className="text-6xl mb-4 animate-bounce">🎓</div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent mb-4">
-                Online Kütüphane
+                AkıllıRehber
               </h1>
               <p className="text-xl text-gray-600 max-w-2xl mx-auto">
                 Öğrenmek istediğiniz dersi seçin ve akıllı eğitim asistanınızla
@@ -2183,7 +2183,7 @@ export default function HomePage() {
                     {selectedCourse.name}
                   </h1>
                   <p className="text-gray-600 text-sm mb-2">
-                    Eğitim Asistanınızla sohbet edin - Size yardımcı olmak için
+                    AkıllıRehber ile sohbet edin - Size yardımcı olmak için
                     buradayım!
                   </p>
 
@@ -3433,7 +3433,7 @@ export default function HomePage() {
                 </div>
                 <div>
                   <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                    RAG Temelli Eğitim Asistanı
+                    AkıllıRehber
                   </h2>
                   <p className="text-gray-600 mt-1">
                     Ders materyalleri hakkında sorularınızı sorun
@@ -3495,7 +3495,7 @@ export default function HomePage() {
                   <span className="text-3xl">💬</span>
                   <div className="text-left">
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                      Eğitim Asistanı Sohbeti
+                      AkıllıRehber Sohbeti
                     </h2>
                     {useDirectLLM ? (
                       <p className="text-gray-600">
@@ -3702,7 +3702,7 @@ export default function HomePage() {
                       <div className="text-center py-12">
                         <div className="text-6xl mb-4">🎓</div>
                         <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                          Eğitim Asistanınıza Hoş Geldiniz!
+                          AkıllıRehber'e Hoş Geldiniz!
                         </h3>
                         <p className="text-gray-500 max-w-md mx-auto">
                           Ders materyalleriniz hakkında soru sorarak öğrenme
@@ -4391,7 +4391,7 @@ export default function HomePage() {
                 </div>
                 <div>
                   <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                    RAG Temelli Eğitim Asistanı
+                    AkıllıRehber
                   </h2>
                   <p className="text-gray-600 mt-1">
                     Ders materyalleri hakkında sorularınızı sorun
@@ -4488,7 +4488,7 @@ export default function HomePage() {
                     <div className="text-center py-12">
                       <div className="text-6xl mb-4">🎓</div>
                       <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                        Eğitim Asistanınıza Hoş Geldiniz!
+                        AkıllıRehber'e Hoş Geldiniz!
                       </h3>
                       <p className="text-gray-500 max-w-md mx-auto">
                         Ders materyalleriniz hakkında soru sorarak öğrenme

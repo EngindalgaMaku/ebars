@@ -56,14 +56,18 @@ export default function StudentLayout({
                 <span className="text-white font-bold text-xl">📚</span>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">RAG Temelli Eğitim Asistanı</h1>
-                <p className="text-xs text-gray-500">Yapay Zeka Destekli Öğretim Platformu</p>
+                <h1 className="text-xl font-bold text-gray-900">
+                  AkıllıRehber
+                </h1>
+                <p className="text-xs text-gray-500">
+                  Yapay Zeka Destekli Öğretim Platformu
+                </p>
               </div>
             </div>
-            
-          <div className="flex items-center gap-4">
-            <LogoutButton />
-          </div>
+
+            <div className="flex items-center gap-4">
+              <LogoutButton />
+            </div>
           </div>
 
           {/* Navigation Tabs */}
@@ -99,5 +103,3 @@ export default function StudentLayout({
     </div>
   );
 }
-
-

@@ -148,7 +148,7 @@ function EducationAssistantContent() {
             </div>
             <div>
               <h1 className="text-3xl lg:text-4xl font-bold text-gray-800">
-                Eğitim Asistanı
+                AkıllıRehber
               </h1>
               <p className="text-gray-600 mt-1">
                 Yapay zeka destekli akıllı eğitim platformu
@@ -287,121 +287,121 @@ function EducationAssistantContent() {
 
         {/* Main Content Area - Full Width */}
         <div className="space-y-6">
-            {/* Query Form */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <svg
-                    className="w-5 h-5 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  Soru Sor
-                </h3>
-              </div>
-              <div className="p-6">
-                <QueryForm
-                  query={query}
-                  setQuery={setQuery}
-                  onSubmit={handleQuery}
-                  isQuerying={isQuerying}
-                  selectedQueryModel={selectedQueryModel}
-                  sessionRagSettings={sessionRagSettings}
-                  answerLength={answerLength}
-                  setAnswerLength={setAnswerLength}
-                  isStudent={isStudent}
-                  chatHistoryLength={chatHistory?.length || 0}
-                  onSuggestionClick={handleSuggestionClick}
-                />
+          {/* Query Form */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <svg
+                  className="w-5 h-5 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                Soru Sor
+              </h3>
+            </div>
+            <div className="p-6">
+              <QueryForm
+                query={query}
+                setQuery={setQuery}
+                onSubmit={handleQuery}
+                isQuerying={isQuerying}
+                selectedQueryModel={selectedQueryModel}
+                sessionRagSettings={sessionRagSettings}
+                answerLength={answerLength}
+                setAnswerLength={setAnswerLength}
+                isStudent={isStudent}
+                chatHistoryLength={chatHistory?.length || 0}
+                onSuggestionClick={handleSuggestionClick}
+              />
 
-                {/* Loading Indicators - Only show one at a time */}
-                <div className="mt-4">
-                  {/* Priority 1: RAG Processing (if stage is available) */}
-                  {isQuerying && ragProcessingStage !== undefined ? (
-                    <RAGProcessingIndicator
-                      isLoading={true}
-                      stage={ragProcessingStage}
-                    />
-                  ) : (
-                    <>
-                      {/* Priority 2: Query Loading (if querying but no RAG stage) */}
-                      {isQuerying && (
-                        <QueryLoadingIndicator
-                          isLoading={true}
-                          message="Sorgunuz işleniyor..."
-                        />
-                      )}
-                      
-                      {/* Priority 3: Suggestions Loading (only if not querying) */}
-                      {!isQuerying && (
-                        <SuggestionsLoadingIndicator
-                          isLoading={isSuggestionsLoading}
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
+              {/* Loading Indicators - Only show one at a time */}
+              <div className="mt-4">
+                {/* Priority 1: RAG Processing (if stage is available) */}
+                {isQuerying && ragProcessingStage !== undefined ? (
+                  <RAGProcessingIndicator
+                    isLoading={true}
+                    stage={ragProcessingStage}
+                  />
+                ) : (
+                  <>
+                    {/* Priority 2: Query Loading (if querying but no RAG stage) */}
+                    {isQuerying && (
+                      <QueryLoadingIndicator
+                        isLoading={true}
+                        message="Sorgunuz işleniyor..."
+                      />
+                    )}
+
+                    {/* Priority 3: Suggestions Loading (only if not querying) */}
+                    {!isQuerying && (
+                      <SuggestionsLoadingIndicator
+                        isLoading={isSuggestionsLoading}
+                      />
+                    )}
+                  </>
+                )}
               </div>
             </div>
+          </div>
 
-            {/* Chat History */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-3 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <svg
-                    className="w-5 h-5 text-green-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                    />
-                  </svg>
-                  Sohbet Geçmişi
-                  <span className="ml-auto bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                    {chatHistory?.length || 0} soru
-                  </span>
-                </h3>
-              </div>
-              <div className="max-h-[900px] overflow-y-auto">
-                <ChatHistory
-                  chatHistory={chatHistory || []}
-                  isQuerying={isQuerying}
-                  studentMessages={[]}
-                  studentChatLoading={false}
-                  isStudent={isStudent || false}
-                  selectedSessionId={selectedSessionId}
-                  onSuggestionClick={handleSuggestionClick}
-                  onOpenSourceModal={handleSourceClick}
-                  clearChatHistory={clearChatHistory}
-                  formatTimestamp={(timestamp: string) => {
-                    try {
-                      return new Date(timestamp).toLocaleString("tr-TR", {
-                        year: "numeric",
-                        month: "2-digit",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      });
-                    } catch {
-                      return timestamp;
-                    }
-                  }}
-                />
-              </div>
+          {/* Chat History */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-3 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <svg
+                  className="w-5 h-5 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                  />
+                </svg>
+                Sohbet Geçmişi
+                <span className="ml-auto bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                  {chatHistory?.length || 0} soru
+                </span>
+              </h3>
             </div>
+            <div className="max-h-[900px] overflow-y-auto">
+              <ChatHistory
+                chatHistory={chatHistory || []}
+                isQuerying={isQuerying}
+                studentMessages={[]}
+                studentChatLoading={false}
+                isStudent={isStudent || false}
+                selectedSessionId={selectedSessionId}
+                onSuggestionClick={handleSuggestionClick}
+                onOpenSourceModal={handleSourceClick}
+                clearChatHistory={clearChatHistory}
+                formatTimestamp={(timestamp: string) => {
+                  try {
+                    return new Date(timestamp).toLocaleString("tr-TR", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
+                  } catch {
+                    return timestamp;
+                  }
+                }}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Sources Modal */}

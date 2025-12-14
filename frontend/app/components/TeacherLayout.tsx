@@ -215,9 +215,7 @@ function TeacherLayout({
                 <span className="text-white font-bold text-sm">RAG</span>
               </div>
               <div>
-                <h1 className="text-sm font-bold text-white">
-                  Eğitim Asistanı
-                </h1>
+                <h1 className="text-sm font-bold text-white">AkıllıRehber</h1>
                 <p className="text-xs text-slate-400">Öğretmen Paneli</p>
               </div>
             </div>

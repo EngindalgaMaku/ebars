@@ -594,7 +594,7 @@ export default function ChatHistory({
               <h3 className="text-xl font-semibold text-gray-700 mb-2">
                 {isStudent
                   ? "Merhaba! Size nasıl yardımcı olabilirim?"
-                  : "Eğitim Asistanınıza Hoş Geldiniz!"}
+                  : "AkıllıRehber'e Hoş Geldiniz!"}
               </h3>
               <p className="text-gray-500 max-w-md mx-auto">
                 {isStudent

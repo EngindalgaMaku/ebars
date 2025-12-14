@@ -1,5 +1,5 @@
 /**
- * RAG Eğitim Asistanı için Geliştirilmiş Giriş Formu Bileşeni
+ * AkıllıRehber için Geliştirilmiş Giriş Formu Bileşeni
  * Kapsamlı doğrulama ve hata yönetimi içeren modern, erişilebilir giriş formu
  */
 
@@ -121,7 +121,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
   );
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
+
   // Captcha state
   const [captchaValue, setCaptchaValue] = useState("");
   const [captchaAnswer, setCaptchaAnswer] = useState(0);
@@ -159,7 +159,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
       if (error) {
         clearError();
       }
-      
+
       if (captchaError) {
         setCaptchaError(null);
       }
@@ -209,10 +209,10 @@ const LoginForm: React.FC<LoginFormProps> = ({
           // Login failed - error state should be set by useLogin hook
           // Wait a moment for error state to update
           await new Promise((resolve) => setTimeout(resolve, 100));
-          
+
           // Generate new captcha on failed login
           generateCaptcha();
-          
+
           // Log error state for debugging
           console.log("LoginForm: Error state after failed login:", error);
           return;
@@ -229,20 +229,31 @@ const LoginForm: React.FC<LoginFormProps> = ({
         // This catch block handles unexpected errors
         // Normal login failures are handled by useLogin hook's error state
         generateCaptcha(); // Generate new captcha on error
-        
+
         // Ensure error is displayed
         if (!error && err) {
           console.warn("LoginForm: Setting error from catch block");
           // Error should be set by useLogin hook, but if it's not, we can't set it here
           // because error comes from useLogin hook
         }
-        
+
         if (onError) {
           onError(err);
         }
       }
     },
-    [credentials, login, redirectUrl, onLogin, onError, clearError, captchaValue, captchaAnswer, generateCaptcha, error]
+    [
+      credentials,
+      login,
+      redirectUrl,
+      onLogin,
+      onError,
+      clearError,
+      captchaValue,
+      captchaAnswer,
+      generateCaptcha,
+      error,
+    ]
   );
 
   // ===== EFEKTLER =====
@@ -556,7 +567,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
           </div>
 
           <h1 className="text-3xl font-bold text-gray-800 mb-3">
-            Akıllı Eğitim Asistanı
+            AkıllıRehber
           </h1>
 
           <p className="text-gray-600 text-lg">Oturum Açın</p>
@@ -683,7 +694,10 @@ const LoginForm: React.FC<LoginFormProps> = ({
           <button
             type="submit"
             disabled={
-              isLoading || !credentials.username || !credentials.password || !captchaValue
+              isLoading ||
+              !credentials.username ||
+              !credentials.password ||
+              !captchaValue
             }
             className={`
               group relative w-full py-3 sm:py-4 px-4 sm:px-6 text-base font-semibold rounded-2xl
@@ -693,7 +707,9 @@ const LoginForm: React.FC<LoginFormProps> = ({
               ${
                 isLoading
                   ? "bg-gradient-to-r from-blue-400 to-indigo-400 text-white cursor-wait"
-                  : !credentials.username || !credentials.password || !captchaValue
+                  : !credentials.username ||
+                    !credentials.password ||
+                    !captchaValue
                   ? "bg-gray-200 text-gray-400 cursor-not-allowed"
                   : "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl"
               }
@@ -734,9 +750,12 @@ const LoginForm: React.FC<LoginFormProps> = ({
               )}
             </div>
 
-            {!isLoading && credentials.username && credentials.password && captchaValue && (
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out"></div>
-            )}
+            {!isLoading &&
+              credentials.username &&
+              credentials.password &&
+              captchaValue && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out"></div>
+              )}
           </button>
 
           <div className="text-center">
