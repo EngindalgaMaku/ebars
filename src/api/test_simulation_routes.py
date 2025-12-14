@@ -696,6 +696,22 @@ async def get_benchmark_comparison(test_id: str, request: Request) -> Dict[str, 
         logger.error(f"Failed to generate benchmark comparison: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate benchmark comparison: {str(e)}")
 
+@router.get("/export/{test_id}", summary="Export Test Results")
+async def export_test_results(test_id: str, format: str = "json", request: Request = None) -> Dict[str, Any]:
+    """Export test results in specified format (alias for /results endpoint)"""
+    from src.api.main import _require_owner_or_admin
+    
+    if test_id not in TEST_RESULTS_STORAGE:
+        raise HTTPException(status_code=404, detail="Test not found")
+    
+    test_data = TEST_RESULTS_STORAGE[test_id]
+    # Require authentication to export test results
+    if request:
+        _require_owner_or_admin(request, test_data.get("session_id", ""))
+    
+    # Delegate to existing results endpoint
+    return await get_test_results(test_id, format, request)
+
 # ===== BACKGROUND TASK FUNCTIONS =====
 
 async def execute_full_test_simulation(
