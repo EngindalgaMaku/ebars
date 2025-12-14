@@ -36,8 +36,53 @@ router = APIRouter(prefix="/test-simulation", tags=["Test Simulation"])
 DOCUMENT_PROCESSOR_URL = os.getenv('DOCUMENT_PROCESSOR_URL', 'http://document-processing-service:8080')
 MODEL_INFERENCE_URL = os.getenv('MODEL_INFERENCE_URL', 'https://model-inferencer-awe3elsvra-ew.a.run.app')
 
-# Global test results storage (in production, this should be a proper database)
+# Global test results storage with SQLite persistence
 TEST_RESULTS_STORAGE: Dict[str, Any] = {}
+
+# SQLite database for test persistence
+import sqlite3
+from pathlib import Path
+
+TEST_DB_PATH = Path("data/test_results.db")
+
+def _init_test_db():
+    """Initialize test results database"""
+    TEST_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(TEST_DB_PATH) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS test_results (
+                test_id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+def _save_test_to_db(test_id: str, test_data: Dict[str, Any]):
+    """Save test data to database"""
+    try:
+        with sqlite3.connect(TEST_DB_PATH) as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO test_results (test_id, data, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            """, (test_id, json.dumps(test_data)))
+    except Exception as e:
+        logger.warning(f"Failed to save test to DB: {e}")
+
+def _load_test_from_db(test_id: str) -> Optional[Dict[str, Any]]:
+    """Load test data from database"""
+    try:
+        with sqlite3.connect(TEST_DB_PATH) as conn:
+            cursor = conn.execute("SELECT data FROM test_results WHERE test_id = ?", (test_id,))
+            row = cursor.fetchone()
+            if row:
+                return json.loads(row[0])
+    except Exception as e:
+        logger.warning(f"Failed to load test from DB: {e}")
+    return None
+
+# Initialize database on startup
+_init_test_db()
 
 # EkoBot Benchmark Reference Values
 EKOBOT_BENCHMARKS = {
@@ -481,8 +526,9 @@ async def start_test_simulation(
             "results": []
         }
         
-        # Store test progress
+        # Store test progress (both memory and database)
         TEST_RESULTS_STORAGE[test_id] = test_progress
+        _save_test_to_db(test_id, test_progress)
         
         # Start background task for test execution
         background_tasks.add_task(
@@ -510,10 +556,15 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     """Get current status of running test simulation with methodology data"""
     from src.api.main import _require_owner_or_admin
     
-    if test_id not in TEST_RESULTS_STORAGE:
-        raise HTTPException(status_code=404, detail="Test not found")
+    # Try memory first, then database
+    test_data = TEST_RESULTS_STORAGE.get(test_id)
+    if not test_data:
+        test_data = _load_test_from_db(test_id)
+        if test_data:
+            TEST_RESULTS_STORAGE[test_id] = test_data  # Cache it
     
-    test_data = TEST_RESULTS_STORAGE[test_id]
+    if not test_data:
+        raise HTTPException(status_code=404, detail="Test not found")
     # Require authentication to access test results
     _require_owner_or_admin(request, test_data.get("session_id", ""))
     
