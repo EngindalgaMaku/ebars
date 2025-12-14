@@ -631,7 +631,7 @@ def get_session_chunks(session_id: str):
     try:
         response = requests.get(
             f"{DOCUMENT_PROCESSOR_URL}/sessions/{session_id}/chunks",
-            timeout=30
+            timeout=60  # Increased timeout for chunk retrieval
         )
         
         if response.status_code == 404:
@@ -675,7 +675,7 @@ async def generate_course_questions(session_id: str, request: Request, req: Gene
         # Get chunks from document processing service
         chunks_response = requests.get(
             f"{DOCUMENT_PROCESSOR_URL}/sessions/{session_id}/chunks",
-            timeout=30
+            timeout=60  # Increased timeout for chunk retrieval
         )
         
         if chunks_response.status_code != 200:
@@ -2070,7 +2070,7 @@ async def rag_query(req: RAGQueryRequest, request: Request):
                     "top_k": effective["top_k"] * 2,  # Get more docs for reranking
                     "embedding_model": effective["embedding_model"]
                 },
-                timeout=30
+                timeout=120  # Increased timeout for retrieval operations
             )
             
             if retrieval_response.status_code != 200:
@@ -2082,6 +2082,41 @@ async def rag_query(req: RAGQueryRequest, request: Request):
             retrieval_result = retrieval_response.json()
             raw_results = retrieval_result.get("results", [])
             
+        except requests.exceptions.Timeout as e:
+            logger.error(f"Document processor communication timeout: {e}")
+            # Fallback to full service routing
+            payload = {
+                **req.model_dump(),
+                "top_k": effective["top_k"],
+                "use_rerank": effective["use_rerank"],
+                "min_score": effective["min_score"],
+                "max_context_chars": effective["max_context_chars"],
+                "model": effective["model"],
+                "chain_type": effective["chain_type"],
+                "embedding_model": effective["embedding_model"],
+                "session_name": session_name,
+            }
+            try:
+                response = requests.post(
+                    f"{DOCUMENT_PROCESSOR_URL}/query",
+                    json=payload,
+                    headers={"Content-Type": "application/json", "Accept": "application/json"},
+                    timeout=120
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    logger.info("⚠️ Used fallback routing due to retrieval service timeout")
+                else:
+                    raise HTTPException(
+                        status_code=response.status_code,
+                        detail=f"Query processing failed: {response.text}"
+                    )
+            except Exception as fallback_error:
+                logger.error(f"Fallback routing also failed: {fallback_error}")
+                raise HTTPException(
+                    status_code=504,
+                    detail=f"Document Processing Service timeout and fallback failed: {str(e)}"
+                )
         except requests.exceptions.RequestException as e:
             logger.error(f"Document processor communication failed: {e}")
             # Fallback to full service routing

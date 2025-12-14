@@ -24,6 +24,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 import requests
+import httpx
 import math
 from collections import Counter
 
@@ -35,6 +36,10 @@ router = APIRouter(prefix="/test-simulation", tags=["Test Simulation"])
 # Microservice URLs
 DOCUMENT_PROCESSOR_URL = os.getenv('DOCUMENT_PROCESSOR_URL', 'http://document-processing-service:8080')
 MODEL_INFERENCE_URL = os.getenv('MODEL_INFERENCE_URL', 'https://model-inferencer-awe3elsvra-ew.a.run.app')
+
+# API Gateway URL - for test simulation to call its own endpoints
+# In Docker: use service name, in local: use localhost
+API_GATEWAY_URL = os.getenv('API_GATEWAY_URL', os.getenv('API_GATEWAY_INTERNAL_URL', 'http://localhost:8000'))
 
 # Global test results storage with SQLite persistence
 TEST_RESULTS_STORAGE: Dict[str, Any] = {}
@@ -335,44 +340,45 @@ async def execute_edubars_full_system(session_id: str, question: str, session_se
     
     try:
         # EduBars Full System: Session model + CRAG + external reranker + retrieval (APRAG disabled)
-        response = requests.post(
-            f"http://localhost:8000/rag/query",  # Use localhost to avoid SSL issues
-            json={
-                "session_id": session_id,
-                "query": question,
-                "top_k": 5,
-                "use_rerank": True,  # External reranker service enabled
-                "min_score": 0.1,
-                "max_context_chars": 8000,
-                "use_direct_llm": False,
-                "disable_aprag": True,  # CRITICAL: Disable APRAG personalization for academic study
-                "use_crag": True,  # Enable CRAG evaluation for quality control
-                "session_settings": session_settings  # Use dynamic session settings
-            },
-            timeout=120
-        )
+        # Call API Gateway's own /rag/query endpoint (which routes to Document Processing Service)
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{API_GATEWAY_URL}/rag/query",
+                json={
+                    "session_id": session_id,
+                    "query": question,
+                    "top_k": 5,
+                    "use_rerank": True,  # External reranker service enabled
+                    "min_score": 0.1,
+                    "max_context_chars": 8000,
+                    "use_direct_llm": False,
+                    "disable_aprag": True,  # CRITICAL: Disable APRAG personalization for academic study
+                    "use_crag": True,  # Enable CRAG evaluation for quality control
+                    "session_settings": session_settings  # Use dynamic session settings
+                }
+            )
         
-        execution_time = (time.time() - start_time) * 1000
-        
-        if response.status_code == 200:
-            result = response.json()
-            return {
-                "method": "eduBars",
-                "response": result.get("answer", ""),
-                "sources": result.get("sources", []),
-                "execution_time_ms": execution_time,
-                "success": True,
-                "config": "Full System (APRAG OFF, CRAG ON, Reranker ON)"
-            }
-        else:
-            return {
-                "method": "eduBars",
-                "response": "",
-                "sources": [],
-                "execution_time_ms": execution_time,
-                "success": False,
-                "error": f"API Error: {response.status_code}"
-            }
+            execution_time = (time.time() - start_time) * 1000
+            
+            if response.status_code == 200:
+                result = response.json()
+                return {
+                    "method": "eduBars",
+                    "response": result.get("answer", ""),
+                    "sources": result.get("sources", []),
+                    "execution_time_ms": execution_time,
+                    "success": True,
+                    "config": "Full System (APRAG OFF, CRAG ON, Reranker ON)"
+                }
+            else:
+                return {
+                    "method": "eduBars",
+                    "response": "",
+                    "sources": [],
+                    "execution_time_ms": execution_time,
+                    "success": False,
+                    "error": f"API Error: {response.status_code}"
+                }
             
     except Exception as e:
         execution_time = (time.time() - start_time) * 1000
@@ -391,44 +397,45 @@ async def execute_basic_rag(session_id: str, question: str, session_settings: Op
     
     try:
         # Basic RAG: Session model + retrieval only (no CRAG, no reranker)
-        response = requests.post(
-            f"http://localhost:8000/rag/query",  # Use localhost to avoid SSL issues
-            json={
-                "session_id": session_id,
-                "query": question,
-                "top_k": 5,
-                "use_rerank": False,  # No external reranker
-                "min_score": 0.1,
-                "max_context_chars": 6000,
-                "use_direct_llm": False,
-                "disable_aprag": True,  # No personalization
-                "use_crag": False,  # No CRAG evaluation
-                "session_settings": session_settings
-            },
-            timeout=120
-        )
+        # Call API Gateway's own /rag/query endpoint
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{API_GATEWAY_URL}/rag/query",
+                json={
+                    "session_id": session_id,
+                    "query": question,
+                    "top_k": 5,
+                    "use_rerank": False,  # No external reranker
+                    "min_score": 0.1,
+                    "max_context_chars": 6000,
+                    "use_direct_llm": False,
+                    "disable_aprag": True,  # No personalization
+                    "use_crag": False,  # No CRAG evaluation
+                    "session_settings": session_settings
+                }
+            )
         
-        execution_time = (time.time() - start_time) * 1000
-        
-        if response.status_code == 200:
-            result = response.json()
-            return {
-                "method": "basicRag",
-                "response": result.get("answer", ""),
-                "sources": result.get("sources", []),
-                "execution_time_ms": execution_time,
-                "success": True,
-                "config": "Basic RAG (no CRAG, no Reranker)"
-            }
-        else:
-            return {
-                "method": "basicRag",
-                "response": "",
-                "sources": [],
-                "execution_time_ms": execution_time,
-                "success": False,
-                "error": f"API Error: {response.status_code}"
-            }
+            execution_time = (time.time() - start_time) * 1000
+            
+            if response.status_code == 200:
+                result = response.json()
+                return {
+                    "method": "basicRag",
+                    "response": result.get("answer", ""),
+                    "sources": result.get("sources", []),
+                    "execution_time_ms": execution_time,
+                    "success": True,
+                    "config": "Basic RAG (no CRAG, no Reranker)"
+                }
+            else:
+                return {
+                    "method": "basicRag",
+                    "response": "",
+                    "sources": [],
+                    "execution_time_ms": execution_time,
+                    "success": False,
+                    "error": f"API Error: {response.status_code}"
+                }
             
     except Exception as e:
         execution_time = (time.time() - start_time) * 1000
@@ -455,51 +462,50 @@ async def execute_llm_only(question: str, session_settings: Optional[Dict[str, A
             model_name = session_settings.get("model", "llama-3.1-8b-instant")
         
         # Direct LLM call without any retrieval
-        if model_provider == "groq":
-            response = requests.post(
-                f"{MODEL_INFERENCE_URL}/models/generate",
-                json={
-                    "prompt": f"Question: {question}\n\nPlease provide a comprehensive answer:",
-                    "model": model_name,
-                    "temperature": 0.7,
-                    "max_tokens": 2048
-                },
-                timeout=120
-            )
-        else:
-            # Use direct LLM endpoint through main API
-            response = requests.post(
-                f"{os.getenv('API_GATEWAY_URL', 'http://localhost:8000')}/rag/query",
-                json={
-                    "query": question,
-                    "use_direct_llm": True,  # Direct LLM without retrieval
-                    "disable_aprag": True,
-                    "session_settings": session_settings
-                },
-                timeout=120
-            )
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            if model_provider == "groq":
+                response = await client.post(
+                    f"{MODEL_INFERENCE_URL}/models/generate",
+                    json={
+                        "prompt": f"Question: {question}\n\nPlease provide a comprehensive answer:",
+                        "model": model_name,
+                        "temperature": 0.7,
+                        "max_tokens": 2048
+                    }
+                )
+            else:
+                # Use direct LLM endpoint through main API Gateway
+                response = await client.post(
+                    f"{API_GATEWAY_URL}/rag/query",
+                    json={
+                        "query": question,
+                        "use_direct_llm": True,  # Direct LLM without retrieval
+                        "disable_aprag": True,
+                        "session_settings": session_settings
+                    }
+                )
         
-        execution_time = (time.time() - start_time) * 1000
-        
-        if response.status_code == 200:
-            result = response.json()
-            return {
-                "method": "llmOnly",
-                "response": result.get("response", result.get("answer", "")),
-                "sources": [],  # No retrieval sources
-                "execution_time_ms": execution_time,
-                "success": True,
-                "config": f"LLM Only ({model_provider}/{model_name})"
-            }
-        else:
-            return {
-                "method": "llmOnly",
-                "response": "",
-                "sources": [],
-                "execution_time_ms": execution_time,
-                "success": False,
-                "error": f"API Error: {response.status_code}"
-            }
+            execution_time = (time.time() - start_time) * 1000
+            
+            if response.status_code == 200:
+                result = response.json()
+                return {
+                    "method": "llmOnly",
+                    "response": result.get("response", result.get("answer", "")),
+                    "sources": [],  # No retrieval sources
+                    "execution_time_ms": execution_time,
+                    "success": True,
+                    "config": f"LLM Only ({model_provider}/{model_name})"
+                }
+            else:
+                return {
+                    "method": "llmOnly",
+                    "response": "",
+                    "sources": [],
+                    "execution_time_ms": execution_time,
+                    "success": False,
+                    "error": f"API Error: {response.status_code}"
+                }
             
     except Exception as e:
         execution_time = (time.time() - start_time) * 1000
@@ -965,86 +971,110 @@ async def execute_full_test_simulation(
             test_data["current_methodology"] = methodology
             logger.info(f"Testing methodology: {methodology}")
             
-            for idx, question_data in enumerate(test_questions):
-                test_data["current_question"] = idx + 1
+            # Process questions in parallel batches for better performance
+            BATCH_SIZE = 5  # Process 5 questions in parallel
+            total_questions = len(test_questions)
+            
+            for batch_start in range(0, total_questions, BATCH_SIZE):
+                batch_end = min(batch_start + BATCH_SIZE, total_questions)
+                batch_questions = test_questions[batch_start:batch_end]
                 
-                question = question_data["question"]
-                question_id = question_data["id"]
+                logger.info(f"Processing questions {batch_start + 1}-{batch_end}/{total_questions} for {methodology} (batch of {len(batch_questions)})")
                 
-                logger.info(f"Processing question {idx + 1}/{len(test_questions)} for {methodology}")
-                
-                # Execute method based on corrected methodology
-                if methodology == "eduBars":
-                    result = await execute_edubars_full_system(config.session_id, question, session_settings)
-                elif methodology == "basicRag":
-                    result = await execute_basic_rag(config.session_id, question, session_settings)
-                elif methodology == "llmOnly":
-                    result = await execute_llm_only(question, session_settings)
-                else:
-                    logger.warning(f"Unknown methodology: {methodology}")
-                    continue
-                
-                if result["success"]:
-                    # Use REAL metrics from the system - cosine similarity scores only
-                    # Document Processing Service returns sources with "score" (cosine similarity from embedding search)
-                    # CRAG score is a different metric (reranker), we don't use it for cosine similarity
-                    sources = result.get("sources", [])
+                # Create tasks for parallel execution
+                tasks = []
+                for question_data in batch_questions:
+                    question = question_data["question"]
+                    question_id = question_data["id"]
                     
-                    # Extract system's cosine similarity scores (from embedding search)
-                    if sources:
-                        # Use ONLY the system's cosine similarity scores (score field)
-                        similarity_scores = [doc.get("score", 0.0) for doc in sources]
-                        
-                        # Average cosine similarity
-                        avg_similarity = sum(similarity_scores) / len(similarity_scores) if similarity_scores else 0.0
-                        
-                        # Top score (best match)
-                        max_similarity = max(similarity_scores) if similarity_scores else 0.0
+                    # Execute method based on corrected methodology
+                    if methodology == "eduBars":
+                        task = execute_edubars_full_system(config.session_id, question, session_settings)
+                    elif methodology == "basicRag":
+                        task = execute_basic_rag(config.session_id, question, session_settings)
+                    elif methodology == "llmOnly":
+                        task = execute_llm_only(question, session_settings)
                     else:
-                        avg_similarity = 0.0
-                        max_similarity = 0.0
-                        similarity_scores = []
+                        logger.warning(f"Unknown methodology: {methodology}")
+                        continue
                     
-                    # Use system's cosine similarity scores for precision calculation
-                    # Precision@k: how many of top-k have cosine similarity score above threshold
-                    precision_at_5 = calculate_precision_at_k(sources, question, 5)
-                    precision_at_10 = calculate_precision_at_k(sources, question, 10)
-                    
-                    # Context relevance: average cosine similarity of retrieved docs
-                    context_relevance = avg_similarity if sources else 0.0
-                    
-                    metrics = {
-                        "cosine_similarity": avg_similarity,  # System's average cosine similarity score
-                        "max_similarity": max_similarity,  # Best match cosine similarity score
-                        "precision_at_5": precision_at_5,
-                        "precision_at_10": precision_at_10,
-                        "context_relevance": context_relevance,
-                        "response_time_ms": result["execution_time_ms"],
-                        "retrieval_count": len(sources),
-                        "accuracy": min(avg_similarity * 100, 100)  # Convert to percentage
-                    }
-                    
-                    # Store result
-                    test_result = {
-                        "question_id": question_id,
-                        "question": question,
-                        "methodology": methodology,
-                        "response": result["response"],
-                        "sources": result["sources"],
-                        "metrics": metrics,
-                        "config": result.get("config", ""),
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
-                    
-                    all_results.append(test_result)
-                    test_data["current_metrics"] = metrics
-                    
-                    logger.info(f"Question {idx + 1} completed: Cosine={metrics['cosine_similarity']:.3f}, Time={metrics['response_time_ms']:.0f}ms")
-                else:
-                    logger.error(f"Question {idx + 1} failed for {methodology}: {result.get('error', 'Unknown error')}")
+                    tasks.append((question_id, question, task))
                 
-                # Small delay to prevent overwhelming the system
-                await asyncio.sleep(0.1)
+                # Execute batch in parallel
+                batch_results = await asyncio.gather(*[task for _, _, task in tasks], return_exceptions=True)
+                
+                # Process results
+                for (question_id, question, _), result in zip(tasks, batch_results):
+                    if isinstance(result, Exception):
+                        logger.error(f"Question {question_id} failed for {methodology}: {result}")
+                        continue
+                    
+                    test_data["current_question"] = question_id
+                    
+                    if result["success"]:
+                        # Use REAL metrics from the system - cosine similarity scores only
+                        # Document Processing Service returns sources with "score" (cosine similarity from embedding search)
+                        # CRAG score is a different metric (reranker), we don't use it for cosine similarity
+                        sources = result.get("sources", [])
+                        
+                        # Extract system's cosine similarity scores (from embedding search)
+                        if sources:
+                            # Use ONLY the system's cosine similarity scores (score field)
+                            similarity_scores = [doc.get("score", 0.0) for doc in sources]
+                            
+                            # Average cosine similarity
+                            avg_similarity = sum(similarity_scores) / len(similarity_scores) if similarity_scores else 0.0
+                            
+                            # Top score (best match)
+                            max_similarity = max(similarity_scores) if similarity_scores else 0.0
+                        else:
+                            avg_similarity = 0.0
+                            max_similarity = 0.0
+                            similarity_scores = []
+                        
+                        # Use system's cosine similarity scores for precision calculation
+                        # Precision@k: how many of top-k have cosine similarity score above threshold
+                        precision_at_5 = calculate_precision_at_k(sources, question, 5)
+                        precision_at_10 = calculate_precision_at_k(sources, question, 10)
+                        
+                        # Context relevance: average cosine similarity of retrieved docs
+                        context_relevance = avg_similarity if sources else 0.0
+                        
+                        metrics = {
+                            "cosine_similarity": avg_similarity,  # System's average cosine similarity score
+                            "max_similarity": max_similarity,  # Best match cosine similarity score
+                            "precision_at_5": precision_at_5,
+                            "precision_at_10": precision_at_10,
+                            "context_relevance": context_relevance,
+                            "response_time_ms": result["execution_time_ms"],
+                            "retrieval_count": len(sources),
+                            "accuracy": min(avg_similarity * 100, 100)  # Convert to percentage
+                        }
+                        
+                        # Store result
+                        test_result = {
+                            "question_id": question_id,
+                            "question": question,
+                            "methodology": methodology,
+                            "response": result["response"],
+                            "sources": result["sources"],
+                            "metrics": metrics,
+                            "config": result.get("config", ""),
+                            "timestamp": datetime.utcnow().isoformat()
+                        }
+                        
+                        all_results.append(test_result)
+                        test_data["current_metrics"] = metrics
+                        
+                        logger.info(f"Question {question_id} completed: Cosine={metrics['cosine_similarity']:.3f}, Time={metrics['response_time_ms']:.0f}ms")
+                    else:
+                        logger.error(f"Question {question_id} failed for {methodology}: {result.get('error', 'Unknown error')}")
+                    
+                    # Save progress after each batch
+                    _save_test_to_db(test_id, test_data)
+                
+                # Small delay between batches to prevent overwhelming the system
+                await asyncio.sleep(0.5)
             
             # Mark methodology as completed
             test_data["completed_methodologies"].append(methodology)
