@@ -292,7 +292,7 @@ async def execute_edubars_full_system(session_id: str, question: str, session_se
     try:
         # EduBars Full System: Session model + CRAG + external reranker + retrieval (APRAG disabled)
         response = requests.post(
-            f"{os.getenv('API_GATEWAY_URL', 'http://localhost:8000')}/rag/query",
+            f"http://localhost:8000/rag/query",  # Use localhost to avoid SSL issues
             json={
                 "session_id": session_id,
                 "query": question,
@@ -348,7 +348,7 @@ async def execute_basic_rag(session_id: str, question: str, session_settings: Op
     try:
         # Basic RAG: Session model + retrieval only (no CRAG, no reranker)
         response = requests.post(
-            f"{os.getenv('API_GATEWAY_URL', 'http://localhost:8000')}/rag/query",
+            f"http://localhost:8000/rag/query",  # Use localhost to avoid SSL issues
             json={
                 "session_id": session_id,
                 "query": question,
