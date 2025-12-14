@@ -337,6 +337,91 @@ def calculate_context_relevance(query: str, context_docs: List[str]) -> float:
         logger.warning(f"Context relevance calculation failed: {e}")
         return 0.0
 
+async def calculate_query_response_similarity(query: str, response: str) -> float:
+    """
+    Calculate semantic similarity between query and response using embeddings.
+    This is useful for llmOnly methodology where we want to measure how well
+    the LLM response addresses the query.
+    """
+    if not query or not response:
+        return 0.0
+    
+    try:
+        # Use Document Processing Service's embedding endpoint
+        # This gives us semantic similarity between query and response
+        embedding_url = f"{DOCUMENT_PROCESSOR_URL}/embeddings"
+        
+        # Get embeddings for both query and response
+        async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
+            # Get query embedding
+            query_response = await client.post(
+                embedding_url,
+                json={"texts": [query], "model": "text-embedding-v4"},
+                timeout=30
+            )
+            
+            if query_response.status_code != 200:
+                logger.warning(f"Failed to get query embedding: {query_response.status_code}")
+                return 0.0
+            
+            query_embedding = query_response.json().get("embeddings", [])
+            if not query_embedding:
+                return 0.0
+            query_embedding = query_embedding[0]
+            
+            # Get response embedding
+            response_response = await client.post(
+                embedding_url,
+                json={"texts": [response], "model": "text-embedding-v4"},
+                timeout=30
+            )
+            
+            if response_response.status_code != 200:
+                logger.warning(f"Failed to get response embedding: {response_response.status_code}")
+                return 0.0
+            
+            response_embedding = response_response.json().get("embeddings", [])
+            if not response_embedding:
+                return 0.0
+            response_embedding = response_embedding[0]
+            
+            # Calculate cosine similarity
+            dot_product = sum(a * b for a, b in zip(query_embedding, response_embedding))
+            query_norm = math.sqrt(sum(a * a for a in query_embedding))
+            response_norm = math.sqrt(sum(a * a for a in response_embedding))
+            
+            if query_norm == 0 or response_norm == 0:
+                return 0.0
+            
+            similarity = dot_product / (query_norm * response_norm)
+            return max(0.0, min(1.0, similarity))  # Clamp to [0, 1]
+            
+    except Exception as e:
+        logger.warning(f"Query-response similarity calculation failed: {e}")
+        # Fallback to simple keyword-based similarity
+        try:
+            query_words = set(query.lower().split())
+            response_words = set(response.lower().split())
+            
+            # Remove common stop words
+            stop_words = {'the', 'is', 'at', 'which', 'on', 'and', 'a', 'to', 'are', 'as', 'was', 've', 'for', 'with', 'of', 'in', 'bir', 'bu', 've', 'ile', 'için', 'olan', 'olan', 'ki', 'da', 'de'}
+            query_words = query_words - stop_words
+            response_words = response_words - stop_words
+            
+            if not query_words:
+                return 0.0
+            
+            # Jaccard similarity
+            intersection = len(query_words.intersection(response_words))
+            union = len(query_words.union(response_words))
+            
+            if union == 0:
+                return 0.0
+            
+            return intersection / union
+        except:
+            return 0.0
+
 # ===== METHODOLOGY EXECUTION FUNCTIONS =====
 
 async def execute_edubars_full_system(session_id: str, question: str, session_settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -690,7 +775,8 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         all_metrics = [result["metrics"] for result in test_data["results"]]
         if all_metrics:
             # Filter out zero similarity results for overall metrics (chart visualization)
-            filtered_all_metrics = [m for m in all_metrics if m.get("cosine_similarity", 0) > 0]
+            # Also include llmOnly methodology (it doesn't use retrieval, so similarity is N/A)
+            filtered_all_metrics = [m for m in all_metrics if m.get("is_llm_only", False) or m.get("cosine_similarity", 0) > 0]
             
             # Count correct answers per unique question (not per methodology)
             # A question is "correct" if at least one methodology has similarity > 0.5
@@ -832,17 +918,35 @@ async def get_test_results(test_id: str, format: str = "json", request: Request 
     """Get comprehensive test results with metrics and comparisons"""
     from src.api.main import _require_owner_or_admin
     
-    if test_id not in TEST_RESULTS_STORAGE:
+    # Try memory first, then database
+    test_data = TEST_RESULTS_STORAGE.get(test_id)
+    if not test_data:
+        test_data = _load_test_from_db(test_id)
+        if test_data:
+            TEST_RESULTS_STORAGE[test_id] = test_data
+    
+    if not test_data:
         raise HTTPException(status_code=404, detail="Test not found")
     
-    test_data = TEST_RESULTS_STORAGE[test_id]
     # Require authentication to access test results
     if request:
         _require_owner_or_admin(request, test_data.get("session_id", ""))
     
-    test_data = TEST_RESULTS_STORAGE[test_id]
+    # Ensure results are loaded - if test is completed but results missing, reload from DB
+    if test_data.get("status") == "completed" and not test_data.get("results"):
+        logger.warning(f"Test {test_id} marked as completed but results missing, reloading from DB...")
+        test_data = _load_test_from_db(test_id)
+        if test_data:
+            TEST_RESULTS_STORAGE[test_id] = test_data
     
     try:
+        # Get all results - check both "results" and ensure it's populated
+        all_results = test_data.get("results", [])
+        
+        # If still no results but test is completed, log error
+        if not all_results and test_data.get("status") == "completed":
+            logger.error(f"Test {test_id} marked as completed but has no results after DB reload!")
+        
         # Process results and calculate comprehensive metrics
         results_summary = process_test_results(test_data)
         
@@ -857,11 +961,11 @@ async def get_test_results(test_id: str, format: str = "json", request: Request 
                 "test_id": test_id,
                 "test_name": test_data.get("test_name", ""),
                 "total_questions": test_data.get("total_questions", 0),
-                "total_results": len(test_data.get("results", []))
+                "total_results": len(all_results),
+                "status": test_data.get("status", "unknown")
             }
         else:
             # Return JSON format with COMPREHENSIVE details for thesis
-            all_results = test_data.get("results", [])
             execution_time_info = calculate_execution_time(test_data)
             
             # Group results by question for easier viewing
@@ -1177,37 +1281,61 @@ async def execute_full_test_simulation(
                         sources = result.get("sources", [])
                         
                         # Extract system's cosine similarity scores (from embedding search)
+                        # For llmOnly methodology, retrieval is not performed, so we measure query-response similarity instead
+                        is_llm_only = (methodology == "llmOnly")
+                        
                         if sources:
-                            # Use ONLY the system's cosine similarity scores (score field)
+                            # Use ONLY the system's cosine similarity scores (score field) for retrieval-based methods
                             similarity_scores = [doc.get("score", 0.0) for doc in sources]
                             
-                            # Average cosine similarity
+                            # Average cosine similarity (retrieval quality)
                             avg_similarity = sum(similarity_scores) / len(similarity_scores) if similarity_scores else 0.0
                             
                             # Top score (best match)
                             max_similarity = max(similarity_scores) if similarity_scores else 0.0
+                            
+                            # Use system's cosine similarity scores for precision calculation
+                            precision_at_5 = calculate_precision_at_k(sources, question, 5)
+                            precision_at_10 = calculate_precision_at_k(sources, question, 10)
+                            # Context relevance: average cosine similarity of retrieved docs
+                            context_relevance = avg_similarity if sources else 0.0
+                            
+                            # Query-response similarity (for comparison, but retrieval similarity is primary)
+                            query_response_similarity = 0.0  # Not calculated for retrieval-based methods
                         else:
-                            avg_similarity = 0.0
-                            max_similarity = 0.0
+                            # No sources: either llmOnly (expected) or failed retrieval
+                            if is_llm_only:
+                                # llmOnly: Calculate query-response semantic similarity instead
+                                # This measures how well the LLM response addresses the query
+                                query_response_similarity = await calculate_query_response_similarity(question, result["response"])
+                                avg_similarity = query_response_similarity  # Use query-response similarity as main metric
+                                max_similarity = query_response_similarity
+                                
+                                # Precision metrics are N/A for llmOnly (no retrieval)
+                                precision_at_5 = 0.0  # N/A, but store as 0.0 for compatibility
+                                precision_at_10 = 0.0  # N/A
+                                context_relevance = query_response_similarity  # Use query-response similarity as relevance measure
+                            else:
+                                # Failed retrieval: similarity is 0
+                                avg_similarity = 0.0
+                                max_similarity = 0.0
+                                precision_at_5 = 0.0
+                                precision_at_10 = 0.0
+                                context_relevance = 0.0
+                                query_response_similarity = 0.0
                             similarity_scores = []
                         
-                        # Use system's cosine similarity scores for precision calculation
-                        # Precision@k: how many of top-k have cosine similarity score above threshold
-                        precision_at_5 = calculate_precision_at_k(sources, question, 5)
-                        precision_at_10 = calculate_precision_at_k(sources, question, 10)
-                        
-                        # Context relevance: average cosine similarity of retrieved docs
-                        context_relevance = avg_similarity if sources else 0.0
-                        
                         metrics = {
-                            "cosine_similarity": avg_similarity,  # System's average cosine similarity score
-                            "max_similarity": max_similarity,  # Best match cosine similarity score
+                            "cosine_similarity": avg_similarity,  # For retrieval: retrieval quality, for llmOnly: query-response similarity
+                            "max_similarity": max_similarity,
                             "precision_at_5": precision_at_5,
                             "precision_at_10": precision_at_10,
                             "context_relevance": context_relevance,
                             "response_time_ms": result["execution_time_ms"],
                             "retrieval_count": len(sources),
-                            "accuracy": min(avg_similarity * 100, 100)  # Convert to percentage
+                            "accuracy": min(avg_similarity * 100, 100),  # Convert to percentage
+                            "is_llm_only": is_llm_only,  # Flag to indicate this is llmOnly methodology
+                            "query_response_similarity": query_response_similarity if is_llm_only else None  # Only for llmOnly
                         }
                         
                         # Store result
@@ -1225,7 +1353,11 @@ async def execute_full_test_simulation(
                         all_results.append(test_result)
                         test_data["current_metrics"] = metrics
                         
-                        logger.info(f"Question {question_id} completed: Cosine={metrics['cosine_similarity']:.3f}, Time={metrics['response_time_ms']:.0f}ms")
+                        # Log message: show appropriate metric for each methodology
+                        if is_llm_only:
+                            logger.info(f"Question {question_id} completed ({methodology}): Query-Response Similarity={metrics['cosine_similarity']:.3f}, Time={metrics['response_time_ms']:.0f}ms")
+                        else:
+                            logger.info(f"Question {question_id} completed: Cosine={metrics['cosine_similarity']:.3f}, Time={metrics['response_time_ms']:.0f}ms")
                     else:
                         logger.error(f"Question {question_id} failed for {methodology}: {result.get('error', 'Unknown error')}")
                     
@@ -1239,12 +1371,16 @@ async def execute_full_test_simulation(
             test_data["completed_methodologies"].append(methodology)
             logger.info(f"Completed methodology: {methodology}")
         
-        # Store final results
+        # Store final results - CRITICAL: Save results before marking as completed
         test_data["results"] = all_results
+        _save_test_to_db(test_id, test_data)  # Save immediately after storing results
+        
         test_data["status"] = "completed"
         test_data["end_time"] = datetime.utcnow().isoformat()
+        _save_test_to_db(test_id, test_data)  # Save again with completed status
         
         logger.info(f"Test simulation {test_id} completed successfully with {len(all_results)} results")
+        logger.info(f"Test results saved: {len(all_results)} total results stored")
         
     except Exception as e:
         logger.error(f"Test simulation {test_id} failed: {e}")
@@ -1277,7 +1413,8 @@ def process_test_results(test_data: Dict[str, Any]) -> Dict[str, Any]:
         
         if metrics_list:
             # Filter out zero similarity results (failed queries)
-            filtered_metrics = [m for m in metrics_list if m.get("cosine_similarity", 0) > 0]
+            # Also exclude llmOnly methodology from similarity-based filtering (it doesn't use retrieval)
+            filtered_metrics = [m for m in metrics_list if m.get("is_llm_only", False) or m.get("cosine_similarity", 0) > 0]
             
             if filtered_metrics:
                 # Calculate averages from successful queries only

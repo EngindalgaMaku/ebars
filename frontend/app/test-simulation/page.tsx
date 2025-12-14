@@ -1803,14 +1803,561 @@ export default function TestSimulationPage() {
             {currentTest && currentTest.status === "completed" ? (
               currentTest.questions && currentTest.questions.length > 0 ? (
                 <div className="space-y-6">
+                  {/* Performance Analysis Charts Section */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Cosine Similarity Distribution by Methodology */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <TrendingUp className="h-5 w-5" />
+                          Cosine Similarity Dağılımı (Metodoloji Bazında)
+                        </CardTitle>
+                        <CardDescription>
+                          Her metodoloji için cosine similarity değerlerinin dağılımı ve ortalaması
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart
+                            data={Object.entries(currentTest.methodComparison)
+                              .filter(([method]) => config.testMethods.includes(method))
+                              .filter(([, results]) => results.cosineSimilarity > 0)
+                              .map(([method, results]) => ({
+                                name: {
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "Basit RAG",
+                                  llmOnly: "Sadece LLM",
+                                }[method] || method,
+                                similarity: results.cosineSimilarity,
+                                avg: results.cosineSimilarity,
+                              }))}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                            <YAxis domain={[0, 1]} tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              formatter={(value: number) => [value.toFixed(3), "Cosine Similarity"]}
+                            />
+                            <Legend />
+                            <Bar
+                              dataKey="similarity"
+                              fill="#3b82f6"
+                              name="Ortalama Cosine Similarity"
+                              radius={[2, 2, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+
+                    {/* Precision@5 and Precision@10 Comparison */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Target className="h-5 w-5" />
+                          Precision@k Karşılaştırması
+                        </CardTitle>
+                        <CardDescription>
+                          Her metodoloji için Precision@5 ve Precision@10 değerlerinin karşılaştırması
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart
+                            data={Object.entries(currentTest.methodComparison)
+                              .filter(([method]) => config.testMethods.includes(method))
+                              .filter(([, results]) => results.cosineSimilarity > 0)
+                              .map(([method, results]) => ({
+                                name: {
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "Basit RAG",
+                                  llmOnly: "Sadece LLM",
+                                }[method] || method,
+                                precision5: results.precisionAt5,
+                                precision10: results.precisionAt10,
+                              }))}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                            <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              formatter={(value: number, name: string) => [
+                                `${value.toFixed(1)}%`,
+                                name === "precision5" ? "Precision@5" : "Precision@10",
+                              ]}
+                            />
+                            <Legend />
+                            <Bar
+                              dataKey="precision5"
+                              fill="#10b981"
+                              name="Precision@5 (%)"
+                              radius={[2, 2, 0, 0]}
+                            />
+                            <Bar
+                              dataKey="precision10"
+                              fill="#059669"
+                              name="Precision@10 (%)"
+                              radius={[2, 2, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+
+                    {/* Response Time Comparison */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Clock className="h-5 w-5" />
+                          Yanıt Süresi Karşılaştırması
+                        </CardTitle>
+                        <CardDescription>
+                          Her metodoloji için ortalama yanıt süresi (milisaniye cinsinden)
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart
+                            data={Object.entries(currentTest.methodComparison)
+                              .filter(([method]) => config.testMethods.includes(method))
+                              .filter(([, results]) => results.cosineSimilarity > 0)
+                              .map(([method, results]) => ({
+                                name: {
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "Basit RAG",
+                                  llmOnly: "Sadece LLM",
+                                }[method] || method,
+                                responseTime: results.avgResponseTime,
+                              }))}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              formatter={(value: number) => [
+                                `${Math.round(value)}ms`,
+                                "Ortalama Yanıt Süresi",
+                              ]}
+                            />
+                            <Legend />
+                            <Bar
+                              dataKey="responseTime"
+                              fill="#ef4444"
+                              name="Yanıt Süresi (ms)"
+                              radius={[2, 2, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+
+                    {/* Accuracy Comparison */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Award className="h-5 w-5" />
+                          Doğruluk Oranı Karşılaştırması
+                        </CardTitle>
+                        <CardDescription>
+                          Her metodoloji için doğruluk oranı (accuracy) karşılaştırması
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart
+                            data={Object.entries(currentTest.methodComparison)
+                              .filter(([method]) => config.testMethods.includes(method))
+                              .filter(([, results]) => results.cosineSimilarity > 0)
+                              .map(([method, results]) => ({
+                                name: {
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "Basit RAG",
+                                  llmOnly: "Sadece LLM",
+                                }[method] || method,
+                                accuracy: results.accuracy,
+                              }))}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                            <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              formatter={(value: number) => [
+                                `${value.toFixed(1)}%`,
+                                "Doğruluk Oranı",
+                              ]}
+                            />
+                            <Legend />
+                            <Bar
+                              dataKey="accuracy"
+                              fill="#f59e0b"
+                              name="Doğruluk Oranı (%)"
+                              radius={[2, 2, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Question-by-Question Performance Heatmap */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5" />
+                        Soru Bazında Performans Analizi (Heatmap)
+                      </CardTitle>
+                      <CardDescription>
+                        Her soru için metodoloji bazında cosine similarity değerlerinin görselleştirilmesi
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={400}>
+                        <BarChart
+                          data={currentTest.questions
+                            .filter((q) =>
+                              Object.values(q.methodologies).some(
+                                (m: any) => m.cosine_similarity > 0
+                              )
+                            )
+                            .map((q) => {
+                              const data: any = { question: `Soru ${q.question_id}` };
+                              Object.entries(q.methodologies).forEach(([method, results]: [string, any]) => {
+                                const methodName = {
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "Basit RAG",
+                                  llmOnly: "Sadece LLM",
+                                }[method] || method;
+                                data[methodName] = results.cosine_similarity || 0;
+                              });
+                              return data;
+                            })}
+                          margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="question"
+                            angle={-45}
+                            textAnchor="end"
+                            height={100}
+                            tick={{ fontSize: 10 }}
+                          />
+                          <YAxis domain={[0, 1]} tick={{ fontSize: 12 }} />
+                          <Tooltip
+                            formatter={(value: number, name: string) => [
+                              value.toFixed(3),
+                              name,
+                            ]}
+                          />
+                          <Legend />
+                          {config.testMethods.map((method) => {
+                            const methodName = {
+                              eduBars: "AkıllıRehber",
+                              basicRag: "Basit RAG",
+                              llmOnly: "Sadece LLM",
+                            }[method] || method;
+                            const colors: Record<string, string> = {
+                              AkıllıRehber: "#3b82f6",
+                              "Basit RAG": "#10b981",
+                              "Sadece LLM": "#f59e0b",
+                            };
+                            return (
+                              <Bar
+                                key={method}
+                                dataKey={methodName}
+                                fill={colors[methodName] || "#6b7280"}
+                                name={methodName}
+                                radius={[2, 2, 0, 0]}
+                              />
+                            );
+                          })}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Comprehensive Performance Radar Chart */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5" />
+                        Kapsamlı Performans Analizi (Radar Chart)
+                      </CardTitle>
+                      <CardDescription>
+                        Tüm metriklerin bir arada görselleştirilmesi: Cosine Similarity, Precision@5, Precision@10, Accuracy ve Hız
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={450}>
+                        <RadarChart
+                          data={[
+                            "cosine",
+                            "precision5",
+                            "precision10",
+                            "accuracy",
+                            "speed",
+                          ].map((metric) => ({
+                            metric: {
+                              cosine: "Cosine Similarity",
+                              precision5: "Precision@5",
+                              precision10: "Precision@10",
+                              accuracy: "Accuracy",
+                              speed: "Hız (Ters)",
+                            }[metric],
+                            ...Object.entries(currentTest.methodComparison)
+                              .filter(([method]) => config.testMethods.includes(method))
+                              .filter(([, results]) => results.cosineSimilarity > 0)
+                              .reduce((acc, [method, results]) => {
+                                let value = 0;
+                                if (metric === "cosine")
+                                  value = results.cosineSimilarity * 100;
+                                else if (metric === "precision5")
+                                  value = results.precisionAt5;
+                                else if (metric === "precision10")
+                                  value = results.precisionAt10;
+                                else if (metric === "accuracy")
+                                  value = results.accuracy;
+                                else if (metric === "speed")
+                                  value = Math.max(
+                                    0,
+                                    100 - results.avgResponseTime / 20
+                                  ); // Inverted and scaled
+
+                                const methodName = {
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "BasitRAG",
+                                  llmOnly: "SadeceLLM",
+                                }[method] || method;
+
+                                acc[methodName] = value;
+                                return acc;
+                              }, {} as Record<string, number>),
+                          }))}
+                          margin={{ top: 20, right: 80, bottom: 20, left: 80 }}
+                        >
+                          <PolarGrid />
+                          <PolarAngleAxis
+                            dataKey="metric"
+                            tick={{ fontSize: 12 }}
+                          />
+                          <PolarRadiusAxis
+                            angle={90}
+                            domain={[0, 100]}
+                            tick={{ fontSize: 10 }}
+                            tickCount={6}
+                          />
+                          {config.testMethods
+                            .filter((method) => {
+                              const results = currentTest.methodComparison[method as keyof typeof currentTest.methodComparison];
+                              return results && results.cosineSimilarity > 0;
+                            })
+                            .map((method, index) => {
+                              const methodName = {
+                                eduBars: "AkıllıRehber",
+                                basicRag: "BasitRAG",
+                                llmOnly: "SadeceLLM",
+                              }[method] || method;
+
+                              const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
+                              return (
+                                <Radar
+                                  key={method}
+                                  name={
+                                    {
+                                      AkıllıRehber: "AkıllıRehber",
+                                      BasitRAG: "Basit RAG",
+                                      SadeceLLM: "Sadece LLM",
+                                    }[methodName] || methodName
+                                  }
+                                  dataKey={methodName}
+                                  stroke={colors[index % colors.length]}
+                                  fill={colors[index % colors.length]}
+                                  fillOpacity={0.1}
+                                  strokeWidth={2}
+                                />
+                              );
+                            })}
+                          <Legend />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Cosine Similarity Distribution Histogram */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5" />
+                        Cosine Similarity Değer Dağılımı
+                      </CardTitle>
+                      <CardDescription>
+                        Her metodoloji için cosine similarity değerlerinin histogram dağılımı (soru bazında)
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={350}>
+                        <BarChart
+                          data={(() => {
+                            // Group questions by similarity ranges for each methodology
+                            const ranges = [
+                              { min: 0, max: 0.2, label: "0.0-0.2" },
+                              { min: 0.2, max: 0.4, label: "0.2-0.4" },
+                              { min: 0.4, max: 0.6, label: "0.4-0.6" },
+                              { min: 0.6, max: 0.8, label: "0.6-0.8" },
+                              { min: 0.8, max: 1.0, label: "0.8-1.0" },
+                            ];
+                            
+                            return ranges.map((range) => {
+                              const data: any = { range: range.label };
+                              config.testMethods.forEach((method) => {
+                                const count = currentTest.questions.filter((q) => {
+                                  const methodResult = q.methodologies[method];
+                                  if (!methodResult) return false;
+                                  const sim = methodResult.cosine_similarity || 0;
+                                  return sim >= range.min && sim < range.max;
+                                }).length;
+                                const methodName = {
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "Basit RAG",
+                                  llmOnly: "Sadece LLM",
+                                }[method] || method;
+                                data[methodName] = count;
+                              });
+                              return data;
+                            });
+                          })()}
+                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="range" tick={{ fontSize: 12 }} />
+                          <YAxis tick={{ fontSize: 12 }} />
+                          <Tooltip
+                            formatter={(value: number, name: string) => [
+                              `${value} soru`,
+                              name,
+                            ]}
+                          />
+                          <Legend />
+                          {config.testMethods.map((method) => {
+                            const methodName = {
+                              eduBars: "AkıllıRehber",
+                              basicRag: "Basit RAG",
+                              llmOnly: "Sadece LLM",
+                            }[method] || method;
+                            const colors: Record<string, string> = {
+                              AkıllıRehber: "#3b82f6",
+                              "Basit RAG": "#10b981",
+                              "Sadece LLM": "#f59e0b",
+                            };
+                            return (
+                              <Bar
+                                key={method}
+                                dataKey={methodName}
+                                fill={colors[methodName] || "#6b7280"}
+                                name={methodName}
+                                radius={[2, 2, 0, 0]}
+                              />
+                            );
+                          })}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Success Rate by Question */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5" />
+                        Soru Bazında Başarı Oranı
+                      </CardTitle>
+                      <CardDescription>
+                        Her soru için metodoloji bazında başarılı yanıt oranı (cosine similarity > 0.5 olan sorular)
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={350}>
+                        <LineChart
+                          data={currentTest.questions
+                            .filter((q) =>
+                              Object.values(q.methodologies).some(
+                                (m: any) => m.cosine_similarity > 0
+                              )
+                            )
+                            .map((q) => {
+                              const data: any = {
+                                question: `S${q.question_id}`,
+                                questionId: q.question_id,
+                              };
+                              Object.entries(q.methodologies).forEach(([method, results]: [string, any]) => {
+                                const methodName = {
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "Basit RAG",
+                                  llmOnly: "Sadece LLM",
+                                }[method] || method;
+                                // Success = cosine similarity > 0.5
+                                data[methodName] = (results.cosine_similarity || 0) > 0.5 ? 100 : 0;
+                              });
+                              return data;
+                            })}
+                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="question"
+                            tick={{ fontSize: 10 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={80}
+                          />
+                          <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
+                          <Tooltip
+                            formatter={(value: number, name: string) => [
+                              value === 100 ? "Başarılı" : "Başarısız",
+                              name,
+                            ]}
+                          />
+                          <Legend />
+                          {config.testMethods.map((method) => {
+                            const methodName = {
+                              eduBars: "AkıllıRehber",
+                              basicRag: "Basit RAG",
+                              llmOnly: "Sadece LLM",
+                            }[method] || method;
+                            const colors: Record<string, string> = {
+                              AkıllıRehber: "#3b82f6",
+                              "Basit RAG": "#10b981",
+                              "Sadece LLM": "#f59e0b",
+                            };
+                            return (
+                              <Line
+                                key={method}
+                                type="monotone"
+                                dataKey={methodName}
+                                stroke={colors[methodName] || "#6b7280"}
+                                strokeWidth={2}
+                                name={methodName}
+                                dot={{ r: 4 }}
+                              />
+                            );
+                          })}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Detailed Question Results */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
-                        Detaylı Sorgu Sonuçları
+                        Detaylı Sorgu Sonuçları ve Metrikler
                       </CardTitle>
                       <CardDescription>
-                        Her sorgu için metodoloji bazında detaylı sonuçlar
+                        Her sorgu için metodoloji bazında detaylı sonuçlar, LLM yanıtları ve kaynak doküman bilgileri
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
