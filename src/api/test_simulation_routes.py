@@ -24,9 +24,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 import requests
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.feature_extraction.text import TfidfVectorizer
+import math
+from collections import Counter
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +147,7 @@ class TestSummary(BaseModel):
 # ===== METRIC CALCULATION FUNCTIONS =====
 
 def calculate_cosine_similarity(query: str, response: str, retrieved_docs: List[str]) -> float:
-    """Calculate cosine similarity between query and response context"""
+    """Calculate cosine similarity using basic word overlap approach"""
     if not response or not retrieved_docs:
         return 0.0
     
@@ -156,19 +155,31 @@ def calculate_cosine_similarity(query: str, response: str, retrieved_docs: List[
         # Combine retrieved documents as context
         context = " ".join(retrieved_docs)
         
-        # Create TF-IDF vectors
-        vectorizer = TfidfVectorizer(stop_words='english', max_features=1000)
-        texts = [query, context]
+        # Simple word-based similarity calculation
+        query_words = set(query.lower().split())
+        context_words = set(context.lower().split())
         
-        # Handle case where context is too short
-        if len(context.split()) < 2:
+        # Remove common stop words
+        stop_words = {'the', 'is', 'at', 'which', 'on', 'and', 'a', 'to', 'are', 'as', 'was', 've', 'for', 'with', 'of', 'in', 'that', 'have', 'i', 'it', 'not', 'or', 'be', 'an', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'she', 'use', 'her', 'now', 'air', 'day', 'men', 'get', 'has', 'him', 've', 'da', 'de', 'bir', 'bu', 've', 'ile', 'için', 'olan', 'her', 'daha', 'çok', 'gibi', 'kadar'}
+        
+        query_words = query_words - stop_words
+        context_words = context_words - stop_words
+        
+        if not query_words or not context_words:
+            return 0.0
+        
+        # Calculate Jaccard similarity as approximation
+        intersection = len(query_words.intersection(context_words))
+        union = len(query_words.union(context_words))
+        
+        if union == 0:
             return 0.0
             
-        vectors = vectorizer.fit_transform(texts)
+        # Convert to cosine-like similarity (0-1 range)
+        similarity = intersection / union
         
-        # Calculate cosine similarity
-        similarity_matrix = cosine_similarity(vectors)
-        return float(similarity_matrix[0][1])
+        # Apply scaling to make it more similar to cosine similarity
+        return min(similarity * 1.5, 1.0)
         
     except Exception as e:
         logger.warning(f"Cosine similarity calculation failed: {e}")
