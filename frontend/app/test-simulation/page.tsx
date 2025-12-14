@@ -1448,7 +1448,7 @@ export default function TestSimulationPage() {
                                   basicRag: "Basit RAG",
                                   llmOnly: "Sadece LLM",
                                 }[method] || method,
-                              cosine: results.cosineSimilarity,
+                              cosine: results.cosineSimilarity,  // Backend already uses max_similarity
                               precision5: results.precisionAt5,
                               accuracy: results.accuracy,
                             }))}
@@ -1813,7 +1813,7 @@ export default function TestSimulationPage() {
                           Cosine Similarity Dağılımı (Metodoloji Bazında)
                         </CardTitle>
                         <CardDescription>
-                          Her metodoloji için cosine similarity değerlerinin dağılımı ve ortalaması
+                          Her metodoloji için cosine similarity değerlerinin ortalaması (max similarity bazlı)
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
@@ -2017,24 +2017,26 @@ export default function TestSimulationPage() {
                     <CardContent>
                       <ResponsiveContainer width="100%" height={400}>
                         <BarChart
-                          data={currentTest.questions
-                            .filter((q) =>
-                              Object.values(q.methodologies).some(
-                                (m: any) => m.cosine_similarity > 0
-                              )
-                            )
-                            .map((q) => {
-                              const data: any = { question: `Soru ${q.question_id}` };
-                              Object.entries(q.methodologies).forEach(([method, results]: [string, any]) => {
-                                const methodName = {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "Basit RAG",
-                                  llmOnly: "Sadece LLM",
-                                }[method] || method;
-                                data[methodName] = results.cosine_similarity || 0;
-                              });
-                              return data;
-                            })}
+                          data={currentTest.questions && currentTest.questions.length > 0
+                            ? currentTest.questions
+                                .filter((q) =>
+                                  Object.values(q.methodologies).some(
+                                    (m: any) => m.max_similarity > 0
+                                  )
+                                )
+                                .map((q) => {
+                                  const data: any = { question: `Soru ${q.question_id}` };
+                                  Object.entries(q.methodologies).forEach(([method, results]: [string, any]) => {
+                                    const methodName = {
+                                      eduBars: "AkıllıRehber",
+                                      basicRag: "Basit RAG",
+                                      llmOnly: "Sadece LLM",
+                                    }[method] || method;
+                                    data[methodName] = results.max_similarity || 0;
+                                  });
+                                  return data;
+                                })
+                            : []}
                           margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" />
@@ -2191,10 +2193,10 @@ export default function TestSimulationPage() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <BarChart3 className="h-5 w-5" />
-                        Cosine Similarity Değer Dağılımı
+                          Cosine Similarity Değer Dağılımı
                       </CardTitle>
                       <CardDescription>
-                        Her metodoloji için cosine similarity değerlerinin histogram dağılımı (soru bazında)
+                        Her metodoloji için cosine similarity değerlerinin histogram dağılımı (soru bazında, max similarity bazlı)
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -2202,6 +2204,10 @@ export default function TestSimulationPage() {
                         <BarChart
                           data={(() => {
                             // Group questions by similarity ranges for each methodology
+                            if (!currentTest.questions || currentTest.questions.length === 0) {
+                              return [];
+                            }
+                            
                             const ranges = [
                               { min: 0, max: 0.2, label: "0.0-0.2" },
                               { min: 0.2, max: 0.4, label: "0.2-0.4" },
@@ -2213,10 +2219,10 @@ export default function TestSimulationPage() {
                             return ranges.map((range) => {
                               const data: any = { range: range.label };
                               config.testMethods.forEach((method) => {
-                                const count = currentTest.questions.filter((q) => {
+                                const count = currentTest.questions!.filter((q) => {
                                   const methodResult = q.methodologies[method];
                                   if (!methodResult) return false;
-                                  const sim = methodResult.cosine_similarity || 0;
+                                  const sim = methodResult.max_similarity || 0;
                                   return sim >= range.min && sim < range.max;
                                 }).length;
                                 const methodName = {
@@ -2272,37 +2278,39 @@ export default function TestSimulationPage() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <CheckCircle className="h-5 w-5" />
-                        Soru Bazında Başarı Oranı
+                          Soru Bazında Başarı Oranı
                       </CardTitle>
                       <CardDescription>
-                        Her soru için metodoloji bazında başarılı yanıt oranı (cosine similarity > 0.5 olan sorular)
+                        Her soru için metodoloji bazında başarılı yanıt oranı (cosine similarity > 0.5 olan sorular, max similarity bazlı)
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={350}>
                         <LineChart
-                          data={currentTest.questions
-                            .filter((q) =>
-                              Object.values(q.methodologies).some(
-                                (m: any) => m.cosine_similarity > 0
-                              )
-                            )
-                            .map((q) => {
-                              const data: any = {
-                                question: `S${q.question_id}`,
-                                questionId: q.question_id,
-                              };
-                              Object.entries(q.methodologies).forEach(([method, results]: [string, any]) => {
-                                const methodName = {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "Basit RAG",
-                                  llmOnly: "Sadece LLM",
-                                }[method] || method;
-                                // Success = cosine similarity > 0.5
-                                data[methodName] = (results.cosine_similarity || 0) > 0.5 ? 100 : 0;
-                              });
-                              return data;
-                            })}
+                          data={currentTest.questions && currentTest.questions.length > 0
+                            ? currentTest.questions
+                                .filter((q) =>
+                                  Object.values(q.methodologies).some(
+                                    (m: any) => m.max_similarity > 0
+                                  )
+                                )
+                                .map((q) => {
+                                  const data: any = {
+                                    question: `S${q.question_id}`,
+                                    questionId: q.question_id,
+                                  };
+                                  Object.entries(q.methodologies).forEach(([method, results]: [string, any]) => {
+                                    const methodName = {
+                                      eduBars: "AkıllıRehber",
+                                      basicRag: "Basit RAG",
+                                      llmOnly: "Sadece LLM",
+                                    }[method] || method;
+                                    // Success = max similarity > 0.5
+                                    data[methodName] = (results.max_similarity || 0) > 0.5 ? 100 : 0;
+                                  });
+                                  return data;
+                                })
+                            : []}
                           margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" />
@@ -2401,19 +2409,19 @@ export default function TestSimulationPage() {
                                       <div className="space-y-2 text-sm">
                                         <div className="flex justify-between">
                                           <span className="text-gray-600">
-                                            Cosine Similarity:
+                                            Max Similarity:
                                           </span>
                                           <span
                                             className={`font-medium ${
-                                              results.cosine_similarity >= 0.7
+                                              results.max_similarity >= 0.7
                                                 ? "text-green-600"
-                                                : results.cosine_similarity >=
+                                                : results.max_similarity >=
                                                   0.5
                                                 ? "text-yellow-600"
                                                 : "text-red-600"
                                             }`}
                                           >
-                                            {results.cosine_similarity.toFixed(
+                                            {results.max_similarity.toFixed(
                                               3
                                             )}
                                           </span>

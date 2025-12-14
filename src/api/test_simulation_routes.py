@@ -751,11 +751,11 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                 if filtered_metrics:
                     # Calculate averages only from successful queries (similarity > 0)
                     method_comparison[method] = {
-                        "cosineSimilarity": sum(m["cosine_similarity"] for m in filtered_metrics) / len(filtered_metrics),
+                        "cosineSimilarity": sum(m["max_similarity"] for m in filtered_metrics) / len(filtered_metrics),  # Use max_similarity
                         "precisionAt5": sum(m["precision_at_5"] for m in filtered_metrics) / len(filtered_metrics) * 100,
                         "precisionAt10": sum(m["precision_at_10"] for m in filtered_metrics) / len(filtered_metrics) * 100,
                         "avgResponseTime": sum(m["response_time_ms"] for m in filtered_metrics) / len(filtered_metrics),
-                        "accuracy": sum(m.get("accuracy", 0) for m in filtered_metrics) / len(filtered_metrics),
+                        "accuracy": sum(m.get("max_similarity", 0) * 100 for m in filtered_metrics) / len(filtered_metrics),  # Use max_similarity for accuracy
                         "successfulQueries": len(filtered_metrics),
                         "totalQueries": len(method_metrics)
                     }
@@ -776,28 +776,31 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         if all_metrics:
             # Filter out zero similarity results for overall metrics (chart visualization)
             # Also include llmOnly methodology (it doesn't use retrieval, so similarity is N/A)
-            filtered_all_metrics = [m for m in all_metrics if m.get("is_llm_only", False) or m.get("cosine_similarity", 0) > 0]
+            # Use max_similarity for filtering
+            filtered_all_metrics = [m for m in all_metrics if m.get("is_llm_only", False) or m.get("max_similarity", 0) > 0]
             
             # Count correct answers per unique question (not per methodology)
-            # A question is "correct" if at least one methodology has similarity > 0.5
+            # A question is "correct" if at least one methodology has max_similarity > 0.5
             unique_questions = set()
             correct_questions = set()
             for result in test_data["results"]:
                 question_id = result.get("question_id")
                 if question_id:
                     unique_questions.add(question_id)
-                    if result.get("metrics", {}).get("cosine_similarity", 0) > 0.5:
+                    # Use max_similarity for correct answer determination
+                    if result.get("metrics", {}).get("max_similarity", 0) > 0.5:
                         correct_questions.add(question_id)
             
             # Calculate metrics from filtered (successful) queries only
+            # Use MAX similarity for all calculations
             if filtered_all_metrics:
                 metrics = {
-                    "cosineSimilarity": sum(m["cosine_similarity"] for m in filtered_all_metrics) / len(filtered_all_metrics),
+                    "cosineSimilarity": sum(m["max_similarity"] for m in filtered_all_metrics) / len(filtered_all_metrics),  # Use max_similarity
                     "precisionAt5": sum(m["precision_at_5"] for m in filtered_all_metrics) / len(filtered_all_metrics) * 100,
                     "precisionAt10": sum(m["precision_at_10"] for m in filtered_all_metrics) / len(filtered_all_metrics) * 100,
                     "avgResponseTime": sum(m["response_time_ms"] for m in filtered_all_metrics) / len(filtered_all_metrics),
                     "totalQuestions": test_data["total_questions"],
-                    "correctAnswers": len(correct_questions),  # Unique questions with similarity > 0.5
+                    "correctAnswers": len(correct_questions),  # Unique questions with max_similarity > 0.5
                     "successfulQueries": len(filtered_all_metrics),
                     "totalQueries": len(all_metrics)
                 }
@@ -1326,14 +1329,14 @@ async def execute_full_test_simulation(
                             similarity_scores = []
                         
                         metrics = {
-                            "cosine_similarity": avg_similarity,  # For retrieval: retrieval quality, for llmOnly: query-response similarity
-                            "max_similarity": max_similarity,
+                            "cosine_similarity": avg_similarity,  # Keep for backward compatibility, but use max_similarity for calculations
+                            "max_similarity": max_similarity,  # PRIMARY METRIC: Use this for all comparisons and accuracy
                             "precision_at_5": precision_at_5,
                             "precision_at_10": precision_at_10,
                             "context_relevance": context_relevance,
                             "response_time_ms": result["execution_time_ms"],
                             "retrieval_count": len(sources),
-                            "accuracy": min(avg_similarity * 100, 100),  # Convert to percentage
+                            "accuracy": min(max_similarity * 100, 100),  # Use max_similarity for accuracy calculation
                             "is_llm_only": is_llm_only,  # Flag to indicate this is llmOnly methodology
                             "query_response_similarity": query_response_similarity if is_llm_only else None  # Only for llmOnly
                         }
@@ -1414,12 +1417,13 @@ def process_test_results(test_data: Dict[str, Any]) -> Dict[str, Any]:
         if metrics_list:
             # Filter out zero similarity results (failed queries)
             # Also exclude llmOnly methodology from similarity-based filtering (it doesn't use retrieval)
-            filtered_metrics = [m for m in metrics_list if m.get("is_llm_only", False) or m.get("cosine_similarity", 0) > 0]
+            # Filter using max_similarity (primary metric)
+            filtered_metrics = [m for m in metrics_list if m.get("is_llm_only", False) or m.get("max_similarity", 0) > 0]
             
             if filtered_metrics:
                 # Calculate averages from successful queries only
                 avg_metrics = {
-                    "avg_cosine_similarity": sum(m["cosine_similarity"] for m in filtered_metrics) / len(filtered_metrics),
+                    "avg_cosine_similarity": sum(m["max_similarity"] for m in filtered_metrics) / len(filtered_metrics),  # Use max_similarity
                     "avg_precision_at_5": sum(m["precision_at_5"] for m in filtered_metrics) / len(filtered_metrics),
                     "avg_context_relevance": sum(m["context_relevance"] for m in filtered_metrics) / len(filtered_metrics),
                     "avg_response_time": sum(m["response_time_ms"] for m in filtered_metrics) / len(filtered_metrics),
