@@ -1031,11 +1031,12 @@ export default function TestSimulationPage() {
                         {
                           id: "eduBars",
                           label:
-                            "AkıllıRehber Tam Sistem (APRAG Kişiselleştirme KAPALI)",
+                            "AkıllıRehber(RAG +ReRanker Kombinasyonu) (APRAG Kişiselleştirme KAPALI)",
                         },
                         {
                           id: "basicRag",
-                          label: "Basit RAG (CRAG ve Reranker yok)",
+                          label:
+                            "AkıllıRehber(Sadece RAG) (CRAG ve Reranker yok)",
                         },
                         { id: "llmOnly", label: "Sadece LLM (Retrieval yok)" },
                       ].map((method) => (
@@ -1682,17 +1683,15 @@ export default function TestSimulationPage() {
                               Avg Response (ms)
                             </th>
                             <th className="text-center p-2">Accuracy (%)</th>
-                            <th className="text-center p-2">
-                              Cevap Kalitesi (Semantic / BLEU / ROUGE-L / F1)
-                            </th>
                           </tr>
                         </thead>
                         <tbody>
                           {Object.entries(currentTest.methodComparison).map(
                             ([method, results]) => {
                               const methodNames: Record<string, string> = {
-                                eduBars: "AkıllıRehber Tam Sistem",
-                                basicRag: "Basit RAG",
+                                eduBars:
+                                  "AkıllıRehber(RAG +ReRanker Kombinasyonu)",
+                                basicRag: "AkıllıRehber(Sadece RAG)",
                                 llmOnly: "Sadece LLM",
                               };
 
@@ -1720,27 +1719,37 @@ export default function TestSimulationPage() {
                                   <td className="p-2 text-center">
                                     <span
                                       className={`font-medium ${
-                                        results.precisionAt5 >= 90
+                                        method === "llmOnly"
+                                          ? "text-gray-500"
+                                          : results.precisionAt5 >= 90
                                           ? "text-green-600"
                                           : results.precisionAt5 >= 80
                                           ? "text-yellow-600"
                                           : "text-red-600"
                                       }`}
                                     >
-                                      {results.precisionAt5.toFixed(1)}%
+                                      {method === "llmOnly"
+                                        ? "Ölçülmedi"
+                                        : `${results.precisionAt5.toFixed(1)}%`}
                                     </span>
                                   </td>
                                   <td className="p-2 text-center">
                                     <span
                                       className={`font-medium ${
-                                        results.precisionAt10 >= 85
+                                        method === "llmOnly"
+                                          ? "text-gray-500"
+                                          : results.precisionAt10 >= 85
                                           ? "text-green-600"
                                           : results.precisionAt10 >= 75
                                           ? "text-yellow-600"
                                           : "text-red-600"
                                       }`}
                                     >
-                                      {results.precisionAt10.toFixed(1)}%
+                                      {method === "llmOnly"
+                                        ? "Ölçülmedi"
+                                        : `${results.precisionAt10.toFixed(
+                                            1
+                                          )}%`}
                                     </span>
                                   </td>
                                   <td className="p-2 text-center">
@@ -1769,88 +1778,80 @@ export default function TestSimulationPage() {
                                       {results.accuracy.toFixed(1)}%
                                     </span>
                                   </td>
-                                  <td className="p-2 text-center">
-                                    <div className="text-xs text-gray-700 space-y-1">
-                                      <div>
-                                        <span className="font-semibold">
-                                          Semantic:
-                                        </span>{" "}
-                                        {getSimilarityValue(
-                                          results,
-                                          "semanticSimilarity"
-                                        ) !== null
-                                          ? (
-                                              getSimilarityValue(
-                                                results,
-                                                "semanticSimilarity"
-                                              ) as number
-                                            ).toFixed(3)
-                                          : "N/A"}
-                                      </div>
-                                      <div>
-                                        <span className="font-semibold">
-                                          BLEU:
-                                        </span>{" "}
-                                        {getSimilarityValue(
-                                          results,
-                                          "bleuScore"
-                                        ) !== null
-                                          ? (
-                                              getSimilarityValue(
-                                                results,
-                                                "bleuScore"
-                                              ) as number
-                                            ).toFixed(3)
-                                          : "N/A"}
-                                      </div>
-                                      <div>
-                                        <span className="font-semibold">
-                                          ROUGE-L:
-                                        </span>{" "}
-                                        {getSimilarityValue(
-                                          results,
-                                          "rougeL"
-                                        ) !== null
-                                          ? (
-                                              getSimilarityValue(
-                                                results,
-                                                "rougeL"
-                                              ) as number
-                                            ).toFixed(3)
-                                          : "N/A"}
-                                      </div>
-                                      <div>
-                                        <span className="font-semibold">
-                                          F1:
-                                        </span>{" "}
-                                        {getSimilarityValue(
-                                          results,
-                                          "f1Score"
-                                        ) !== null
-                                          ? (
-                                              getSimilarityValue(
-                                                results,
-                                                "f1Score"
-                                              ) as number
-                                            ).toFixed(3)
-                                          : "N/A"}
-                                      </div>
-                                      {results.answerQualityAvailable !==
-                                        undefined &&
-                                        results.answerQualityAvailable > 0 && (
-                                          <div className="text-[11px] text-gray-500 mt-1">
-                                            ({results.answerQualityAvailable}{" "}
-                                            soru)
-                                          </div>
-                                        )}
-                                    </div>
-                                  </td>
                                 </tr>
                               );
                             }
                           )}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Metriklerin açıklamaları */}
+                    <div className="mt-6 p-4 bg-gray-50 border rounded-lg">
+                      <h4 className="text-sm font-semibold text-gray-800 mb-3">
+                        📊 Performans Metrikleri Açıklamaları
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+                        <div>
+                          <div className="font-medium text-blue-700 mb-1">
+                            🎯 Cosine Similarity
+                          </div>
+                          <p className="text-xs leading-relaxed">
+                            Sorgu ile bulunan en benzer doküman arasındaki
+                            kosinüs benzerliği. 0-1 arası değer alır. Yüksek
+                            değerler daha iyi retrieval performansını gösterir.
+                          </p>
+                        </div>
+                        <div>
+                          <div className="font-medium text-green-700 mb-1">
+                            📈 Precision@5 (%)
+                          </div>
+                          <p className="text-xs leading-relaxed">
+                            İlk 5 sonuçtan kaçının alakalı olduğunu ölçer. RAG
+                            sistemlerinin doküman seçme başarısını
+                            değerlendirir.
+                          </p>
+                        </div>
+                        <div>
+                          <div className="font-medium text-purple-700 mb-1">
+                            📊 Precision@10 (%)
+                          </div>
+                          <p className="text-xs leading-relaxed">
+                            İlk 10 sonuçtan kaçının alakalı olduğunu ölçer. Daha
+                            geniş retrieval performansını değerlendirir.
+                          </p>
+                        </div>
+                        <div>
+                          <div className="font-medium text-orange-700 mb-1">
+                            ⏱️ Avg Response (ms)
+                          </div>
+                          <p className="text-xs leading-relaxed">
+                            Sistemin ortalama yanıt verme süresi (milisaniye).
+                            Düşük değerler daha iyi performansı gösterir.
+                          </p>
+                        </div>
+                        <div>
+                          <div className="font-medium text-red-700 mb-1">
+                            ✓ Accuracy (%)
+                          </div>
+                          <p className="text-xs leading-relaxed">
+                            Doğru yanıt verme oranı. Genel sistem başarısını
+                            ölçer. Cosine similarity {">"} 0.5 olan yanıtlar
+                            doğru kabul edilir.
+                          </p>
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-700 mb-1">
+                            ⚠️ Sadece LLM - Precision Metrikleri
+                          </div>
+                          <p className="text-xs leading-relaxed text-gray-600">
+                            Sadece LLM metodunda doküman retrieval olmadığı için
+                            Precision@5 ve Precision@10 metrikleri
+                            ölçülememektedir. Bu metrikler yalnızca RAG tabanlı
+                            sistemler için anlamlıdır.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1887,8 +1888,8 @@ export default function TestSimulationPage() {
                               .map(([method, results]) => ({
                                 name:
                                   {
-                                    eduBars: "AkıllıRehber",
-                                    basicRag: "Basit RAG",
+                                    eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                    basicRag: "AkıllıRehber(Sadece RAG)",
                                     llmOnly: "Sadece LLM",
                                   }[method] || method,
                                 cosine: results.cosineSimilarity, // Backend already uses max_similarity
@@ -1962,8 +1963,8 @@ export default function TestSimulationPage() {
                               .map(([method, results]) => ({
                                 name:
                                   {
-                                    eduBars: "AkıllıRehber",
-                                    basicRag: "Basit RAG",
+                                    eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                    basicRag: "AkıllıRehber(Sadece RAG)",
                                     llmOnly: "Sadece LLM",
                                   }[method] || method,
                                 responseTime: results.avgResponseTime,
@@ -2076,8 +2077,8 @@ export default function TestSimulationPage() {
                           {config.testMethods.map((method, index) => {
                             const methodName =
                               {
-                                eduBars: "AkıllıRehber",
-                                basicRag: "BasitRAG",
+                                eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                basicRag: "AkıllıRehber(Sadece RAG)",
                                 llmOnly: "SadeceLLM",
                               }[method] || method;
 
@@ -2092,10 +2093,14 @@ export default function TestSimulationPage() {
                                 key={method}
                                 name={
                                   {
-                                    AkıllıRehber: "AkıllıRehber",
+                                    "AkıllıRehber(RAG +ReRanker)":
+                                      "AkıllıRehber(RAG +ReRanker)",
+                                    "AkıllıRehber(Sadece RAG)":
+                                      "AkıllıRehber(Sadece RAG)",
                                     TekModel: "Tek Model",
                                     IkiAsama: "İki Aşama",
                                     TekAsama: "Tek Aşama",
+                                    SadeceLLM: "Sadece LLM",
                                   }[methodName] || methodName
                                 }
                                 dataKey={methodName}
@@ -2296,8 +2301,8 @@ export default function TestSimulationPage() {
                                 .map(([method, results]) => ({
                                   name:
                                     {
-                                      eduBars: "AkıllıRehber",
-                                      basicRag: "Basit RAG",
+                                      eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                      basicRag: "AkıllıRehber(Sadece RAG)",
                                       llmOnly: "Sadece LLM",
                                     }[method] || method,
                                   similarity: results.cosineSimilarity,
@@ -2363,8 +2368,8 @@ export default function TestSimulationPage() {
                                 .map(([method, results]) => ({
                                   name:
                                     {
-                                      eduBars: "AkıllıRehber",
-                                      basicRag: "Basit RAG",
+                                      eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                      basicRag: "AkıllıRehber(Sadece RAG)",
                                       llmOnly: "Sadece LLM",
                                     }[method] || method,
                                   precision5: results.precisionAt5,
@@ -2437,8 +2442,8 @@ export default function TestSimulationPage() {
                                 .map(([method, results]) => ({
                                   name:
                                     {
-                                      eduBars: "AkıllıRehber",
-                                      basicRag: "Basit RAG",
+                                      eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                      basicRag: "AkıllıRehber(Sadece RAG)",
                                       llmOnly: "Sadece LLM",
                                     }[method] || method,
                                   responseTime: results.avgResponseTime,
@@ -2503,8 +2508,8 @@ export default function TestSimulationPage() {
                                 .map(([method, results]) => ({
                                   name:
                                     {
-                                      eduBars: "AkıllıRehber",
-                                      basicRag: "Basit RAG",
+                                      eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                      basicRag: "AkıllıRehber(Sadece RAG)",
                                       llmOnly: "Sadece LLM",
                                     }[method] || method,
                                   accuracy: results.accuracy,
@@ -2578,8 +2583,10 @@ export default function TestSimulationPage() {
                                         ([method, results]: [string, any]) => {
                                           const methodName =
                                             {
-                                              eduBars: "AkıllıRehber",
-                                              basicRag: "Basit RAG",
+                                              eduBars:
+                                                "AkıllıRehber(RAG +ReRanker)",
+                                              basicRag:
+                                                "AkıllıRehber(Sadece RAG)",
                                               llmOnly: "Sadece LLM",
                                             }[method] || method;
                                           data[methodName] =
@@ -2611,13 +2618,13 @@ export default function TestSimulationPage() {
                             {config.testMethods.map((method) => {
                               const methodName =
                                 {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "Basit RAG",
+                                  eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                  basicRag: "AkıllıRehber(Sadece RAG)",
                                   llmOnly: "Sadece LLM",
                                 }[method] || method;
                               const colors: Record<string, string> = {
-                                AkıllıRehber: "#3b82f6",
-                                "Basit RAG": "#10b981",
+                                "AkıllıRehber(RAG +ReRanker)": "#3b82f6",
+                                "AkıllıRehber(Sadece RAG)": "#10b981",
                                 "Sadece LLM": "#f59e0b",
                               };
                               return (
@@ -2690,8 +2697,8 @@ export default function TestSimulationPage() {
 
                                 const methodName =
                                   {
-                                    eduBars: "AkıllıRehber",
-                                    basicRag: "BasitRAG",
+                                    eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                    basicRag: "AkıllıRehber(Sadece RAG)",
                                     llmOnly: "SadeceLLM",
                                   }[method] || method;
 
@@ -2723,8 +2730,8 @@ export default function TestSimulationPage() {
                             .map((method, index) => {
                               const methodName =
                                 {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "BasitRAG",
+                                  eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                  basicRag: "AkıllıRehber(Sadece RAG)",
                                   llmOnly: "SadeceLLM",
                                 }[method] || method;
 
@@ -2739,8 +2746,10 @@ export default function TestSimulationPage() {
                                   key={method}
                                   name={
                                     {
-                                      AkıllıRehber: "AkıllıRehber",
-                                      BasitRAG: "Basit RAG",
+                                      "AkıllıRehber(RAG +ReRanker)":
+                                        "AkıllıRehber(RAG +ReRanker)",
+                                      "AkıllıRehber(Sadece RAG)":
+                                        "AkıllıRehber(Sadece RAG)",
                                       SadeceLLM: "Sadece LLM",
                                     }[methodName] || methodName
                                   }
@@ -2816,8 +2825,8 @@ export default function TestSimulationPage() {
                                   ).length;
                                   const methodName =
                                     {
-                                      eduBars: "AkıllıRehber",
-                                      basicRag: "Basit RAG",
+                                      eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                      basicRag: "AkıllıRehber(Sadece RAG)",
                                       llmOnly: "Sadece LLM",
                                     }[method] || method;
                                   data[methodName] = count;
@@ -2843,13 +2852,13 @@ export default function TestSimulationPage() {
                             {config.testMethods.map((method) => {
                               const methodName =
                                 {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "Basit RAG",
+                                  eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                  basicRag: "AkıllıRehber(Sadece RAG)",
                                   llmOnly: "Sadece LLM",
                                 }[method] || method;
                               const colors: Record<string, string> = {
-                                AkıllıRehber: "#3b82f6",
-                                "Basit RAG": "#10b981",
+                                "AkıllıRehber(RAG +ReRanker)": "#3b82f6",
+                                "AkıllıRehber(Sadece RAG)": "#10b981",
                                 "Sadece LLM": "#f59e0b",
                               };
                               return (
@@ -2911,8 +2920,10 @@ export default function TestSimulationPage() {
                                         ([method, results]: [string, any]) => {
                                           const methodName =
                                             {
-                                              eduBars: "AkıllıRehber",
-                                              basicRag: "Basit RAG",
+                                              eduBars:
+                                                "AkıllıRehber(RAG +ReRanker)",
+                                              basicRag:
+                                                "AkıllıRehber(Sadece RAG)",
                                               llmOnly: "Sadece LLM",
                                             }[method] || method;
                                           // Success = max similarity > 0.5
@@ -2953,13 +2964,13 @@ export default function TestSimulationPage() {
                             {config.testMethods.map((method) => {
                               const methodName =
                                 {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "Basit RAG",
+                                  eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                  basicRag: "AkıllıRehber(Sadece RAG)",
                                   llmOnly: "Sadece LLM",
                                 }[method] || method;
                               const colors: Record<string, string> = {
-                                AkıllıRehber: "#3b82f6",
-                                "Basit RAG": "#10b981",
+                                "AkıllıRehber(RAG +ReRanker)": "#3b82f6",
+                                "AkıllıRehber(Sadece RAG)": "#10b981",
                                 "Sadece LLM": "#f59e0b",
                               };
                               return (
@@ -3026,8 +3037,9 @@ export default function TestSimulationPage() {
                               {Object.entries(question.methodologies).map(
                                 ([method, results]) => {
                                   const methodNames: Record<string, string> = {
-                                    eduBars: "AkıllıRehber Tam Sistem",
-                                    basicRag: "Basit RAG",
+                                    eduBars:
+                                      "AkıllıRehber(RAG +ReRanker Kombinasyonu)",
+                                    basicRag: "AkıllıRehber(Sadece RAG)",
                                     llmOnly: "Sadece LLM",
                                   };
 
