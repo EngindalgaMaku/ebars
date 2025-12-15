@@ -73,7 +73,7 @@ RAG teknolojisinin gelecek potansiyelini gösteren çalışmalardan biri, 3D ava
 
 ### Metin Benzerliği Değerlendirme Metrikleri
 
-**Jaccard Similarity (Jaccard Index)**: Metin benzerliği değerlendirmesinde kullanılan klasik bir set benzerlik metriğidir. 1901 yılında Paul Jaccard tarafından tanıtılan bu metrik, iki küme arasındaki benzerliği ölçmek için kullanılır ve bilgi erişimi, doğal dil işleme ve metin madenciliği alanlarında yaygın olarak kullanılmaktadır (Jaccard, 1901). Modern bilgi erişimi ve metin benzerliği çalışmalarında, Jaccard Similarity'nin token-based ve n-gram varyasyonları kullanılmaktadır (Manning et al., 2008; Leskovec et al., 2020). Bu metrik, embedding tabanlı yöntemlerin yaygınlaşmasından önce metin benzerliği ölçümünde standart bir yaklaşım olarak kabul edilmiştir ve özellikle hesaplama verimliliği ve bağımlılık gerektirmemesi nedeniyle production ortamlarında tercih edilmektedir.
+**Embedding Tabanlı Semantic Similarity**: Metin benzerliği değerlendirmesinde kullanılan modern bir anlamsal benzerlik metriğidir. Bu yöntem, metinleri embedding vektörlerine dönüştürerek cosine similarity ile anlamsal benzerliği ölçmektedir. Modern bilgi erişimi ve metin benzerliği çalışmalarında, embedding tabanlı yöntemler (BERT, GPT, Qwen) kelime bazlı yöntemlere (kelime kümesi örtüşmesi, TF-IDF) göre daha yüksek performans göstermektedir (Manning et al., 2008; Jurafsky & Martin, 2020). Bu çalışmada, Alibaba text-embedding-v4 modeli kullanılarak gerçek anlamsal benzerlik ölçülmektedir. Bu yaklaşım, eş anlamlı kelimeleri anlayabilme, bağlamsal anlama ve çok dilli destek gibi avantajlar sunmaktadır.
 
 ### RAG Verimliliği Analizi
 
@@ -117,10 +117,10 @@ RAG teknolojisinin gelecek potansiyelini gösteren çalışmalardan biri, 3D ava
 
 15. EkoBot: Türkçe Destekli Akıllı Sanal Akademik Danışman. (2024). _Türk Eğitim Teknolojileri_.
 
-16. Jaccard, P. (1901). Étude comparative de la distribution florale dans une portion des Alpes et des Jura. _Bulletin de la Société Vaudoise des Sciences Naturelles_, _37_, 547-579.
+16. Manning, C. D., Raghavan, P., & Schütze, H. (2008). _Introduction to Information Retrieval_. Cambridge University Press.
 
-17. Manning, C. D., Raghavan, P., & Schütze, H. (2008). _Introduction to Information Retrieval_. Cambridge University Press.
+17. Jurafsky, D., & Martin, J. H. (2020). _Speech and Language Processing: An Introduction to Natural Language Processing, Computational Linguistics, and Speech Recognition_ (3rd ed.). Prentice Hall.
 
 18. Leskovec, J., Rajaraman, A., & Ullman, J. D. (2020). _Mining of Massive Datasets_ (3rd ed.). Cambridge University Press.
 
-19. Jurafsky, D., & Martin, J. H. (2020). _Speech and Language Processing: An Introduction to Natural Language Processing, Computational Linguistics, and Speech Recognition_ (3rd ed.). Prentice Hall.
+19. Reimers, N., & Gurevych, I. (2019). Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks. _Proceedings of EMNLP-IJCNLP_.

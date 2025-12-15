@@ -101,13 +101,23 @@ class AnswerSimilarityEvaluator:
         self.api_base_url = api_base_url
         self.results: List[AnswerComparison] = []
         
-        # Optional remote embedding provider (e.g., Alibaba embedding API)
-        # Configure via environment:
-        #   EMBEDDING_API_URL  : full endpoint URL
-        #   EMBEDDING_API_KEY  : bearer token or api key
-        self.remote_embedding_url = os.getenv("EMBEDDING_API_URL")
-        self.remote_embedding_key = os.getenv("EMBEDDING_API_KEY")
-        self.remote_embedding_available = bool(self.remote_embedding_url and self.remote_embedding_key)
+        # Use model-inference-service embedding endpoint (same as document processing service uses)
+        # Get MODEL_INFERENCE_URL from environment, same way document processing service does
+        model_inference_url = os.getenv("MODEL_INFERENCER_URL", os.getenv("MODEL_INFERENCE_URL", None))
+        if not model_inference_url:
+            # Fallback: try to derive from api_base_url (if it's API Gateway, model-inference is usually on port 8002)
+            # Or use default Docker service name
+            model_inference_host = os.getenv("MODEL_INFERENCE_HOST", "model-inference-service")
+            model_inference_port = os.getenv("MODEL_INFERENCE_PORT", "8002")
+            if model_inference_host.startswith("http://") or model_inference_host.startswith("https://"):
+                model_inference_url = model_inference_host
+            else:
+                model_inference_url = f"http://{model_inference_host}:{model_inference_port}"
+        
+        # Use same endpoint format as document processing service: {MODEL_INFERENCE_URL}/embed
+        self.embedding_api_url = f"{model_inference_url}/embed"
+        self.embedding_available = True  # Always available if model-inference-service is running
+        print(f"✅ Embedding API URL: {self.embedding_api_url}")
         
         # Initialize embedding model for semantic similarity
         self.embedding_model = None
@@ -130,14 +140,15 @@ class AnswerSimilarityEvaluator:
     
     def calculate_semantic_similarity(self, text1: str, text2: str) -> float:
         """Calculate semantic similarity using embeddings"""
-        # 0) Preferred: remote embedding API if configured (e.g., Alibaba)
-        if self.remote_embedding_available:
+        # 0) Preferred: Model Inference Service embedding API (Alibaba via API Gateway)
+        if self.embedding_available:
             try:
-                embs = self._get_remote_embeddings([text1, text2])
+                embs = self._get_embeddings_from_api([text1, text2])
                 if embs and len(embs) == 2:
                     return self._cosine(embs[0], embs[1])
             except Exception as e:
-                print(f"⚠️ Remote embedding similarity failed: {e}")
+                print(f"⚠️ Embedding API similarity failed: {e}")
+                # Continue to fallback methods
 
         # 1) Preferred: sentence-transformers if available
         if self.embedding_model is not None:
@@ -174,28 +185,49 @@ class AnswerSimilarityEvaluator:
         union = words1.union(words2)
         return len(intersection) / len(union) if union else 0.0
 
-    def _get_remote_embeddings(self, texts: List[str]) -> Optional[List[List[float]]]:
-        """Fetch embeddings from a remote provider (e.g., Alibaba)."""
-        if not self.remote_embedding_available:
+    def _get_embeddings_from_api(self, texts: List[str]) -> Optional[List[List[float]]]:
+        """
+        Fetch embeddings from model-inference-service (same as document processing service uses).
+        This uses the same Alibaba embedding API that the system uses for RAG.
+        Format matches document processing service: {MODEL_INFERENCE_URL}/embed
+        """
+        if not self.embedding_available:
             return None
-        headers = {
-            "Authorization": f"Bearer {self.remote_embedding_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {"input": texts}
-        resp = requests.post(self.remote_embedding_url, json=payload, headers=headers, timeout=30)
-        if resp.status_code != 200:
-            raise RuntimeError(f"Remote embedding API returned {resp.status_code}")
-        data = resp.json()
-        # Expecting structure like {"data": [{"embedding": [...]}, ...]}
-        if "data" in data:
-            embeddings = [item.get("embedding") for item in data["data"]]
-            if all(isinstance(e, list) for e in embeddings):
-                return embeddings
-        # Fallback if provider returns direct list
-        if isinstance(data, list) and all(isinstance(e, list) for e in data):
-            return data
-        raise RuntimeError("Unexpected embedding API response format")
+        
+        try:
+            # Call model-inference-service embedding endpoint (same format as system uses)
+            # This endpoint automatically uses Alibaba text-embedding-v4 if configured
+            payload = {
+                "texts": texts,
+                "model": "text-embedding-v4"  # Alibaba embedding model
+            }
+            
+            resp = requests.post(
+                self.embedding_api_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=30
+            )
+            
+            if resp.status_code != 200:
+                error_text = resp.text[:200] if resp.text else "No error message"
+                raise RuntimeError(f"Embedding API returned {resp.status_code}: {error_text}")
+            
+            data = resp.json()
+            
+            # Model inference service returns: {"embeddings": [[...], [...]], "model_used": "..."}
+            if "embeddings" in data and isinstance(data["embeddings"], list):
+                embeddings = data["embeddings"]
+                if all(isinstance(e, list) for e in embeddings):
+                    print(f"✅ Got {len(embeddings)} embeddings from model-inference-service (model: {data.get('model_used', 'unknown')})")
+                    return embeddings
+            
+            raise RuntimeError(f"Unexpected embedding API response format: {list(data.keys())}")
+            
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError(f"Failed to connect to embedding API: {e}")
+        except Exception as e:
+            raise RuntimeError(f"Error getting embeddings: {e}")
 
     @staticmethod
     def _cosine(v1: List[float], v2: List[float]) -> float:

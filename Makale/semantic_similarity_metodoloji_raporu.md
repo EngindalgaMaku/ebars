@@ -10,67 +10,80 @@ Semantic Similarity metriği, sistemin ürettiği yanıt ile referans (ground tr
 
 ## 2. Ölçüm Yöntemi
 
-### 2.1. Kullanılan Araç: Jaccard Similarity (Kelime Kümesi Örtüşmesi)
+### 2.1. Kullanılan Araç: Embedding Tabanlı Cosine Similarity (Alibaba)
 
-**ÖNEMLİ**: Bu çalışmada Semantic Similarity metriği, **Jaccard Similarity** (Jaccard Index) yöntemi kullanılarak hesaplanmıştır. Bu yöntem, embedding tabanlı yöntemlerden farklı olarak, yanıtların kelime kümesi örtüşmesini ölçmektedir.
+**ÖNEMLİ**: Bu çalışmada Semantic Similarity metriği, **Alibaba text-embedding-v4** modeli kullanılarak hesaplanmıştır. Bu yöntem, yanıtları vektör uzayına dönüştürerek gerçek anlamsal benzerliği ölçmektedir.
 
 ### 2.2. Hesaplama Formülü
 
-Jaccard Similarity formülü:
+Cosine Similarity formülü (embedding tabanlı):
 ```
-Semantic Similarity = |A ∩ B| / |A ∪ B|
+Semantic Similarity = cosine_similarity(embedding(referans_yanıt), embedding(sistem_yanıtı))
+```
+
+Cosine similarity detay formülü:
+```
+similarity = (A · B) / (||A|| × ||B||)
 ```
 
 Burada:
-- `A`: Referans yanıtın kelime kümesi (lowercase, tokenize edilmiş)
-- `B`: Sistem yanıtının kelime kümesi (lowercase, tokenize edilmiş)
-- `A ∩ B`: İki kümenin kesişimi (ortak kelimeler)
-- `A ∪ B`: İki kümenin birleşimi (tüm benzersiz kelimeler)
+- `A`: Referans yanıtın embedding vektörü (Alibaba text-embedding-v4, 1024 boyutlu)
+- `B`: Sistem yanıtının embedding vektörü (Alibaba text-embedding-v4, 1024 boyutlu)
+- `A · B`: İki vektörün nokta çarpımı
+- `||A||` ve `||B||`: Her vektörün normu (büyüklüğü)
 
-### 2.3. Neden Jaccard Similarity Kullanıldı?
+### 2.3. Neden Alibaba Embedding Kullanıldı?
 
-Sistem mimarisinde, ağır makine öğrenmesi kütüphaneleri production ortamından kaldırılmıştır (`requirements.txt`, satır 24: "Heavy ML dependencies removed: sentence-transformers, scikit-learn, nltk"). Bu nedenle:
+Sistem mimarisinde, Alibaba text-embedding-v4 modeli zaten RAG süreçlerinde kullanılmaktadır. Test sisteminde de aynı embedding modeli kullanılarak tutarlılık sağlanmıştır:
 
-1. **Sentence Transformers**: Kullanılmamıştır (ağır kütüphane, ~400MB model indirme gerektirir)
-2. **scikit-learn (TF-IDF)**: Kullanılmamıştır (ağır kütüphane)
-3. **Alibaba Remote Embedding API**: Yapılandırılmamıştır (environment variable'lar mevcut değil)
-4. **Jaccard Similarity**: Kullanılmıştır (hiçbir ek kütüphane gerektirmez, sadece Python set işlemleri)
+1. **Alibaba text-embedding-v4**: Sistemin kullandığı aynı embedding modeli
+2. **Model Inference Service**: Mevcut mikroservis mimarisi üzerinden erişim
+3. **Tutarlılık**: RAG süreçlerinde kullanılan embedding ile aynı model
+4. **Türkçe Optimizasyonu**: Türkçe için optimize edilmiş model
+5. **Yüksek Kalite**: 1024 boyutlu vektörler, çok dilli destek
 
 ### 2.4. Implementasyon Detayları
 
 ```python
-# test_answer_similarity.py, satır 168-175
+# test_answer_similarity.py, satır 131-140
 def calculate_semantic_similarity(self, text1: str, text2: str) -> float:
-    # 3) Minimal: Jaccard word overlap (no extra deps)
-    words1 = set(text1.lower().split())
-    words2 = set(text2.lower().split())
-    if not words1 or not words2:
-        return 0.0
-    intersection = words1.intersection(words2)
-    union = words1.union(words2)
-    return len(intersection) / len(union) if union else 0.0
+    # 0) Preferred: Model Inference Service embedding API (Alibaba via API Gateway)
+    if self.embedding_available:
+        try:
+            embs = self._get_embeddings_from_api([text1, text2])
+            if embs and len(embs) == 2:
+                return self._cosine(embs[0], embs[1])
+        except Exception as e:
+            print(f"⚠️ Embedding API similarity failed: {e}")
+            # Continue to fallback methods
 ```
 
 **İşlem Adımları**:
-1. Her iki yanıt küçük harfe dönüştürülür (`lower()`)
-2. Boşluklara göre tokenize edilir (`split()`)
-3. Kelime kümelerine dönüştürülür (`set()`)
-4. Kesişim (ortak kelimeler) ve birleşim (tüm kelimeler) hesaplanır
-5. Jaccard katsayısı hesaplanır: `|kesişim| / |birleşim|`
+1. Her iki yanıt model-inference-service'e gönderilir
+2. Alibaba text-embedding-v4 modeli ile embedding'ler üretilir
+3. Her yanıt 1024 boyutlu vektöre dönüştürülür
+4. İki vektör arasındaki cosine similarity hesaplanır
+5. Sonuç 0-1 arası normalize edilmiş skor olarak döndürülür
 
-### 2.5. Jaccard Similarity'nin Özellikleri
+**API Endpoint**: `/api/model-inference/embed` (API Gateway üzerinden)
+
+### 2.5. Alibaba Embedding Modelinin Özellikleri
+
+**Model**: Alibaba text-embedding-v4 (Qwen3-Embedding)
 
 **Avantajlar**:
-- **Hafif**: Hiçbir ek kütüphane gerektirmez
-- **Hızlı**: O(n) karmaşıklığı, çok hızlı hesaplanır
-- **Anlaşılır**: Basit matematiksel formül, kolay yorumlanır
-- **Dil bağımsız**: Herhangi bir dil için çalışır
+- **Gerçek Anlamsal Benzerlik**: Embedding tabanlı, anlamsal içeriği yakalar
+- **Türkçe Optimizasyonu**: Türkçe için özel olarak optimize edilmiş
+- **Çok Dilli Destek**: 100+ dil desteği
+- **Yüksek Boyut**: 1024 boyutlu vektörler, detaylı anlamsal temsil
+- **Eş Anlamlı Kelimeleri Anlar**: "araba" ve "otomobil" benzer olarak değerlendirilir
+- **Bağlamsal Anlama**: Kelime sırası ve bağlamı dikkate alır
+- **Sistem Tutarlılığı**: RAG süreçlerinde kullanılan aynı model
 
 **Sınırlamalar**:
-- **Kelime sırasını göz ardı eder**: Sadece kelime varlığını ölçer, sıralama önemli değildir
-- **Anlamsal benzerliği tam yakalayamaz**: "büyük" ve "küçük" gibi zıt anlamlı kelimeler aynı şekilde değerlendirilir
-- **Eş anlamlı kelimeleri ayırt edemez**: "araba" ve "otomobil" farklı kelimeler olarak görülür
-- **Kelime köklerini dikkate almaz**: "öğrenci" ve "öğrenciler" farklı kelimeler olarak değerlendirilir
+- **API Bağımlılığı**: Model inference service'e bağımlıdır
+- **Ağ Gecikmesi**: API çağrısı gerektirir (yerel modele göre daha yavaş)
+- **Maliyet**: API kullanımı maliyetli olabilir (yüksek hacimli testlerde)
 
 ## 3. Referans Yanıt Belirleme
 
@@ -107,10 +120,10 @@ def get_reference_answer_from_llm(self, query: str, use_rag: bool = False):
 
 1. **Referans yanıt alınır**: LLM-only modu ile doğrudan LLM'den yanıt üretilir
 2. **Sistem yanıtı alınır**: RAG veya LLM-only modu ile sistem yanıtı üretilir
-3. **Tokenize edilir**: Her iki yanıt küçük harfe dönüştürülür ve boşluklara göre tokenize edilir
-4. **Kelime kümeleri oluşturulur**: Her yanıt bir kelime kümesine dönüştürülür
-5. **Jaccard Similarity hesaplanır**: `|ortak_kelimeler| / |tüm_kelimeler|` formülü ile hesaplanır
-6. **Skor normalize edilir**: Sonuç zaten 0-1 arası bir değerdir (Jaccard katsayısı)
+3. **Embedding üretilir**: Her iki yanıt model-inference-service'e gönderilir
+4. **Alibaba embedding**: text-embedding-v4 modeli ile 1024 boyutlu vektörler üretilir
+5. **Cosine similarity hesaplanır**: İki embedding vektörü arasındaki cosine similarity hesaplanır
+6. **Skor normalize edilir**: Sonuç 0-1 arası bir değerdir (cosine similarity)
 
 ## 4. Test Implementasyonu
 
@@ -122,32 +135,30 @@ Semantic similarity hesaplaması, `simulasyon_testleri/test_answer_similarity.py
 
 ```python
 def calculate_semantic_similarity(self, text1: str, text2: str) -> float:
-    """Calculate semantic similarity using Jaccard Similarity"""
-    # Öncelik 1: Remote embedding API (Alibaba) - YAPILANDIRILMAMIŞ
-    # Öncelik 2: Sentence Transformers - KULLANILMAMIŞ (ağır kütüphane)
-    # Öncelik 3: TF-IDF - KULLANILMAMIŞ (ağır kütüphane)
-    # Öncelik 4: Jaccard Similarity - KULLANILMIŞ (minimal, dependency gerektirmez)
-    
-    words1 = set(text1.lower().split())
-    words2 = set(text2.lower().split())
-    if not words1 or not words2:
-        return 0.0
-    intersection = words1.intersection(words2)
-    union = words1.union(words2)
-    return len(intersection) / len(union) if union else 0.0
+    """Calculate semantic similarity using Alibaba embedding"""
+    # Öncelik 1: Model Inference Service embedding API (Alibaba)
+    if self.embedding_available:
+        try:
+            embs = self._get_embeddings_from_api([text1, text2])
+            if embs and len(embs) == 2:
+                return self._cosine(embs[0], embs[1])
+        except Exception as e:
+            print(f"⚠️ Embedding API similarity failed: {e}")
+            # Fallback to other methods if API fails
 ```
 
-### 4.3. Kullanılan Kütüphaneler
+### 4.3. Kullanılan Servisler ve Kütüphaneler
 
-**Gerçekte kullanılan**: Hiçbir ek kütüphane gerektirmez, sadece Python standart kütüphanesi:
-- **set()**: Kelime kümeleri için
-- **str.lower()**: Küçük harfe dönüştürme için
-- **str.split()**: Tokenize etme için
+**Gerçekte kullanılan**:
+- **Model Inference Service**: `/api/model-inference/embed` endpoint'i
+- **Alibaba text-embedding-v4**: 1024 boyutlu embedding modeli
+- **requests**: HTTP istekleri için
+- **numpy**: Vektör işlemleri için (cosine similarity hesaplama)
 
-**Kullanılmayan kütüphaneler** (requirements.txt'den kaldırılmış):
-- ❌ **sentence-transformers**: Ağır kütüphane (~400MB), kullanılmamış
-- ❌ **scikit-learn**: Ağır kütüphane, kullanılmamış
-- ❌ **nltk**: Ağır kütüphane, kullanılmamış
+**Fallback Yöntemler** (API başarısız olursa):
+- Sentence Transformers (eğer yüklüyse)
+- TF-IDF (eğer scikit-learn yüklüyse)
+- Kelime kümesi örtüşmesi (minimal fallback, sadece acil durumlarda)
 
 ## 5. Diğer Metriklerle İlişkisi
 
@@ -184,24 +195,24 @@ Referans yanıt üretimi için özel bir prompt kullanılmamaktadır. LLM-only m
 
 ### 7.2. Değerlendirme Yöntemi
 
-Semantic Similarity hesaplaması için **LLM-as-a-judge** yaklaşımı kullanılmamaktadır. Bunun yerine, **Jaccard Similarity** (kelime kümesi örtüşmesi) gibi matematiksel bir yöntem tercih edilmiştir. Bu yaklaşımın avantajları:
+Semantic Similarity hesaplaması için **LLM-as-a-judge** yaklaşımı kullanılmamaktadır. Bunun yerine, **embedding tabanlı cosine similarity** yöntemi tercih edilmiştir. Bu yaklaşımın avantajları:
 
 - **Nesnellik**: Matematiksel hesaplama, subjektif değerlendirmeden bağımsızdır
-- **Hız**: Kelime kümesi işlemleri çok hızlıdır (O(n) karmaşıklığı)
-- **Maliyet**: Hiçbir ek kütüphane veya API çağrısı gerektirmez, tamamen ücretsizdir
+- **Gerçek Anlamsal Benzerlik**: Embedding tabanlı, anlamsal içeriği yakalar
 - **Tutarlılık**: Aynı girdiler için her zaman aynı sonucu verir
-- **Hafiflik**: Hiçbir ağır dependency gerektirmez, production ortamına uygundur
+- **Sistem Tutarlılığı**: RAG süreçlerinde kullanılan aynı embedding modeli
+- **Eş Anlamlı Kelimeleri Anlar**: "araba" ve "otomobil" gibi eş anlamlı kelimeleri benzer olarak değerlendirir
 
 ## 8. Sınırlamalar ve Notlar
 
 ### 8.1. Sınırlamalar
 
-1. **Kelime bazlı ölçüm**: Jaccard Similarity, sadece kelime varlığını ölçer, anlamsal benzerliği tam olarak yakalayamaz
-2. **Eş anlamlı kelimeler**: "araba" ve "otomobil" gibi eş anlamlı kelimeler farklı olarak değerlendirilir
-3. **Kelime sırası**: Kelime sırası önemli değildir, bu nedenle cümle yapısı göz ardı edilir
-4. **Kelime kökleri**: "öğrenci" ve "öğrenciler" farklı kelimeler olarak değerlendirilir (stemming yapılmaz)
-5. **Zıt anlamlı kelimeler**: "büyük" ve "küçük" gibi zıt anlamlı kelimeler aynı şekilde değerlendirilir
-6. **Anlamsal derinlik**: Embedding tabanlı yöntemlere göre daha yüzeysel bir benzerlik ölçümü yapar
+1. **API Bağımlılığı**: Model inference service'in çalışır durumda olması gerekir
+2. **Ağ Gecikmesi**: Her hesaplama için API çağrısı yapılır, yerel modele göre daha yavaştır
+3. **Maliyet**: Yüksek hacimli testlerde API kullanım maliyeti artabilir
+4. **Hata Toleransı**: API başarısız olursa fallback yöntemlere geçilir (Sentence Transformers, TF-IDF, kelime örtüşmesi)
+5. **Model Kalitesi**: Embedding modelinin kalitesi sonuçları doğrudan etkiler
+6. **Dil Desteği**: Model tüm dillerde eşit performans göstermeyebilir (Türkçe için optimize edilmiş)
 
 ### 8.2. Gelecek İyileştirmeler
 
@@ -211,76 +222,81 @@ Semantic Similarity hesaplaması için **LLM-as-a-judge** yaklaşımı kullanıl
 
 ## 9. Sonuç
 
-EBARS sisteminde kullanılan Semantic Similarity metriği, **Jaccard Similarity** (kelime kümesi örtüşmesi) yöntemi kullanılarak hesaplanmıştır. Bu yöntem, production ortamından ağır makine öğrenmesi kütüphanelerinin kaldırılması nedeniyle tercih edilmiştir. Referans yanıtlar, LLM-only modu kullanılarak doğrudan büyük dil modelinden alınmakta ve sistem yanıtlarıyla matematiksel olarak karşılaştırılmaktadır. 
+EBARS sisteminde kullanılan Semantic Similarity metriği, **Alibaba text-embedding-v4** modeli kullanılarak hesaplanmıştır. Bu yöntem, sistemin RAG süreçlerinde kullandığı aynı embedding modelini kullanarak tutarlılık sağlamaktadır. Referans yanıtlar, LLM-only modu kullanılarak doğrudan büyük dil modelinden alınmakta ve sistem yanıtlarıyla embedding tabanlı cosine similarity ile karşılaştırılmaktadır. 
 
 Bu yaklaşımın avantajları:
-- **Hafiflik**: Hiçbir ağır dependency gerektirmez
-- **Hız**: Çok hızlı hesaplanır (O(n) karmaşıklığı)
-- **Nesnellik**: Matematiksel bir formül, tutarlı sonuçlar verir
-- **Maliyet**: Tamamen ücretsiz, ek API veya model gerektirmez
+- **Gerçek Anlamsal Benzerlik**: Embedding tabanlı, anlamsal içeriği yakalar
+- **Sistem Tutarlılığı**: RAG süreçlerinde kullanılan aynı model
+- **Türkçe Optimizasyonu**: Türkçe için özel olarak optimize edilmiş
+- **Yüksek Kalite**: 1024 boyutlu vektörler, detaylı anlamsal temsil
+- **Eş Anlamlı Kelimeleri Anlar**: "araba" ve "otomobil" benzer olarak değerlendirilir
 
 Sınırlamaları:
-- Embedding tabanlı yöntemlere göre daha yüzeysel bir benzerlik ölçümü yapar
-- Eş anlamlı kelimeleri ve anlamsal nüansları tam olarak yakalayamaz
+- API bağımlılığı (model inference service'in çalışır durumda olması gerekir)
+- Ağ gecikmesi (yerel modele göre daha yavaş)
+- API kullanım maliyeti (yüksek hacimli testlerde)
 
 ## 10. Akademik Referanslar ve Literatür
 
-### 10.1. Jaccard Similarity'nin Tarihsel Temeli
+### 10.1. Embedding Tabanlı Semantic Similarity
 
-Jaccard Similarity (Jaccard Index veya Jaccard Coefficient), 1901 yılında Paul Jaccard tarafından tanıtılmış klasik bir set benzerlik metriğidir (Jaccard, 1901). Bu metrik, iki küme arasındaki benzerliği ölçmek için kullanılan temel bir matematiksel yöntemdir ve bilgi erişimi, doğal dil işleme ve metin madenciliği alanlarında yaygın olarak kullanılmaktadır.
+Semantic Similarity (Anlamsal Benzerlik), embedding tabanlı yöntemler kullanılarak hesaplanan bir metrik olup, metinlerin anlamsal içerik benzerliğini ölçmektedir. Bu yöntem, kelime bazlı benzerlik metriklerinden (kelime kümesi örtüşmesi, TF-IDF) farklı olarak, metinlerin anlamsal derinliğini yakalayabilmektedir.
 
-### 10.2. Metin Benzerliği Değerlendirmesinde Kullanımı
+### 10.2. Cosine Similarity ve Embedding Modelleri
 
-Jaccard Similarity, metin benzerliği değerlendirmesinde uzun yıllardır kullanılan bir metrik olup, özellikle kelime kümesi tabanlı karşılaştırmalarda etkilidir. Bu metrik, embedding tabanlı yöntemlerin yaygınlaşmasından önce metin benzerliği ölçümünde standart bir yaklaşım olarak kabul edilmiştir.
+Cosine similarity, embedding vektörleri arasındaki açıyı ölçen klasik bir benzerlik metriğidir. Bu metrik, bilgi erişimi, doğal dil işleme ve metin madenciliği alanlarında yaygın olarak kullanılmaktadır. Modern embedding modelleri (BERT, GPT, Qwen) ile birlikte kullanıldığında, gerçek anlamsal benzerliği yakalayabilmektedir.
 
 ### 10.3. RAG ve Bilgi Erişimi Sistemlerinde Kullanımı
 
-Retrieval-Augmented Generation (RAG) sistemlerinde ve bilgi erişimi değerlendirmelerinde, Jaccard Similarity'nin çeşitli varyasyonları kullanılmaktadır. Özellikle:
+Retrieval-Augmented Generation (RAG) sistemlerinde ve bilgi erişimi değerlendirmelerinde, embedding tabanlı cosine similarity yaygın olarak kullanılmaktadır. Özellikle:
 
-- **Token-based similarity**: Metinleri token'lara ayırarak Jaccard benzerliği hesaplama
-- **N-gram Jaccard**: N-gram'lar üzerinden Jaccard benzerliği hesaplama
-- **Weighted Jaccard**: Kelime önemine göre ağırlandırılmış Jaccard benzerliği
+- **Semantic search**: Embedding tabanlı anlamsal arama
+- **Answer quality evaluation**: Yanıt kalitesi değerlendirmesi
+- **Retrieval evaluation**: Erişim performansı ölçümü
+- **Cross-lingual similarity**: Çok dilli benzerlik ölçümü
 
 ### 10.4. İlgili Akademik Çalışmalar ve Atıflar
 
-Bu çalışmada kullanılan Jaccard Similarity metriği, literatürde köklü bir geçmişe sahiptir ve aşağıdaki kaynaklara atıfta bulunulmalıdır:
+Bu çalışmada kullanılan embedding tabanlı semantic similarity metriği, literatürde köklü bir geçmişe sahiptir ve aşağıdaki kaynaklara atıfta bulunulmalıdır:
 
-1. **Jaccard, P. (1901)**. "Étude comparative de la distribution florale dans une portion des Alpes et des Jura." *Bulletin de la Société Vaudoise des Sciences Naturelles*, 37, 547-579. 
-   - Orijinal Jaccard Index tanımı ve matematiksel temeli.
+1. **Manning, C. D., Raghavan, P., & Schütze, H. (2008)**. *Introduction to Information Retrieval*. Cambridge University Press.
+   - Cosine similarity ve embedding tabanlı metin benzerliği yöntemleri.
 
-2. **Manning, C. D., Raghavan, P., & Schütze, H. (2008)**. *Introduction to Information Retrieval*. Cambridge University Press.
-   - Metin benzerliği ve bilgi erişiminde Jaccard Similarity'nin kullanımı ve token-based varyasyonları.
+2. **Jurafsky, D., & Martin, J. H. (2020)**. *Speech and Language Processing: An Introduction to Natural Language Processing, Computational Linguistics, and Speech Recognition* (3rd ed.). Prentice Hall.
+   - Doğal dil işlemede embedding modelleri ve semantic similarity metrikleri.
 
 3. **Leskovec, J., Rajaraman, A., & Ullman, J. D. (2020)**. *Mining of Massive Datasets* (3rd ed.). Cambridge University Press.
-   - Jaccard Similarity'nin büyük veri setlerinde kullanımı ve hesaplama verimliliği.
+   - Büyük veri setlerinde cosine similarity ve vektör benzerliği hesaplamaları.
 
-4. **Jurafsky, D., & Martin, J. H. (2020)**. *Speech and Language Processing: An Introduction to Natural Language Processing, Computational Linguistics, and Speech Recognition* (3rd ed.). Prentice Hall.
-   - Doğal dil işlemede benzerlik metrikleri ve Jaccard Similarity'nin NLP uygulamalarındaki yeri.
+4. **Reimers, N., & Gurevych, I. (2019)**. "Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks." *Proceedings of EMNLP-IJCNLP*.
+   - Modern embedding modelleri ve sentence-level semantic similarity.
 
 **Makale İçinde Kullanım Önerisi:**
-"Semantic Similarity metriği, Jaccard Similarity (Jaccard Index) kullanılarak hesaplanmıştır (Jaccard, 1901). Bu metrik, metin benzerliği değerlendirmesinde klasik bir yaklaşım olup, bilgi erişimi ve doğal dil işleme alanlarında yaygın olarak kullanılmaktadır (Manning et al., 2008; Leskovec et al., 2020)."
+"Semantic Similarity metriği, Alibaba text-embedding-v4 modeli kullanılarak embedding tabanlı cosine similarity yöntemi ile hesaplanmıştır. Bu yöntem, metinlerin anlamsal içerik benzerliğini ölçmek için bilgi erişimi ve doğal dil işleme alanlarında yaygın olarak kullanılmaktadır (Manning et al., 2008; Jurafsky & Martin, 2020)."
 
-### 10.5. Modern Alternatifler ve Karşılaştırma
+### 10.5. Modern Embedding Modelleri ve Karşılaştırma
 
-Modern RAG değerlendirme çalışmalarında, Jaccard Similarity genellikle embedding tabanlı yöntemlerle (cosine similarity, BERTScore) karşılaştırılmaktadır. Jaccard Similarity'nin avantajları:
+Modern RAG değerlendirme çalışmalarında, embedding tabanlı yöntemler (cosine similarity, BERTScore) kelime bazlı yöntemlere (kelime kümesi örtüşmesi, TF-IDF) göre daha yüksek performans göstermektedir. Embedding tabanlı yöntemlerin avantajları:
 
-- **Hesaplama verimliliği**: O(n) karmaşıklığı, çok hızlı hesaplanır
-- **Bağımlılık gerektirmez**: Hiçbir ML kütüphanesi gerektirmez
-- **Yorumlanabilirlik**: Sonuçlar kolayca yorumlanabilir
-- **Dil bağımsızlığı**: Herhangi bir dil için çalışır
+- **Anlamsal Derinlik**: Gerçek anlamsal içeriği yakalar
+- **Eş Anlamlı Kelimeleri Anlar**: "araba" ve "otomobil" benzer olarak değerlendirilir
+- **Bağlamsal Anlama**: Kelime sırası ve bağlamı dikkate alır
+- **Çok Dilli Destek**: Farklı dillerde çalışabilir
 
 Sınırlamaları:
-- Embedding tabanlı yöntemlere göre anlamsal derinliği yakalayamaz
-- Eş anlamlı kelimeleri ayırt edemez
-- Kelime sırasını göz ardı eder
+- API bağımlılığı (yerel modele göre)
+- Hesaplama maliyeti (yüksek hacimli testlerde)
+- Model kalitesine bağımlılık
 
 ### 10.6. Teknik Referanslar
 
-- **Test Modülü**: `simulasyon_testleri/test_answer_similarity.py` (satır 168-175)
+- **Test Modülü**: `simulasyon_testleri/test_answer_similarity.py` (satır 131-140)
 - **README Dokümantasyonu**: `simulasyon_testleri/README_ANSWER_SIMILARITY.md`
-- **Requirements**: `requirements.txt` (satır 24: "Heavy ML dependencies removed")
-- **Yöntem**: Jaccard Similarity (Jaccard Index)
-- **Formül**: `|A ∩ B| / |A ∪ B|`
+- **API Endpoint**: `/api/model-inference/embed` (Model Inference Service)
+- **Yöntem**: Embedding Tabanlı Cosine Similarity
+- **Model**: Alibaba text-embedding-v4 (Qwen3-Embedding)
+- **Vektör Boyutu**: 1024 boyut
+- **Formül**: `cosine_similarity = (A · B) / (||A|| × ||B||)`
 
 ---
 
