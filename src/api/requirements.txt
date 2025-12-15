@@ -6,6 +6,9 @@ httpx==0.25.2
 python-multipart==0.0.6
 google-cloud-storage==2.10.0
 
+# Numerical operations (needed for AnswerSimilarityEvaluator)
+numpy>=1.21.0
+
 # Authentication dependencies
 bcrypt>=4.0.0
 passlib>=1.7.4
