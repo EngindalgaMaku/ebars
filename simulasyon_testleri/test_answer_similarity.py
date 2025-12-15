@@ -357,10 +357,43 @@ class AnswerSimilarityEvaluator:
     def get_system_answer(self, query: str, mode: str = "rag", user_id: str = "test_user", session_id: str = "test_session") -> Optional[str]:
         """
         Get answer from the system (RAG or LLM-only mode)
+        Supports: "rag", "llm-only", "eduBars", "basicRag"
+        
+        eduBars: Uses /rag/query with CRAG and reranker enabled (APRAG disabled)
+        basicRag: Uses /rag/query with CRAG and reranker disabled
+        llm-only: Uses /models/generate directly (no retrieval)
         """
         try:
-            if mode == "rag":
-                # Use hybrid-rag endpoint for RAG mode
+            if mode == "eduBars":
+                # EduBars: Full system with CRAG and reranker (uses /rag/query, not hybrid-rag)
+                endpoint = f"{self.api_base_url}/rag/query"
+                payload = {
+                    "session_id": session_id,
+                    "query": query,
+                    "top_k": 5,
+                    "use_rerank": True,  # External reranker enabled
+                    "min_score": 0.1,
+                    "max_context_chars": 8000,
+                    "use_direct_llm": False,
+                    "disable_aprag": True,  # APRAG personalization disabled
+                    "use_crag": True  # CRAG evaluation enabled
+                }
+            elif mode == "basicRag":
+                # Basic RAG: No CRAG, no reranker (uses /rag/query)
+                endpoint = f"{self.api_base_url}/rag/query"
+                payload = {
+                    "session_id": session_id,
+                    "query": query,
+                    "top_k": 5,
+                    "use_rerank": False,  # No external reranker
+                    "min_score": 0.1,
+                    "max_context_chars": 6000,
+                    "use_direct_llm": False,
+                    "disable_aprag": True,  # No personalization
+                    "use_crag": False  # No CRAG evaluation
+                }
+            elif mode in ["rag"]:
+                # Generic RAG: Use hybrid-rag endpoint (APRAG service)
                 endpoint = f"{self.api_base_url}/api/aprag/hybrid-rag/query"
                 payload = {
                     "query": query,
@@ -382,8 +415,20 @@ class AnswerSimilarityEvaluator:
                     "max_tokens": 1024
                 }
             else:
-                print(f"⚠️ Warning: Unknown mode: {mode}")
-                return None
+                print(f"⚠️ Warning: Unknown mode: {mode}, defaulting to eduBars")
+                # Default to eduBars for unknown modes
+                endpoint = f"{self.api_base_url}/rag/query"
+                payload = {
+                    "session_id": session_id,
+                    "query": query,
+                    "top_k": 5,
+                    "use_rerank": True,
+                    "min_score": 0.1,
+                    "max_context_chars": 8000,
+                    "use_direct_llm": False,
+                    "disable_aprag": True,
+                    "use_crag": True
+                }
             
             response = requests.post(
                 endpoint,
@@ -397,6 +442,9 @@ class AnswerSimilarityEvaluator:
                 if mode == "llm-only":
                     # Model-inference-service returns {"response": "...", "model_used": "..."}
                     return data.get("response", "")
+                elif mode in ["eduBars", "basicRag"]:
+                    # /rag/query endpoint returns {"answer": "...", ...}
+                    return data.get("answer", "")
                 else:
                     # Hybrid-RAG returns {"answer": "...", ...}
                     return data.get("answer", "")
