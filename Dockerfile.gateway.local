@@ -20,6 +20,8 @@ RUN pip install --upgrade pip \
 
 # Copy source code (API Gateway needs access to src.services)
 COPY src/ ./src/
+# Copy simulation tests module (needed for semantic similarity tests)
+COPY simulasyon_testleri/ ./simulasyon_testleri/
 RUN mkdir -p /app/data/markdown
 
 # Set environment variables

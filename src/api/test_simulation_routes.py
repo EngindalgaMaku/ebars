@@ -38,7 +38,14 @@ AnswerSimilarityEvaluator = None
 
 try:
     # Add path for simulasyon_testleri module
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    # Get project root directory (parent of src/)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    
+    # Also ensure /app is in path (Docker environment)
+    if '/app' not in sys.path:
+        sys.path.insert(0, '/app')
     
     # Try to import AnswerSimilarityEvaluator
     from simulasyon_testleri.test_answer_similarity import AnswerSimilarityEvaluator
@@ -860,13 +867,27 @@ async def start_semantic_similarity_test(
     try:
         # Import semantic similarity test module
         try:
-            sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            # Ensure project root is in path
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            if project_root not in sys.path:
+                sys.path.insert(0, project_root)
+            # Also ensure /app is in path (Docker environment)
+            if '/app' not in sys.path:
+                sys.path.insert(0, '/app')
+            
+            logger.info(f"Python path: {sys.path[:3]}")  # Log first 3 paths for debugging
+            logger.info(f"Looking for simulasyon_testleri in: {project_root}/simulasyon_testleri")
+            
             from simulasyon_testleri.test_semantic_similarity_only import SemanticSimilarityOnlyTest
+            logger.info("✅ SemanticSimilarityOnlyTest imported successfully")
         except ImportError as e:
             logger.error(f"Could not import SemanticSimilarityOnlyTest: {e}")
+            logger.error(f"Import error details: {type(e).__name__}: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise HTTPException(
                 status_code=500,
-                detail="Semantic similarity test module not available"
+                detail=f"Semantic similarity test module not available: {str(e)}"
             )
         
         # Generate unique test ID
@@ -930,7 +951,14 @@ async def execute_semantic_similarity_test(
     """
     try:
         # Import test module
-        sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        # Ensure project root is in path
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+        # Also ensure /app is in path (Docker environment)
+        if '/app' not in sys.path:
+            sys.path.insert(0, '/app')
+        
         from simulasyon_testleri.test_semantic_similarity_only import SemanticSimilarityOnlyTest
         
         # Get API gateway URL
