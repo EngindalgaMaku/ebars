@@ -1144,7 +1144,13 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         for method, method_metrics in results_by_method.items():
             if method_metrics:
                 # Filter out zero similarity results for chart/visualization
-                filtered_metrics = [m for m in method_metrics if m.get("cosine_similarity", 0) > 0]
+                # For semantic similarity tests, check semantic_similarity instead of cosine_similarity
+                filtered_metrics = [
+                    m for m in method_metrics 
+                    if m.get("cosine_similarity", 0) > 0 
+                    or m.get("max_similarity", 0) > 0
+                    or (m.get("semantic_similarity") is not None and m.get("semantic_similarity", 0) > 0)
+                ]
                 
                 if filtered_metrics:
                     # Calculate averages only from successful queries (similarity > 0)
@@ -1159,23 +1165,50 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                     f1_scores = [m.get("f1_score") for m in filtered_metrics if m.get("f1_score") is not None]
                     semantic_similarity_scores = [m.get("semantic_similarity") for m in filtered_metrics if m.get("semantic_similarity") is not None]
                     
+                    # For semantic similarity tests, use semantic_similarity for cosineSimilarity if max_similarity is not available
+                    cosine_similarity_values = [m.get("max_similarity") for m in filtered_metrics if m.get("max_similarity") is not None]
+                    if not cosine_similarity_values and semantic_similarity_scores:
+                        # Fallback to semantic_similarity for semantic similarity tests
+                        cosine_similarity_values = semantic_similarity_scores
+                    
+                    precision_at_5_values = [m.get("precision_at_5") for m in filtered_metrics if m.get("precision_at_5") is not None]
+                    precision_at_10_values = [m.get("precision_at_10") for m in filtered_metrics if m.get("precision_at_10") is not None]
+                    response_time_values = [m.get("response_time_ms") for m in filtered_metrics if m.get("response_time_ms") is not None]
+                    
+                    # Calculate average similarity metrics for frontend compatibility
+                    avg_semantic = sum(semantic_similarity_scores) / len(semantic_similarity_scores) if semantic_similarity_scores else None
+                    avg_bleu = sum(bleu_scores) / len(bleu_scores) if bleu_scores else None
+                    avg_rouge_l = sum(rouge_l_scores) / len(rouge_l_scores) if rouge_l_scores else None
+                    avg_rouge_1 = sum(rouge_1_scores) / len(rouge_1_scores) if rouge_1_scores else None
+                    avg_rouge_2 = sum(rouge_2_scores) / len(rouge_2_scores) if rouge_2_scores else None
+                    avg_f1 = sum(f1_scores) / len(f1_scores) if f1_scores else None
+                    
                     method_comparison[method] = {
-                        "cosineSimilarity": sum(m["max_similarity"] for m in filtered_metrics) / len(filtered_metrics),  # Use max_similarity
-                        "precisionAt5": sum(m["precision_at_5"] for m in filtered_metrics) / len(filtered_metrics) * 100,
-                        "precisionAt10": sum(m["precision_at_10"] for m in filtered_metrics) / len(filtered_metrics) * 100,
-                        "avgResponseTime": sum(m["response_time_ms"] for m in filtered_metrics) / len(filtered_metrics),
-                        "accuracy": sum(m.get("max_similarity", 0) * 100 for m in filtered_metrics) / len(filtered_metrics),  # Use max_similarity for accuracy
+                        "cosineSimilarity": sum(cosine_similarity_values) / len(cosine_similarity_values) if cosine_similarity_values else (avg_semantic if avg_semantic is not None else 0.0),
+                        "precisionAt5": sum(precision_at_5_values) / len(precision_at_5_values) * 100 if precision_at_5_values else 0.0,
+                        "precisionAt10": sum(precision_at_10_values) / len(precision_at_10_values) * 100 if precision_at_10_values else 0.0,
+                        "avgResponseTime": sum(response_time_values) / len(response_time_values) if response_time_values else 0.0,
+                        "accuracy": (sum(cosine_similarity_values) / len(cosine_similarity_values) * 100 if cosine_similarity_values else (avg_semantic * 100 if avg_semantic is not None else 0.0)),
                         "answerQualitySimilarity": sum(answer_quality_values) / len(answer_quality_values) if answer_quality_values else None,  # Answer quality (LLM response vs ground truth)
                         "answerQualityAvailable": len(answer_quality_values),  # Number of questions with ground truth
                         "successfulQueries": len(filtered_metrics),
                         "totalQueries": len(method_metrics),
-                        # Semantic similarity test metrics (BLEU, ROUGE, F1)
-                        "semanticSimilarity": sum(semantic_similarity_scores) / len(semantic_similarity_scores) if semantic_similarity_scores else None,
-                        "bleuScore": sum(bleu_scores) / len(bleu_scores) if bleu_scores else None,
-                        "rougeL": sum(rouge_l_scores) / len(rouge_l_scores) if rouge_l_scores else None,
-                        "rouge1": sum(rouge_1_scores) / len(rouge_1_scores) if rouge_1_scores else None,
-                        "rouge2": sum(rouge_2_scores) / len(rouge_2_scores) if rouge_2_scores else None,
-                        "f1Score": sum(f1_scores) / len(f1_scores) if f1_scores else None
+                        # Semantic similarity test metrics (BLEU, ROUGE, F1) - direct fields
+                        "semanticSimilarity": avg_semantic,
+                        "bleuScore": avg_bleu,
+                        "rougeL": avg_rouge_l,
+                        "rouge1": avg_rouge_1,
+                        "rouge2": avg_rouge_2,
+                        "f1Score": avg_f1,
+                        # Nested similarity object for frontend compatibility
+                        "similarity": {
+                            "semanticSimilarity": avg_semantic,
+                            "bleuScore": avg_bleu,
+                            "rougeL": avg_rouge_l,
+                            "rouge1": avg_rouge_1,
+                            "rouge2": avg_rouge_2,
+                            "f1Score": avg_f1
+                        } if (avg_semantic is not None or avg_bleu is not None or avg_rouge_l is not None or avg_f1 is not None) else None
                     }
                 else:
                     # All queries failed
