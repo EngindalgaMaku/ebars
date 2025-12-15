@@ -1017,8 +1017,8 @@ async def process_and_store_documents(
     chunk_overlap: int = Form(100),
     embedding_model: str = Form("mixedbread-ai/mxbai-embed-large-v1"),
     use_llm_post_processing: bool = Form(False),  # NEW: Optional LLM post-processing for chunk refinement
-    llm_model_name: str = Form("llama-3.1-8b-instant"),  # NEW: LLM model for post-processing
-    model_inference_url: str = Form(None)  # NEW: Override model inference URL for LLM post-processing
+    llm_model_name: str = Form(os.getenv("DEFAULT_LLM_POST_PROCESSING_MODEL", "llama-3.1-8b-instant")),  # LLM model for post-processing (configurable via DEFAULT_LLM_POST_PROCESSING_MODEL env var)
+    inference_url: Optional[str] = Form(None)  # NEW: Override model inference URL for LLM post-processing (renamed from model_inference_url to avoid Pydantic namespace conflict)
 ):
     """Process documents and store vectors - Route to Document Processing Service"""
     try:
@@ -1080,7 +1080,7 @@ async def process_and_store_documents(
                         "chunk_strategy": chunk_strategy,  # CRITICAL: Pass chunk_strategy to enable semantic chunking
                         "use_llm_post_processing": use_llm_post_processing,  # NEW: Optional LLM post-processing
                         "llm_model_name": llm_model_name,  # NEW: LLM model for post-processing
-                        "model_inference_url": model_inference_url or MODEL_INFERENCE_URL  # NEW: Model inference URL for LLM post-processing
+                        "model_inference_url": inference_url or MODEL_INFERENCE_URL  # NEW: Model inference URL for LLM post-processing
                     }
                     
                     file_response = requests.post(
@@ -1188,8 +1188,8 @@ async def process_and_store_documents_batch(
     chunk_overlap: int = Form(100),
     embedding_model: str = Form("mixedbread-ai/mxbai-embed-large-v1"),
     use_llm_post_processing: bool = Form(False),
-    llm_model_name: str = Form("llama-3.1-8b-instant"),
-    model_inference_url: str = Form(None),
+    llm_model_name: str = Form(os.getenv("DEFAULT_LLM_POST_PROCESSING_MODEL", "llama-3.1-8b-instant")),  # LLM model for post-processing (configurable via DEFAULT_LLM_POST_PROCESSING_MODEL env var)
+    inference_url: Optional[str] = Form(None),  # Renamed from model_inference_url to avoid Pydantic namespace conflict
     background_tasks: BackgroundTasks = None
 ):
     """
@@ -1255,7 +1255,7 @@ async def process_and_store_documents_batch(
             "embedding_model": embedding_model,
             "use_llm_post_processing": use_llm_post_processing,
             "llm_model_name": llm_model_name,
-            "model_inference_url": model_inference_url or MODEL_INFERENCE_URL,
+            "model_inference_url": inference_url or MODEL_INFERENCE_URL,
         }
         
         # Schedule background job
@@ -1342,7 +1342,7 @@ async def _run_batch_processing_job(job_id: str, job_data: Dict[str, Any]):
                     "chunk_strategy": job_data["chunk_strategy"],
                     "use_llm_post_processing": job_data["use_llm_post_processing"],
                     "llm_model_name": job_data["llm_model_name"],
-                    "model_inference_url": job_data["model_inference_url"]
+                    "model_inference_url": job_data.get("model_inference_url") or job_data.get("inference_url") or MODEL_INFERENCE_URL
                 }
                 
                 file_response = requests.post(

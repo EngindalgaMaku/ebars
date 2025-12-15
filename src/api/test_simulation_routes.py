@@ -1019,10 +1019,13 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     # Require authentication to access test results
     _require_owner_or_admin(request, test_data.get("session_id", ""))
     
-    test_data = TEST_RESULTS_STORAGE[test_id]
-    
     # Calculate progress percentage
-    total_operations = test_data["total_questions"] * len(test_data.get("configuration", {}).get("methodologies", []))
+    # Handle semantic similarity tests (no methodologies in configuration)
+    methodologies = test_data.get("configuration", {}).get("methodologies", [])
+    if not methodologies:
+        # For semantic similarity tests, use mode or default to 1
+        methodologies = [test_data.get("mode", "rag")]
+    total_operations = test_data["total_questions"] * len(methodologies)
     current_operations = len(test_data.get("results", []))
     
     if total_operations > 0:
@@ -1057,15 +1060,29 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                 logger.warning(f"Result is not a dictionary: {type(result)}")
                 continue
             
-            # Check if result has required keys
-            if "methodology" not in result or "metrics" not in result:
-                logger.warning(f"Result missing required keys: {result.keys()}")
+            # Handle semantic similarity test format (may not have methodology key)
+            # For semantic similarity tests, use mode from test_data or default
+            if "methodology" in result:
+                method = result["methodology"]
+            elif "method" in result:
+                method = result["method"]
+            else:
+                # Fallback to test mode for semantic similarity tests
+                method = test_data.get("mode", "rag")
+            
+            # Check if result has metrics or is a direct metrics object
+            if "metrics" in result:
+                metrics_data = result["metrics"]
+            elif "similarity" in result or "cosine_similarity" in result:
+                # Direct metrics object (semantic similarity test format)
+                metrics_data = result
+            else:
+                logger.warning(f"Result missing metrics: {result.keys()}")
                 continue
             
-            method = result["methodology"]
             if method not in results_by_method:
                 results_by_method[method] = []
-            results_by_method[method].append(result["metrics"])
+            results_by_method[method].append(metrics_data)
         
         # Calculate averages for each method
         # Filter out results with similarity = 0 (failed/unsuccessful queries)
