@@ -123,6 +123,27 @@ docker-compose logs -f
 docker-compose logs -f service_name
 ```
 
+### Docker Temizleme (Eski İmajlar)
+```bash
+# Disk kullanımını kontrol et
+docker system df
+
+# Kullanılmayan imajları temizle (güvenli)
+docker image prune -a -f
+
+# Tüm kullanılmayan kaynakları temizle
+docker system prune -a -f
+
+# Build cache'i temizle
+docker builder prune -a -f
+
+# Agresif temizlik (volumes dahil - DİKKAT!)
+docker system prune -a --volumes -f
+
+# Script ile temizlik (interaktif)
+ssh ebars-kodleon 'bash -s' < scripts/docker-cleanup-server.sh
+```
+
 ## Sistem Komutları
 
 ### Disk Kullanımı

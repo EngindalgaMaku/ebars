@@ -69,7 +69,8 @@ router = APIRouter(prefix="/test-simulation", tags=["Test Simulation"])
 
 # Microservice URLs
 DOCUMENT_PROCESSOR_URL = os.getenv('DOCUMENT_PROCESSOR_URL', 'http://document-processing-service:8080')
-MODEL_INFERENCE_URL = os.getenv('MODEL_INFERENCE_URL', 'https://model-inferencer-awe3elsvra-ew.a.run.app')
+# FIXED: Use local model inference service for embeddings in development
+MODEL_INFERENCE_URL = os.getenv('MODEL_INFERENCE_URL', 'http://localhost:8002')
 
 # API Gateway URL - for test simulation to call its own endpoints
 # In Docker: use service name or localhost, in local: use localhost
