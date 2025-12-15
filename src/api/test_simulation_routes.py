@@ -1121,7 +1121,29 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                     }
         
         # Overall metrics
-        all_metrics = [result["metrics"] for result in test_data["results"]]
+        # Parse results safely (handle JSON strings)
+        all_metrics = []
+        for result in test_data["results"]:
+            # Handle case where result might be a JSON string
+            if isinstance(result, str):
+                try:
+                    result = json.loads(result)
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Failed to parse result as JSON: {result}")
+                    continue
+            
+            # Ensure result is a dictionary
+            if not isinstance(result, dict):
+                logger.warning(f"Result is not a dictionary: {type(result)}")
+                continue
+            
+            # Extract metrics from result
+            if "metrics" in result:
+                all_metrics.append(result["metrics"])
+            elif "similarity" in result or "cosine_similarity" in result:
+                # Direct metrics object (semantic similarity test format)
+                all_metrics.append(result)
+        
         if all_metrics:
             # Filter out zero similarity results for overall metrics (chart visualization)
             # Also include llmOnly methodology (it doesn't use retrieval, so similarity is N/A)
@@ -1133,11 +1155,26 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
             unique_questions = set()
             correct_questions = set()
             for result in test_data["results"]:
+                # Handle case where result might be a JSON string
+                if isinstance(result, str):
+                    try:
+                        result = json.loads(result)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                
+                # Ensure result is a dictionary
+                if not isinstance(result, dict):
+                    continue
+                
                 question_id = result.get("question_id")
                 if question_id:
                     unique_questions.add(question_id)
                     # Use max_similarity for correct answer determination
-                    if result.get("metrics", {}).get("max_similarity", 0) > 0.5:
+                    metrics_data = result.get("metrics", {})
+                    if not isinstance(metrics_data, dict):
+                        # If metrics is not a dict, try to get from result directly
+                        metrics_data = result if ("similarity" in result or "cosine_similarity" in result) else {}
+                    if metrics_data.get("max_similarity", 0) > 0.5:
                         correct_questions.add(question_id)
             
             # Calculate metrics from filtered (successful) queries only
