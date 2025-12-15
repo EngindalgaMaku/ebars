@@ -198,8 +198,11 @@ export default function TestSimulationPage() {
 
   // Test Execution State
   const [currentTest, setCurrentTest] = useState<TestResult | null>(null);
+  const [testList, setTestList] = useState<any[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLoadingTests, setIsLoadingTests] = useState(false);
+  const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
 
   // UI State
   const [questionText, setQuestionText] = useState("");
@@ -585,6 +588,8 @@ export default function TestSimulationPage() {
 
       // Start polling for results
       pollTestStatus(result.testId);
+      // Refresh test list after starting a new test
+      setTimeout(() => loadTestList(), 1000);
     } catch (err: any) {
       console.error("Semantic similarity test error:", err);
       setError(err.message || "Semantic similarity testi başlatılamadı");
@@ -729,6 +734,8 @@ export default function TestSimulationPage() {
 
       // Start polling for test progress
       pollTestStatus(result.testId);
+      // Refresh test list after starting a new test
+      setTimeout(() => loadTestList(), 1000);
     } catch (error) {
       console.error("Test başlatma hatası:", error);
       setError(error instanceof Error ? error.message : "Test başlatılamadı");
@@ -774,6 +781,7 @@ export default function TestSimulationPage() {
             benchmarkComparison:
               status.benchmarkComparison || prevTest.benchmarkComparison,
             questions: status.questions || prevTest.questions,
+            testType: status.testType || prevTest.testType,
             detailedResultsUrl: status.detailedResultsUrl,
             detailedResultsAvailable: status.detailedResultsAvailable,
           };
@@ -1102,6 +1110,65 @@ export default function TestSimulationPage() {
               {error}
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* Test History Selector */}
+        {testList.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Test Geçmişi
+                </div>
+                <Button
+                  onClick={loadTestList}
+                  variant="outline"
+                  size="sm"
+                  disabled={isLoadingTests}
+                >
+                  {isLoadingTests ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Yenile"
+                  )}
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Görüntülenecek Testi Seçin:
+                </label>
+                <select
+                  value={selectedTestId || ""}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      loadTestDetails(e.target.value);
+                    }
+                  }}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Yeni test başlat...</option>
+                  {testList.map((test) => (
+                    <option key={test.testId} value={test.testId}>
+                      {test.testName} - {test.status === "completed" ? "✅ Tamamlandı" : test.status === "running" ? "🔄 Çalışıyor" : test.status === "failed" ? "❌ Başarısız" : test.status} - {new Date(test.updatedAt || test.endTime || test.startTime).toLocaleString("tr-TR")} - {test.testType === "semantic_similarity_only" ? "Anlamsal Benzerlik" : "Standart Test"}
+                    </option>
+                  ))}
+                </select>
+                {selectedTestId && currentTest && (
+                  <div className="mt-2 text-sm text-gray-600">
+                    <span className="font-medium">Seçili Test:</span> {currentTest.testName} - {currentTest.status === "completed" ? "Tamamlandı" : currentTest.status}
+                    {currentTest.testType && (
+                      <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                        {currentTest.testType === "semantic_similarity_only" ? "Anlamsal Benzerlik Testi" : "Standart Test"}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Main Content */}

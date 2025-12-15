@@ -37,6 +37,7 @@ import {
   tooltipFormatterResponseTime,
 } from "../shared/helpers";
 import DataExportControls from "@/components/DataExportControls";
+import html2canvas from "html2canvas";
 
 // Simplified interfaces
 interface TestResult {
@@ -50,6 +51,7 @@ interface TestResult {
     total_seconds?: number;
     formatted?: string;
   };
+  testType?: string; // "semantic_similarity_only" or standard test
   metrics: {
     cosineSimilarity: number;
     precisionAt5: number;
@@ -59,24 +61,31 @@ interface TestResult {
     correctAnswers: number;
   };
   methodComparison: {
-    eduBars: MethodResults;
-    basicRag: MethodResults;
-    llmOnly: MethodResults;
+    eduBars?: MethodResults;
+    basicRag?: MethodResults;
+    llmOnly?: MethodResults;
   };
-  benchmarkComparison: {
+  benchmarkComparison?: {
     ekoBot: BenchmarkResults;
     current: BenchmarkResults;
   };
+  questions?: any[]; // Detailed question results
 }
 
 interface MethodResults {
-  cosineSimilarity: number;
-  precisionAt5: number;
-  precisionAt10: number;
-  avgResponseTime: number;
-  accuracy: number;
+  cosineSimilarity?: number | null;
+  precisionAt5?: number | null;
+  precisionAt10?: number | null;
+  avgResponseTime?: number | null;
+  accuracy?: number | null;
   similarity?: any;
   answerQualitySimilarity?: number | null;
+  semanticSimilarity?: number | null;
+  bleuScore?: number | null;
+  rougeL?: number | null;
+  rouge1?: number | null;
+  rouge2?: number | null;
+  f1Score?: number | null;
 }
 
 interface BenchmarkResults {
@@ -232,21 +241,35 @@ export default function ResultsTab({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            Metod Karşılaştırması
+            {currentTest.testType === "semantic_similarity_only" 
+              ? "Anlamsal Benzerlik Metod Karşılaştırması" 
+              : "Metod Karşılaştırması"}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table 
+              id="method-comparison-table"
+              className="w-full border-collapse"
+            >
               <thead>
                 <tr className="border-b">
                   <th className="text-left p-2">Metod</th>
-                  <th className="text-center p-2">Cosine Similarity</th>
-                  <th className="text-center p-2">Precision@5 (%)</th>
-                  <th className="text-center p-2">Precision@10 (%)</th>
-                  <th className="text-center p-2">Avg Response (ms)</th>
-                  <th className="text-center p-2">Accuracy (%)</th>
+                  {/* Show retrieval metrics only for standard tests, not semantic similarity tests */}
+                  {currentTest.testType !== "semantic_similarity_only" && (
+                    <>
+                      <th className="text-center p-2">Cosine Similarity</th>
+                      <th className="text-center p-2">Precision@5 (%)</th>
+                      <th className="text-center p-2">Precision@10 (%)</th>
+                      <th className="text-center p-2">Avg Response (ms)</th>
+                      <th className="text-center p-2">Accuracy (%)</th>
+                    </>
+                  )}
+                  {/* Semantic similarity metrics */}
                   <th className="text-center p-2">Semantic Similarity</th>
+                  <th className="text-center p-2">BLEU</th>
+                  <th className="text-center p-2">ROUGE-L</th>
+                  <th className="text-center p-2">F1 Score</th>
                 </tr>
               </thead>
               <tbody>
@@ -256,89 +279,105 @@ export default function ResultsTab({
                       <td className="p-2 font-medium">
                         {methodNames[method] || method}
                       </td>
-                      <td className="p-2 text-center">
-                        <span
-                          className={`font-medium ${
-                            results.cosineSimilarity >= 0.85
-                              ? "text-green-600"
-                              : results.cosineSimilarity >= 0.75
-                              ? "text-yellow-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {results.cosineSimilarity.toFixed(3)}
-                        </span>
-                      </td>
-                      <td className="p-2 text-center">
-                        <span
-                          className={`font-medium ${
-                            method === "llmOnly"
-                              ? "text-gray-500"
-                              : results.precisionAt5 >= 90
-                              ? "text-green-600"
-                              : results.precisionAt5 >= 80
-                              ? "text-yellow-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {method === "llmOnly"
-                            ? "Ölçülmedi"
-                            : `${results.precisionAt5.toFixed(1)}%`}
-                        </span>
-                      </td>
-                      <td className="p-2 text-center">
-                        <span
-                          className={`font-medium ${
-                            method === "llmOnly"
-                              ? "text-gray-500"
-                              : results.precisionAt10 >= 85
-                              ? "text-green-600"
-                              : results.precisionAt10 >= 75
-                              ? "text-yellow-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {method === "llmOnly"
-                            ? "Ölçülmedi"
-                            : `${results.precisionAt10.toFixed(1)}%`}
-                        </span>
-                      </td>
-                      <td className="p-2 text-center">
-                        <span
-                          className={`font-medium ${
-                            results.avgResponseTime <= 1000
-                              ? "text-green-600"
-                              : results.avgResponseTime <= 1500
-                              ? "text-yellow-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {Math.round(results.avgResponseTime)}
-                        </span>
-                      </td>
-                      <td className="p-2 text-center">
-                        <span
-                          className={`font-medium ${
-                            results.accuracy >= 85
-                              ? "text-green-600"
-                              : results.accuracy >= 75
-                              ? "text-yellow-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {results.accuracy.toFixed(1)}%
-                        </span>
-                      </td>
+                      {/* Show retrieval metrics only for standard tests */}
+                      {currentTest.testType !== "semantic_similarity_only" && (
+                        <>
+                          <td className="p-2 text-center">
+                            <span
+                              className={`font-medium ${
+                                (results.cosineSimilarity ?? 0) >= 0.85
+                                  ? "text-green-600"
+                                  : (results.cosineSimilarity ?? 0) >= 0.75
+                                  ? "text-yellow-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {results.cosineSimilarity !== null && results.cosineSimilarity !== undefined
+                                ? results.cosineSimilarity.toFixed(3)
+                                : "N/A"}
+                            </span>
+                          </td>
+                          <td className="p-2 text-center">
+                            <span
+                              className={`font-medium ${
+                                method === "llmOnly"
+                                  ? "text-gray-500"
+                                  : (results.precisionAt5 ?? 0) >= 90
+                                  ? "text-green-600"
+                                  : (results.precisionAt5 ?? 0) >= 80
+                                  ? "text-yellow-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {method === "llmOnly"
+                                ? "Ölçülmedi"
+                                : results.precisionAt5 !== null && results.precisionAt5 !== undefined
+                                ? `${results.precisionAt5.toFixed(1)}%`
+                                : "N/A"}
+                            </span>
+                          </td>
+                          <td className="p-2 text-center">
+                            <span
+                              className={`font-medium ${
+                                method === "llmOnly"
+                                  ? "text-gray-500"
+                                  : (results.precisionAt10 ?? 0) >= 85
+                                  ? "text-green-600"
+                                  : (results.precisionAt10 ?? 0) >= 75
+                                  ? "text-yellow-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {method === "llmOnly"
+                                ? "Ölçülmedi"
+                                : results.precisionAt10 !== null && results.precisionAt10 !== undefined
+                                ? `${results.precisionAt10.toFixed(1)}%`
+                                : "N/A"}
+                            </span>
+                          </td>
+                          <td className="p-2 text-center">
+                            <span
+                              className={`font-medium ${
+                                (results.avgResponseTime ?? 0) <= 1000
+                                  ? "text-green-600"
+                                  : (results.avgResponseTime ?? 0) <= 1500
+                                  ? "text-yellow-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {results.avgResponseTime !== null && results.avgResponseTime !== undefined
+                                ? Math.round(results.avgResponseTime)
+                                : "N/A"}
+                            </span>
+                          </td>
+                          <td className="p-2 text-center">
+                            <span
+                              className={`font-medium ${
+                                (results.accuracy ?? 0) >= 85
+                                  ? "text-green-600"
+                                  : (results.accuracy ?? 0) >= 75
+                                  ? "text-yellow-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {results.accuracy !== null && results.accuracy !== undefined
+                                ? `${results.accuracy.toFixed(1)}%`
+                                : "N/A"}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                      {/* Semantic similarity metrics */}
                       <td className="p-2 text-center">
                         {(() => {
                           const semantic = getSimilarityValue(
                             results,
                             "semanticSimilarity"
                           );
-                          if (semantic === null) {
+                          if (semantic === null || semantic === undefined) {
                             return (
                               <span className="text-gray-500 italic text-xs">
-                                Ground truth gerekli
+                                N/A
                               </span>
                             );
                           }
@@ -357,14 +396,284 @@ export default function ResultsTab({
                           );
                         })()}
                       </td>
+                      <td className="p-2 text-center">
+                        {(() => {
+                          const bleu = getSimilarityValue(results, "bleuScore");
+                          if (bleu === null || bleu === undefined) {
+                            return <span className="text-gray-500 text-xs">N/A</span>;
+                          }
+                          return (
+                            <span
+                              className={`font-medium text-xs ${
+                                bleu >= 0.7
+                                  ? "text-green-600"
+                                  : bleu >= 0.5
+                                  ? "text-yellow-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {bleu.toFixed(3)}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td className="p-2 text-center">
+                        {(() => {
+                          const rouge = getSimilarityValue(results, "rougeL");
+                          if (rouge === null || rouge === undefined) {
+                            return <span className="text-gray-500 text-xs">N/A</span>;
+                          }
+                          return (
+                            <span
+                              className={`font-medium text-xs ${
+                                rouge >= 0.7
+                                  ? "text-green-600"
+                                  : rouge >= 0.5
+                                  ? "text-yellow-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {rouge.toFixed(3)}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td className="p-2 text-center">
+                        {(() => {
+                          const f1 = getSimilarityValue(results, "f1Score");
+                          if (f1 === null || f1 === undefined) {
+                            return <span className="text-gray-500 text-xs">N/A</span>;
+                          }
+                          return (
+                            <span
+                              className={`font-medium text-xs ${
+                                f1 >= 0.7
+                                  ? "text-green-600"
+                                  : f1 >= 0.5
+                                  ? "text-yellow-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {f1.toFixed(3)}
+                            </span>
+                          );
+                        })()}
+                      </td>
                     </tr>
                   )
                 )}
               </tbody>
             </table>
           </div>
+          {/* Export button for table as image */}
+          <div className="mt-4 flex justify-end">
+            <Button
+              onClick={async () => {
+                const table = document.getElementById("method-comparison-table");
+                if (table) {
+                  try {
+                    const canvas = await html2canvas(table, { scale: 2 });
+                    const url = canvas.toDataURL("image/png");
+                    const link = document.createElement("a");
+                    link.download = `method-comparison-${currentTest.testId}.png`;
+                    link.href = url;
+                    link.click();
+                  } catch (error) {
+                    console.error("Error exporting table:", error);
+                  }
+                }
+              }}
+              variant="outline"
+              size="sm"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Tabloyu Resim Olarak İndir
+            </Button>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Question-by-Question Detailed Table - Semantic Similarity */}
+      {currentTest.testType === "semantic_similarity_only" && currentTest.questions && currentTest.questions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Soru Bazlı Anlamsal Benzerlik Detayları
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+              <table 
+                id="question-detail-table"
+                className="w-full border-collapse text-sm"
+              >
+                <thead className="sticky top-0 bg-white z-10">
+                  <tr className="border-b bg-gray-50">
+                    <th className="text-left p-2 sticky left-0 bg-gray-50 z-20">Soru ID</th>
+                    <th className="text-left p-2 min-w-[300px]">Soru</th>
+                    <th className="text-left p-2 min-w-[200px]">Metod</th>
+                    <th className="text-center p-2">Semantic Similarity</th>
+                    <th className="text-center p-2">BLEU</th>
+                    <th className="text-center p-2">ROUGE-L</th>
+                    <th className="text-center p-2">ROUGE-1</th>
+                    <th className="text-center p-2">ROUGE-2</th>
+                    <th className="text-center p-2">F1 Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentTest.questions.map((question: any, idx: number) => {
+                    const methodologies = question.methodologies || {};
+                    return Object.entries(methodologies).map(([method, data]: [string, any]) => {
+                      const similarity = data.similarity || {};
+                      return (
+                        <tr key={`${idx}-${method}`} className="border-b hover:bg-gray-50">
+                          <td className="p-2 sticky left-0 bg-white z-10 font-medium">
+                            {question.question_id || idx + 1}
+                          </td>
+                          <td className="p-2 text-xs max-w-[300px] truncate" title={question.question}>
+                            {question.question}
+                          </td>
+                          <td className="p-2 font-medium">
+                            {methodNames[method] || method}
+                          </td>
+                          <td className="p-2 text-center">
+                            {similarity.semanticSimilarity !== null && similarity.semanticSimilarity !== undefined ? (
+                              <span
+                                className={`font-medium ${
+                                  similarity.semanticSimilarity >= 0.7
+                                    ? "text-green-600"
+                                    : similarity.semanticSimilarity >= 0.5
+                                    ? "text-yellow-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {similarity.semanticSimilarity.toFixed(3)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">N/A</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center">
+                            {similarity.bleuScore !== null && similarity.bleuScore !== undefined ? (
+                              <span
+                                className={`font-medium ${
+                                  similarity.bleuScore >= 0.7
+                                    ? "text-green-600"
+                                    : similarity.bleuScore >= 0.5
+                                    ? "text-yellow-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {similarity.bleuScore.toFixed(3)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">N/A</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center">
+                            {similarity.rougeL !== null && similarity.rougeL !== undefined ? (
+                              <span
+                                className={`font-medium ${
+                                  similarity.rougeL >= 0.7
+                                    ? "text-green-600"
+                                    : similarity.rougeL >= 0.5
+                                    ? "text-yellow-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {similarity.rougeL.toFixed(3)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">N/A</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center">
+                            {similarity.rouge1 !== null && similarity.rouge1 !== undefined ? (
+                              <span
+                                className={`font-medium ${
+                                  similarity.rouge1 >= 0.7
+                                    ? "text-green-600"
+                                    : similarity.rouge1 >= 0.5
+                                    ? "text-yellow-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {similarity.rouge1.toFixed(3)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">N/A</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center">
+                            {similarity.rouge2 !== null && similarity.rouge2 !== undefined ? (
+                              <span
+                                className={`font-medium ${
+                                  similarity.rouge2 >= 0.7
+                                    ? "text-green-600"
+                                    : similarity.rouge2 >= 0.5
+                                    ? "text-yellow-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {similarity.rouge2.toFixed(3)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">N/A</span>
+                            )}
+                          </td>
+                          <td className="p-2 text-center">
+                            {similarity.f1Score !== null && similarity.f1Score !== undefined ? (
+                              <span
+                                className={`font-medium ${
+                                  similarity.f1Score >= 0.7
+                                    ? "text-green-600"
+                                    : similarity.f1Score >= 0.5
+                                    ? "text-yellow-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {similarity.f1Score.toFixed(3)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">N/A</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {/* Export button for question detail table */}
+            <div className="mt-4 flex justify-end">
+              <Button
+                onClick={async () => {
+                  const table = document.getElementById("question-detail-table");
+                  if (table) {
+                    try {
+                      const canvas = await html2canvas(table, { scale: 2 });
+                      const url = canvas.toDataURL("image/png");
+                      const link = document.createElement("a");
+                      link.download = `question-details-${currentTest.testId}.png`;
+                      link.href = url;
+                      link.click();
+                    } catch (error) {
+                      console.error("Error exporting table:", error);
+                    }
+                  }
+                }}
+                variant="outline"
+                size="sm"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Soru Detaylarını Resim Olarak İndir
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Performance Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

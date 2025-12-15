@@ -948,6 +948,7 @@ async def execute_semantic_similarity_test(
 ):
     """
     Execute semantic similarity test in background
+    Tests all 3 methods: basicRag, eduBars, llmOnly
     """
     try:
         # Import test module
@@ -989,23 +990,72 @@ async def execute_semantic_similarity_test(
             test_data["status"] = "running"
             _save_test_to_db(test_id, test_data)
         
-        # Run test
+        # Run tests for all 3 methods: basicRag, eduBars, llmOnly
         logger.info(f"Starting semantic similarity test execution for {test_id}")
-        logger.info(f"Questions count: {len(questions)}, Mode: {mode}, Session ID: {session_id}")
+        logger.info(f"Questions count: {len(questions)}, Session ID: {session_id}")
+        logger.info(f"Testing 3 methods: basicRag, eduBars, llmOnly")
+        
+        all_results = []
         
         try:
-            results = tester.run_test(
+            # Test 1: basicRag (RAG without reranker)
+            logger.info("📊 Testing basicRag method...")
+            basic_rag_results = tester.run_test(
                 questions=questions,
                 session_id=session_id,
                 user_id="test_user",
-                mode=mode
+                mode="basicRag"
             )
-            logger.info(f"Test execution completed. Results keys: {list(results.keys()) if isinstance(results, dict) else 'Not a dict'}")
-            if isinstance(results, dict) and "summary" in results:
-                summary = results.get("summary", {})
-                logger.info(f"Summary keys: {list(summary.keys()) if isinstance(summary, dict) else 'Not a dict'}")
-                if isinstance(summary, dict) and "results" in summary:
-                    logger.info(f"Number of results in summary: {len(summary.get('results', []))}")
+            if basic_rag_results.get("success") and basic_rag_results.get("summary"):
+                summary = basic_rag_results.get("summary", {})
+                for res in summary.get("results", []):
+                    res["methodology"] = "basicRag"  # Add methodology identifier
+                    all_results.append(res)
+                logger.info(f"✅ basicRag test completed: {len(summary.get('results', []))} results")
+            
+            # Test 2: eduBars (RAG with reranker)
+            logger.info("📊 Testing eduBars method...")
+            edubars_results = tester.run_test(
+                questions=questions,
+                session_id=session_id,
+                user_id="test_user",
+                mode="eduBars"
+            )
+            if edubars_results.get("success") and edubars_results.get("summary"):
+                summary = edubars_results.get("summary", {})
+                for res in summary.get("results", []):
+                    res["methodology"] = "eduBars"  # Add methodology identifier
+                    all_results.append(res)
+                logger.info(f"✅ eduBars test completed: {len(summary.get('results', []))} results")
+            
+            # Test 3: llmOnly (no RAG)
+            logger.info("📊 Testing llmOnly method...")
+            llm_only_results = tester.run_test(
+                questions=questions,
+                session_id=session_id,
+                user_id="test_user",
+                mode="llm-only"
+            )
+            if llm_only_results.get("success") and llm_only_results.get("summary"):
+                summary = llm_only_results.get("summary", {})
+                for res in summary.get("results", []):
+                    res["methodology"] = "llmOnly"  # Add methodology identifier
+                    all_results.append(res)
+                logger.info(f"✅ llmOnly test completed: {len(summary.get('results', []))} results")
+            
+            # Combine all results
+            results = {
+                "success": True,
+                "summary": {
+                    "test_type": "semantic_similarity_comparison",
+                    "total_questions": len(questions),
+                    "results": all_results,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            }
+            
+            logger.info(f"✅ All tests completed. Total results: {len(all_results)}")
+            
         except Exception as e:
             logger.error(f"Error during test execution: {e}", exc_info=True)
             results = {
@@ -1049,10 +1099,12 @@ async def execute_semantic_similarity_test(
                     # Convert semantic similarity test results to standard format
                     formatted_results = []
                     for res in summary["results"]:
+                        # Use methodology from result if available (for multi-method tests), otherwise use test mode
+                        methodology = res.get("methodology") or test_data.get("mode", "rag")
                         formatted_result = {
                             "question_id": res.get("question_id"),
                             "question": res.get("question"),
-                            "methodology": test_data.get("mode", "rag"),  # Use test mode as methodology
+                            "methodology": methodology,  # basicRag, eduBars, or llmOnly
                             "metrics": {
                                 "semantic_similarity": res.get("semantic_similarity"),
                                 "bleu_score": res.get("bleu_score"),
@@ -1079,6 +1131,7 @@ async def execute_semantic_similarity_test(
                         formatted_results.append(formatted_result)
                     test_data["results"] = formatted_results
                     logger.info(f"Formatted {len(formatted_results)} results for storage")
+                    logger.info(f"Methodologies found: {set(r.get('methodology') for r in formatted_results)}")
                 else:
                     logger.warning(f"Summary.results is not a list or missing. Summary keys: {list(summary.keys())}")
                     # Fallback: store as-is
@@ -1216,15 +1269,14 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                     f1_scores = [m.get("f1_score") for m in filtered_metrics if m.get("f1_score") is not None]
                     semantic_similarity_scores = [m.get("semantic_similarity") for m in filtered_metrics if m.get("semantic_similarity") is not None]
                     
-                    # For semantic similarity tests, use semantic_similarity for cosineSimilarity if max_similarity is not available
+                    # Extract retrieval metrics (cosine similarity, precision) - only for RAG tests
                     cosine_similarity_values = [m.get("max_similarity") for m in filtered_metrics if m.get("max_similarity") is not None]
-                    if not cosine_similarity_values and semantic_similarity_scores:
-                        # Fallback to semantic_similarity for semantic similarity tests
-                        cosine_similarity_values = semantic_similarity_scores
-                    
                     precision_at_5_values = [m.get("precision_at_5") for m in filtered_metrics if m.get("precision_at_5") is not None]
                     precision_at_10_values = [m.get("precision_at_10") for m in filtered_metrics if m.get("precision_at_10") is not None]
                     response_time_values = [m.get("response_time_ms") for m in filtered_metrics if m.get("response_time_ms") is not None]
+                    
+                    # Check if this is a semantic similarity test (has semantic_similarity but no cosine_similarity/retrieval)
+                    is_semantic_similarity_test = (len(semantic_similarity_scores) > 0 and len(cosine_similarity_values) == 0)
                     
                     # Calculate average similarity metrics for frontend compatibility
                     avg_semantic = sum(semantic_similarity_scores) / len(semantic_similarity_scores) if semantic_similarity_scores else None
@@ -1235,11 +1287,15 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                     avg_f1 = sum(f1_scores) / len(f1_scores) if f1_scores else None
                     
                     method_comparison[method] = {
-                        "cosineSimilarity": sum(cosine_similarity_values) / len(cosine_similarity_values) if cosine_similarity_values else (avg_semantic if avg_semantic is not None else 0.0),
-                        "precisionAt5": sum(precision_at_5_values) / len(precision_at_5_values) * 100 if precision_at_5_values else 0.0,
-                        "precisionAt10": sum(precision_at_10_values) / len(precision_at_10_values) * 100 if precision_at_10_values else 0.0,
+                        # For semantic similarity tests, cosineSimilarity should be None (no retrieval)
+                        # For RAG tests, use actual cosine similarity from retrieval
+                        "cosineSimilarity": sum(cosine_similarity_values) / len(cosine_similarity_values) if cosine_similarity_values else (None if is_semantic_similarity_test else 0.0),
+                        "precisionAt5": sum(precision_at_5_values) / len(precision_at_5_values) * 100 if precision_at_5_values else (None if is_semantic_similarity_test else 0.0),
+                        "precisionAt10": sum(precision_at_10_values) / len(precision_at_10_values) * 100 if precision_at_10_values else (None if is_semantic_similarity_test else 0.0),
                         "avgResponseTime": sum(response_time_values) / len(response_time_values) if response_time_values else 0.0,
-                        "accuracy": (sum(cosine_similarity_values) / len(cosine_similarity_values) * 100 if cosine_similarity_values else (avg_semantic * 100 if avg_semantic is not None else 0.0)),
+                        # Accuracy: For semantic similarity tests, use semantic similarity. For RAG tests, use cosine similarity.
+                        "accuracy": (avg_semantic * 100 if is_semantic_similarity_test and avg_semantic is not None else 
+                                   (sum(cosine_similarity_values) / len(cosine_similarity_values) * 100 if cosine_similarity_values else 0.0)),
                         "answerQualitySimilarity": sum(answer_quality_values) / len(answer_quality_values) if answer_quality_values else None,  # Answer quality (LLM response vs ground truth)
                         "answerQualityAvailable": len(answer_quality_values),  # Number of questions with ground truth
                         "successfulQueries": len(filtered_metrics),
@@ -1420,6 +1476,8 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
             }
         
         # Add methodology-specific results
+        # For semantic similarity tests, include similarity metrics
+        similarity_metrics = metrics.get("similarity", {})
         questions_data[question_id]["methodologies"][methodology] = {
             "response": result.get("response", ""),
             "response_time_ms": metrics.get("response_time_ms", 0),
@@ -1428,7 +1486,16 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
             "precision_at_5": metrics.get("precision_at_5", 0.0),
             "precision_at_10": metrics.get("precision_at_10", 0.0),
             "retrieval_count": metrics.get("retrieval_count", 0),
-            "accuracy": metrics.get("accuracy", 0.0)
+            "accuracy": metrics.get("accuracy", 0.0),
+            # Semantic similarity metrics
+            "similarity": similarity_metrics if similarity_metrics else {
+                "semanticSimilarity": metrics.get("semantic_similarity"),
+                "bleuScore": metrics.get("bleu_score"),
+                "rougeL": metrics.get("rouge_l"),
+                "rouge1": metrics.get("rouge_1"),
+                "rouge2": metrics.get("rouge_2"),
+                "f1Score": metrics.get("f1_score")
+            }
         }
     
     # Convert to list sorted by question_id
@@ -1448,10 +1515,71 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         # HER SORU İÇİN DETAYLI SONUÇLAR - Frontend'de gösterilebilir
         "questions": questions_list,
         "total_questions_in_results": len(questions_list),
+        # Test type for frontend to differentiate display
+        "testType": test_data.get("test_type", "standard"),
         # Link to even more detailed endpoint (with document-level similarity)
         "detailedResultsUrl": f"/api/test-simulation/results/{test_id}/detailed",
         "detailedResultsAvailable": True
     }
+
+@router.get("/list", summary="List All Tests")
+async def list_all_tests(
+    request: Request, 
+    session_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """List all test results, optionally filtered by session_id"""
+    # Note: No authentication required for listing (can be added if needed)
+    
+    try:
+        with sqlite3.connect(TEST_DB_PATH) as conn:
+            if session_id:
+                # Filter by session_id if provided
+                cursor = conn.execute("""
+                    SELECT test_id, data, created_at, updated_at 
+                    FROM test_results 
+                    WHERE json_extract(data, '$.session_id') = ?
+                    ORDER BY updated_at DESC
+                """, (session_id,))
+            else:
+                # Get all tests
+                cursor = conn.execute("""
+                    SELECT test_id, data, created_at, updated_at 
+                    FROM test_results 
+                    ORDER BY updated_at DESC
+                """)
+            
+            rows = cursor.fetchall()
+            tests = []
+            for row in rows:
+                test_id, data_json, created_at, updated_at = row
+                try:
+                    test_data = json.loads(data_json)
+                    # Extract key info for list view
+                    tests.append({
+                        "testId": test_id,
+                        "testName": test_data.get("test_name", f"Test {test_id[:8]}"),
+                        "status": test_data.get("status", "unknown"),
+                        "testType": test_data.get("test_type", "standard"),
+                        "sessionId": test_data.get("session_id", ""),
+                        "startTime": test_data.get("start_time"),
+                        "endTime": test_data.get("end_time"),
+                        "createdAt": created_at,
+                        "updatedAt": updated_at,
+                        "totalQuestions": test_data.get("total_questions", 0),
+                        "progress": test_data.get("progress", 0)
+                    })
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse test data for {test_id}")
+                    continue
+            
+            return {
+                "success": True,
+                "tests": tests,
+                "total": len(tests)
+            }
+    except Exception as e:
+        logger.error(f"Error listing tests: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error listing tests: {str(e)}")
 
 @router.post("/stop/{test_id}", summary="Stop Test Simulation")
 async def stop_test_simulation(test_id: str, request: Request) -> Dict[str, Any]:
