@@ -67,6 +67,7 @@ import {
   PieChart,
   Pie,
 } from "recharts";
+import type { Formatter } from "recharts/types/component/DefaultTooltipContent";
 
 // Test Configuration Interface
 interface TestConfig {
@@ -210,6 +211,52 @@ export default function TestSimulationPage() {
     const sim = results?.similarity;
     if (sim && typeof sim[key] === "number") return sim[key] as number;
     return null;
+  };
+
+  // Tooltip formatters (typed once to avoid repeating unions)
+  const tooltipFormatterCosine: Formatter<string | number, string> = (value, name) => {
+    if (Array.isArray(value)) return ["", ""];
+    let numericValue: number | null = null;
+    if (typeof value === "number") numericValue = value;
+    else if (typeof value === "string") {
+      const parsed = parseFloat(value);
+      numericValue = Number.isFinite(parsed) ? parsed : null;
+    }
+    if (numericValue === null) return ["", ""];
+    const formatted =
+      name === "cosine" ? numericValue.toFixed(3) : `${numericValue.toFixed(1)}%`;
+    const label =
+      name === "cosine"
+        ? "Cosine Similarity"
+        : name === "precision5"
+        ? "Precision@5"
+        : "Accuracy";
+    return [formatted, label];
+  };
+
+  const tooltipFormatterResponseTime: Formatter<string | number, string> = (value) => {
+    if (Array.isArray(value)) return ["", ""];
+    let numericValue: number | null = null;
+    if (typeof value === "number") numericValue = value;
+    else if (typeof value === "string") {
+      const parsed = parseFloat(value);
+      numericValue = Number.isFinite(parsed) ? parsed : null;
+    }
+    if (numericValue === null) return ["", ""];
+    return [`${Math.round(numericValue)}ms`, "Yanıt Süresi"];
+  };
+
+  const tooltipFormatterPrecision: Formatter<string | number, string> = (value, name) => {
+    if (Array.isArray(value) || typeof name !== "string") return ["", ""];
+    let numericValue: number | null = null;
+    if (typeof value === "number") numericValue = value;
+    else if (typeof value === "string") {
+      const parsed = parseFloat(value);
+      numericValue = Number.isFinite(parsed) ? parsed : null;
+    }
+    if (numericValue === null) return ["", ""];
+    const label = name === "precision5" ? "Precision@5" : "Precision@10";
+    return [`${numericValue.toFixed(1)}%`, label];
   };
 
   useEffect(() => {
@@ -1582,30 +1629,7 @@ export default function TestSimulationPage() {
                             height={60}
                           />
                           <YAxis />
-                          <Tooltip
-                            formatter={(value, name) => {
-                              if (Array.isArray(value)) return ["", ""];
-                              let numericValue: number | null = null;
-                              if (typeof value === "number") numericValue = value;
-                              else if (typeof value === "string") {
-                                const parsed = parseFloat(value);
-                                numericValue = Number.isFinite(parsed) ? parsed : null;
-                              }
-                              if (numericValue === null || typeof name !== "string") return ["", ""];
-
-                              const formatted =
-                                name === "cosine"
-                                  ? numericValue.toFixed(3)
-                                  : `${numericValue.toFixed(1)}%`;
-                              const label =
-                                name === "cosine"
-                                  ? "Cosine Similarity"
-                                  : name === "precision5"
-                                  ? "Precision@5"
-                                  : "Accuracy";
-                              return [formatted, label];
-                            }}
-                          />
+                          <Tooltip formatter={tooltipFormatterCosine} />
                           <Legend />
                           <Bar
                             dataKey="cosine"
@@ -1669,22 +1693,7 @@ export default function TestSimulationPage() {
                             height={60}
                           />
                           <YAxis />
-                          <Tooltip
-                            formatter={(value) => {
-                              // Recharts ValueType can be number | string | (string | number)[]
-                              if (Array.isArray(value)) return ["", ""];
-                              if (typeof value === "number") {
-                                return [`${Math.round(value)}ms`, "Yanıt Süresi"];
-                              }
-                              if (typeof value === "string") {
-                                const parsed = parseFloat(value);
-                                if (Number.isFinite(parsed)) {
-                                  return [`${Math.round(parsed)}ms`, "Yanıt Süresi"];
-                                }
-                              }
-                              return ["", ""];
-                            }}
-                          />
+                          <Tooltip formatter={tooltipFormatterResponseTime} />
                           <Legend />
                           <Bar
                             dataKey="responseTime"
@@ -1975,21 +1984,7 @@ export default function TestSimulationPage() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                             <YAxis domain={[0, 1]} tick={{ fontSize: 12 }} />
-                            <Tooltip
-                              formatter={(value) => {
-                                if (Array.isArray(value)) return ["", ""];
-                                if (typeof value === "number") {
-                                  return [value.toFixed(3), "Cosine Similarity"];
-                                }
-                                if (typeof value === "string") {
-                                  const parsed = parseFloat(value);
-                                  if (Number.isFinite(parsed)) {
-                                    return [parsed.toFixed(3), "Cosine Similarity"];
-                                  }
-                                }
-                                return ["", ""];
-                              }}
-                            />
+                            <Tooltip formatter={tooltipFormatterCosine} />
                             <Legend />
                             <Bar
                               dataKey="similarity"
@@ -2033,20 +2028,7 @@ export default function TestSimulationPage() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                             <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
-                            <Tooltip
-                              formatter={(value, name) => {
-                                if (Array.isArray(value)) return ["", ""];
-                                let numericValue: number | null = null;
-                                if (typeof value === "number") numericValue = value;
-                                else if (typeof value === "string") {
-                                  const parsed = parseFloat(value);
-                                  numericValue = Number.isFinite(parsed) ? parsed : null;
-                                }
-                                if (numericValue === null || typeof name !== "string") return ["", ""];
-                                const label = name === "precision5" ? "Precision@5" : "Precision@10";
-                                return [`${numericValue.toFixed(1)}%`, label];
-                              }}
-                            />
+                            <Tooltip formatter={tooltipFormatterPrecision} />
                             <Legend />
                             <Bar
                               dataKey="precision5"
