@@ -81,6 +81,16 @@ interface TestConfig {
 }
 
 // Question Detail Interface
+interface SimilarityMetrics {
+  semanticSimilarity?: number;
+  bleuScore?: number;
+  rougeL?: number;
+  rouge1?: number;
+  rouge2?: number;
+  f1Score?: number;
+  exactMatchRate?: number;
+}
+
 interface QuestionDetail {
   question_id: number;
   question: string;
@@ -95,7 +105,8 @@ interface QuestionDetail {
       precision_at_10: number;
       retrieval_count: number;
       accuracy: number;
-      answer_quality_similarity?: number | null;  // LLM response vs ground truth similarity
+      similarity?: SimilarityMetrics;  // New similarity metrics (LLM vs reference)
+      answer_quality_similarity?: number | null;  // Legacy field (backward compatibility)
     };
   };
 }
@@ -123,8 +134,9 @@ interface TestResult {
     avgResponseTime: number;
     totalQuestions: number;
     correctAnswers: number;
-    answerQualitySimilarity?: number | null;  // LLM response vs ground truth similarity
-    answerQualityAvailable?: number;  // Number of questions with ground truth
+    similarity?: SimilarityMetrics;          // Aggregated similarity metrics
+    answerQualitySimilarity?: number | null; // Legacy field (backward compatibility)
+    answerQualityAvailable?: number;         // Number of questions with ground truth
   };
   methodComparison: {
     eduBars: MethodResults;
@@ -146,8 +158,9 @@ interface MethodResults {
   precisionAt10: number;
   avgResponseTime: number;
   accuracy: number;
-  answerQualitySimilarity?: number | null;  // LLM response vs ground truth similarity
-  answerQualityAvailable?: number;  // Number of questions with ground truth
+  similarity?: SimilarityMetrics;            // New similarity metrics
+  answerQualitySimilarity?: number | null;   // Legacy field (backward compatibility)
+  answerQualityAvailable?: number;           // Number of questions with ground truth
 }
 
 interface BenchmarkResults {
@@ -188,6 +201,16 @@ export default function TestSimulationPage() {
   // UI State
   const [questionText, setQuestionText] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Helpers to read new similarity metrics with graceful fallback to legacy field
+  const getSimilarityValue = (
+    results: MethodResults | TestResult["metrics"],
+    key: keyof SimilarityMetrics
+  ): number | null => {
+    const sim = results?.similarity;
+    if (sim && typeof sim[key] === "number") return sim[key] as number;
+    return null;
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -233,38 +256,15 @@ export default function TestSimulationPage() {
   };
 
   const importQuestionsFromText = () => {
-    const lines = questionText
+    const questions = questionText
       .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
+      .map((q) => q.trim())
+      .filter((q) => q.length > 0)
       .slice(0, 100); // Limit to 100 questions max
-
-    const questions: string[] = [];
-    const expectedAnswers: Record<number, string> = {};
-
-    lines.forEach((line, index) => {
-      // Check if line contains "|" separator (Soru|Cevap formatı)
-      if (line.includes("|")) {
-        const parts = line.split("|").map((p) => p.trim());
-        if (parts.length >= 2 && parts[0]) {
-          questions.push(parts[0]); // Soru
-          if (parts[1]) {
-            expectedAnswers[index] = parts[1]; // Cevap (ground truth)
-          }
-        } else if (parts[0]) {
-          // Sadece soru var, cevap yok
-          questions.push(parts[0]);
-        }
-      } else {
-        // Sadece soru var, cevap yok
-        questions.push(line);
-      }
-    });
 
     setConfig({
       ...config,
       customQuestions: questions,
-      customExpectedAnswers: expectedAnswers,
       numQuestions: Math.min(questions.length, 100),
     });
   };
@@ -272,38 +272,15 @@ export default function TestSimulationPage() {
   // Auto-import questions when text changes
   React.useEffect(() => {
     if (questionText.trim()) {
-      const lines = questionText
+      const questions = questionText
         .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
+        .map((q) => q.trim())
+        .filter((q) => q.length > 0)
         .slice(0, 100);
-
-      const questions: string[] = [];
-      const expectedAnswers: Record<number, string> = {};
-
-      lines.forEach((line, index) => {
-        // Check if line contains "|" separator (Soru|Cevap formatı)
-        if (line.includes("|")) {
-          const parts = line.split("|").map((p) => p.trim());
-          if (parts.length >= 2 && parts[0]) {
-            questions.push(parts[0]); // Soru
-            if (parts[1]) {
-              expectedAnswers[index] = parts[1]; // Cevap (ground truth)
-            }
-          } else if (parts[0]) {
-            // Sadece soru var, cevap yok
-            questions.push(parts[0]);
-          }
-        } else {
-          // Sadece soru var, cevap yok
-          questions.push(line);
-        }
-      });
 
       setConfig((prev) => ({
         ...prev,
         customQuestions: questions,
-        customExpectedAnswers: expectedAnswers,
         numQuestions: Math.min(questions.length, 100),
       }));
     }
@@ -589,7 +566,7 @@ export default function TestSimulationPage() {
         toast.success(`${format.toUpperCase()} dosyası indirildi (fallback)!`);
       } else if (format === "csv") {
         const csvData = [
-                          ["Metric", "AkıllıRehber", "Basic RAG", "LLM Only", "Benchmark"],
+          ["Metric", "AkıllıRehber", "Basic RAG", "LLM Only", "Benchmark"],
           [
             "Cosine Similarity",
             currentTest.methodComparison.eduBars.cosineSimilarity.toFixed(3),
@@ -598,24 +575,39 @@ export default function TestSimulationPage() {
             currentTest.benchmarkComparison.ekoBot.cosineSimilarity.toFixed(3),
           ],
           [
+            "Semantic Similarity",
+            (getSimilarityValue(currentTest.methodComparison.eduBars, "semanticSimilarity") ?? 0).toFixed(3),
+            (getSimilarityValue(currentTest.methodComparison.basicRag, "semanticSimilarity") ?? 0).toFixed(3),
+            (getSimilarityValue(currentTest.methodComparison.llmOnly, "semanticSimilarity") ?? 0).toFixed(3),
+            "N/A",
+          ],
+          [
+            "BLEU",
+            (getSimilarityValue(currentTest.methodComparison.eduBars, "bleuScore") ?? 0).toFixed(3),
+            (getSimilarityValue(currentTest.methodComparison.basicRag, "bleuScore") ?? 0).toFixed(3),
+            (getSimilarityValue(currentTest.methodComparison.llmOnly, "bleuScore") ?? 0).toFixed(3),
+            "N/A",
+          ],
+          [
+            "ROUGE-L",
+            (getSimilarityValue(currentTest.methodComparison.eduBars, "rougeL") ?? 0).toFixed(3),
+            (getSimilarityValue(currentTest.methodComparison.basicRag, "rougeL") ?? 0).toFixed(3),
+            (getSimilarityValue(currentTest.methodComparison.llmOnly, "rougeL") ?? 0).toFixed(3),
+            "N/A",
+          ],
+          [
+            "F1 (Token)",
+            (getSimilarityValue(currentTest.methodComparison.eduBars, "f1Score") ?? 0).toFixed(3),
+            (getSimilarityValue(currentTest.methodComparison.basicRag, "f1Score") ?? 0).toFixed(3),
+            (getSimilarityValue(currentTest.methodComparison.llmOnly, "f1Score") ?? 0).toFixed(3),
+            "N/A",
+          ],
+          [
             "Precision@5 (%)",
             currentTest.methodComparison.eduBars.precisionAt5.toFixed(1),
             currentTest.methodComparison.basicRag.precisionAt5.toFixed(1),
             currentTest.methodComparison.llmOnly.precisionAt5.toFixed(1),
             currentTest.benchmarkComparison.ekoBot.precisionAt5.toFixed(1),
-          ],
-          [
-            "Answer Quality Similarity",
-            currentTest.methodComparison.eduBars.answerQualitySimilarity !== null && currentTest.methodComparison.eduBars.answerQualitySimilarity !== undefined
-              ? currentTest.methodComparison.eduBars.answerQualitySimilarity.toFixed(3)
-              : "N/A",
-            currentTest.methodComparison.basicRag.answerQualitySimilarity !== null && currentTest.methodComparison.basicRag.answerQualitySimilarity !== undefined
-              ? currentTest.methodComparison.basicRag.answerQualitySimilarity.toFixed(3)
-              : "N/A",
-            currentTest.methodComparison.llmOnly.answerQualitySimilarity !== null && currentTest.methodComparison.llmOnly.answerQualitySimilarity !== undefined
-              ? currentTest.methodComparison.llmOnly.answerQualitySimilarity.toFixed(3)
-              : "N/A",
-            "N/A",
           ],
           [
             "Precision@10 (%)",
@@ -1112,7 +1104,7 @@ export default function TestSimulationPage() {
                         soru ile çalışacak
                         {Object.keys(config.customExpectedAnswers || {}).length > 0 && (
                           <span className="block mt-1 text-blue-600">
-                            💡 {Object.keys(config.customExpectedAnswers || {}).length} soru için Answer Quality metriği hesaplanacak
+                            💡 {Object.keys(config.customExpectedAnswers || {}).length} soru için semantik / BLEU / ROUGE / F1 metrikleri hesaplanacak (fallback yok; ground truth şart).
                           </span>
                         )}
                       </div>
@@ -1418,7 +1410,7 @@ export default function TestSimulationPage() {
                             </th>
                             <th className="text-center p-2">Accuracy (%)</th>
                             <th className="text-center p-2">
-                              Answer Quality (vs Ground Truth)
+                              Cevap Kalitesi (Semantic / BLEU / ROUGE-L / F1)
                             </th>
                           </tr>
                         </thead>
@@ -1505,26 +1497,37 @@ export default function TestSimulationPage() {
                                     </span>
                                   </td>
                                   <td className="p-2 text-center">
-                                    {results.answerQualitySimilarity !== null && results.answerQualitySimilarity !== undefined ? (
-                                      <span
-                                        className={`font-medium ${
-                                          results.answerQualitySimilarity >= 0.7
-                                            ? "text-green-600"
-                                            : results.answerQualitySimilarity >= 0.5
-                                            ? "text-yellow-600"
-                                            : "text-red-600"
-                                        }`}
-                                      >
-                                        {results.answerQualitySimilarity.toFixed(3)}
-                                      </span>
-                                    ) : (
-                                      <span className="text-gray-400 text-sm">N/A</span>
-                                    )}
-                                    {results.answerQualityAvailable !== undefined && results.answerQualityAvailable > 0 && (
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        ({results.answerQualityAvailable} soru)
+                                    <div className="text-xs text-gray-700 space-y-1">
+                                      <div>
+                                        <span className="font-semibold">Semantic:</span>{" "}
+                                        {getSimilarityValue(results, "semanticSimilarity") !== null
+                                          ? (getSimilarityValue(results, "semanticSimilarity") as number).toFixed(3)
+                                          : "N/A"}
                                       </div>
-                                    )}
+                                      <div>
+                                        <span className="font-semibold">BLEU:</span>{" "}
+                                        {getSimilarityValue(results, "bleuScore") !== null
+                                          ? (getSimilarityValue(results, "bleuScore") as number).toFixed(3)
+                                          : "N/A"}
+                                      </div>
+                                      <div>
+                                        <span className="font-semibold">ROUGE-L:</span>{" "}
+                                        {getSimilarityValue(results, "rougeL") !== null
+                                          ? (getSimilarityValue(results, "rougeL") as number).toFixed(3)
+                                          : "N/A"}
+                                      </div>
+                                      <div>
+                                        <span className="font-semibold">F1:</span>{" "}
+                                        {getSimilarityValue(results, "f1Score") !== null
+                                          ? (getSimilarityValue(results, "f1Score") as number).toFixed(3)
+                                          : "N/A"}
+                                      </div>
+                                      {results.answerQualityAvailable !== undefined && results.answerQualityAvailable > 0 && (
+                                        <div className="text-[11px] text-gray-500 mt-1">
+                                          ({results.answerQualityAvailable} soru)
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
                                 </tr>
                               );
@@ -2590,24 +2593,72 @@ export default function TestSimulationPage() {
                                             ms
                                           </span>
                                         </div>
-                                        {results.answer_quality_similarity !== null && results.answer_quality_similarity !== undefined && (
-                                          <div className="flex justify-between">
-                                            <span className="text-gray-600">
-                                              Answer Quality (vs Ground Truth):
-                                            </span>
-                                            <span
-                                              className={`font-medium ${
-                                                results.answer_quality_similarity >= 0.7
-                                                  ? "text-green-600"
-                                                  : results.answer_quality_similarity >= 0.5
-                                                  ? "text-yellow-600"
-                                                  : "text-red-600"
-                                              }`}
-                                            >
-                                              {results.answer_quality_similarity.toFixed(3)}
-                                            </span>
-                                          </div>
-                                        )}
+                                        {(() => {
+                                          const sim = (results as any).similarity || {};
+                                          const semantic =
+                                            typeof sim.semanticSimilarity === "number"
+                                              ? sim.semanticSimilarity
+                                              : typeof (results as any).answer_quality_similarity === "number"
+                                              ? (results as any).answer_quality_similarity
+                                              : null;
+                                          const bleu =
+                                            typeof sim.bleuScore === "number" ? sim.bleuScore : null;
+                                          const rougeL =
+                                            typeof sim.rougeL === "number" ? sim.rougeL : null;
+                                          const f1 =
+                                            typeof sim.f1Score === "number" ? sim.f1Score : null;
+
+                                          if (
+                                            semantic === null &&
+                                            bleu === null &&
+                                            rougeL === null &&
+                                            f1 === null
+                                          ) {
+                                            return null;
+                                          }
+
+                                          const renderValue = (v: number | null) =>
+                                            v === null ? "N/A" : v.toFixed(3);
+
+                                          return (
+                                            <div className="mt-2 space-y-1 text-sm">
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-600">
+                                                  Semantic:
+                                                </span>
+                                                <span
+                                                  className={`font-medium ${
+                                                    semantic !== null && semantic >= 0.7
+                                                      ? "text-green-600"
+                                                      : semantic !== null && semantic >= 0.5
+                                                      ? "text-yellow-600"
+                                                      : "text-gray-700"
+                                                  }`}
+                                                >
+                                                  {renderValue(semantic)}
+                                                </span>
+                                              </div>
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-600">BLEU:</span>
+                                                <span className="font-medium">
+                                                  {renderValue(bleu)}
+                                                </span>
+                                              </div>
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-600">ROUGE-L:</span>
+                                                <span className="font-medium">
+                                                  {renderValue(rougeL)}
+                                                </span>
+                                              </div>
+                                              <div className="flex justify-between">
+                                                <span className="text-gray-600">F1:</span>
+                                                <span className="font-medium">
+                                                  {renderValue(f1)}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })()}
                                       </div>
 
                                       <div className="mt-4 pt-3 border-t">

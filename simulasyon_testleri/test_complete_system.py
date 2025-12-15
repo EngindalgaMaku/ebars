@@ -62,6 +62,14 @@ except ImportError as e:
     print("Required files: ebars_simulation_working.py, visualization.py, analyze_results.py")
     sys.exit(1)
 
+# Import answer similarity evaluator
+try:
+    from test_answer_similarity import AnswerSimilarityEvaluator
+    ANSWER_SIMILARITY_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ Warning: Answer similarity evaluator not available: {e}")
+    ANSWER_SIMILARITY_AVAILABLE = False
+
 
 @dataclass
 class TestResult:
@@ -594,6 +602,97 @@ class EBARSCompleteSystemTest:
                 error=str(e)
             )
     
+    def test_answer_similarity(self) -> TestResult:
+        """Test answer similarity between LLM reference and system answers (RAG and LLM-only)"""
+        start_time = time.time()
+        test_name = "Answer Similarity Evaluation (RAG vs LLM-only)"
+        
+        if not ANSWER_SIMILARITY_AVAILABLE:
+            duration = time.time() - start_time
+            return TestResult(
+                test_name=test_name,
+                passed=False,
+                duration=duration,
+                message="Answer similarity evaluator not available",
+                error="test_answer_similarity module not found"
+            )
+        
+        try:
+            print(f"\n🔍 Testing {test_name}...")
+            
+            # Sample test queries
+            test_queries = [
+                "Fotosentez nedir?",
+                "Mitokondri hücrede ne işe yarar?",
+                "DNA ve RNA arasındaki farklar nelerdir?"
+            ]
+            
+            # Initialize evaluator
+            evaluator = AnswerSimilarityEvaluator(api_base_url=self.api_base_url)
+            
+            # Check if API is available
+            if not self.check_api_availability():
+                print("   ⚠️ API not available, skipping similarity test")
+                duration = time.time() - start_time
+                return TestResult(
+                    test_name=test_name,
+                    passed=False,
+                    duration=duration,
+                    message="API not available for similarity testing",
+                    error="API endpoint not reachable"
+                )
+            
+            # Evaluate RAG mode
+            print("   📊 Evaluating RAG mode...")
+            rag_results = evaluator.evaluate_batch(test_queries[:2], mode="rag")  # Limit to 2 for speed
+            
+            # Evaluate LLM-only mode
+            print("   📊 Evaluating LLM-only mode...")
+            llm_only_results = evaluator.evaluate_batch(test_queries[:2], mode="llm-only")
+            
+            if not rag_results and not llm_only_results:
+                raise Exception("No evaluation results generated")
+            
+            # Calculate average metrics
+            rag_avg = evaluator._calculate_average_metrics(rag_results) if rag_results else {}
+            llm_only_avg = evaluator._calculate_average_metrics(llm_only_results) if llm_only_results else {}
+            
+            # Check if metrics are reasonable
+            issues = []
+            if rag_avg:
+                if rag_avg.get("semantic_similarity", 0) < 0.3:
+                    issues.append("Low semantic similarity for RAG mode")
+            if llm_only_avg:
+                if llm_only_avg.get("semantic_similarity", 0) < 0.3:
+                    issues.append("Low semantic similarity for LLM-only mode")
+            
+            # Generate summary
+            summary = evaluator.generate_summary_report()
+            
+            duration = time.time() - start_time
+            return TestResult(
+                test_name=test_name,
+                passed=len(issues) == 0,
+                duration=duration,
+                message=f"Similarity evaluation completed (RAG: {len(rag_results)}, LLM-only: {len(llm_only_results)})",
+                details={
+                    "rag_average_metrics": rag_avg,
+                    "llm_only_average_metrics": llm_only_avg,
+                    "summary": summary,
+                    "issues": issues
+                }
+            )
+            
+        except Exception as e:
+            duration = time.time() - start_time
+            return TestResult(
+                test_name=test_name,
+                passed=False,
+                duration=duration,
+                message="Answer similarity evaluation failed",
+                error=str(e)
+            )
+    
     def test_api_endpoints(self) -> TestResult:
         """Test API endpoint functionality"""
         start_time = time.time()
@@ -900,6 +999,10 @@ class EBARSCompleteSystemTest:
                 self.test_performance_metrics,
                 self.test_api_endpoints
             ]
+            
+            # Add answer similarity test (RAG vs LLM-only comparison)
+            if ANSWER_SIMILARITY_AVAILABLE:
+                tests_to_run.append(self.test_answer_similarity)
             
             # Add academic validation if not in quick mode
             if not quick_mode:

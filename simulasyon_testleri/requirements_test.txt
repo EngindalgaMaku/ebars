@@ -1,0 +1,16 @@
+# Test bağımlılıkları - Answer Similarity Test için
+# Bu dosya sadece test ortamı için gereklidir, production'a dahil edilmez
+
+# Answer similarity evaluation
+sentence-transformers>=2.2.0  # Semantic similarity için embedding modeli
+nltk>=3.8.0                    # BLEU score hesaplama için
+rouge-score>=0.1.2            # ROUGE score hesaplama için
+
+# Mevcut requirements.txt'deki bağımlılıklar
+numpy>=1.21.0
+pandas>=1.5.0
+requests>=2.31.0
+
+# Test framework (opsiyonel)
+pytest>=7.0.0
+
