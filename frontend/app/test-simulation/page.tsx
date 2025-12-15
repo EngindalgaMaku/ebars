@@ -2132,11 +2132,7 @@ export default function TestSimulationPage() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                             <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
-                            <Tooltip
-                              formatter={(value, name, item, index, payload) =>
-                                tooltipFormatterPercent(value, "Doğruluk Oranı")
-                              }
-                            />
+                          <Tooltip formatter={(value) => tooltipFormatterPercent(value, "Doğruluk Oranı")} />
                             <Legend />
                             <Bar
                               dataKey="accuracy"
