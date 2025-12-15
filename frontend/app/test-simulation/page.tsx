@@ -2077,12 +2077,7 @@ export default function TestSimulationPage() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                             <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip
-                              formatter={(value: number) => [
-                                `${Math.round(value)}ms`,
-                                "Ortalama Yanıt Süresi",
-                              ]}
-                            />
+                            <Tooltip formatter={tooltipFormatterResponseTime} />
                             <Legend />
                             <Bar
                               dataKey="responseTime"
