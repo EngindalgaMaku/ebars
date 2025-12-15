@@ -1278,10 +1278,10 @@ async def execute_full_test_simulation(
                     tasks.append((question_id, question, question_data, task))
                 
                 # Execute batch in parallel
-                batch_results = await asyncio.gather(*[task for _, _, task in tasks], return_exceptions=True)
+                batch_results = await asyncio.gather(*[task for _, _, _, task in tasks], return_exceptions=True)
                 
                 # Process results
-                for (question_id, question, question_data), result in zip(tasks, batch_results):
+                for (question_id, question, question_data, _), result in zip(tasks, batch_results):
                     if isinstance(result, Exception):
                         logger.error(f"Question {question_id} failed for {methodology}: {result}")
                         continue
