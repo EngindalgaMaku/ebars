@@ -124,3 +124,15 @@ RAG teknolojisinin gelecek potansiyelini gösteren çalışmalardan biri, 3D ava
 18. Leskovec, J., Rajaraman, A., & Ullman, J. D. (2020). _Mining of Massive Datasets_ (3rd ed.). Cambridge University Press.
 
 19. Reimers, N., & Gurevych, I. (2019). Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks. _Proceedings of EMNLP-IJCNLP_.
+
+20. Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N., ... & Riedel, S. (2020). Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks. _Advances in Neural Information Processing Systems_, 33, 9459-9474.
+
+21. Karpukhin, V., Oguz, B., Min, S., Lewis, P., Wu, L., Edunov, S., ... & Yih, W. T. (2020). Dense Passage Retrieval for Open-Domain Question Answering. _Proceedings of EMNLP 2020_.
+
+22. Cer, D., Diab, M., Agirre, E., Lopez-Gazpio, I., & Specia, L. (2017). SemEval-2017 Task 1: Semantic Textual Similarity Multilingual and Cross-lingual Focused Evaluation. _Proceedings of SemEval-2017_.
+
+23. Artetxe, M., & Schwenk, H. (2019). Massively Multilingual Sentence Embeddings for Zero-Shot Cross-Lingual Transfer and Beyond. _Transactions of the Association for Computational Linguistics_, 7, 597-610.
+
+24. Zhang, T., Kishore, V., Wu, F., Weinberger, K. Q., & Artzi, Y. (2020). BERTScore: Evaluating Text Generation with BERT. _Proceedings of ICLR 2020_.
+
+25. Gao, T., Fisch, A., & Chen, D. (2021). Making Pre-trained Language Models Better Few-shot Learners. _Proceedings of ACL 2021_.
