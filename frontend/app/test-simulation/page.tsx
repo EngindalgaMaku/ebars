@@ -259,6 +259,18 @@ export default function TestSimulationPage() {
     return [`${numericValue.toFixed(1)}%`, label];
   };
 
+  const tooltipFormatterPercent: Formatter<string | number, string> = (value, name) => {
+    if (Array.isArray(value)) return ["", ""];
+    let numericValue: number | null = null;
+    if (typeof value === "number") numericValue = value;
+    else if (typeof value === "string") {
+      const parsed = parseFloat(value);
+      numericValue = Number.isFinite(parsed) ? parsed : null;
+    }
+    if (numericValue === null) return ["", ""];
+    return [`${numericValue.toFixed(1)}%`, name || ""];
+  };
+
   useEffect(() => {
     setMounted(true);
     fetchAvailableSessions();
@@ -2120,12 +2132,7 @@ export default function TestSimulationPage() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                             <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
-                            <Tooltip
-                              formatter={(value: number) => [
-                                `${value.toFixed(1)}%`,
-                                "Doğruluk Oranı",
-                              ]}
-                            />
+                            <Tooltip formatter={(value) => tooltipFormatterPercent(value, "Doğruluk Oranı")} />
                             <Legend />
                             <Bar
                               dataKey="accuracy"
