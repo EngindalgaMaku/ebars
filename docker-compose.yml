@@ -173,7 +173,13 @@ services:
       - ./services/auth_service/create_test_user.py:/app/create_test_user.py
       - ./services/auth_service/reset_admin_password.py:/app/reset_admin_password.py
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8006/health').read()"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8006/health').read()",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -242,6 +248,11 @@ services:
       - GROQ_API_KEY=${GROQ_API_KEY}
       # CRITICAL FIX: Use internal HTTP URL for API Gateway (not external HTTPS)
       - API_GATEWAY_URL=${API_GATEWAY_URL:-http://api-gateway:8000}
+      # 🚀 PERFORMANCE: Optimized timeout settings
+      - LLM_GENERATION_TIMEOUT=${LLM_GENERATION_TIMEOUT:-60}
+      - EMBEDDING_TIMEOUT=${EMBEDDING_TIMEOUT:-120}
+      - MODEL_LOADING_TIMEOUT=${MODEL_LOADING_TIMEOUT:-300}
+      - RERANK_TIMEOUT=${RERANK_TIMEOUT:-30}
     volumes:
       - session_data:/app/sessions
       # Mount source code for hot reload during development
@@ -254,8 +265,17 @@ services:
       - ./services/document_processing_service/models:/app/models
       - ./services/document_processing_service/config.py:/app/config.py
       - ./src:/app/src
-    # Override Dockerfile CMD with multi-worker uvicorn
-    command: python -m uvicorn main_new:app --host 0.0.0.0 --port 8080 --workers 4
+    # 🚀 PERFORMANCE UPGRADE: Increased workers from 4 to 6 for better concurrent handling
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8080 --workers 6
+    # 🚀 PERFORMANCE: Resource limits and memory optimization
+    deploy:
+      resources:
+        limits:
+          memory: 4G # Increased from default for better performance
+          cpus: "2.0" # Ensure adequate CPU resources
+        reservations:
+          memory: 2G # Minimum memory reservation
+          cpus: "1.0" # Minimum CPU reservation
     restart: unless-stopped
     networks:
       - rag-network
@@ -283,15 +303,19 @@ services:
     volumes:
       - ollama_cache:/root/.ollama
       - ./services/model_inference_service/main.py:/app/main.py
-    # Override startup command: Skip Ollama serve, use external Ollama on host
+    # 🚀 PERFORMANCE UPGRADE: Optimized startup command with more workers
     command: >
       sh -c "echo 'Using external Ollama at ${OLLAMA_HOST}' &&
-             uvicorn main:app --host 0.0.0.0 --port ${MODEL_INFERENCE_PORT:-8002} --workers 4"
-    # Memory optimization: Limit container memory since Ollama runs on host
+             uvicorn main:app --host 0.0.0.0 --port ${MODEL_INFERENCE_PORT:-8002} --workers 6"
+    # 🚀 PERFORMANCE: Enhanced resource limits for better concurrent performance
     deploy:
       resources:
         limits:
-          memory: 2G # Model inference doesn't need much RAM when Ollama is external
+          memory: 3G # Increased from 2G to 3G for better concurrent handling
+          cpus: "2.0" # Added CPU limit for better resource allocation
+        reservations:
+          memory: 1G # Minimum memory reservation
+          cpus: "0.5" # Minimum CPU reservation
     restart: unless-stopped
     networks:
       - rag-network
@@ -314,14 +338,21 @@ services:
       # HuggingFace cache directory for persistent model storage (only needed for local rerankers)
       - HF_HOME=/app/models
       - TRANSFORMERS_CACHE=/app/models
+      # 🚀 PERFORMANCE: Optimized timeout settings for Alibaba API
+      - RERANKER_TIMEOUT=${RERANKER_TIMEOUT:-25}
     volumes:
       - reranker_models:/app/models # Persistent storage for downloaded models (only needed for local rerankers)
+    # 🚀 PERFORMANCE UPGRADE: Increased workers from 1 to 4 for better concurrent handling
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8008 --workers 4
+    # 🚀 PERFORMANCE: Enhanced resource limits for better concurrent performance
     deploy:
       resources:
         limits:
           memory: 2G # Alibaba API doesn't need much RAM, but keep some buffer
+          cpus: "1.5" # Added CPU limit for better resource allocation
         reservations:
           memory: 512M # Minimum reservation
+          cpus: "0.5" # Minimum CPU reservation
     restart: unless-stopped
     networks:
       - rag-network

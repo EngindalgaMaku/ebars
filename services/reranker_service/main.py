@@ -10,6 +10,9 @@ from pydantic import BaseModel
 import time
 import requests
 
+# 🚀 PERFORMANCE: Connection pooling for HTTP requests
+from core.http_client import get_http_client
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,6 +35,8 @@ ALIBABA_RERANKER_MODEL = os.getenv("ALIBABA_RERANKER_MODEL", "gte-rerank-v2")
 # Alibaba DashScope reranker API endpoint
 # Correct endpoint: /api/v1/services/rerank/text-rerank/text-rerank
 ALIBABA_API_BASE = os.getenv("ALIBABA_RERANKER_API_BASE", "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank")
+# 🚀 PERFORMANCE: Optimized timeout for better concurrent performance
+RERANKER_TIMEOUT = int(os.getenv("RERANKER_TIMEOUT", "25"))  # Reduced from 30s to 25s
 
 # Global model instances
 bge_reranker = None
@@ -39,6 +44,9 @@ ms_marco_reranker = None
 alibaba_reranker_available = bool(ALIBABA_API_KEY)
 current_reranker = None
 current_reranker_type = None
+
+# 🚀 PERFORMANCE: Global HTTP client for connection pooling
+http_client = None
 
 
 # Request/Response Models
@@ -139,12 +147,13 @@ def rerank_with_alibaba(query: str, documents: List[str]) -> List[float]:
             "Content-Type": "application/json"
         }
         
-        # Make API request
-        response = requests.post(
+        # 🚀 PERFORMANCE: Use connection pooling instead of requests.post()
+        # This eliminates the blocking HTTP call that was causing worker thread starvation
+        response = http_client.post_sync(
             ALIBABA_API_BASE,
             json=payload,
             headers=headers,
-            timeout=30
+            timeout=RERANKER_TIMEOUT  # Optimized timeout (25s instead of 30s)
         )
         
         # Log response for debugging
@@ -244,8 +253,14 @@ def initialize_reranker():
 # Initialize on startup
 @app.on_event("startup")
 async def startup_event():
+    global http_client
     logger.info("🚀 Reranker Service starting up...")
     logger.info(f"📋 Configuration: RERANKER_TYPE={RERANKER_TYPE}")
+    
+    # 🚀 PERFORMANCE: Initialize HTTP client with connection pooling
+    http_client = get_http_client()
+    logger.info("✅ HTTP client with connection pooling initialized for Reranker Service")
+    
     initialize_reranker()
 
 

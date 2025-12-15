@@ -16,6 +16,15 @@ from huggingface_hub import InferenceClient
 # from sentence_transformers import CrossEncoder  # Moved to get_rerank_model() function
 from openai import OpenAI as OpenAIClient
 
+# 🚀 PERFORMANCE UPGRADE: Import connection pooling for Model Inference Service
+from core.http_client import HybridHTTPClient, get_http_client
+import logging
+
+# Initialize global HTTP client for connection pooling
+http_client = get_http_client()
+logger = logging.getLogger(__name__)
+logger.info("🚀 PERFORMANCE: Model Inference Service - Connection pooling enabled!")
+
 # Disable SSL warnings for HuggingFace API (common in corporate/proxy environments)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -629,11 +638,12 @@ async def generate_response(request: GenerationRequest):
                 payload["response_format"] = request.response_format or {"type": "json_object"}
             
             try:
-                response = requests.post(
+                # 🚀 PERFORMANCE UPGRADE: Use connection pooling for OpenRouter API
+                response = http_client.post_sync(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers=headers,
                     json=payload,
-                    timeout=60
+                    timeout=30  # Reduced from 60s to 30s for better responsiveness
                 )
                 
                 if response.status_code == 200:
@@ -719,7 +729,8 @@ async def generate_response(request: GenerationRequest):
                 for api_url in api_endpoints:
                     try:
                         print(f"Trying HuggingFace API endpoint: {api_url}")
-                        response = requests.post(api_url, json=payload, headers=headers, timeout=120, verify=False)
+                        # 🚀 PERFORMANCE UPGRADE: Use connection pooling for HuggingFace API
+                        response = http_client.post_sync(api_url, json=payload, headers=headers, timeout=60, verify=False)  # Reduced from 120s to 60s
                         print(f"Response status: {response.status_code}")
                         
                         if response.status_code == 200:
@@ -751,8 +762,8 @@ async def generate_response(request: GenerationRequest):
                             print(f"Model {model_name} is loading on {api_url}, waiting {wait_time} seconds...")
                             time.sleep(min(wait_time, 60))
                             
-                            # Retry
-                            response = requests.post(api_url, json=payload, headers=headers, timeout=120, verify=False)
+                            # Retry with connection pooling
+                            response = http_client.post_sync(api_url, json=payload, headers=headers, timeout=60, verify=False)  # Reduced timeout
                             if response.status_code == 200:
                                 result = response.json()
                                 if isinstance(result, list) and len(result) > 0:
@@ -1378,8 +1389,8 @@ async def generate_embeddings(request: EmbedRequest):
                         payload = {"inputs": texts}
                         
                         print(f"Calling HuggingFace API: {api_url} (batch size: {len(texts)}, with API key: {use_api_key})")
-                        # Use increased timeout for batch processing - 5 minutes for large batches
-                        response = requests.post(api_url, json=payload, headers=headers, timeout=300, verify=False)
+                        # 🚀 PERFORMANCE UPGRADE: Use connection pooling for batch processing with optimized timeout
+                        response = http_client.post_sync(api_url, json=payload, headers=headers, timeout=120, verify=False)  # Reduced from 300s to 120s
                         print(f"Response status: {response.status_code} for {api_url}")
                         
                         # Handle 410 (deprecated endpoint) - skip old endpoints immediately
@@ -1396,7 +1407,7 @@ async def generate_embeddings(request: EmbedRequest):
                         if response.status_code == 401 and use_api_key:
                             print(f"⚠️ Unauthorized (401) with API key, trying without API key...")
                             headers_no_key = {"Content-Type": "application/json"}
-                            response = requests.post(api_url, json=payload, headers=headers_no_key, timeout=300, verify=False)
+                            response = http_client.post_sync(api_url, json=payload, headers=headers_no_key, timeout=120, verify=False)  # Connection pooling + timeout optimization
                             print(f"Response without API key (401->): {response.status_code}")
                             retried_without_key = True
                         
@@ -1404,7 +1415,7 @@ async def generate_embeddings(request: EmbedRequest):
                         if response.status_code == 403 and use_api_key:
                             print(f"⚠️ API key permission denied (403), trying without API key...")
                             headers_no_key = {"Content-Type": "application/json"}
-                            response = requests.post(api_url, json=payload, headers=headers_no_key, timeout=300, verify=False)
+                            response = http_client.post_sync(api_url, json=payload, headers=headers_no_key, timeout=120, verify=False)  # Connection pooling + timeout optimization
                             print(f"Response without API key (403->): {response.status_code}")
                             retried_without_key = True
                         
@@ -1414,7 +1425,7 @@ async def generate_embeddings(request: EmbedRequest):
                         while response.status_code == 503 and retry_count < 3:
                             print(f"Model {attempt_model} is loading, waiting 10 seconds... (attempt {retry_count + 1}/3)")
                             time.sleep(10)
-                            response = requests.post(api_url, json=payload, headers=current_headers, timeout=300, verify=False)
+                            response = http_client.post_sync(api_url, json=payload, headers=current_headers, timeout=120, verify=False)  # Connection pooling + timeout optimization
                             print(f"Retry response status: {response.status_code}")
                             retry_count += 1
                         
@@ -1533,14 +1544,14 @@ async def rerank_documents(request: RerankRequest):
     RERANKER_SERVICE_URL = os.getenv("RERANKER_SERVICE_URL", "http://reranker-service:8008")
     
     try:
-        # Forward request to reranker-service
-        response = requests.post(
+        # 🚀 PERFORMANCE UPGRADE: Forward request to reranker-service with connection pooling
+        response = http_client.post_sync(
             f"{RERANKER_SERVICE_URL}/rerank",
             json={
                 "query": request.query,
                 "documents": request.documents
             },
-            timeout=30
+            timeout=15  # Reduced from 30s to 15s for better responsiveness
         )
         
         if response.status_code == 200:

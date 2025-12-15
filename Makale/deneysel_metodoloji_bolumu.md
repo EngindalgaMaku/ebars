@@ -1,153 +1,314 @@
-## Deneysel Metodoloji ve Sistem Değerlendirmesi
+# Deneysel Metodoloji ve Sistem Değerlendirmesi
 
-### Giriş
+## 1. Giriş
 
-Bu çalışmada geliştirilen EduBars (Educational Balanced Adaptive Response System) sisteminin etkinliğini değerlendirmek amacıyla EkoBot çalışmasından [Kumluca Topallı, 2025] ilham alınan basit ve pratik bir deneysel metodoloji tasarlanmıştır. Test ortamı, lise tarih dersi öğretmeni desteği ile oluşturulan gerçek bir ders oturumu üzerinde yürütülmüştür.
+Bu çalışmada geliştirilen **AkıllıRehber sistemi**nin etkinliğini değerlendirmek amacıyla kapsamlı bir deneysel metodoloji tasarlanmıştır. Değerlendirme süreci, **retrieval-augmented generation (RAG)** tabanlı eğitsel sistemlerin performansını ölçmek için literatürde kabul görmüş metrikler ve **EkoBot çalışması** [Kumluca Topallı, 2025] temel alınarak geliştirilmiştir.
 
-### Test Veri Seti
+Deneysel çalışma, gerçek eğitim ortamını simüle etmek amacıyla lise tarih dersi öğretmeni desteği ile oluşturulan otantik bir ders oturumu üzerinde yürütülmüştür. Bu yaklaşım, sistemin pedagojik etkinliğini gerçekçi koşullar altında değerlendirme imkanı sağlamaktadır.
 
-#### Doküman Koleksiyonu
+## 2. Test Veri Seti ve Deneysel Ortam
 
-**Tarih Dersi 10. Sınıf** seviyesinde test gerçekleştirilmiştir:
+### 2.1. Doküman Koleksiyonu
 
-- **Test Materyali**: 10. sınıf Tarih dersi tüm konularını kapsayan tek PDF dokümanı
-- **Sayfa Sayısı**: 120 sayfa
-- **İçerik Kapsamı**: 10. sınıf Tarih müfredatının tamamı
+Deneysel çalışma, **10. sınıf Tarih dersi** müfredatı kapsamında yürütülmüştür. Bu eğitim seviyesinin seçilmesinde, konuların karmaşıklık düzeyi ve öğrenci yaş grubunun bilişsel gelişim seviyesinin uygun olması etkili olmuştur.
 
-#### Chunk İşlemi
+**Test Materyali Özellikleri**:
 
-PDF dokümanı öğretmen panelinde Markdown formatına dönüştürüldükten sonra otomatik chunk'lara ayrılmıştır:
+- **Kaynak doküman**: 10. sınıf Tarih dersi müfredatının tamamını kapsayan tek PDF dokümanı
+- **Sayfa sayısı**: 120 sayfa
+- **İçerik kapsamı**: Osmanlı Devleti'nin modernleşme süreci, Tanzimat dönemi, Meşrutiyet dönemleri ve Türk İnkılabı konularını içermektedir
+- **Dil**: Türkçe (yerel dil desteği test etmek için önemli)
 
-- **Chunk boyutu**: 512-1024 token arası
-- **Overlap oranı**: %20
-- **Toplam chunk sayısı**: 188 adet (sistem tarafından oluşturulan)
-- **Embedding**: Alibaba text-embedding-v4 (Türkçe desteği için seçilmiş)
-- **Reranker**: gte-reranker-v2 (kalite artışı için aktif)
+### 2.2. Doküman İşleme ve Indeksleme
 
-### Test Soruları
+#### 2.2.1. Chunk İşleme Metodolojisi
 
-**10. Sınıf Tarih** konularından soru havuzu oluşturulacaktır:
+PDF dokümanı, sistemin öğretmen panelinde bulunan otomatik doküman işleme modülü kullanılarak Markdown formatına dönüştürülmüştür. Ardından, bilgi erişimini optimize etmek amacıyla semantik anlamlılık korunarak chunk'lara ayrılmıştır:
 
-**Önerilen Soru Sayısı**: 25-30 soru (150 yerine daha makul)
+**Chunking Parametreleri**:
 
-**Soru Oluşturma Yöntemi**:
+- **Chunk boyutu**: 512-1024 token arası (semantik bütünlüğü korumak için değişken boyut)
+- **Overlap oranı**: %20 (bilgi kaybını önlemek için örtüşme sağlanmıştır)
+- **Toplam chunk sayısı**: 188 adet
+- **Chunk stratejisi**: Anlam bütünlüğü korunarak paragraf ve konu sınırları dikkate alınmıştır
 
-- Öğretmen panelindeki otomatik soru üretme özelliği kullanılarak PDF içeriğinden soru havuzu oluşturulacak
-- Manuel olarak hazırlanan sorularla desteklenecek
+#### 2.2.2. Embedding ve Indeksleme
 
-**Soru Türleri**:
+**Embedding Modeli**: Türkçe dil desteği ve performans kriterlerine göre **Alibaba text-embedding-v4** modeli seçilmiştir. Bu model, Türkçe metinler için optimize edilmiş ve çoklu dil desteği sağlamaktadır.
 
-- **Açık uçlu sorular**: %60 (15-18 soru) - "Osmanlı'da Tanzimat dönemini açıkla"
-- **Faktüel sorular**: %25 (6-8 soru) - "Mondros Ateşkes Anlaşması ne zaman imzalandı?"
-- **Karşılaştırmalı sorular**: %15 (4-6 soru) - "Birinci ve İkinci Meşrutiyet farkları nelerdir?"
+**Reranker Konfigürasyonu**: Bilgi erişim kalitesini artırmak amacıyla **gte-reranker-v2** modeli aktif edilmiştir. Bu yaklaşım, ilk aşama retrieval sonuçlarının yeniden sıralanarak ilgili chunk'ların öne çıkarılmasını sağlamaktadır.
 
-### Değerlendirme Metrikleri
+**Vektör Veritabanı**: ChromaDB kullanılarak chunk'ların vektörel temsilleri indekslenmiştir.
 
-#### Temel Performans Göstergeleri
+## 3. Test Soruları ve Ground Truth Metodolojisi
 
-**1. Cosine Similarity**
+### 3.1. Soru Havuzu Tasarımı
 
-- Yanıt ile kaynak chunk arasındaki benzerlik skoru
-- **EkoBot Benchmark**: 0.82
-- **Hedef**: ≥0.80
+Test soru havuzu, **25 adet soru** üzerinden tasarlanmıştır. Bu sayı, istatistiksel olarak anlamlı sonuçlar elde etmek ve manuel kalite kontrol yapabilmek arasında bir denge sağlamaktadır. Literatürde benzer RAG değerlendirme çalışmaları da 20-30 soruluk test setleri kullanmaktadır [Kumluca Topallı, 2025].
 
-**2. Precision@k**
+**Soru Oluşturma Metodolojisi**:
 
-- İlk k sonuçta doğru chunk bulunma oranı
-- k=5 için **EkoBot Benchmark**: %100
-- **Hedef**: ≥%95
+- PDF içeriğinden sistematik soru çıkarımı
+- Öğretmen rehberliğinde pedagogik uygunluk kontrolü
+- Müfredat hedeflerine uygun zorluk seviyesi ayarlaması
 
-**3. Yanıt Süreleri**
+### 3.2. Soru Türleri Dağılımı
 
-- Ortalama yanıt üretme süresi
-- **Hedef**: ≤5 saniye
+Eğitsel değerlendirme literatürü temel alınarak, farklı bilişsel becerileri ölçmeye yönelik soru türleri belirlenmiştir:
 
-### Karşılaştırmalı Testler
+- **Açık uçlu sorular**: %60 (15 soru) - Örnek: _"Osmanlı Devleti'nde Tanzimat döneminin modernleşme üzerindeki etkilerini açıklayınız"_
+- **Faktüel sorular**: %25 (6 soru) - Örnek: _"Mondros Ateşkes Anlaşması hangi tarihte imzalanmıştır?"_
+- **Karşılaştırmalı sorular**: %15 (4 soru) - Örnek: _"Birinci ve İkinci Meşrutiyet dönemlerinin farklılıklarını karşılaştırınız"_
 
-#### EduBars vs Tek Model
+### 3.3. Ground Truth Cevap Metodolojisi
 
-İki aşamalı sistemin (ChromaDB + Reranker + LLM) tek model yaklaşımına karşı performansı:
+Sistemin cevap kalitesini ölçmek amacıyla **ground truth (altın standart) cevaplar** hazırlanmıştır:
 
-**Test Senaryoları**:
+**Ground Truth Hazırlanma Süreci**:
 
-1. **EduBars Sistemi**: ChromaDB → Reranker → Llama 3.1 8B
-2. **Tek Model**: Doğrudan Llama 3.1 8B (RAG olmadan)
+1. **Alan uzmanı değerlendirmesi**: Tarih öğretmeni tarafından doğru cevapların belirlenmesi
+2. **Kaynak doküman uyumu**: Cevapların PDF içeriği ile tutarlılığının kontrol edilmesi
+3. **Pedagojik uygunluk**: Lise seviyesine uygun açıklama detayının sağlanması
 
-#### İki Aşama vs Tek Aşama RAG
+**Kalite Kontrol Metrikleri**:
 
-**Test Senaryoları**:
+- Kaynak dokümanda destekleyici bilgi bulunması
+- Pedagojik hedeflerle uyum
+- Dil ve anlatım açıklığı
 
-1. **İki Aşama**: ChromaDB retrieval → Reranker → LLM
-2. **Tek Aşama**: Sadece ChromaDB retrieval → LLM
+## 4. Değerlendirme Metrikleri
 
-### Sistem Konfigürasyonu
+### 4.1. Retrieval Performans Metrikleri
 
-**Kullanılan Modeller** (öğretmen panelinde konfigüre edilmiş):
+#### 4.1.1. Cosine Similarity
 
-- **LLM**: Llama 3.1 8B (Groq API) - hızlı yanıt alınması için seçilmiş
-- **Embedding**: Alibaba text-embedding-v4 - Türkçe desteği için seçilmiş
-- **Reranker**: gte-reranker-v2 - aktif edilmiş
+**Tanım**: Sistem tarafından bulunan en ilgili doküman chunk'ı ile soru arasındaki vektörel benzerlik ölçütüdür.
 
-**Retrieval Parametreleri**:
+**Hesaplama**: Embedding vektörleri arasında cosine similarity hesaplanır:
 
-- İlk aşama ChromaDB: k=15 chunk
-- Reranker sonrası: top-5 chunk
-- Context window: 4096 token
+```
+cosine_similarity = (A · B) / (||A|| × ||B||)
+```
 
-### Test Uygulama Süreci
+**Benchmark değeri**: EkoBot çalışmasında 0.82 [Kumluca Topallı, 2025]
+**Hedef değer**: ≥0.80
 
-#### Veri Hazırlama (Tamamlanmış)
+#### 4.1.2. Precision@k
 
-1. ✅ Tarih PDF'inin öğretmen panelinde Markdown'a dönüştürülmesi
-2. ✅ Otomatik chunk oluşturma (188 chunk)
-3. ✅ Alibaba text-embedding-v4 ile embedding üretimi
-4. ✅ ChromaDB'ye indeksleme
+**Tanım**: İlk k retrieval sonucunda alakalı dokümanların oranını ölçer.
 
-#### Test Yürütme (Öğretmen Paneli Simülasyon Sayfası)
+**Hesaplama**: `Precision@k = (İlgili doküman sayısı) / k`
 
-1. Öğretmen panelinde simülasyon test ortamı kurulumu
-2. 25-30 soru ile sistemli test yürütme
-3. Her soru için yanıt sürelerinin otomatik kaydı
-4. Kaynak chunk'ların görüntülenmesi
-5. Cosine similarity ve Precision@5 hesaplama
+- **Precision@5**: İlk 5 sonuçta doğru chunk bulunma oranı
+- **Precision@10**: İlk 10 sonuçta doğru chunk bulunma oranı
 
-### Beklenen Sonuçlar
+**Benchmark değeri**: EkoBot çalışmasında Precision@5 için %100
+**Hedef değerler**: Precision@5 ≥%95, Precision@10 ≥%85
 
-**Performans Hedefleri**:
+### 4.2. Cevap Kalitesi Metrikleri
 
-- **Cosine Similarity**: ≥0.80 (EkoBot: 0.82)
-- **Precision@5**: ≥%95 (EkoBot: %100)
-- **Ortalama Yanıt Süresi**: ≤5 saniye
+#### 4.2.1. Semantic Similarity (Cevap-Ground Truth)
 
-### Test Ortamı Kurulumu
+**Tanım**: LLM'in ürettiği cevap ile ground truth cevap arasındaki anlamsal benzerlik ölçütüdür.
 
-**Mevcut Sistem** (Hazır durumda):
+**Hesaplama Metodolojisi**:
 
-- EduBars mikroservis mimarisi çalışır durumda
-- Groq API entegrasyonu aktif
-- ChromaDB servisi çalışır durumda
-- Öğretmen paneli erişilebilir
+1. Her iki cevabın text-embedding-v4 ile embedding'i çıkarılır
+2. Cosine similarity hesaplanır
+3. 0-1 arasında normalize edilen değer elde edilir
 
-**Test Ortamı Adımları**:
+**Yorumlama**:
 
-1. Öğretmen paneline giriş
-2. "Tarih Dersi 10. Sınıf" oturumuna geçiş
-3. Simülasyon sayfası kurulumu
-4. 25-30 soruluk test soru havuzunun oluşturulması
-5. Otomatik test yürütme başlatma
+- 0.7-1.0: Yüksek kalite (İyi anlamsal uyum)
+- 0.5-0.7: Orta kalite (Kabul edilebilir uyum)
+- 0.0-0.5: Düşük kalite (Yetersiz uyum)
 
-### Soru Sayısı Önerileri
+**Bu metrik sadece ground truth cevabı olan sorular için hesaplanmaktadır.**
 
-**150 soru yerine 25-30 soru önerilir çünkü**:
+### 4.3. Sistem Performans Metrikleri
 
-- Tek ders alanı için yeterli örneklem
-- Manuel hazırlama ve kontrol edilebilir
-- EkoBot çalışması da benzer sayıda soru kullanmış
-- Test süresi makul kalır (2-3 saat)
-- Kaliteli soru hazırlamaya odaklanılabilir
+#### 4.3.1. Yanıt Süreleri
 
-### Sonuç ve Değerlendirme
+**Tanım**: Soru alınmasından cevap üretilmesine kadar geçen süre.
 
-Bu basit metodoloji ile EduBars sisteminin 10. sınıf Tarih dersi özelinde temel performans göstergeleri ölçülecektir. EkoBot çalışmasından ilham alınan bu yaklaşım, praktik ve uygulanabilir ölçütlere odaklanmaktadır.
+**Ölçüm bileşenleri**:
 
-Test sonuçları, sistemin lise düzeyinde tarih eğitimi için etkinliğini gösterecek ve gelecek geliştirmeler için veri sağlayacaktır.
+- Retrieval süresi
+- Reranking süresi
+- LLM inference süresi
+- Toplam yanıt süresi
+
+**Hedef değer**: ≤5 saniye (eğitsel etkileşim için uygun)
+
+#### 4.3.2. Accuracy (Doğruluk)
+
+**Tanım**: Cosine similarity >0.5 olan cevapların oranı.
+
+**Hesaplama**: `Accuracy = (Başarılı cevap sayısı) / (Toplam soru sayısı) × 100`
+
+## 5. Karşılaştırmalı Test Metodolojisi
+
+### 5.1. Test Senaryoları
+
+Sistemin etkinliğini kapsamlı olarak değerlendirmek amacıyla üç farklı yaklaşım karşılaştırılmıştır:
+
+#### 5.1.1. AkıllıRehber(RAG + ReRanker Kombinasyonu)
+
+**Sistem mimarisi**: ChromaDB → Reranker → LLM
+
+- İki aşamalı retrieval süreci
+- gte-reranker-v2 ile sonuç iyileştirme
+- Groq API üzerinden Llama 3.1 8B model
+
+#### 5.1.2. AkıllıRehber(Sadece RAG)
+
+**Sistem mimarisi**: ChromaDB → LLM (Reranker olmadan)
+
+- Tek aşamalı retrieval süreci
+- Doğrudan embedding tabanlı retrieval
+- Reranker kullanmadan LLM inference
+
+#### 5.1.3. Sadece LLM
+
+**Sistem mimarisi**: Doğrudan LLM (RAG olmadan)
+
+- Retrieval yapılmadan doğrudan soru-cevap
+- Parametrik bilgi üzerinden yanıt üretimi
+- Context bilgisi sağlanmaz
+
+### 5.2. Kontrol Değişkenleri
+
+Karşılaştırmanın geçerliliğini sağlamak amacıyla aşağıdaki değişkenler sabit tutulmuştur:
+
+- **LLM modeli**: Llama 3.1 8B (Groq API)
+- **Embedding modeli**: Alibaba text-embedding-v4
+- **Test soru seti**: Aynı 25 soru
+- **Test ortamı**: Aynı sistem altyapısı
+
+## 6. Sistem Konfigürasyonu ve Teknik Detaylar
+
+### 6.1. Model Seçimi ve Gerekçeleri
+
+#### 6.1.1. Büyük Dil Modeli (LLM)
+
+**Seçilen model**: Llama 3.1 8B (Groq API)
+
+**Seçim gerekçeleri**:
+
+- **Performans-hız dengesi**: 8B parametre ile yeterli performans, hızlı inference
+- **Türkçe desteği**: Çok dilli eğitim ile Türkçe anlama kabiliyeti
+- **API erişilebilirliği**: Groq üzerinden stabil ve hızlı erişim
+- **Maliyet etkinliği**: Eğitsel kullanım için uygun maliyet yapısı
+
+#### 6.1.2. Embedding Modeli
+
+**Seçilen model**: Alibaba text-embedding-v4
+
+**Seçim gerekçeleri**:
+
+- **Türkçe optimizasyonu**: Türkçe metinler için özel eğitilmiş
+- **Çok dilli destek**: 100+ dil desteği ile geliştirilmiş
+- **Yüksek boyutluluk**: 1024 boyutlu vektörler ile detaylı temsil
+- **Akademik performans**: Benchmark testlerinde yüksek başarı
+
+#### 6.1.3. Reranker Modeli
+
+**Seçilen model**: gte-reranker-v2
+
+**Seçim gerekçeleri**:
+
+- **İkinci aşama optimizasyonu**: İlk retrieval sonuçlarını iyileştirme
+- **Cross-encoder mimarisi**: Query-doküman etkileşimini detaylı modelleme
+- **Türkçe uyumluluğu**: Çok dilli destek ile Türkçe metinlerde etkili
+
+### 6.2. Sistem Parametreleri
+
+**Retrieval Konfigürasyonu**:
+
+- **İlk aşama retrieval**: k=15 chunk (çeşitliliği korumak için)
+- **Reranker sonrası**: Top-5 chunk (kaliteyi artırmak için)
+- **Context window**: 4096 token (LLM limitine uygun)
+- **Chunk overlap**: %20 (bilgi sürekliliğini sağlamak için)
+
+**LLM Inference Parametreleri**:
+
+- **Temperature**: 0.1 (tutarlı yanıtlar için düşük randomness)
+- **Max tokens**: 1024 (detaylı açıklamalar için yeterli)
+- **Top-p**: 0.9 (kaliteli token seçimi için)
+
+## 7. Deneysel Süreç ve Veri Toplama
+
+### 7.1. Test Ortamı Hazırlığı
+
+**Sistem altyapısı**:
+
+- **Mikroservis mimarisi**: Docker konteynerler ile izole edilmiş servisler
+- **API Gateway**: Merkezi yönetim ve load balancing
+- **Vektör veritabanı**: ChromaDB ile persistent storage
+- **Monitoring**: Gerçek zamanlı performans takibi
+
+### 7.2. Test Yürütme Protokolü
+
+**Otomatik test sistemi** kullanılarak standardize edilmiş süreç uygulanmıştır:
+
+1. **Test başlatma**: Web-based simülasyon paneli üzerinden
+2. **Soru yürütme**: Her soru için otomatik sekuensiyel işleme
+3. **Metrik toplama**: Gerçek zamanlı performans verisi kaydı
+4. **Sonuç aggregation**: Test bitiminde özet istatistiklerin üretimi
+
+**Kalite kontrol adımları**:
+
+- Her soru için yanıt zamanı kaydı
+- Retrieval edilen chunk'ların loglanması
+- Error handling ve retry mekanizmaları
+- Ground truth ile otomatik karşılaştırma
+
+### 7.3. Veri Toplama Metrikleri
+
+Her test sorusu için aşağıdaki veriler otomatik olarak toplanmıştır:
+
+- **Soru ID ve metni**
+- **Metodoloji bilgisi** (hangi sistem konfigürasyonu)
+- **Yanıt süresi** (millisaniye hassasiyetinde)
+- **Retrieval edilen chunk sayısı**
+- **Max cosine similarity değeri**
+- **Precision@k hesaplamaları**
+- **LLM yanıtı** (tam metin)
+- **Semantic similarity skoru** (ground truth varsa)
+
+## 8. Etik Hususlar ve Sınırlılıklar
+
+### 8.1. Etik Değerlendirme
+
+**Veri gizliliği**: Test soruları ve cevaplar anonim olarak işlenmiş, kişisel veri kullanılmamıştır.
+
+**Eğitsel uygunluk**: Tüm test materyalleri pedagojik uygunluk açısından öğretmen tarafından onaylanmıştır.
+
+**Açık bilim**: Test metodolojisi ve sonuçlar şeffaflık ilkesi ile paylaşılmaktadır.
+
+### 8.2. Metodolojik Sınırlılıklar
+
+**Kapsam sınırlılığı**: Test sadece Tarih dersi ile sınırlıdır, diğer disiplinlerde performans farklılık gösterebilir.
+
+**Dil sınırlılığı**: Sadece Türkçe değerlendirme yapılmış, çok dilli performans test edilmemiştir.
+
+**Ölçek sınırlılığı**: 25 soruluk test seti, büyük ölçekli değerlendirmeler için genişletilebilir.
+
+**Temporal sınırlılık**: Tek zaman diliminde test yürütülmüş, sistemin zaman içindeki performans değişimi gözlemlenmemiştir.
+
+## 9. Sonuç
+
+Bu deneysel metodoloji, AkıllıRehber sisteminin performansını objektif ve tekrarlanabilir şekilde değerlendirmek için tasarlanmıştır. EkoBot çalışmasından ilham alınan benchmark yaklaşımı ile birlikte, üç farklı sistem konfigürasyonunun karşılaştırılmalı analizi mümkün kılınmıştır.
+
+**Metodolojinin katkıları**:
+
+- Türkçe eğitsel RAG sistemleri için standardize değerlendirme çerçevesi
+- Ground truth tabanlı kalite ölçümü metodolojisi
+- Gerçek eğitim ortamını simüle eden test koşulları
+- Tekrarlanabilir ve genişletilebilir deneysel süreç
+
+Test sonuçları, bu metodoloji çerçevesinde sistemin güçlü ve zayıf yönlerini ortaya koyacak, gelecek geliştirmeler için somut veri sağlayacaktır.
+
+---
+
+_Bu metodoloji dosyası ile birlikte "rapor_ve_sonuc_bölumu.md" dosyası gerçek test sonuçları ile tamamlanarak akademik makale formatında sunulacaktır._

@@ -71,6 +71,10 @@ RAG teknolojisinin gelecek potansiyelini gösteren çalışmalardan biri, 3D ava
 
 "Retrieval Augmented Generation Evaluation in the Era of Large Language Models: A Comprehensive Survey" başlıklı kapsamlı araştırma, RAG sistemlerinin değerlendirilmesinde kullanılan metrikleri ve yöntemleri detaylı olarak incelemektedir. Bu çalışma, eğitim alanındaki RAG uygulamaları için uygun değerlendirme çerçevelerinin belirlenmesinde rehber niteliğindedir (2025).
 
+### Metin Benzerliği Değerlendirme Metrikleri
+
+**Jaccard Similarity (Jaccard Index)**: Metin benzerliği değerlendirmesinde kullanılan klasik bir set benzerlik metriğidir. 1901 yılında Paul Jaccard tarafından tanıtılan bu metrik, iki küme arasındaki benzerliği ölçmek için kullanılır ve bilgi erişimi, doğal dil işleme ve metin madenciliği alanlarında yaygın olarak kullanılmaktadır (Jaccard, 1901). Modern bilgi erişimi ve metin benzerliği çalışmalarında, Jaccard Similarity'nin token-based ve n-gram varyasyonları kullanılmaktadır (Manning et al., 2008; Leskovec et al., 2020). Bu metrik, embedding tabanlı yöntemlerin yaygınlaşmasından önce metin benzerliği ölçümünde standart bir yaklaşım olarak kabul edilmiştir ve özellikle hesaplama verimliliği ve bağımlılık gerektirmemesi nedeniyle production ortamlarında tercih edilmektedir.
+
 ### RAG Verimliliği Analizi
 
 "Maximizing RAG Efficiency: A Comparative Analysis of RAG Methods" çalışması, farklı RAG yöntemlerinin performans karşılaştırmasını yaparak optimal yaklaşımların belirlenmesine katkı sağlamaktadır. Bu araştırma, eğitim sistemlerinde kaynak kullanımı ve yanıt kalitesi dengesi için kritik önemde bulgular sunmaktadır (2024).
@@ -112,3 +116,11 @@ RAG teknolojisinin gelecek potansiyelini gösteren çalışmalardan biri, 3D ava
 14. Maximizing RAG Efficiency: A Comparative Analysis of RAG Methods. (2024). _Performance Optimization Studies_.
 
 15. EkoBot: Türkçe Destekli Akıllı Sanal Akademik Danışman. (2024). _Türk Eğitim Teknolojileri_.
+
+16. Jaccard, P. (1901). Étude comparative de la distribution florale dans une portion des Alpes et des Jura. _Bulletin de la Société Vaudoise des Sciences Naturelles_, _37_, 547-579.
+
+17. Manning, C. D., Raghavan, P., & Schütze, H. (2008). _Introduction to Information Retrieval_. Cambridge University Press.
+
+18. Leskovec, J., Rajaraman, A., & Ullman, J. D. (2020). _Mining of Massive Datasets_ (3rd ed.). Cambridge University Press.
+
+19. Jurafsky, D., & Martin, J. H. (2020). _Speech and Language Processing: An Introduction to Natural Language Processing, Computational Linguistics, and Speech Recognition_ (3rd ed.). Prentice Hall.

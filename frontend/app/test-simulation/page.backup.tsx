@@ -482,117 +482,6 @@ export default function TestSimulationPage() {
     }
   }, [questionText]);
 
-  const startSemanticSimilarityTest = async () => {
-    if (!config.testName.trim()) {
-      toast.error("Lütfen test adı girin");
-      return;
-    }
-
-    try {
-      setIsRunning(true);
-      setError(null);
-
-      if (config.customQuestions.length === 0) {
-        toast.error("Lütfen test sorularını girin");
-        return;
-      }
-
-      const testQuestions = config.customQuestions.slice(
-        0,
-        config.numQuestions
-      );
-
-      // API call to start semantic similarity test
-      const response = await fetch("/api/test-simulation/semantic-similarity", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          testName: config.testName,
-          questions: testQuestions,
-          methods: config.testMethods.length > 0 ? config.testMethods : ["rag"],
-          enableBenchmark: false,
-          exportFormats: ["json"],
-          sessionId: selectedSessionId,
-          sessionSettings: selectedSession?.rag_settings || null,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response
-          .json()
-          .catch(() => ({ error: "Semantic similarity testi başlatılamadı" }));
-        throw new Error(error.error || `HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      // Initialize test result
-      const initialResult: TestResult = {
-        testId: result.testId,
-        testName: `${config.testName} (Semantic Similarity)`,
-        status: "running",
-        progress: 0,
-        startTime: new Date().toISOString(),
-        metrics: {
-          cosineSimilarity: 0,
-          precisionAt5: 0,
-          precisionAt10: 0,
-          avgResponseTime: 0,
-          totalQuestions: testQuestions.length,
-          correctAnswers: 0,
-        },
-        methodComparison: {
-          eduBars: {
-            cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
-            avgResponseTime: 0,
-            accuracy: 0,
-          },
-          basicRag: {
-            cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
-            avgResponseTime: 0,
-            accuracy: 0,
-          },
-          llmOnly: {
-            cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
-            avgResponseTime: 0,
-            accuracy: 0,
-          },
-        },
-        benchmarkComparison: {
-          ekoBot: {
-            cosineSimilarity: 0,
-            precisionAt5: 0,
-            label: "EkoBot",
-          },
-          current: {
-            cosineSimilarity: 0,
-            precisionAt5: 0,
-            label: "Current",
-          },
-        },
-      };
-
-      setCurrentTest(initialResult);
-      toast.success("Semantic similarity testi başlatıldı");
-
-      // Start polling for results
-      pollTestStatus(result.testId);
-    } catch (err: any) {
-      console.error("Semantic similarity test error:", err);
-      setError(err.message || "Semantic similarity testi başlatılamadı");
-      toast.error(err.message || "Semantic similarity testi başlatılamadı");
-      setIsRunning(false);
-    }
-  };
-
   const startTest = async () => {
     if (!config.testName.trim()) {
       toast.error("Lütfen test adı girin");
@@ -1433,7 +1322,7 @@ export default function TestSimulationPage() {
                     </>
                   )}
 
-                  <div className="pt-4 border-t space-y-2">
+                  <div className="pt-4 border-t">
                     <Button
                       onClick={startTest}
                       disabled={
@@ -1456,31 +1345,6 @@ export default function TestSimulationPage() {
                         <>
                           <Play className="mr-2 h-5 w-5" />
                           Testi Başlat
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      onClick={startSemanticSimilarityTest}
-                      disabled={
-                        isRunning ||
-                        !config.testName.trim() ||
-                        config.customQuestions.length === 0 ||
-                        !selectedSessionId ||
-                        !selectedSession
-                      }
-                      className="w-full"
-                      size="lg"
-                      variant="outline"
-                    >
-                      {isRunning ? (
-                        <>
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Semantic Similarity Testi Başlatılıyor...
-                        </>
-                      ) : (
-                        <>
-                          <Target className="mr-2 h-5 w-5" />
-                          Semantic Similarity Testi
                         </>
                       )}
                     </Button>

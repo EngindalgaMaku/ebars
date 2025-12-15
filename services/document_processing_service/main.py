@@ -12,6 +12,14 @@ import logging
 import chromadb
 # Settings removed - HttpClient handles configuration internally
 
+# PERFORMANCE UPGRADE: Import HybridHTTPClient for connection pooling
+from core.http_client import HybridHTTPClient
+from core.embedding_client import get_embeddings_direct_sync, EmbeddingClient
+
+# Initialize global HTTP client for connection pooling (ZERO RISK IMPROVEMENT)
+http_client = HybridHTTPClient()
+logger.info("🚀 PERFORMANCE: Connection pooling enabled with HybridHTTPClient")
+
 # Import UNIFIED chunking system with LLM post-processing support
 import sys
 from pathlib import Path
@@ -184,18 +192,19 @@ def get_embeddings_direct(texts: List[str], embedding_model: str = "text-embeddi
     """
     Direct embedding function for use with unified chunking system.
     Get embeddings from local model inference service (Ollama)
+    🚀 PERFORMANCE: Now uses connection pooling via HybridHTTPClient
     """
     try:
         embed_url = f"{MODEL_INFERENCER_URL}/embed"
         
         logger.info(f"Getting embeddings for {len(texts)} texts using model: {embedding_model}")
         
-        # Send all texts in a single request for efficiency
-        response = requests.post(
+        # 🚀 PERFORMANCE UPGRADE: Use connection pooling instead of new connection each time
+        response = http_client.post_sync(
             embed_url,
             json={"texts": texts, "model": embedding_model},
             headers={"Content-Type": "application/json"},
-            timeout=300  # 5 minutes for multiple chunks with slow local embeddings
+            timeout=120  # Reduced from 300s to 120s for better responsiveness
         )
         
         if response.status_code != 200:
@@ -267,16 +276,17 @@ class CRAGEvaluator:
         
         try:
             logger.info(f"▶️ Calling rerank service for CRAG evaluation. Query: '{query[:50]}...', Docs: {len(docs_to_rerank)}")
-            response = requests.post(
+            # 🚀 PERFORMANCE UPGRADE: Use connection pooling for rerank service
+            response = http_client.post_sync(
                 self.rerank_url,
                 json={"query": query, "documents": docs_to_rerank},
-                timeout=60
+                timeout=30  # Reduced from 60s to 30s for better responsiveness
             )
             response.raise_for_status()
             rerank_results = response.json().get("results", [])
             logger.info(f"◀️ Rerank service returned {len(rerank_results)} results.")
 
-        except requests.exceptions.RequestException as e:
+        except Exception as e:  # Broader exception catching for http_client
             logger.error(f"❌ CRITICAL: Rerank service call failed: {e}. Cannot perform CRAG evaluation.")
             # Fail open: if reranker fails, accept the documents to not block the user.
             # This is a production-friendly choice.
@@ -361,14 +371,19 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Detailed health check"""
+    """
+    🚀 PHASE 1 ASYNC: Detailed health check with async HTTP calls
+    ZERO RISK - Read-only health check endpoint
+    """
     try:
         model_service_status = False
         
         # Test model inference service
         try:
-            health_response = requests.get(f"{MODEL_INFERENCER_URL}/health", timeout=5)
+            # 🚀 PHASE 1 ASYNC UPGRADE: Use async HTTP client for non-blocking health checks
+            health_response = await http_client.get_async(f"{MODEL_INFERENCER_URL}/health", timeout=5)
             model_service_status = health_response.status_code == 200
+            logger.debug(f"✅ ASYNC: Model service health check completed (status: {model_service_status})")
         except Exception as e:
             logger.debug(f"Model service health check failed: {e}")
         
@@ -1029,7 +1044,8 @@ async def rag_query(request: RAGQueryRequest):
                 use_reranker = True  # Default: CRAG evaluator uses reranker
                 try:
                     # Try to get session rag_settings to check if reranker is explicitly enabled
-                    session_response = requests.get(
+                    # 🚀 PERFORMANCE UPGRADE: Use connection pooling for API Gateway calls
+                    session_response = http_client.get_sync(
                         f"{os.getenv('API_GATEWAY_URL', 'http://api-gateway:8000')}/sessions/{request.session_id}",
                         timeout=5
                     )
@@ -1117,7 +1133,8 @@ async def rag_query(request: RAGQueryRequest):
                 if use_reranker:
                     try:
                         # Try to get session rag_settings from API Gateway for reranker_type
-                        session_response = requests.get(
+                        # 🚀 PERFORMANCE UPGRADE: Use connection pooling for API Gateway calls
+                        session_response = http_client.get_sync(
                             f"{os.getenv('API_GATEWAY_URL', 'http://api-gateway:8000')}/sessions/{request.session_id}",
                             timeout=5
                         )
@@ -1170,7 +1187,8 @@ async def rag_query(request: RAGQueryRequest):
                     # Get min_score_threshold from session RAG settings
                     min_score_threshold = 0.4  # Default
                     try:
-                        session_response = requests.get(
+                        # 🚀 PERFORMANCE UPGRADE: Use connection pooling for session settings
+                        session_response = http_client.get_sync(
                             f"{os.getenv('API_GATEWAY_URL', 'http://api-gateway:8000')}/sessions/{request.session_id}",
                             timeout=5
                         )
@@ -1329,10 +1347,11 @@ async def rag_query(request: RAGQueryRequest):
                     }
                     
                     try:
-                        gen_response = requests.post(
+                        # 🚀 PERFORMANCE UPGRADE: Use connection pooling for LLM generation
+                        gen_response = http_client.post_sync(
                             f"{MODEL_INFERENCER_URL}/models/generate",
                             json=gen_request,
-                            timeout=180  # 3 minutes for Ollama models (CPU can be slow)
+                            timeout=60  # Reduced from 180s to 60s for better responsiveness
                         )
                         
                         if gen_response.status_code == 200:
@@ -1376,10 +1395,11 @@ async def rag_query(request: RAGQueryRequest):
                                 }
                                 
                                 try:
-                                    verify_response = requests.post(
+                                    # 🚀 PERFORMANCE UPGRADE: Use connection pooling for verification
+                                    verify_response = http_client.post_sync(
                                         f"{MODEL_INFERENCER_URL}/models/generate",
                                         json=verify_request,
-                                        timeout=60
+                                        timeout=30  # Reduced from 60s to 30s for better responsiveness
                                     )
                                     
                                     if verify_response.status_code == 200:
@@ -1666,9 +1686,10 @@ async def retrieve_documents(request: RetrieveRequest):
 @app.get("/sessions/{session_id}/chunks")
 async def get_session_chunks(session_id: str):
     """
-    Get chunks for a specific session from ChromaDB
+    🚀 PHASE 2 ASYNC: Get chunks for a specific session from ChromaDB
+    LOW RISK - Read-only endpoint for chunk retrieval
     """
-    logger.info(f"Getting chunks for session: {session_id}")
+    logger.info(f"🚀 ASYNC: Getting chunks for session: {session_id}")
     
     # Convert session_id to collection name format
     if len(session_id) == 32 and session_id.replace('-', '').isalnum():
@@ -2155,7 +2176,8 @@ async def reprocess_session_documents(
         embedding_model = None
         try:
             api_gateway_url = os.getenv("API_GATEWAY_URL", "http://api-gateway:8000")
-            session_response = requests.get(
+            # 🚀 PERFORMANCE UPGRADE: Use connection pooling for session settings
+            session_response = http_client.get_sync(
                 f"{api_gateway_url}/sessions/{session_id}",
                 timeout=10
             )

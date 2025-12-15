@@ -841,6 +841,138 @@ async def start_test_simulation(
         logger.error(f"Failed to start test simulation: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start test simulation: {str(e)}")
 
+@router.post("/semantic-similarity", summary="Start Semantic Similarity Only Test")
+async def start_semantic_similarity_test(
+    request_data: TestStartRequest,
+    background_tasks: BackgroundTasks,
+    request: Request
+) -> Dict[str, Any]:
+    """
+    Start a semantic similarity only test.
+    This test focuses solely on semantic similarity metrics between reference and system answers.
+    """
+    from src.api.main import _require_owner_or_admin
+    
+    # Verify access to session
+    _require_owner_or_admin(request, request_data.sessionId)
+    
+    try:
+        # Import semantic similarity test module
+        try:
+            sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            from simulasyon_testleri.test_semantic_similarity_only import SemanticSimilarityOnlyTest
+        except ImportError as e:
+            logger.error(f"Could not import SemanticSimilarityOnlyTest: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Semantic similarity test module not available"
+            )
+        
+        # Generate unique test ID
+        test_id = str(uuid.uuid4())
+        
+        # Initialize test progress
+        test_progress = {
+            "test_id": test_id,
+            "test_name": f"{request_data.testName} (Semantic Similarity Only)",
+            "test_type": "semantic_similarity_only",
+            "session_id": request_data.sessionId,
+            "session_settings": request_data.sessionSettings,
+            "status": "running",
+            "current_question": 0,
+            "total_questions": len(request_data.questions),
+            "start_time": datetime.utcnow().isoformat(),
+            "questions": request_data.questions,
+            "mode": request_data.methods[0] if request_data.methods else "rag",
+            "results": []
+        }
+        
+        # Store test progress
+        TEST_RESULTS_STORAGE[test_id] = test_progress
+        _save_test_to_db(test_id, test_progress)
+        
+        # Start background task
+        background_tasks.add_task(
+            execute_semantic_similarity_test,
+            test_id,
+            request_data.questions,
+            request_data.sessionId,
+            request_data.methods[0] if request_data.methods else "rag"
+        )
+        
+        return {
+            "success": True,
+            "testId": test_id,
+            "message": "Semantic similarity test started",
+            "total_questions": len(request_data.questions),
+            "mode": request_data.methods[0] if request_data.methods else "rag",
+            "estimated_duration_minutes": len(request_data.questions) * 1.0  # ~1 min per question
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to start semantic similarity test: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to start semantic similarity test: {str(e)}"
+        )
+
+async def execute_semantic_similarity_test(
+    test_id: str,
+    questions: List[str],
+    session_id: str,
+    mode: str = "rag"
+):
+    """
+    Execute semantic similarity test in background
+    """
+    try:
+        # Import test module
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        from simulasyon_testleri.test_semantic_similarity_only import SemanticSimilarityOnlyTest
+        
+        # Get API gateway URL
+        api_url = API_GATEWAY_URL.replace("/api", "")  # Remove /api prefix
+        
+        # Initialize tester
+        tester = SemanticSimilarityOnlyTest(api_base_url=api_url)
+        
+        # Update status
+        test_data = TEST_RESULTS_STORAGE.get(test_id)
+        if test_data:
+            test_data["status"] = "running"
+            _save_test_to_db(test_id, test_data)
+        
+        # Run test
+        results = tester.run_test(
+            questions=questions,
+            session_id=session_id,
+            user_id="test_user",
+            mode=mode
+        )
+        
+        # Update test results
+        test_data = TEST_RESULTS_STORAGE.get(test_id)
+        if test_data:
+            test_data["status"] = "completed" if results.get("success") else "failed"
+            test_data["results"] = results
+            test_data["end_time"] = datetime.utcnow().isoformat()
+            test_data["summary"] = results.get("summary", {})
+            TEST_RESULTS_STORAGE[test_id] = test_data
+            _save_test_to_db(test_id, test_data)
+        
+        logger.info(f"Semantic similarity test {test_id} completed")
+        
+    except Exception as e:
+        logger.error(f"Error executing semantic similarity test {test_id}: {e}")
+        test_data = TEST_RESULTS_STORAGE.get(test_id)
+        if test_data:
+            test_data["status"] = "failed"
+            test_data["error"] = str(e)
+            TEST_RESULTS_STORAGE[test_id] = test_data
+            _save_test_to_db(test_id, test_data)
+
 @router.get("/status/{test_id}", summary="Get Test Status")
 async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     """Get current status of running test simulation with methodology data"""
