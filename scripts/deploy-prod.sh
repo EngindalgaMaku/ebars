@@ -24,21 +24,17 @@ else
     echo "⚠️  Warning: .env.production not found"
 fi
 
-# Stop all services first (graceful shutdown)
-echo "📦 Stopping existing services..."
-docker-compose -f docker-compose.prod.yml stop || true
-
-# Remove old containers (force remove if needed)
-echo "🧹 Cleaning up old containers..."
+# Remove only problematic containers (ContainerConfig error fix - FAST)
+echo "🧹 Removing problematic containers..."
 docker-compose -f docker-compose.prod.yml rm -f || true
 
-# Build all services (always rebuild to ensure latest code)
-echo "🔨 Building all services..."
-docker-compose -f docker-compose.prod.yml --env-file .env.production build --no-cache
+# Build only changed services (with cache - MUCH faster, no 30min wait!)
+echo "🔨 Building services (using cache - fast)..."
+docker-compose -f docker-compose.prod.yml --env-file .env.production build
 
-# Start all services (use --env-file to ensure .env.production is loaded)
+# Start all services (--force-recreate prevents ContainerConfig errors)
 echo "▶️  Starting all services..."
-docker-compose -f docker-compose.prod.yml --env-file .env.production up -d
+docker-compose -f docker-compose.prod.yml --env-file .env.production up -d --force-recreate
 
 # Wait a bit for services to start
 echo "⏳ Waiting for services to initialize..."
