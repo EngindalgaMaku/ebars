@@ -1583,18 +1583,22 @@ export default function TestSimulationPage() {
                           />
                           <YAxis />
                           <Tooltip
-                            formatter={(value: number, name: string) => [
-                              name === "cosine"
-                                ? value.toFixed(3)
-                                : name === "precision5"
-                                ? `${value.toFixed(1)}%`
-                                : `${value.toFixed(1)}%`,
-                              name === "cosine"
-                                ? "Cosine Similarity"
-                                : name === "precision5"
-                                ? "Precision@5"
-                                : "Accuracy",
-                            ]}
+                            formatter={(value?: number, name?: string) => {
+                              if (typeof value !== "number" || typeof name !== "string") {
+                                return ["", ""];
+                              }
+                              const formatted =
+                                name === "cosine"
+                                  ? value.toFixed(3)
+                                  : `${value.toFixed(1)}%`;
+                              const label =
+                                name === "cosine"
+                                  ? "Cosine Similarity"
+                                  : name === "precision5"
+                                  ? "Precision@5"
+                                  : "Accuracy";
+                              return [formatted, label];
+                            }}
                           />
                           <Legend />
                           <Bar
