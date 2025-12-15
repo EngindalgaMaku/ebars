@@ -93,10 +93,10 @@ export const methodNames: Record<string, string> = {
 
 // Tooltip formatters for charts
 export const tooltipFormatterCosine = (
-  value: string | number,
+  value: string | number | undefined,
   name?: string
 ): [string, string] => {
-  if (Array.isArray(value)) return ["", ""];
+  if (value === undefined || Array.isArray(value)) return ["", ""];
   let numericValue: number | null = null;
   if (typeof value === "number") numericValue = value;
   else if (typeof value === "string") {
@@ -116,10 +116,10 @@ export const tooltipFormatterCosine = (
 };
 
 export const tooltipFormatterResponseTime = (
-  value: string | number,
+  value: string | number | undefined,
   name?: string
 ): [string, string] => {
-  if (Array.isArray(value)) return ["", ""];
+  if (value === undefined || Array.isArray(value)) return ["", ""];
   let numericValue: number | null = null;
   if (typeof value === "number") numericValue = value;
   else if (typeof value === "string") {
