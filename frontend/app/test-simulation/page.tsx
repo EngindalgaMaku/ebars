@@ -1583,14 +1583,20 @@ export default function TestSimulationPage() {
                           />
                           <YAxis />
                           <Tooltip
-                            formatter={(value?: number, name?: string) => {
-                              if (typeof value !== "number" || typeof name !== "string") {
-                                return ["", ""];
+                            formatter={(value: number | string, name: string) => {
+                              let numericValue: number | null = null;
+                              if (typeof value === "number") {
+                                numericValue = value;
+                              } else if (typeof value === "string") {
+                                const parsed = parseFloat(value);
+                                numericValue = Number.isFinite(parsed) ? parsed : null;
                               }
+                              if (numericValue === null) return ["", ""];
+
                               const formatted =
                                 name === "cosine"
-                                  ? value.toFixed(3)
-                                  : `${value.toFixed(1)}%`;
+                                  ? numericValue.toFixed(3)
+                                  : `${numericValue.toFixed(1)}%`;
                               const label =
                                 name === "cosine"
                                   ? "Cosine Similarity"
@@ -1664,9 +1670,19 @@ export default function TestSimulationPage() {
                           />
                           <YAxis />
                           <Tooltip
-                            formatter={(value?: number | string) => {
-                              if (typeof value !== "number") return ["", ""];
-                              return [`${Math.round(value)}ms`, "Yanıt Süresi"];
+                            formatter={(value) => {
+                              // Recharts ValueType can be number | string | (string | number)[]
+                              if (Array.isArray(value)) return ["", ""];
+                              if (typeof value === "number") {
+                                return [`${Math.round(value)}ms`, "Yanıt Süresi"];
+                              }
+                              if (typeof value === "string") {
+                                const parsed = parseFloat(value);
+                                if (Number.isFinite(parsed)) {
+                                  return [`${Math.round(parsed)}ms`, "Yanıt Süresi"];
+                                }
+                              }
+                              return ["", ""];
                             }}
                           />
                           <Legend />
@@ -1960,9 +1976,18 @@ export default function TestSimulationPage() {
                             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                             <YAxis domain={[0, 1]} tick={{ fontSize: 12 }} />
                             <Tooltip
-                              formatter={(value?: number | string) => {
-                                if (typeof value !== "number") return ["", ""];
-                                return [value.toFixed(3), "Cosine Similarity"];
+                              formatter={(value) => {
+                                if (Array.isArray(value)) return ["", ""];
+                                if (typeof value === "number") {
+                                  return [value.toFixed(3), "Cosine Similarity"];
+                                }
+                                if (typeof value === "string") {
+                                  const parsed = parseFloat(value);
+                                  if (Number.isFinite(parsed)) {
+                                    return [parsed.toFixed(3), "Cosine Similarity"];
+                                  }
+                                }
+                                return ["", ""];
                               }}
                             />
                             <Legend />
@@ -2009,10 +2034,18 @@ export default function TestSimulationPage() {
                             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                             <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
                             <Tooltip
-                              formatter={(value: number, name: string) => [
-                                `${value.toFixed(1)}%`,
-                                name === "precision5" ? "Precision@5" : "Precision@10",
-                              ]}
+                              formatter={(value, name) => {
+                                if (Array.isArray(value)) return ["", ""];
+                                let numericValue: number | null = null;
+                                if (typeof value === "number") numericValue = value;
+                                else if (typeof value === "string") {
+                                  const parsed = parseFloat(value);
+                                  numericValue = Number.isFinite(parsed) ? parsed : null;
+                                }
+                                if (numericValue === null || typeof name !== "string") return ["", ""];
+                                const label = name === "precision5" ? "Precision@5" : "Precision@10";
+                                return [`${numericValue.toFixed(1)}%`, label];
+                              }}
                             />
                             <Legend />
                             <Bar
