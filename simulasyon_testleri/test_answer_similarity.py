@@ -116,8 +116,10 @@ class AnswerSimilarityEvaluator:
         
         # Use same endpoint format as document processing service: {MODEL_INFERENCE_URL}/embed
         self.embedding_api_url = f"{model_inference_url}/embed"
+        self.model_inference_url = model_inference_url  # Store for LLM generation
         self.embedding_available = True  # Always available if model-inference-service is running
         print(f"✅ Embedding API URL: {self.embedding_api_url}")
+        print(f"✅ Model Inference URL: {self.model_inference_url}")
         
         # Initialize embedding model for semantic similarity
         self.embedding_model = None
@@ -319,27 +321,33 @@ class AnswerSimilarityEvaluator:
         """
         Get reference answer directly from LLM (without system processing)
         This serves as ground truth for comparison.
+        Uses model-inference-service /models/generate endpoint directly (no RAG).
         """
         try:
-            # Call LLM directly for reference answer
-            # Note: This should call the raw LLM endpoint, not the RAG endpoint
-            endpoint = f"{self.api_base_url}/api/aprag/llm-only/query" if not use_rag else f"{self.api_base_url}/api/aprag/hybrid-rag/query"
+            # Use model-inference-service directly for LLM-only generation
+            endpoint = f"{self.model_inference_url}/models/generate"
+            
+            # Get default model from environment or use a reasonable default
+            default_model = os.getenv("DEFAULT_LLM_POST_PROCESSING_MODEL", "llama-3.1-8b-instant")
+            
+            payload = {
+                "prompt": query,
+                "model": default_model,
+                "temperature": 0.7,
+                "max_tokens": 1024
+            }
             
             response = requests.post(
                 endpoint,
-                json={
-                    "query": query,
-                    "user_id": "test_evaluator",
-                    "session_id": "test_similarity_eval"
-                },
+                json=payload,
                 timeout=30
             )
             
             if response.status_code == 200:
                 data = response.json()
-                return data.get("answer", "")
+                return data.get("response", "")
             else:
-                print(f"⚠️ Warning: Could not get reference answer. Status: {response.status_code}")
+                print(f"⚠️ Warning: Could not get reference answer. Status: {response.status_code}, Response: {response.text[:200]}")
                 return None
                 
         except Exception as e:
@@ -352,28 +360,48 @@ class AnswerSimilarityEvaluator:
         """
         try:
             if mode == "rag":
+                # Use hybrid-rag endpoint for RAG mode
                 endpoint = f"{self.api_base_url}/api/aprag/hybrid-rag/query"
+                payload = {
+                    "query": query,
+                    "user_id": user_id,
+                    "session_id": session_id,
+                    "use_kb": True,
+                    "use_qa_pairs": True,
+                    "use_crag": True,
+                    "top_k": 10
+                }
             elif mode == "llm-only":
-                endpoint = f"{self.api_base_url}/api/aprag/llm-only/query"
+                # Use model-inference-service directly for LLM-only mode (no RAG)
+                endpoint = f"{self.model_inference_url}/models/generate"
+                default_model = os.getenv("DEFAULT_LLM_POST_PROCESSING_MODEL", "llama-3.1-8b-instant")
+                payload = {
+                    "prompt": query,
+                    "model": default_model,
+                    "temperature": 0.7,
+                    "max_tokens": 1024
+                }
             else:
                 print(f"⚠️ Warning: Unknown mode: {mode}")
                 return None
             
             response = requests.post(
                 endpoint,
-                json={
-                    "query": query,
-                    "user_id": user_id,
-                    "session_id": session_id
-                },
+                json=payload,
                 timeout=30
             )
             
             if response.status_code == 200:
                 data = response.json()
-                return data.get("answer", "")
+                # Handle different response formats
+                if mode == "llm-only":
+                    # Model-inference-service returns {"response": "...", "model_used": "..."}
+                    return data.get("response", "")
+                else:
+                    # Hybrid-RAG returns {"answer": "...", ...}
+                    return data.get("answer", "")
             else:
-                print(f"⚠️ Warning: Could not get system answer. Status: {response.status_code}")
+                print(f"⚠️ Warning: Could not get system answer. Status: {response.status_code}, Response: {response.text[:200]}")
                 return None
                 
         except Exception as e:

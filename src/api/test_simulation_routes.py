@@ -965,7 +965,23 @@ async def execute_semantic_similarity_test(
         api_url = API_GATEWAY_URL.replace("/api", "")  # Remove /api prefix
         
         # Initialize tester
+        logger.info(f"Initializing SemanticSimilarityOnlyTest with API URL: {api_url}")
         tester = SemanticSimilarityOnlyTest(api_base_url=api_url)
+        
+        # Check if evaluator is available
+        if not tester.evaluator:
+            error_msg = "Semantic Similarity Evaluator not available. Check if pandas and numpy are installed."
+            logger.error(error_msg)
+            test_data = TEST_RESULTS_STORAGE.get(test_id)
+            if test_data:
+                test_data["status"] = "failed"
+                test_data["error"] = error_msg
+                test_data["results"] = []
+                TEST_RESULTS_STORAGE[test_id] = test_data
+                _save_test_to_db(test_id, test_data)
+            return
+        
+        logger.info("✅ SemanticSimilarityOnlyTest initialized successfully with evaluator")
         
         # Update status
         test_data = TEST_RESULTS_STORAGE.get(test_id)
@@ -974,12 +990,36 @@ async def execute_semantic_similarity_test(
             _save_test_to_db(test_id, test_data)
         
         # Run test
-        results = tester.run_test(
-            questions=questions,
-            session_id=session_id,
-            user_id="test_user",
-            mode=mode
-        )
+        logger.info(f"Starting semantic similarity test execution for {test_id}")
+        logger.info(f"Questions count: {len(questions)}, Mode: {mode}, Session ID: {session_id}")
+        
+        try:
+            results = tester.run_test(
+                questions=questions,
+                session_id=session_id,
+                user_id="test_user",
+                mode=mode
+            )
+            logger.info(f"Test execution completed. Results keys: {list(results.keys()) if isinstance(results, dict) else 'Not a dict'}")
+            if isinstance(results, dict) and "summary" in results:
+                summary = results.get("summary", {})
+                logger.info(f"Summary keys: {list(summary.keys()) if isinstance(summary, dict) else 'Not a dict'}")
+                if isinstance(summary, dict) and "results" in summary:
+                    logger.info(f"Number of results in summary: {len(summary.get('results', []))}")
+        except Exception as e:
+            logger.error(f"Error during test execution: {e}", exc_info=True)
+            results = {
+                "error": str(e),
+                "success": False,
+                "summary": {
+                    "test_type": "semantic_similarity_only",
+                    "mode": mode,
+                    "total_questions": len(questions),
+                    "valid_results": 0,
+                    "results": [],
+                    "error_message": str(e)
+                }
+            }
         
         # Update test results
         test_data = TEST_RESULTS_STORAGE.get(test_id)
@@ -998,10 +1038,14 @@ async def execute_semantic_similarity_test(
             
             # For semantic similarity tests, extract results from summary.results
             # Format: {"success": True, "summary": {"results": [...], ...}}
+            logger.info(f"Processing test results. Results type: {type(results)}")
+            
             if results.get("summary") and isinstance(results.get("summary"), dict):
                 summary = results.get("summary")
+                logger.info(f"Found summary dict with keys: {list(summary.keys())}")
                 # Extract individual question results from summary.results
                 if "results" in summary and isinstance(summary["results"], list):
+                    logger.info(f"Found {len(summary['results'])} results in summary")
                     # Convert semantic similarity test results to standard format
                     formatted_results = []
                     for res in summary["results"]:
@@ -1034,10 +1078,17 @@ async def execute_semantic_similarity_test(
                         }
                         formatted_results.append(formatted_result)
                     test_data["results"] = formatted_results
+                    logger.info(f"Formatted {len(formatted_results)} results for storage")
                 else:
+                    logger.warning(f"Summary.results is not a list or missing. Summary keys: {list(summary.keys())}")
                     # Fallback: store as-is
                     test_data["results"] = [results]
+            elif results.get("error"):
+                logger.error(f"Test returned error: {results.get('error')}")
+                test_data["results"] = []
+                test_data["error"] = results.get("error")
             else:
+                logger.warning(f"Results format unexpected. Keys: {list(results.keys()) if isinstance(results, dict) else 'Not a dict'}")
                 # Standard test format
                 test_data["results"] = results if isinstance(results, list) else [results]
             
