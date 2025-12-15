@@ -1728,9 +1728,9 @@ export default function TestSimulationPage() {
                               Avg Response (ms)
                             </th>
                             <th className="text-center p-2">Accuracy (%)</th>
-                            {/* <th className="text-center p-2">
+                            <th className="text-center p-2">
                               Cevap Kalitesi (Semantic / BLEU / ROUGE-L / F1)
-                            </th> */}
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1826,7 +1826,7 @@ export default function TestSimulationPage() {
                                       {results.accuracy.toFixed(1)}%
                                     </span>
                                   </td>
-                                  {/* <td className="p-2 text-center">
+                                  <td className="p-2 text-center">
                                     <div className="text-xs space-y-1">
                                       {(() => {
                                         const semantic = getSimilarityValue(
@@ -1847,10 +1847,10 @@ export default function TestSimulationPage() {
                                         );
 
                                         if (
-                                          !semantic &&
-                                          !bleu &&
-                                          !rougeL &&
-                                          !f1
+                                          semantic === null &&
+                                          bleu === null &&
+                                          rougeL === null &&
+                                          f1 === null
                                         ) {
                                           return (
                                             <span className="text-gray-500 italic">
@@ -1866,7 +1866,17 @@ export default function TestSimulationPage() {
                                                 <span className="font-medium text-blue-600">
                                                   S:
                                                 </span>{" "}
-                                                {semantic.toFixed(3)}
+                                                <span
+                                                  className={`${
+                                                    semantic >= 0.7
+                                                      ? "text-green-600"
+                                                      : semantic >= 0.5
+                                                      ? "text-yellow-600"
+                                                      : "text-red-600"
+                                                  }`}
+                                                >
+                                                  {semantic.toFixed(3)}
+                                                </span>
                                               </div>
                                             )}
                                             {bleu !== null && (
@@ -1874,7 +1884,17 @@ export default function TestSimulationPage() {
                                                 <span className="font-medium text-green-600">
                                                   B:
                                                 </span>{" "}
-                                                {bleu.toFixed(3)}
+                                                <span
+                                                  className={`${
+                                                    bleu >= 0.7
+                                                      ? "text-green-600"
+                                                      : bleu >= 0.5
+                                                      ? "text-yellow-600"
+                                                      : "text-red-600"
+                                                  }`}
+                                                >
+                                                  {bleu.toFixed(3)}
+                                                </span>
                                               </div>
                                             )}
                                             {rougeL !== null && (
@@ -1882,7 +1902,17 @@ export default function TestSimulationPage() {
                                                 <span className="font-medium text-orange-600">
                                                   R:
                                                 </span>{" "}
-                                                {rougeL.toFixed(3)}
+                                                <span
+                                                  className={`${
+                                                    rougeL >= 0.7
+                                                      ? "text-green-600"
+                                                      : rougeL >= 0.5
+                                                      ? "text-yellow-600"
+                                                      : "text-red-600"
+                                                  }`}
+                                                >
+                                                  {rougeL.toFixed(3)}
+                                                </span>
                                               </div>
                                             )}
                                             {f1 !== null && (
@@ -1890,14 +1920,24 @@ export default function TestSimulationPage() {
                                                 <span className="font-medium text-purple-600">
                                                   F1:
                                                 </span>{" "}
-                                                {f1.toFixed(3)}
+                                                <span
+                                                  className={`${
+                                                    f1 >= 0.7
+                                                      ? "text-green-600"
+                                                      : f1 >= 0.5
+                                                      ? "text-yellow-600"
+                                                      : "text-red-600"
+                                                  }`}
+                                                >
+                                                  {f1.toFixed(3)}
+                                                </span>
                                               </div>
                                             )}
                                           </>
                                         );
                                       })()}
                                     </div>
-                                  </td> */}
+                                  </td>
                                 </tr>
                               );
                             }
