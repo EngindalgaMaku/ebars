@@ -2586,8 +2586,8 @@ export default function TestSimulationPage() {
                           <XAxis dataKey="range" tick={{ fontSize: 12 }} />
                           <YAxis tick={{ fontSize: 12 }} />
                           <Tooltip
-                            formatter={(value: number, name: string) => [
-                              `${value} soru`,
+                            formatter={(value, name, props, payload, index) => [
+                              `${value || 0} soru`,
                               name,
                             ]}
                           />
@@ -2680,7 +2680,7 @@ export default function TestSimulationPage() {
                           />
                           <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
                           <Tooltip
-                            formatter={(value: number, name: string) => [
+                            formatter={(value, name, props, payload, index) => [
                               value === 100 ? "Başarılı" : "Başarısız",
                               name,
                             ]}
