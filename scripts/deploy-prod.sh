@@ -8,10 +8,12 @@ cd ~/ebars || exit 1
 
 echo "🚀 Starting production deployment..."
 
-# Load environment variables
+# Load environment variables (safer method - handles comments and special chars)
 if [ -f .env.production ]; then
-    export $(cat .env.production | grep -v '^#' | xargs)
-    echo "✅ Environment variables loaded"
+    set -a  # automatically export all variables
+    source .env.production
+    set +a  # stop automatically exporting
+    echo "✅ Environment variables loaded from .env.production"
 else
     echo "⚠️  Warning: .env.production not found"
 fi
