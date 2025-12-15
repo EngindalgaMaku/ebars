@@ -1044,6 +1044,24 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     if test_data.get("results"):
         results_by_method = {}
         for result in test_data["results"]:
+            # Handle case where result might be a JSON string
+            if isinstance(result, str):
+                try:
+                    result = json.loads(result)
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning(f"Failed to parse result as JSON: {result}")
+                    continue
+            
+            # Ensure result is a dictionary
+            if not isinstance(result, dict):
+                logger.warning(f"Result is not a dictionary: {type(result)}")
+                continue
+            
+            # Check if result has required keys
+            if "methodology" not in result or "metrics" not in result:
+                logger.warning(f"Result missing required keys: {result.keys()}")
+                continue
+            
             method = result["methodology"]
             if method not in results_by_method:
                 results_by_method[method] = []
