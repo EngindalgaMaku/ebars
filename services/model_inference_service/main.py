@@ -1476,8 +1476,6 @@ async def generate_embeddings(request: EmbedRequest):
             error_detail = f"Failed to generate embeddings with all HuggingFace models."
             if last_error:
                 error_detail += f" Last error: {str(last_error)}"
-            if skip_ollama:
-                error_detail += f" (Ollama was skipped because HuggingFace model '{model_name}' was requested. ALL embeddings must use the same model to ensure consistent similarity scores. Please retry or choose a different model.)"
             raise HTTPException(status_code=500, detail=error_detail)
         
         end_time = time.time()

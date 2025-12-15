@@ -384,8 +384,8 @@ async def calculate_semantic_similarity(text1: str, text2: str) -> float:
     try:
         logger.debug(f"Calculating semantic similarity between texts (lengths: {len(text1)}, {len(text2)})")
         
-        # Use Document Processing Service's embedding endpoint
-        embedding_url = f"{DOCUMENT_PROCESSOR_URL}/embeddings"
+        # Use Model Inference Service's embedding endpoint (FIXED: Use correct service)
+        embedding_url = f"{MODEL_INFERENCE_URL}/embeddings"
         logger.debug(f"Using embedding service URL: {embedding_url}")
         
         # Get embeddings for both texts
