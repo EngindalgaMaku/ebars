@@ -9,7 +9,8 @@ cd ~/ebars || exit 1
 echo "🚀 Quick deployment (using cache)..."
 
 # Build and start (Docker will use cache if nothing changed)
-docker-compose -f docker-compose.prod.yml up -d --build
+# Use --env-file to ensure .env.production is loaded
+docker-compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 
 echo "✅ Quick deployment complete!"
 echo ""

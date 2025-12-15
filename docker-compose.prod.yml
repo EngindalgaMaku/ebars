@@ -210,8 +210,8 @@ services:
     container_name: docstrange-service-prod
     ports:
       - "${DOCSTRANGE_PORT:-8005}:80"
-    environment:
-      - DOCSTRANGE_API_KEY=${DOCSTRANGE_API_KEY}
+    env_file:
+      - .env.production
     restart: unless-stopped
     networks:
       - rag-network
@@ -268,12 +268,8 @@ services:
     environment:
       - PORT=8002
       - MODEL_INFERENCE_PORT=8002
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - ALIBABA_API_KEY=${ALIBABA_API_KEY:-${DASHSCOPE_API_KEY}}
-      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      # API keys are loaded from .env.production via env_file
+      # ALIBABA_API_BASE can be overridden if needed
       - ALIBABA_API_BASE=${ALIBABA_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
       # Using cloud LLM APIs (Groq, Alibaba, DeepSeek, OpenRouter)
       # Ollama not used - model-inference-service handles all LLM calls via cloud APIs

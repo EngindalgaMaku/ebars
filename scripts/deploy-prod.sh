@@ -26,11 +26,11 @@ docker-compose -f docker-compose.prod.yml rm -f || true
 
 # Build all services (always rebuild to ensure latest code)
 echo "🔨 Building all services..."
-docker-compose -f docker-compose.prod.yml build --no-cache
+docker-compose -f docker-compose.prod.yml --env-file .env.production build --no-cache
 
-# Start all services
+# Start all services (use --env-file to ensure .env.production is loaded)
 echo "▶️  Starting all services..."
-docker-compose -f docker-compose.prod.yml up -d
+docker-compose -f docker-compose.prod.yml --env-file .env.production up -d
 
 # Wait a bit for services to start
 echo "⏳ Waiting for services to initialize..."

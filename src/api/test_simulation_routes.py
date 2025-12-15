@@ -1232,6 +1232,19 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     questions_data = {}
     
     for result in all_results:
+        # Handle case where result might be a JSON string
+        if isinstance(result, str):
+            try:
+                result = json.loads(result)
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(f"Failed to parse result as JSON: {result}")
+                continue
+        
+        # Ensure result is a dictionary
+        if not isinstance(result, dict):
+            logger.warning(f"Result is not a dictionary: {type(result)}")
+            continue
+        
         question_id = result.get("question_id")
         question_text = result.get("question", "")
         methodology = result.get("methodology", "")
