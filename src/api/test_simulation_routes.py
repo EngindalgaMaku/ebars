@@ -984,10 +984,65 @@ async def execute_semantic_similarity_test(
         # Update test results
         test_data = TEST_RESULTS_STORAGE.get(test_id)
         if test_data:
-            test_data["status"] = "completed" if results.get("success") else "failed"
-            test_data["results"] = results
+            # Check if test actually completed (has results or summary)
+            # Even if evaluator was not available, test might have run with fallback
+            has_results = bool(results.get("summary") or results.get("results") or results.get("comparison"))
+            has_error = bool(results.get("error"))
+            
+            if has_error and not has_results:
+                # Only mark as failed if there's an error AND no results
+                test_data["status"] = "failed"
+            else:
+                # Test completed (even if with fallback mode)
+                test_data["status"] = "completed"
+            
+            # For semantic similarity tests, extract results from summary.results
+            # Format: {"success": True, "summary": {"results": [...], ...}}
+            if results.get("summary") and isinstance(results.get("summary"), dict):
+                summary = results.get("summary")
+                # Extract individual question results from summary.results
+                if "results" in summary and isinstance(summary["results"], list):
+                    # Convert semantic similarity test results to standard format
+                    formatted_results = []
+                    for res in summary["results"]:
+                        formatted_result = {
+                            "question_id": res.get("question_id"),
+                            "question": res.get("question"),
+                            "methodology": test_data.get("mode", "rag"),  # Use test mode as methodology
+                            "metrics": {
+                                "semantic_similarity": res.get("semantic_similarity"),
+                                "bleu_score": res.get("bleu_score"),
+                                "rouge_l": res.get("rouge_l"),
+                                "rouge_1": res.get("rouge_1"),
+                                "rouge_2": res.get("rouge_2"),
+                                "f1_score": res.get("f1_score"),
+                                "exact_match": res.get("exact_match", False),
+                                # Also include in similarity object for frontend compatibility
+                                "similarity": {
+                                    "semanticSimilarity": res.get("semantic_similarity"),
+                                    "bleuScore": res.get("bleu_score"),
+                                    "rougeL": res.get("rouge_l"),
+                                    "rouge1": res.get("rouge_1"),
+                                    "rouge2": res.get("rouge_2"),
+                                    "f1Score": res.get("f1_score"),
+                                    "exactMatchRate": 1.0 if res.get("exact_match") else 0.0
+                                }
+                            },
+                            "response": res.get("system_answer", ""),
+                            "reference_answer": res.get("reference_answer", ""),
+                            "timestamp": res.get("timestamp")
+                        }
+                        formatted_results.append(formatted_result)
+                    test_data["results"] = formatted_results
+                else:
+                    # Fallback: store as-is
+                    test_data["results"] = [results]
+            else:
+                # Standard test format
+                test_data["results"] = results if isinstance(results, list) else [results]
+            
             test_data["end_time"] = datetime.utcnow().isoformat()
-            test_data["summary"] = results.get("summary", {})
+            test_data["summary"] = results.get("summary", results.get("comparison", {}))
             TEST_RESULTS_STORAGE[test_id] = test_data
             _save_test_to_db(test_id, test_data)
         
@@ -1095,6 +1150,15 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                     # Calculate averages only from successful queries (similarity > 0)
                     # Filter answer quality metrics (only include non-None values)
                     answer_quality_values = [m.get("answer_quality_similarity") for m in filtered_metrics if m.get("answer_quality_similarity") is not None]
+                    
+                    # Extract BLEU, ROUGE, F1 metrics (for semantic similarity tests)
+                    bleu_scores = [m.get("bleu_score") for m in filtered_metrics if m.get("bleu_score") is not None]
+                    rouge_l_scores = [m.get("rouge_l") for m in filtered_metrics if m.get("rouge_l") is not None]
+                    rouge_1_scores = [m.get("rouge_1") for m in filtered_metrics if m.get("rouge_1") is not None]
+                    rouge_2_scores = [m.get("rouge_2") for m in filtered_metrics if m.get("rouge_2") is not None]
+                    f1_scores = [m.get("f1_score") for m in filtered_metrics if m.get("f1_score") is not None]
+                    semantic_similarity_scores = [m.get("semantic_similarity") for m in filtered_metrics if m.get("semantic_similarity") is not None]
+                    
                     method_comparison[method] = {
                         "cosineSimilarity": sum(m["max_similarity"] for m in filtered_metrics) / len(filtered_metrics),  # Use max_similarity
                         "precisionAt5": sum(m["precision_at_5"] for m in filtered_metrics) / len(filtered_metrics) * 100,
@@ -1104,7 +1168,14 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                         "answerQualitySimilarity": sum(answer_quality_values) / len(answer_quality_values) if answer_quality_values else None,  # Answer quality (LLM response vs ground truth)
                         "answerQualityAvailable": len(answer_quality_values),  # Number of questions with ground truth
                         "successfulQueries": len(filtered_metrics),
-                        "totalQueries": len(method_metrics)
+                        "totalQueries": len(method_metrics),
+                        # Semantic similarity test metrics (BLEU, ROUGE, F1)
+                        "semanticSimilarity": sum(semantic_similarity_scores) / len(semantic_similarity_scores) if semantic_similarity_scores else None,
+                        "bleuScore": sum(bleu_scores) / len(bleu_scores) if bleu_scores else None,
+                        "rougeL": sum(rouge_l_scores) / len(rouge_l_scores) if rouge_l_scores else None,
+                        "rouge1": sum(rouge_1_scores) / len(rouge_1_scores) if rouge_1_scores else None,
+                        "rouge2": sum(rouge_2_scores) / len(rouge_2_scores) if rouge_2_scores else None,
+                        "f1Score": sum(f1_scores) / len(f1_scores) if f1_scores else None
                     }
                 else:
                     # All queries failed
@@ -1117,7 +1188,14 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                         "answerQualitySimilarity": None,
                         "answerQualityAvailable": 0,
                         "successfulQueries": 0,
-                        "totalQueries": len(method_metrics)
+                        "totalQueries": len(method_metrics),
+                        # Semantic similarity test metrics (default to None)
+                        "semanticSimilarity": None,
+                        "bleuScore": None,
+                        "rougeL": None,
+                        "rouge1": None,
+                        "rouge2": None,
+                        "f1Score": None
                     }
         
         # Overall metrics
