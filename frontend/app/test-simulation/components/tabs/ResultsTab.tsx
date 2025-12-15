@@ -36,7 +36,7 @@ import {
   tooltipFormatterCosine,
   tooltipFormatterResponseTime,
 } from "../shared/helpers";
-import DataExportControls from "../../../components/DataExportControls";
+import DataExportControls from "@/components/DataExportControls";
 
 // Simplified interfaces
 interface TestResult {
