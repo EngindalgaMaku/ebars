@@ -45,7 +45,27 @@ Host rag3-server
 
 ## Özel Komutlarınız
 
-<!-- Buraya kendi özel komutlarınızı ekleyin -->
+### Production Deployment
+
+**Her zaman build yaparak deploy et (önerilen):**
+```bash
+cd ~/ebars
+bash scripts/deploy-prod.sh
+```
+
+**Hızlı deploy (cache kullanır, sadece değişenleri rebuild eder):**
+```bash
+cd ~/ebars
+bash scripts/quick-deploy.sh
+```
+
+**Manuel deploy (tek komut):**
+```bash
+cd ~/ebars
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+> **Not:** Eski sistemde bu sorun yoktu çünkü image'lar silinmiyordu. Şimdi her deploy'da `--build` kullanmak gerekiyor. Script'ler bunu otomatik yapar.
 
 ## Genel SSH Komutları (Referans)
 
