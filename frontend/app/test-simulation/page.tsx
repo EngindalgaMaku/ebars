@@ -1664,10 +1664,10 @@ export default function TestSimulationPage() {
                           />
                           <YAxis />
                           <Tooltip
-                            formatter={(value: number) => [
-                              `${Math.round(value)}ms`,
-                              "Yanıt Süresi",
-                            ]}
+                            formatter={(value?: number | string) => {
+                              if (typeof value !== "number") return ["", ""];
+                              return [`${Math.round(value)}ms`, "Yanıt Süresi"];
+                            }}
                           />
                           <Legend />
                           <Bar
