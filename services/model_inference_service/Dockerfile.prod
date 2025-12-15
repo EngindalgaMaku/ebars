@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY main.py .
 COPY models_config.json .
+COPY core/ ./core/
 
 # Set environment variables
 ENV PORT=8002 \
