@@ -95,7 +95,7 @@ interface SimilarityMetrics {
 interface QuestionDetail {
   question_id: number;
   question: string;
-  expected_answer?: string;  // Ground truth answer
+  expected_answer?: string; // Ground truth answer
   methodologies: {
     [key: string]: {
       response: string;
@@ -106,8 +106,8 @@ interface QuestionDetail {
       precision_at_10: number;
       retrieval_count: number;
       accuracy: number;
-      similarity?: SimilarityMetrics;  // New similarity metrics (LLM vs reference)
-      answer_quality_similarity?: number | null;  // Legacy field (backward compatibility)
+      similarity?: SimilarityMetrics; // New similarity metrics (LLM vs reference)
+      answer_quality_similarity?: number | null; // Legacy field (backward compatibility)
     };
   };
 }
@@ -135,9 +135,9 @@ interface TestResult {
     avgResponseTime: number;
     totalQuestions: number;
     correctAnswers: number;
-    similarity?: SimilarityMetrics;          // Aggregated similarity metrics
+    similarity?: SimilarityMetrics; // Aggregated similarity metrics
     answerQualitySimilarity?: number | null; // Legacy field (backward compatibility)
-    answerQualityAvailable?: number;         // Number of questions with ground truth
+    answerQualityAvailable?: number; // Number of questions with ground truth
   };
   methodComparison: {
     eduBars: MethodResults;
@@ -159,9 +159,9 @@ interface MethodResults {
   precisionAt10: number;
   avgResponseTime: number;
   accuracy: number;
-  similarity?: SimilarityMetrics;            // New similarity metrics
-  answerQualitySimilarity?: number | null;   // Legacy field (backward compatibility)
-  answerQualityAvailable?: number;           // Number of questions with ground truth
+  similarity?: SimilarityMetrics; // New similarity metrics
+  answerQualitySimilarity?: number | null; // Legacy field (backward compatibility)
+  answerQualityAvailable?: number; // Number of questions with ground truth
 }
 
 interface BenchmarkResults {
@@ -214,7 +214,13 @@ export default function TestSimulationPage() {
   };
 
   // Tooltip formatters (typed once to avoid repeating unions)
-  const tooltipFormatterCosine: Formatter<string | number, string> = (value, name) => {
+  const tooltipFormatterCosine: Formatter<string | number, string> = (
+    value,
+    name,
+    props,
+    payload,
+    index
+  ) => {
     if (Array.isArray(value)) return ["", ""];
     let numericValue: number | null = null;
     if (typeof value === "number") numericValue = value;
@@ -224,7 +230,9 @@ export default function TestSimulationPage() {
     }
     if (numericValue === null) return ["", ""];
     const formatted =
-      name === "cosine" ? numericValue.toFixed(3) : `${numericValue.toFixed(1)}%`;
+      name === "cosine"
+        ? numericValue.toFixed(3)
+        : `${numericValue.toFixed(1)}%`;
     const label =
       name === "cosine"
         ? "Cosine Similarity"
@@ -234,7 +242,13 @@ export default function TestSimulationPage() {
     return [formatted, label];
   };
 
-  const tooltipFormatterResponseTime: Formatter<string | number, string> = (value) => {
+  const tooltipFormatterResponseTime: Formatter<string | number, string> = (
+    value,
+    name,
+    props,
+    payload,
+    index
+  ) => {
     if (Array.isArray(value)) return ["", ""];
     let numericValue: number | null = null;
     if (typeof value === "number") numericValue = value;
@@ -246,7 +260,13 @@ export default function TestSimulationPage() {
     return [`${Math.round(numericValue)}ms`, "Yanıt Süresi"];
   };
 
-  const tooltipFormatterPrecision: Formatter<string | number, string> = (value, name) => {
+  const tooltipFormatterPrecision: Formatter<string | number, string> = (
+    value,
+    name,
+    props,
+    payload,
+    index
+  ) => {
     if (Array.isArray(value) || typeof name !== "string") return ["", ""];
     let numericValue: number | null = null;
     if (typeof value === "number") numericValue = value;
@@ -259,7 +279,13 @@ export default function TestSimulationPage() {
     return [`${numericValue.toFixed(1)}%`, label];
   };
 
-  const tooltipFormatterPercent: Formatter<string | number, string> = (value, name) => {
+  const tooltipFormatterPercent: Formatter<string | number, string> = (
+    value,
+    name,
+    props,
+    payload,
+    index
+  ) => {
     if (Array.isArray(value)) return ["", ""];
     let numericValue: number | null = null;
     if (typeof value === "number") numericValue = value;
@@ -370,7 +396,10 @@ export default function TestSimulationPage() {
       testQuestions.forEach((question, index) => {
         // Find the original index in customQuestions
         const originalIndex = config.customQuestions.indexOf(question);
-        if (originalIndex !== -1 && config.customExpectedAnswers[originalIndex]) {
+        if (
+          originalIndex !== -1 &&
+          config.customExpectedAnswers[originalIndex]
+        ) {
           expectedAnswers[index] = config.customExpectedAnswers[originalIndex];
         }
       });
@@ -389,7 +418,10 @@ export default function TestSimulationPage() {
           exportFormats: config.exportFormat,
           sessionId: selectedSessionId,
           sessionSettings: selectedSession?.rag_settings || null,
-          expectedAnswers: Object.keys(expectedAnswers).length > 0 ? expectedAnswers : undefined,
+          expectedAnswers:
+            Object.keys(expectedAnswers).length > 0
+              ? expectedAnswers
+              : undefined,
         }),
       });
 
@@ -635,30 +667,90 @@ export default function TestSimulationPage() {
           ],
           [
             "Semantic Similarity",
-            (getSimilarityValue(currentTest.methodComparison.eduBars, "semanticSimilarity") ?? 0).toFixed(3),
-            (getSimilarityValue(currentTest.methodComparison.basicRag, "semanticSimilarity") ?? 0).toFixed(3),
-            (getSimilarityValue(currentTest.methodComparison.llmOnly, "semanticSimilarity") ?? 0).toFixed(3),
+            (
+              getSimilarityValue(
+                currentTest.methodComparison.eduBars,
+                "semanticSimilarity"
+              ) ?? 0
+            ).toFixed(3),
+            (
+              getSimilarityValue(
+                currentTest.methodComparison.basicRag,
+                "semanticSimilarity"
+              ) ?? 0
+            ).toFixed(3),
+            (
+              getSimilarityValue(
+                currentTest.methodComparison.llmOnly,
+                "semanticSimilarity"
+              ) ?? 0
+            ).toFixed(3),
             "N/A",
           ],
           [
             "BLEU",
-            (getSimilarityValue(currentTest.methodComparison.eduBars, "bleuScore") ?? 0).toFixed(3),
-            (getSimilarityValue(currentTest.methodComparison.basicRag, "bleuScore") ?? 0).toFixed(3),
-            (getSimilarityValue(currentTest.methodComparison.llmOnly, "bleuScore") ?? 0).toFixed(3),
+            (
+              getSimilarityValue(
+                currentTest.methodComparison.eduBars,
+                "bleuScore"
+              ) ?? 0
+            ).toFixed(3),
+            (
+              getSimilarityValue(
+                currentTest.methodComparison.basicRag,
+                "bleuScore"
+              ) ?? 0
+            ).toFixed(3),
+            (
+              getSimilarityValue(
+                currentTest.methodComparison.llmOnly,
+                "bleuScore"
+              ) ?? 0
+            ).toFixed(3),
             "N/A",
           ],
           [
             "ROUGE-L",
-            (getSimilarityValue(currentTest.methodComparison.eduBars, "rougeL") ?? 0).toFixed(3),
-            (getSimilarityValue(currentTest.methodComparison.basicRag, "rougeL") ?? 0).toFixed(3),
-            (getSimilarityValue(currentTest.methodComparison.llmOnly, "rougeL") ?? 0).toFixed(3),
+            (
+              getSimilarityValue(
+                currentTest.methodComparison.eduBars,
+                "rougeL"
+              ) ?? 0
+            ).toFixed(3),
+            (
+              getSimilarityValue(
+                currentTest.methodComparison.basicRag,
+                "rougeL"
+              ) ?? 0
+            ).toFixed(3),
+            (
+              getSimilarityValue(
+                currentTest.methodComparison.llmOnly,
+                "rougeL"
+              ) ?? 0
+            ).toFixed(3),
             "N/A",
           ],
           [
             "F1 (Token)",
-            (getSimilarityValue(currentTest.methodComparison.eduBars, "f1Score") ?? 0).toFixed(3),
-            (getSimilarityValue(currentTest.methodComparison.basicRag, "f1Score") ?? 0).toFixed(3),
-            (getSimilarityValue(currentTest.methodComparison.llmOnly, "f1Score") ?? 0).toFixed(3),
+            (
+              getSimilarityValue(
+                currentTest.methodComparison.eduBars,
+                "f1Score"
+              ) ?? 0
+            ).toFixed(3),
+            (
+              getSimilarityValue(
+                currentTest.methodComparison.basicRag,
+                "f1Score"
+              ) ?? 0
+            ).toFixed(3),
+            (
+              getSimilarityValue(
+                currentTest.methodComparison.llmOnly,
+                "f1Score"
+              ) ?? 0
+            ).toFixed(3),
             "N/A",
           ],
           [
@@ -1117,8 +1209,10 @@ export default function TestSimulationPage() {
                     Tarih dersi chunk'larını test etmek için sorularınızı buraya
                     yapıştırın. Her satırda bir soru olacak şekilde düzenleyin.
                     <br />
-                    <strong>Opsiyonel:</strong> Ground truth (beklenen cevap) eklemek için 
-                    her satırda <code className="bg-gray-100 px-1 rounded">Soru|Cevap</code> formatını kullanın.
+                    <strong>Opsiyonel:</strong> Ground truth (beklenen cevap)
+                    eklemek için her satırda{" "}
+                    <code className="bg-gray-100 px-1 rounded">Soru|Cevap</code>{" "}
+                    formatını kullanın.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1135,9 +1229,15 @@ export default function TestSimulationPage() {
                     <div className="flex items-center justify-between text-sm text-gray-500">
                       <span>
                         {config.customQuestions.length} soru tespit edildi
-                        {Object.keys(config.customExpectedAnswers || {}).length > 0 && (
+                        {Object.keys(config.customExpectedAnswers || {})
+                          .length > 0 && (
                           <span className="ml-2 text-blue-600">
-                            ({Object.keys(config.customExpectedAnswers || {}).length} soru için beklenen cevap var)
+                            (
+                            {
+                              Object.keys(config.customExpectedAnswers || {})
+                                .length
+                            }{" "}
+                            soru için beklenen cevap var)
                           </span>
                         )}
                       </span>
@@ -1161,9 +1261,16 @@ export default function TestSimulationPage() {
                           config.numQuestions
                         )}{" "}
                         soru ile çalışacak
-                        {Object.keys(config.customExpectedAnswers || {}).length > 0 && (
+                        {Object.keys(config.customExpectedAnswers || {})
+                          .length > 0 && (
                           <span className="block mt-1 text-blue-600">
-                            💡 {Object.keys(config.customExpectedAnswers || {}).length} soru için semantik / BLEU / ROUGE / F1 metrikleri hesaplanacak (fallback yok; ground truth şart).
+                            💡{" "}
+                            {
+                              Object.keys(config.customExpectedAnswers || {})
+                                .length
+                            }{" "}
+                            soru için semantik / BLEU / ROUGE / F1 metrikleri
+                            hesaplanacak (fallback yok; ground truth şart).
                           </span>
                         )}
                       </div>
@@ -1558,34 +1665,77 @@ export default function TestSimulationPage() {
                                   <td className="p-2 text-center">
                                     <div className="text-xs text-gray-700 space-y-1">
                                       <div>
-                                        <span className="font-semibold">Semantic:</span>{" "}
-                                        {getSimilarityValue(results, "semanticSimilarity") !== null
-                                          ? (getSimilarityValue(results, "semanticSimilarity") as number).toFixed(3)
+                                        <span className="font-semibold">
+                                          Semantic:
+                                        </span>{" "}
+                                        {getSimilarityValue(
+                                          results,
+                                          "semanticSimilarity"
+                                        ) !== null
+                                          ? (
+                                              getSimilarityValue(
+                                                results,
+                                                "semanticSimilarity"
+                                              ) as number
+                                            ).toFixed(3)
                                           : "N/A"}
                                       </div>
                                       <div>
-                                        <span className="font-semibold">BLEU:</span>{" "}
-                                        {getSimilarityValue(results, "bleuScore") !== null
-                                          ? (getSimilarityValue(results, "bleuScore") as number).toFixed(3)
+                                        <span className="font-semibold">
+                                          BLEU:
+                                        </span>{" "}
+                                        {getSimilarityValue(
+                                          results,
+                                          "bleuScore"
+                                        ) !== null
+                                          ? (
+                                              getSimilarityValue(
+                                                results,
+                                                "bleuScore"
+                                              ) as number
+                                            ).toFixed(3)
                                           : "N/A"}
                                       </div>
                                       <div>
-                                        <span className="font-semibold">ROUGE-L:</span>{" "}
-                                        {getSimilarityValue(results, "rougeL") !== null
-                                          ? (getSimilarityValue(results, "rougeL") as number).toFixed(3)
+                                        <span className="font-semibold">
+                                          ROUGE-L:
+                                        </span>{" "}
+                                        {getSimilarityValue(
+                                          results,
+                                          "rougeL"
+                                        ) !== null
+                                          ? (
+                                              getSimilarityValue(
+                                                results,
+                                                "rougeL"
+                                              ) as number
+                                            ).toFixed(3)
                                           : "N/A"}
                                       </div>
                                       <div>
-                                        <span className="font-semibold">F1:</span>{" "}
-                                        {getSimilarityValue(results, "f1Score") !== null
-                                          ? (getSimilarityValue(results, "f1Score") as number).toFixed(3)
+                                        <span className="font-semibold">
+                                          F1:
+                                        </span>{" "}
+                                        {getSimilarityValue(
+                                          results,
+                                          "f1Score"
+                                        ) !== null
+                                          ? (
+                                              getSimilarityValue(
+                                                results,
+                                                "f1Score"
+                                              ) as number
+                                            ).toFixed(3)
                                           : "N/A"}
                                       </div>
-                                      {results.answerQualityAvailable !== undefined && results.answerQualityAvailable > 0 && (
-                                        <div className="text-[11px] text-gray-500 mt-1">
-                                          ({results.answerQualityAvailable} soru)
-                                        </div>
-                                      )}
+                                      {results.answerQualityAvailable !==
+                                        undefined &&
+                                        results.answerQualityAvailable > 0 && (
+                                          <div className="text-[11px] text-gray-500 mt-1">
+                                            ({results.answerQualityAvailable}{" "}
+                                            soru)
+                                          </div>
+                                        )}
                                     </div>
                                   </td>
                                 </tr>
@@ -1616,8 +1766,7 @@ export default function TestSimulationPage() {
                               config.testMethods.includes(method)
                             )
                             .filter(
-                              ([, results]) =>
-                                results.cosineSimilarity > 0
+                              ([, results]) => results.cosineSimilarity > 0
                             ) // Filter out zero similarity results
                             .map(([method, results]) => ({
                               name:
@@ -1626,7 +1775,7 @@ export default function TestSimulationPage() {
                                   basicRag: "Basit RAG",
                                   llmOnly: "Sadece LLM",
                                 }[method] || method,
-                              cosine: results.cosineSimilarity,  // Backend already uses max_similarity
+                              cosine: results.cosineSimilarity, // Backend already uses max_similarity
                               precision5: results.precisionAt5,
                               accuracy: results.accuracy,
                             }))}
@@ -1682,8 +1831,7 @@ export default function TestSimulationPage() {
                               config.testMethods.includes(method)
                             )
                             .filter(
-                              ([, results]) =>
-                                results.cosineSimilarity > 0
+                              ([, results]) => results.cosineSimilarity > 0
                             ) // Filter out zero similarity results
                             .map(([method, results]) => ({
                               name:
@@ -1973,21 +2121,27 @@ export default function TestSimulationPage() {
                           Cosine Similarity Dağılımı (Metodoloji Bazında)
                         </CardTitle>
                         <CardDescription>
-                          Her metodoloji için cosine similarity değerlerinin ortalaması (max similarity bazlı)
+                          Her metodoloji için cosine similarity değerlerinin
+                          ortalaması (max similarity bazlı)
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
                           <BarChart
                             data={Object.entries(currentTest.methodComparison)
-                              .filter(([method]) => config.testMethods.includes(method))
-                              .filter(([, results]) => results.cosineSimilarity > 0)
+                              .filter(([method]) =>
+                                config.testMethods.includes(method)
+                              )
+                              .filter(
+                                ([, results]) => results.cosineSimilarity > 0
+                              )
                               .map(([method, results]) => ({
-                                name: {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "Basit RAG",
-                                  llmOnly: "Sadece LLM",
-                                }[method] || method,
+                                name:
+                                  {
+                                    eduBars: "AkıllıRehber",
+                                    basicRag: "Basit RAG",
+                                    llmOnly: "Sadece LLM",
+                                  }[method] || method,
                                 similarity: results.cosineSimilarity,
                                 avg: results.cosineSimilarity,
                               }))}
@@ -2017,21 +2171,27 @@ export default function TestSimulationPage() {
                           Precision@k Karşılaştırması
                         </CardTitle>
                         <CardDescription>
-                          Her metodoloji için Precision@5 ve Precision@10 değerlerinin karşılaştırması
+                          Her metodoloji için Precision@5 ve Precision@10
+                          değerlerinin karşılaştırması
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
                           <BarChart
                             data={Object.entries(currentTest.methodComparison)
-                              .filter(([method]) => config.testMethods.includes(method))
-                              .filter(([, results]) => results.cosineSimilarity > 0)
+                              .filter(([method]) =>
+                                config.testMethods.includes(method)
+                              )
+                              .filter(
+                                ([, results]) => results.cosineSimilarity > 0
+                              )
                               .map(([method, results]) => ({
-                                name: {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "Basit RAG",
-                                  llmOnly: "Sadece LLM",
-                                }[method] || method,
+                                name:
+                                  {
+                                    eduBars: "AkıllıRehber",
+                                    basicRag: "Basit RAG",
+                                    llmOnly: "Sadece LLM",
+                                  }[method] || method,
                                 precision5: results.precisionAt5,
                                 precision10: results.precisionAt10,
                               }))}
@@ -2067,21 +2227,27 @@ export default function TestSimulationPage() {
                           Yanıt Süresi Karşılaştırması
                         </CardTitle>
                         <CardDescription>
-                          Her metodoloji için ortalama yanıt süresi (milisaniye cinsinden)
+                          Her metodoloji için ortalama yanıt süresi (milisaniye
+                          cinsinden)
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
                           <BarChart
                             data={Object.entries(currentTest.methodComparison)
-                              .filter(([method]) => config.testMethods.includes(method))
-                              .filter(([, results]) => results.cosineSimilarity > 0)
+                              .filter(([method]) =>
+                                config.testMethods.includes(method)
+                              )
+                              .filter(
+                                ([, results]) => results.cosineSimilarity > 0
+                              )
                               .map(([method, results]) => ({
-                                name: {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "Basit RAG",
-                                  llmOnly: "Sadece LLM",
-                                }[method] || method,
+                                name:
+                                  {
+                                    eduBars: "AkıllıRehber",
+                                    basicRag: "Basit RAG",
+                                    llmOnly: "Sadece LLM",
+                                  }[method] || method,
                                 responseTime: results.avgResponseTime,
                               }))}
                             margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
@@ -2110,21 +2276,27 @@ export default function TestSimulationPage() {
                           Doğruluk Oranı Karşılaştırması
                         </CardTitle>
                         <CardDescription>
-                          Her metodoloji için doğruluk oranı (accuracy) karşılaştırması
+                          Her metodoloji için doğruluk oranı (accuracy)
+                          karşılaştırması
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
                           <BarChart
                             data={Object.entries(currentTest.methodComparison)
-                              .filter(([method]) => config.testMethods.includes(method))
-                              .filter(([, results]) => results.cosineSimilarity > 0)
+                              .filter(([method]) =>
+                                config.testMethods.includes(method)
+                              )
+                              .filter(
+                                ([, results]) => results.cosineSimilarity > 0
+                              )
                               .map(([method, results]) => ({
-                                name: {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "Basit RAG",
-                                  llmOnly: "Sadece LLM",
-                                }[method] || method,
+                                name:
+                                  {
+                                    eduBars: "AkıllıRehber",
+                                    basicRag: "Basit RAG",
+                                    llmOnly: "Sadece LLM",
+                                  }[method] || method,
                                 accuracy: results.accuracy,
                               }))}
                             margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
@@ -2132,7 +2304,7 @@ export default function TestSimulationPage() {
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                             <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
-                          <Tooltip formatter={(value) => tooltipFormatterPercent(value, "Doğruluk Oranı")} />
+                            <Tooltip formatter={tooltipFormatterPercent} />
                             <Legend />
                             <Bar
                               dataKey="accuracy"
@@ -2154,32 +2326,42 @@ export default function TestSimulationPage() {
                         Soru Bazında Performans Analizi (Heatmap)
                       </CardTitle>
                       <CardDescription>
-                        Her soru için metodoloji bazında cosine similarity değerlerinin görselleştirilmesi
+                        Her soru için metodoloji bazında cosine similarity
+                        değerlerinin görselleştirilmesi
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={400}>
                         <BarChart
-                          data={currentTest.questions && currentTest.questions.length > 0
-                            ? currentTest.questions
-                                .filter((q) =>
-                                  Object.values(q.methodologies).some(
-                                    (m: any) => m.max_similarity > 0
+                          data={
+                            currentTest.questions &&
+                            currentTest.questions.length > 0
+                              ? currentTest.questions
+                                  .filter((q) =>
+                                    Object.values(q.methodologies).some(
+                                      (m: any) => m.max_similarity > 0
+                                    )
                                   )
-                                )
-                                .map((q) => {
-                                  const data: any = { question: `Soru ${q.question_id}` };
-                                  Object.entries(q.methodologies).forEach(([method, results]: [string, any]) => {
-                                    const methodName = {
-                                      eduBars: "AkıllıRehber",
-                                      basicRag: "Basit RAG",
-                                      llmOnly: "Sadece LLM",
-                                    }[method] || method;
-                                    data[methodName] = results.max_similarity || 0;
-                                  });
-                                  return data;
-                                })
-                            : []}
+                                  .map((q) => {
+                                    const data: any = {
+                                      question: `Soru ${q.question_id}`,
+                                    };
+                                    Object.entries(q.methodologies).forEach(
+                                      ([method, results]: [string, any]) => {
+                                        const methodName =
+                                          {
+                                            eduBars: "AkıllıRehber",
+                                            basicRag: "Basit RAG",
+                                            llmOnly: "Sadece LLM",
+                                          }[method] || method;
+                                        data[methodName] =
+                                          results.max_similarity || 0;
+                                      }
+                                    );
+                                    return data;
+                                  })
+                              : []
+                          }
                           margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" />
@@ -2199,11 +2381,12 @@ export default function TestSimulationPage() {
                           />
                           <Legend />
                           {config.testMethods.map((method) => {
-                            const methodName = {
-                              eduBars: "AkıllıRehber",
-                              basicRag: "Basit RAG",
-                              llmOnly: "Sadece LLM",
-                            }[method] || method;
+                            const methodName =
+                              {
+                                eduBars: "AkıllıRehber",
+                                basicRag: "Basit RAG",
+                                llmOnly: "Sadece LLM",
+                              }[method] || method;
                             const colors: Record<string, string> = {
                               AkıllıRehber: "#3b82f6",
                               "Basit RAG": "#10b981",
@@ -2232,7 +2415,8 @@ export default function TestSimulationPage() {
                         Kapsamlı Performans Analizi (Radar Chart)
                       </CardTitle>
                       <CardDescription>
-                        Tüm metriklerin bir arada görselleştirilmesi: Cosine Similarity, Precision@5, Precision@10, Accuracy ve Hız
+                        Tüm metriklerin bir arada görselleştirilmesi: Cosine
+                        Similarity, Precision@5, Precision@10, Accuracy ve Hız
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -2253,8 +2437,12 @@ export default function TestSimulationPage() {
                               speed: "Hız (Ters)",
                             }[metric],
                             ...Object.entries(currentTest.methodComparison)
-                              .filter(([method]) => config.testMethods.includes(method))
-                              .filter(([, results]) => results.cosineSimilarity > 0)
+                              .filter(([method]) =>
+                                config.testMethods.includes(method)
+                              )
+                              .filter(
+                                ([, results]) => results.cosineSimilarity > 0
+                              )
                               .reduce((acc, [method, results]) => {
                                 let value = 0;
                                 if (metric === "cosine")
@@ -2271,11 +2459,12 @@ export default function TestSimulationPage() {
                                     100 - results.avgResponseTime / 20
                                   ); // Inverted and scaled
 
-                                const methodName = {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "BasitRAG",
-                                  llmOnly: "SadeceLLM",
-                                }[method] || method;
+                                const methodName =
+                                  {
+                                    eduBars: "AkıllıRehber",
+                                    basicRag: "BasitRAG",
+                                    llmOnly: "SadeceLLM",
+                                  }[method] || method;
 
                                 acc[methodName] = value;
                                 return acc;
@@ -2296,17 +2485,26 @@ export default function TestSimulationPage() {
                           />
                           {config.testMethods
                             .filter((method) => {
-                              const results = currentTest.methodComparison[method as keyof typeof currentTest.methodComparison];
+                              const results =
+                                currentTest.methodComparison[
+                                  method as keyof typeof currentTest.methodComparison
+                                ];
                               return results && results.cosineSimilarity > 0;
                             })
                             .map((method, index) => {
-                              const methodName = {
-                                eduBars: "AkıllıRehber",
-                                basicRag: "BasitRAG",
-                                llmOnly: "SadeceLLM",
-                              }[method] || method;
+                              const methodName =
+                                {
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "BasitRAG",
+                                  llmOnly: "SadeceLLM",
+                                }[method] || method;
 
-                              const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444"];
+                              const colors = [
+                                "#3b82f6",
+                                "#10b981",
+                                "#f59e0b",
+                                "#ef4444",
+                              ];
                               return (
                                 <Radar
                                   key={method}
@@ -2336,10 +2534,11 @@ export default function TestSimulationPage() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <BarChart3 className="h-5 w-5" />
-                          Cosine Similarity Değer Dağılımı
+                        Cosine Similarity Değer Dağılımı
                       </CardTitle>
                       <CardDescription>
-                        Her metodoloji için cosine similarity değerlerinin histogram dağılımı (soru bazında, max similarity bazlı)
+                        Her metodoloji için cosine similarity değerlerinin
+                        histogram dağılımı (soru bazında, max similarity bazlı)
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -2347,10 +2546,13 @@ export default function TestSimulationPage() {
                         <BarChart
                           data={(() => {
                             // Group questions by similarity ranges for each methodology
-                            if (!currentTest.questions || currentTest.questions.length === 0) {
+                            if (
+                              !currentTest.questions ||
+                              currentTest.questions.length === 0
+                            ) {
                               return [];
                             }
-                            
+
                             const ranges = [
                               { min: 0, max: 0.2, label: "0.0-0.2" },
                               { min: 0.2, max: 0.4, label: "0.2-0.4" },
@@ -2358,21 +2560,26 @@ export default function TestSimulationPage() {
                               { min: 0.6, max: 0.8, label: "0.6-0.8" },
                               { min: 0.8, max: 1.0, label: "0.8-1.0" },
                             ];
-                            
+
                             return ranges.map((range) => {
                               const data: any = { range: range.label };
                               config.testMethods.forEach((method) => {
-                                const count = currentTest.questions!.filter((q) => {
-                                  const methodResult = q.methodologies[method];
-                                  if (!methodResult) return false;
-                                  const sim = methodResult.max_similarity || 0;
-                                  return sim >= range.min && sim < range.max;
-                                }).length;
-                                const methodName = {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "Basit RAG",
-                                  llmOnly: "Sadece LLM",
-                                }[method] || method;
+                                const count = currentTest.questions!.filter(
+                                  (q) => {
+                                    const methodResult =
+                                      q.methodologies[method];
+                                    if (!methodResult) return false;
+                                    const sim =
+                                      methodResult.max_similarity || 0;
+                                    return sim >= range.min && sim < range.max;
+                                  }
+                                ).length;
+                                const methodName =
+                                  {
+                                    eduBars: "AkıllıRehber",
+                                    basicRag: "Basit RAG",
+                                    llmOnly: "Sadece LLM",
+                                  }[method] || method;
                                 data[methodName] = count;
                               });
                               return data;
@@ -2391,11 +2598,12 @@ export default function TestSimulationPage() {
                           />
                           <Legend />
                           {config.testMethods.map((method) => {
-                            const methodName = {
-                              eduBars: "AkıllıRehber",
-                              basicRag: "Basit RAG",
-                              llmOnly: "Sadece LLM",
-                            }[method] || method;
+                            const methodName =
+                              {
+                                eduBars: "AkıllıRehber",
+                                basicRag: "Basit RAG",
+                                llmOnly: "Sadece LLM",
+                              }[method] || method;
                             const colors: Record<string, string> = {
                               AkıllıRehber: "#3b82f6",
                               "Basit RAG": "#10b981",
@@ -2421,39 +2629,50 @@ export default function TestSimulationPage() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <CheckCircle className="h-5 w-5" />
-                          Soru Bazında Başarı Oranı
+                        Soru Bazında Başarı Oranı
                       </CardTitle>
                       <CardDescription>
-                        Her soru için metodoloji bazında başarılı yanıt oranı (cosine similarity {'>'} 0.5 olan sorular, max similarity bazlı)
+                        Her soru için metodoloji bazında başarılı yanıt oranı
+                        (cosine similarity {">"} 0.5 olan sorular, max
+                        similarity bazlı)
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={350}>
                         <LineChart
-                          data={currentTest.questions && currentTest.questions.length > 0
-                            ? currentTest.questions
-                                .filter((q) =>
-                                  Object.values(q.methodologies).some(
-                                    (m: any) => m.max_similarity > 0
+                          data={
+                            currentTest.questions &&
+                            currentTest.questions.length > 0
+                              ? currentTest.questions
+                                  .filter((q) =>
+                                    Object.values(q.methodologies).some(
+                                      (m: any) => m.max_similarity > 0
+                                    )
                                   )
-                                )
-                                .map((q) => {
-                                  const data: any = {
-                                    question: `S${q.question_id}`,
-                                    questionId: q.question_id,
-                                  };
-                                  Object.entries(q.methodologies).forEach(([method, results]: [string, any]) => {
-                                    const methodName = {
-                                      eduBars: "AkıllıRehber",
-                                      basicRag: "Basit RAG",
-                                      llmOnly: "Sadece LLM",
-                                    }[method] || method;
-                                    // Success = max similarity > 0.5
-                                    data[methodName] = (results.max_similarity || 0) > 0.5 ? 100 : 0;
-                                  });
-                                  return data;
-                                })
-                            : []}
+                                  .map((q) => {
+                                    const data: any = {
+                                      question: `S${q.question_id}`,
+                                      questionId: q.question_id,
+                                    };
+                                    Object.entries(q.methodologies).forEach(
+                                      ([method, results]: [string, any]) => {
+                                        const methodName =
+                                          {
+                                            eduBars: "AkıllıRehber",
+                                            basicRag: "Basit RAG",
+                                            llmOnly: "Sadece LLM",
+                                          }[method] || method;
+                                        // Success = max similarity > 0.5
+                                        data[methodName] =
+                                          (results.max_similarity || 0) > 0.5
+                                            ? 100
+                                            : 0;
+                                      }
+                                    );
+                                    return data;
+                                  })
+                              : []
+                          }
                           margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" />
@@ -2473,11 +2692,12 @@ export default function TestSimulationPage() {
                           />
                           <Legend />
                           {config.testMethods.map((method) => {
-                            const methodName = {
-                              eduBars: "AkıllıRehber",
-                              basicRag: "Basit RAG",
-                              llmOnly: "Sadece LLM",
-                            }[method] || method;
+                            const methodName =
+                              {
+                                eduBars: "AkıllıRehber",
+                                basicRag: "Basit RAG",
+                                llmOnly: "Sadece LLM",
+                              }[method] || method;
                             const colors: Record<string, string> = {
                               AkıllıRehber: "#3b82f6",
                               "Basit RAG": "#10b981",
@@ -2508,7 +2728,8 @@ export default function TestSimulationPage() {
                         Detaylı Sorgu Sonuçları ve Metrikler
                       </CardTitle>
                       <CardDescription>
-                        Her sorgu için metodoloji bazında detaylı sonuçlar, LLM yanıtları ve kaynak doküman bilgileri
+                        Her sorgu için metodoloji bazında detaylı sonuçlar, LLM
+                        yanıtları ve kaynak doküman bilgileri
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -2568,15 +2789,12 @@ export default function TestSimulationPage() {
                                             className={`font-medium ${
                                               results.max_similarity >= 0.7
                                                 ? "text-green-600"
-                                                : results.max_similarity >=
-                                                  0.5
+                                                : results.max_similarity >= 0.5
                                                 ? "text-yellow-600"
                                                 : "text-red-600"
                                             }`}
                                           >
-                                            {results.max_similarity.toFixed(
-                                              3
-                                            )}
+                                            {results.max_similarity.toFixed(3)}
                                           </span>
                                         </div>
                                         <div className="flex justify-between">
@@ -2618,19 +2836,30 @@ export default function TestSimulationPage() {
                                           </span>
                                         </div>
                                         {(() => {
-                                          const sim = (results as any).similarity || {};
+                                          const sim =
+                                            (results as any).similarity || {};
                                           const semantic =
-                                            typeof sim.semanticSimilarity === "number"
+                                            typeof sim.semanticSimilarity ===
+                                            "number"
                                               ? sim.semanticSimilarity
-                                              : typeof (results as any).answer_quality_similarity === "number"
-                                              ? (results as any).answer_quality_similarity
+                                              : typeof (results as any)
+                                                  .answer_quality_similarity ===
+                                                "number"
+                                              ? (results as any)
+                                                  .answer_quality_similarity
                                               : null;
                                           const bleu =
-                                            typeof sim.bleuScore === "number" ? sim.bleuScore : null;
+                                            typeof sim.bleuScore === "number"
+                                              ? sim.bleuScore
+                                              : null;
                                           const rougeL =
-                                            typeof sim.rougeL === "number" ? sim.rougeL : null;
+                                            typeof sim.rougeL === "number"
+                                              ? sim.rougeL
+                                              : null;
                                           const f1 =
-                                            typeof sim.f1Score === "number" ? sim.f1Score : null;
+                                            typeof sim.f1Score === "number"
+                                              ? sim.f1Score
+                                              : null;
 
                                           if (
                                             semantic === null &&
@@ -2641,7 +2870,9 @@ export default function TestSimulationPage() {
                                             return null;
                                           }
 
-                                          const renderValue = (v: number | null) =>
+                                          const renderValue = (
+                                            v: number | null
+                                          ) =>
                                             v === null ? "N/A" : v.toFixed(3);
 
                                           return (
@@ -2652,9 +2883,11 @@ export default function TestSimulationPage() {
                                                 </span>
                                                 <span
                                                   className={`font-medium ${
-                                                    semantic !== null && semantic >= 0.7
+                                                    semantic !== null &&
+                                                    semantic >= 0.7
                                                       ? "text-green-600"
-                                                      : semantic !== null && semantic >= 0.5
+                                                      : semantic !== null &&
+                                                        semantic >= 0.5
                                                       ? "text-yellow-600"
                                                       : "text-gray-700"
                                                   }`}
@@ -2663,19 +2896,25 @@ export default function TestSimulationPage() {
                                                 </span>
                                               </div>
                                               <div className="flex justify-between">
-                                                <span className="text-gray-600">BLEU:</span>
+                                                <span className="text-gray-600">
+                                                  BLEU:
+                                                </span>
                                                 <span className="font-medium">
                                                   {renderValue(bleu)}
                                                 </span>
                                               </div>
                                               <div className="flex justify-between">
-                                                <span className="text-gray-600">ROUGE-L:</span>
+                                                <span className="text-gray-600">
+                                                  ROUGE-L:
+                                                </span>
                                                 <span className="font-medium">
                                                   {renderValue(rougeL)}
                                                 </span>
                                               </div>
                                               <div className="flex justify-between">
-                                                <span className="text-gray-600">F1:</span>
+                                                <span className="text-gray-600">
+                                                  F1:
+                                                </span>
                                                 <span className="font-medium">
                                                   {renderValue(f1)}
                                                 </span>
@@ -2718,10 +2957,7 @@ export default function TestSimulationPage() {
                     {currentTest.detailedResultsUrl && (
                       <Button
                         onClick={() => {
-                          window.open(
-                            currentTest.detailedResultsUrl,
-                            "_blank"
-                          );
+                          window.open(currentTest.detailedResultsUrl, "_blank");
                         }}
                         variant="outline"
                       >
@@ -2740,7 +2976,8 @@ export default function TestSimulationPage() {
                     Test Devam Ediyor
                   </h3>
                   <p className="text-gray-500 mb-4">
-                    Detaylı sonuçları görmek için testin tamamlanmasını bekleyin.
+                    Detaylı sonuçları görmek için testin tamamlanmasını
+                    bekleyin.
                   </p>
                 </CardContent>
               </Card>
@@ -2752,7 +2989,8 @@ export default function TestSimulationPage() {
                     Henüz Detaylı Sonuç Yok
                   </h3>
                   <p className="text-gray-500 mb-4">
-                    Detaylı sonuçları görmek için önce bir test başlatın ve tamamlayın.
+                    Detaylı sonuçları görmek için önce bir test başlatın ve
+                    tamamlayın.
                   </p>
                   <Button
                     onClick={() => setActiveTab("configuration")}
