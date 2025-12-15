@@ -438,6 +438,75 @@ export default function TestSimulationPage() {
     });
   };
 
+  // Load test list on component mount
+  const loadTestList = async () => {
+    setIsLoadingTests(true);
+    try {
+      const response = await fetch("/api/test-simulation/list");
+      if (!response.ok) {
+        console.error("Failed to load test list");
+        return;
+      }
+      const data = await response.json();
+      if (data.success && data.tests) {
+        setTestList(data.tests);
+        // Auto-load the most recent test if available
+        if (data.tests.length > 0 && !currentTest) {
+          loadTestDetails(data.tests[0].testId);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading test list:", error);
+    } finally {
+      setIsLoadingTests(false);
+    }
+  };
+
+  // Load specific test details
+  const loadTestDetails = async (testId: string) => {
+    try {
+      const response = await fetch(`/api/test-simulation/status/${testId}`);
+      if (!response.ok) {
+        console.error("Failed to load test details");
+        return;
+      }
+      const status = await response.json();
+      
+      // Convert API response to TestResult format
+      const testResult: TestResult = {
+        testId: status.testId || testId,
+        testName: status.testName || `Test ${testId.substring(0, 8)}`,
+        status: status.status || "completed",
+        progress: status.progress || 100,
+        startTime: status.startTime || "",
+        endTime: status.endTime,
+        executionTime: status.executionTime,
+        metrics: status.metrics || {
+          cosineSimilarity: 0,
+          precisionAt5: 0,
+          precisionAt10: 0,
+          avgResponseTime: 0,
+          totalQuestions: status.total_questions_in_results || 0,
+          correctAnswers: 0,
+        },
+        methodComparison: status.methodComparison || {},
+        benchmarkComparison: status.benchmarkComparison || {},
+        testType: status.testType,
+        questions: status.questions || [],
+      };
+      
+      setCurrentTest(testResult);
+      setSelectedTestId(testId);
+    } catch (error) {
+      console.error("Error loading test details:", error);
+    }
+  };
+
+  useEffect(() => {
+    // Load test list when component mounts
+    loadTestList();
+  }, []);
+
   // Auto-import questions when text changes
   React.useEffect(() => {
     if (questionText.trim()) {
