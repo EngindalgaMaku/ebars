@@ -1960,7 +1960,10 @@ export default function TestSimulationPage() {
                             <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                             <YAxis domain={[0, 1]} tick={{ fontSize: 12 }} />
                             <Tooltip
-                              formatter={(value: number) => [value.toFixed(3), "Cosine Similarity"]}
+                              formatter={(value?: number | string) => {
+                                if (typeof value !== "number") return ["", ""];
+                                return [value.toFixed(3), "Cosine Similarity"];
+                              }}
                             />
                             <Legend />
                             <Bar
