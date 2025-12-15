@@ -12,6 +12,7 @@ Provides endpoints for:
 import logging
 import json
 import os
+import sys
 import uuid
 import time
 import asyncio
@@ -27,6 +28,15 @@ import requests
 import httpx
 import math
 from collections import Counter
+
+# Import the AnswerSimilarityEvaluator
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+try:
+    from simulasyon_testleri.test_answer_similarity import AnswerSimilarityEvaluator
+    SIMILARITY_EVALUATOR_AVAILABLE = True
+except ImportError as e:
+    SIMILARITY_EVALUATOR_AVAILABLE = False
+    print(f"⚠️ Warning: Could not import AnswerSimilarityEvaluator: {e}")
 
 logger = logging.getLogger(__name__)
 
@@ -344,15 +354,20 @@ async def calculate_semantic_similarity(text1: str, text2: str) -> float:
     Generic function that can be used for query-response or answer-ground_truth similarity.
     """
     if not text1 or not text2:
+        logger.warning(f"Empty text for similarity calculation - text1: {len(str(text1))} chars, text2: {len(str(text2))} chars")
         return 0.0
     
     try:
+        logger.debug(f"Calculating semantic similarity between texts (lengths: {len(text1)}, {len(text2)})")
+        
         # Use Document Processing Service's embedding endpoint
         embedding_url = f"{DOCUMENT_PROCESSOR_URL}/embeddings"
+        logger.debug(f"Using embedding service URL: {embedding_url}")
         
         # Get embeddings for both texts
         async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
             # Get first text embedding
+            logger.debug("Getting embedding for text1...")
             text1_response = await client.post(
                 embedding_url,
                 json={"texts": [text1], "model": "text-embedding-v4"},
@@ -360,15 +375,24 @@ async def calculate_semantic_similarity(text1: str, text2: str) -> float:
             )
             
             if text1_response.status_code != 200:
-                logger.warning(f"Failed to get text1 embedding: {text1_response.status_code}")
+                logger.error(f"Failed to get text1 embedding: {text1_response.status_code}")
+                try:
+                    error_content = text1_response.text
+                    logger.error(f"Text1 embedding error content: {error_content}")
+                except:
+                    pass
                 return 0.0
             
-            text1_embedding = text1_response.json().get("embeddings", [])
+            text1_data = text1_response.json()
+            text1_embedding = text1_data.get("embeddings", [])
             if not text1_embedding:
+                logger.error(f"No embeddings in text1 response. Response keys: {list(text1_data.keys())}")
                 return 0.0
             text1_embedding = text1_embedding[0]
+            logger.debug(f"Got text1 embedding with {len(text1_embedding)} dimensions")
             
             # Get second text embedding
+            logger.debug("Getting embedding for text2...")
             text2_response = await client.post(
                 embedding_url,
                 json={"texts": [text2], "model": "text-embedding-v4"},
@@ -376,27 +400,47 @@ async def calculate_semantic_similarity(text1: str, text2: str) -> float:
             )
             
             if text2_response.status_code != 200:
-                logger.warning(f"Failed to get text2 embedding: {text2_response.status_code}")
+                logger.error(f"Failed to get text2 embedding: {text2_response.status_code}")
+                try:
+                    error_content = text2_response.text
+                    logger.error(f"Text2 embedding error content: {error_content}")
+                except:
+                    pass
                 return 0.0
             
-            text2_embedding = text2_response.json().get("embeddings", [])
+            text2_data = text2_response.json()
+            text2_embedding = text2_data.get("embeddings", [])
             if not text2_embedding:
+                logger.error(f"No embeddings in text2 response. Response keys: {list(text2_data.keys())}")
                 return 0.0
             text2_embedding = text2_embedding[0]
+            logger.debug(f"Got text2 embedding with {len(text2_embedding)} dimensions")
+            
+            # Validate embedding dimensions match
+            if len(text1_embedding) != len(text2_embedding):
+                logger.error(f"Embedding dimension mismatch: {len(text1_embedding)} vs {len(text2_embedding)}")
+                return 0.0
             
             # Calculate cosine similarity
+            logger.debug("Calculating cosine similarity...")
             dot_product = sum(a * b for a, b in zip(text1_embedding, text2_embedding))
             text1_norm = math.sqrt(sum(a * a for a in text1_embedding))
             text2_norm = math.sqrt(sum(a * a for a in text2_embedding))
             
             if text1_norm == 0 or text2_norm == 0:
+                logger.warning(f"Zero norm in embeddings: text1_norm={text1_norm}, text2_norm={text2_norm}")
                 return 0.0
             
             similarity = dot_product / (text1_norm * text2_norm)
-            return max(0.0, min(1.0, similarity))  # Clamp to [0, 1]
+            similarity = max(0.0, min(1.0, similarity))  # Clamp to [0, 1]
+            
+            logger.debug(f"Calculated semantic similarity: {similarity:.4f}")
+            return similarity
             
     except Exception as e:
         logger.error(f"Error calculating semantic similarity: {e}")
+        import traceback
+        logger.error(f"Semantic similarity exception traceback: {traceback.format_exc()}")
         return 0.0
 
 async def calculate_query_response_similarity(query: str, response: str) -> float:
@@ -405,7 +449,18 @@ async def calculate_query_response_similarity(query: str, response: str) -> floa
     This is useful for llmOnly methodology where we want to measure how well
     the LLM response addresses the query.
     """
-    return await calculate_semantic_similarity(query, response)
+    if not query or not response:
+        logger.warning(f"Empty query or response for similarity - query: {len(str(query))} chars, response: {len(str(response))} chars")
+        return 0.0
+    
+    logger.info(f"Calculating query-response similarity for LLM-only method")
+    similarity = await calculate_semantic_similarity(query, response)
+    logger.info(f"Query-response similarity result: {similarity:.4f}")
+    
+    if similarity == 0.0:
+        logger.error("Query-response similarity calculation returned 0.0 - this may indicate an error")
+    
+    return similarity
 
 async def calculate_answer_quality_similarity(llm_response: str, ground_truth: str) -> float:
     """
@@ -545,10 +600,14 @@ async def execute_llm_only(question: str, session_settings: Optional[Dict[str, A
             model_provider = session_settings.get("provider", "groq")
             model_name = session_settings.get("model", "llama-3.1-8b-instant")
         
+        logger.info(f"LLM-Only execution starting - Provider: {model_provider}, Model: {model_name}")
+        logger.info(f"Question: {question[:100]}...")
+        
         # Direct LLM call without any retrieval
         # Disable SSL verification for internal Docker network calls
         async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
             if model_provider == "groq":
+                logger.info(f"Making Groq API call to: {MODEL_INFERENCE_URL}/models/generate")
                 response = await client.post(
                     f"{MODEL_INFERENCE_URL}/models/generate",
                     json={
@@ -559,6 +618,7 @@ async def execute_llm_only(question: str, session_settings: Optional[Dict[str, A
                     }
                 )
             else:
+                logger.info(f"Making API Gateway call to: {API_GATEWAY_URL}/rag/query")
                 # Use direct LLM endpoint through main API Gateway
                 response = await client.post(
                     f"{API_GATEWAY_URL}/rag/query",
@@ -571,18 +631,64 @@ async def execute_llm_only(question: str, session_settings: Optional[Dict[str, A
                 )
         
             execution_time = (time.time() - start_time) * 1000
+            logger.info(f"LLM-Only API call completed - Status: {response.status_code}, Time: {execution_time:.0f}ms")
             
             if response.status_code == 200:
                 result = response.json()
+                logger.info(f"LLM-Only API response structure: {list(result.keys())}")
+                
+                # Try multiple field names to find the response
+                response_text = ""
+                possible_fields = ["response", "answer", "text", "content", "result", "output", "message"]
+                
+                for field in possible_fields:
+                    if field in result and result[field]:
+                        response_text = result[field]
+                        logger.info(f"LLM-Only response found in field: '{field}' (length: {len(str(response_text))})")
+                        break
+                
+                if not response_text:
+                    logger.error(f"LLM-Only response parsing failed! Available fields: {list(result.keys())}")
+                    logger.error(f"Full response structure: {result}")
+                    # Try to extract from nested structures
+                    for key, value in result.items():
+                        if isinstance(value, dict):
+                            for nested_key in possible_fields:
+                                if nested_key in value:
+                                    response_text = value[nested_key]
+                                    logger.info(f"LLM-Only response found in nested field: '{key}.{nested_key}'")
+                                    break
+                            if response_text:
+                                break
+                
+                if not response_text:
+                    logger.error("LLM-Only: No valid response text found in any expected fields!")
+                    return {
+                        "method": "llmOnly",
+                        "response": "",
+                        "sources": [],
+                        "execution_time_ms": execution_time,
+                        "success": False,
+                        "error": f"Response parsing failed - no text found in fields: {possible_fields}"
+                    }
+                
+                logger.info(f"LLM-Only successful response (length: {len(response_text)})")
                 return {
                     "method": "llmOnly",
-                    "response": result.get("response", result.get("answer", "")),
+                    "response": response_text,
                     "sources": [],  # No retrieval sources
                     "execution_time_ms": execution_time,
                     "success": True,
                     "config": f"LLM Only ({model_provider}/{model_name})"
                 }
             else:
+                logger.error(f"LLM-Only API Error: {response.status_code}")
+                try:
+                    error_content = response.text
+                    logger.error(f"LLM-Only API Error content: {error_content}")
+                except:
+                    logger.error("Could not read LLM-Only API error content")
+                    
                 return {
                     "method": "llmOnly",
                     "response": "",
@@ -594,6 +700,9 @@ async def execute_llm_only(question: str, session_settings: Optional[Dict[str, A
             
     except Exception as e:
         execution_time = (time.time() - start_time) * 1000
+        logger.error(f"LLM-Only execution failed: {e}")
+        import traceback
+        logger.error(f"LLM-Only exception traceback: {traceback.format_exc()}")
         return {
             "method": "llmOnly",
             "response": "",
@@ -1322,9 +1431,26 @@ async def execute_full_test_simulation(
                         else:
                             # No sources: either llmOnly (expected) or failed retrieval
                             if is_llm_only:
+                                logger.info(f"Processing LLM-only response for question {question_id}")
+                                logger.info(f"LLM response length: {len(result.get('response', ''))}")
+                                
                                 # llmOnly: Calculate query-response semantic similarity instead
                                 # This measures how well the LLM response addresses the query
-                                query_response_similarity = await calculate_query_response_similarity(question, result["response"])
+                                try:
+                                    query_response_similarity = await calculate_query_response_similarity(question, result["response"])
+                                    logger.info(f"LLM-only query-response similarity calculated: {query_response_similarity:.4f}")
+                                    
+                                    if query_response_similarity == 0.0:
+                                        logger.error(f"LLM-only similarity is 0.0 for question {question_id} - this indicates a failure!")
+                                        logger.error(f"Question: {question[:100]}...")
+                                        logger.error(f"Response: {result.get('response', '')[:100]}...")
+                                    
+                                except Exception as sim_error:
+                                    logger.error(f"LLM-only similarity calculation failed for question {question_id}: {sim_error}")
+                                    import traceback
+                                    logger.error(f"LLM-only similarity error traceback: {traceback.format_exc()}")
+                                    query_response_similarity = 0.0
+                                
                                 avg_similarity = query_response_similarity  # Use query-response similarity as main metric
                                 max_similarity = query_response_similarity
                                 
@@ -1332,8 +1458,11 @@ async def execute_full_test_simulation(
                                 precision_at_5 = 0.0  # N/A, but store as 0.0 for compatibility
                                 precision_at_10 = 0.0  # N/A
                                 context_relevance = query_response_similarity  # Use query-response similarity as relevance measure
+                                
+                                logger.info(f"LLM-only final metrics - similarity: {max_similarity:.4f}, context_relevance: {context_relevance:.4f}")
                             else:
                                 # Failed retrieval: similarity is 0
+                                logger.warning(f"Failed retrieval for question {question_id} - no sources returned")
                                 avg_similarity = 0.0
                                 max_similarity = 0.0
                                 precision_at_5 = 0.0
@@ -1342,14 +1471,88 @@ async def execute_full_test_simulation(
                                 query_response_similarity = 0.0
                             similarity_scores = []
                         
-                        # Calculate answer quality similarity (LLM response vs ground truth)
-                        # This measures how well the LLM's answer matches the expected answer
+                        # Calculate comprehensive similarity metrics using AnswerSimilarityEvaluator
+                        similarity_metrics = {
+                            "semanticSimilarity": None,
+                            "bleuScore": None,
+                            "rougeL": None,
+                            "rouge1": None,
+                            "rouge2": None,
+                            "f1Score": None,
+                            "exactMatchRate": None
+                        }
+                        
+                        # Calculate answer quality similarity (LLM response vs ground truth) - legacy
                         answer_quality_similarity = None
+                        
                         if ground_truth and result.get("response"):
-                            answer_quality_similarity = await calculate_answer_quality_similarity(
-                                result["response"], 
-                                ground_truth
-                            )
+                            try:
+                                logger.info(f"Calculating comprehensive similarity metrics for question {question_id}")
+                                
+                                # Calculate legacy answer quality similarity for backward compatibility
+                                answer_quality_similarity = await calculate_answer_quality_similarity(
+                                    result["response"],
+                                    ground_truth
+                                )
+                                
+                                # Calculate comprehensive similarity metrics using AnswerSimilarityEvaluator
+                                if SIMILARITY_EVALUATOR_AVAILABLE:
+                                    logger.info("Using AnswerSimilarityEvaluator for comprehensive metrics calculation")
+                                    
+                                    # Create evaluator instance (use API_GATEWAY_URL as base)
+                                    evaluator = AnswerSimilarityEvaluator(api_base_url=API_GATEWAY_URL)
+                                    
+                                    # Calculate all similarity metrics
+                                    all_metrics = evaluator.calculate_all_metrics(
+                                        reference=ground_truth,
+                                        candidate=result["response"]
+                                    )
+                                    
+                                    # Map to expected structure
+                                    similarity_metrics = {
+                                        "semanticSimilarity": float(all_metrics.semantic_similarity),
+                                        "bleuScore": float(all_metrics.bleu_score),
+                                        "rougeL": float(all_metrics.rouge_l),
+                                        "rouge1": float(all_metrics.rouge_1),
+                                        "rouge2": float(all_metrics.rouge_2),
+                                        "f1Score": float(all_metrics.f1_score),
+                                        "exactMatchRate": 1.0 if all_metrics.exact_match else 0.0
+                                    }
+                                    
+                                    # Use semantic similarity as primary answer quality measure if legacy failed
+                                    if answer_quality_similarity is None or answer_quality_similarity == 0.0:
+                                        answer_quality_similarity = similarity_metrics["semanticSimilarity"]
+                                    
+                                    logger.info(f"Comprehensive similarity metrics calculated: "
+                                              f"Semantic={similarity_metrics['semanticSimilarity']:.3f}, "
+                                              f"BLEU={similarity_metrics['bleuScore']:.3f}, "
+                                              f"ROUGE-L={similarity_metrics['rougeL']:.3f}, "
+                                              f"F1={similarity_metrics['f1Score']:.3f}")
+                                else:
+                                    logger.warning("AnswerSimilarityEvaluator not available, using basic similarity calculation")
+                                    # Keep only the legacy answer_quality_similarity
+                                    if answer_quality_similarity is not None:
+                                        similarity_metrics["semanticSimilarity"] = answer_quality_similarity
+                                    
+                            except Exception as sim_error:
+                                logger.error(f"Comprehensive similarity calculation failed for question {question_id}: {sim_error}")
+                                import traceback
+                                logger.error(f"Similarity calculation error traceback: {traceback.format_exc()}")
+                                
+                                # Fallback: try to calculate basic semantic similarity at least
+                                try:
+                                    answer_quality_similarity = await calculate_answer_quality_similarity(
+                                        result["response"],
+                                        ground_truth
+                                    )
+                                    similarity_metrics["semanticSimilarity"] = answer_quality_similarity
+                                except Exception as fallback_error:
+                                    logger.error(f"Fallback similarity calculation also failed: {fallback_error}")
+                        else:
+                            if not ground_truth:
+                                logger.info(f"No ground truth available for question {question_id}, similarity metrics will be N/A")
+                            elif not result.get("response"):
+                                logger.warning(f"No response available for question {question_id}, similarity metrics will be N/A")
                         
                         metrics = {
                             "cosine_similarity": avg_similarity,  # Keep for backward compatibility, but use max_similarity for calculations
@@ -1362,7 +1565,9 @@ async def execute_full_test_simulation(
                             "accuracy": min(max_similarity * 100, 100),  # Use max_similarity for accuracy calculation
                             "is_llm_only": is_llm_only,  # Flag to indicate this is llmOnly methodology
                             "query_response_similarity": query_response_similarity if is_llm_only else None,  # Only for llmOnly
-                            "answer_quality_similarity": answer_quality_similarity  # LLM response vs ground truth (if available)
+                            "answer_quality_similarity": answer_quality_similarity,  # LLM response vs ground truth (if available)
+                            # COMPREHENSIVE SIMILARITY METRICS - All calculations from AnswerSimilarityEvaluator
+                            "similarity": similarity_metrics  # Nested object with all metrics: semanticSimilarity, bleuScore, rougeL, rouge1, rouge2, f1Score, exactMatchRate
                         }
                         
                         # Store result
@@ -1576,11 +1781,13 @@ def generate_csv_export(test_data: Dict[str, Any]) -> str:
     # Write comprehensive header with ALL fields for thesis analysis
     writer.writerow([
         "Test ID", "Test Name", "Session ID", "Question ID", "Question", "Expected Answer (Ground Truth)", "Methodology",
-        "LLM Response", "Response Length (chars)", 
-        "Cosine Similarity", "Max Similarity", "Precision@5", "Precision@10", 
+        "LLM Response", "Response Length (chars)",
+        "Cosine Similarity", "Max Similarity", "Precision@5", "Precision@10",
         "Context Relevance", "Answer Quality Similarity (Response vs Ground Truth)", "Response Time (ms)", "Retrieval Count", "Accuracy (%)",
-        "Source Count", 
-        "Source 1 Content", "Source 1 Similarity", 
+        # COMPREHENSIVE SIMILARITY METRICS
+        "Semantic Similarity", "BLEU Score", "ROUGE-L", "ROUGE-1", "ROUGE-2", "F1 Score", "Exact Match Rate",
+        "Source Count",
+        "Source 1 Content", "Source 1 Similarity",
         "Source 2 Content", "Source 2 Similarity",
         "Source 3 Content", "Source 3 Similarity",
         "Source 4 Content", "Source 4 Similarity",
@@ -1612,6 +1819,9 @@ def generate_csv_export(test_data: Dict[str, Any]) -> str:
         while len(source_data) < 5:
             source_data.append({"content": "", "similarity": ""})
         
+        # Extract comprehensive similarity metrics
+        similarity_data = metrics.get("similarity", {})
+        
         writer.writerow([
             test_data["test_id"],
             test_data.get("test_name", ""),
@@ -1631,6 +1841,14 @@ def generate_csv_export(test_data: Dict[str, Any]) -> str:
             round(metrics.get("response_time_ms", 0), 2),
             metrics.get("retrieval_count", 0),
             round(metrics.get("accuracy", 0), 2),
+            # COMPREHENSIVE SIMILARITY METRICS - from AnswerSimilarityEvaluator
+            round(similarity_data.get("semanticSimilarity", 0) if similarity_data.get("semanticSimilarity") is not None else 0, 4),
+            round(similarity_data.get("bleuScore", 0) if similarity_data.get("bleuScore") is not None else 0, 4),
+            round(similarity_data.get("rougeL", 0) if similarity_data.get("rougeL") is not None else 0, 4),
+            round(similarity_data.get("rouge1", 0) if similarity_data.get("rouge1") is not None else 0, 4),
+            round(similarity_data.get("rouge2", 0) if similarity_data.get("rouge2") is not None else 0, 4),
+            round(similarity_data.get("f1Score", 0) if similarity_data.get("f1Score") is not None else 0, 4),
+            round(similarity_data.get("exactMatchRate", 0) if similarity_data.get("exactMatchRate") is not None else 0, 4),
             len(sources),
             # Source 1
             source_data[0]["content"],

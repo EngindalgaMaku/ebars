@@ -9,11 +9,15 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@types/file-saver": "^2.0.7",
     "autoprefixer": "10.4.20",
     "axios": "^1.7.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "2.1.1",
+    "file-saver": "^2.0.5",
+    "html2canvas": "^1.4.1",
     "immer": "^11.0.1",
+    "jspdf": "^3.0.4",
     "lucide-react": "^0.553.0",
     "next": "14.2.5",
     "postcss": "8.4.47",

@@ -68,6 +68,8 @@ import {
   Pie,
 } from "recharts";
 import type { Formatter } from "recharts/types/component/DefaultTooltipContent";
+import ChartExportControls from "../../components/ChartExportControls";
+import DataExportControls from "../../components/DataExportControls";
 
 // Test Configuration Interface
 interface TestConfig {
@@ -203,13 +205,63 @@ export default function TestSimulationPage() {
   const [questionText, setQuestionText] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // Helpers to read new similarity metrics with graceful fallback to legacy field
+  // Enhanced helper to read similarity metrics with fallback to legacy fields
   const getSimilarityValue = (
     results: MethodResults | TestResult["metrics"],
     key: keyof SimilarityMetrics
   ): number | null => {
+    // First, try to get from nested similarity object
     const sim = results?.similarity;
-    if (sim && typeof sim[key] === "number") return sim[key] as number;
+    if (sim && typeof sim[key] === "number") {
+      console.log(`✅ Found ${key} in nested similarity:`, sim[key]);
+      return sim[key] as number;
+    }
+
+    // Fallback to legacy field for semantic similarity
+    if (
+      key === "semanticSimilarity" &&
+      results &&
+      "answerQualitySimilarity" in results
+    ) {
+      const legacy = (results as any).answerQualitySimilarity;
+      if (typeof legacy === "number") {
+        console.log(
+          `⚠️ Using legacy answerQualitySimilarity for ${key}:`,
+          legacy
+        );
+        return legacy;
+      }
+    }
+
+    // Additional debugging
+    console.log(`❌ No value found for ${key} in:`, {
+      similarity: sim,
+      answerQualitySimilarity: (results as any)?.answerQualitySimilarity,
+      allKeys: Object.keys(results || {}),
+    });
+
+    return null;
+  };
+
+  // Helper function to get similarity value for individual question results
+  const getQuestionSimilarityValue = (
+    questionResults: any,
+    key: keyof SimilarityMetrics
+  ): number | null => {
+    // First, try nested similarity object
+    const sim = questionResults?.similarity;
+    if (sim && typeof sim[key] === "number") {
+      return sim[key];
+    }
+
+    // Fallback to legacy field for semantic similarity
+    if (
+      key === "semanticSimilarity" &&
+      typeof questionResults?.answer_quality_similarity === "number"
+    ) {
+      return questionResults.answer_quality_similarity;
+    }
+
     return null;
   };
 
@@ -512,11 +564,20 @@ export default function TestSimulationPage() {
 
         const status = await response.json();
 
+        // Debug logging to see what data structure is received
+        console.log("📊 Test Status Update Received:", {
+          status: status.status,
+          progress: status.progress,
+          metrics: status.metrics,
+          methodComparison: status.methodComparison,
+          sampleQuestions: status.questions?.slice(0, 2), // Log first 2 questions for debugging
+        });
+
         // Update current test with API data
         setCurrentTest((prevTest) => {
           if (!prevTest) return null;
 
-          return {
+          const updatedTest = {
             ...prevTest,
             progress: status.progress,
             status: status.status,
@@ -531,6 +592,24 @@ export default function TestSimulationPage() {
             detailedResultsUrl: status.detailedResultsUrl,
             detailedResultsAvailable: status.detailedResultsAvailable,
           };
+
+          // Debug similarity data structure
+          if (status.methodComparison) {
+            console.log("🔍 Method Comparison Similarity Data:", {
+              eduBars: {
+                similarity: status.methodComparison.eduBars?.similarity,
+                answerQualitySimilarity:
+                  status.methodComparison.eduBars?.answerQualitySimilarity,
+              },
+              basicRag: {
+                similarity: status.methodComparison.basicRag?.similarity,
+                answerQualitySimilarity:
+                  status.methodComparison.basicRag?.answerQualitySimilarity,
+              },
+            });
+          }
+
+          return updatedTest;
         });
 
         // If test is completed or failed, stop polling
@@ -1479,24 +1558,23 @@ export default function TestSimulationPage() {
                         <Award className="h-5 w-5" />
                         Test Özeti: {currentTest.testName}
                       </CardTitle>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => exportResults("json")}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Download className="mr-2 h-4 w-4" />
-                          JSON İndir
-                        </Button>
-                        <Button
-                          onClick={() => exportResults("csv")}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Download className="mr-2 h-4 w-4" />
-                          CSV İndir
-                        </Button>
-                      </div>
+                      <DataExportControls
+                        testResult={currentTest}
+                        chartIds={[
+                          "method-performance-chart",
+                          "response-time-chart",
+                          "performance-radar-chart",
+                          "cosine-similarity-chart",
+                          "precision-comparison-chart",
+                          "response-time-detailed-chart",
+                          "accuracy-comparison-chart",
+                          "question-performance-chart",
+                          "similarity-distribution-chart",
+                          "success-rate-chart",
+                        ]}
+                        variant="compact"
+                        className="flex gap-2"
+                      />
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -1753,116 +1831,136 @@ export default function TestSimulationPage() {
                   {/* Method Performance Bar Chart */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5" />
-                        Performans Karşılaştırması
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <BarChart3 className="h-5 w-5" />
+                          Performans Karşılaştırması
+                        </div>
+                        <ChartExportControls
+                          chartId="method-performance-chart"
+                          chartTitle="Performans Karşılaştırması"
+                          variant="compact"
+                          showLabels={false}
+                        />
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart
-                          data={Object.entries(currentTest.methodComparison)
-                            .filter(([method]) =>
-                              config.testMethods.includes(method)
-                            )
-                            .filter(
-                              ([, results]) => results.cosineSimilarity > 0
-                            ) // Filter out zero similarity results
-                            .map(([method, results]) => ({
-                              name:
-                                {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "Basit RAG",
-                                  llmOnly: "Sadece LLM",
-                                }[method] || method,
-                              cosine: results.cosineSimilarity, // Backend already uses max_similarity
-                              precision5: results.precisionAt5,
-                              accuracy: results.accuracy,
-                            }))}
-                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis
-                            dataKey="name"
-                            tick={{ fontSize: 12 }}
-                            angle={-45}
-                            textAnchor="end"
-                            height={60}
-                          />
-                          <YAxis />
-                          <Tooltip formatter={tooltipFormatterCosine} />
-                          <Legend />
-                          <Bar
-                            dataKey="cosine"
-                            fill="#3b82f6"
-                            name="Cosine Similarity"
-                            radius={[2, 2, 0, 0]}
-                          />
-                          <Bar
-                            dataKey="precision5"
-                            fill="#10b981"
-                            name="Precision@5 (%)"
-                            radius={[2, 2, 0, 0]}
-                          />
-                          <Bar
-                            dataKey="accuracy"
-                            fill="#f59e0b"
-                            name="Accuracy (%)"
-                            radius={[2, 2, 0, 0]}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
+                      <div id="method-performance-chart">
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart
+                            data={Object.entries(currentTest.methodComparison)
+                              .filter(([method]) =>
+                                config.testMethods.includes(method)
+                              )
+                              .filter(
+                                ([, results]) => results.cosineSimilarity > 0
+                              ) // Filter out zero similarity results
+                              .map(([method, results]) => ({
+                                name:
+                                  {
+                                    eduBars: "AkıllıRehber",
+                                    basicRag: "Basit RAG",
+                                    llmOnly: "Sadece LLM",
+                                  }[method] || method,
+                                cosine: results.cosineSimilarity, // Backend already uses max_similarity
+                                precision5: results.precisionAt5,
+                                accuracy: results.accuracy,
+                              }))}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis
+                              dataKey="name"
+                              tick={{ fontSize: 12 }}
+                              angle={-45}
+                              textAnchor="end"
+                              height={60}
+                            />
+                            <YAxis />
+                            <Tooltip formatter={tooltipFormatterCosine} />
+                            <Legend />
+                            <Bar
+                              dataKey="cosine"
+                              fill="#3b82f6"
+                              name="Cosine Similarity"
+                              radius={[2, 2, 0, 0]}
+                            />
+                            <Bar
+                              dataKey="precision5"
+                              fill="#10b981"
+                              name="Precision@5 (%)"
+                              radius={[2, 2, 0, 0]}
+                            />
+                            <Bar
+                              dataKey="accuracy"
+                              fill="#f59e0b"
+                              name="Accuracy (%)"
+                              radius={[2, 2, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </CardContent>
                   </Card>
 
                   {/* Response Time Comparison */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Clock className="h-5 w-5" />
-                        Yanıt Süreleri
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-5 w-5" />
+                          Yanıt Süreleri
+                        </div>
+                        <ChartExportControls
+                          chartId="response-time-chart"
+                          chartTitle="Yanıt Süreleri"
+                          variant="compact"
+                          showLabels={false}
+                        />
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart
-                          data={Object.entries(currentTest.methodComparison)
-                            .filter(([method]) =>
-                              config.testMethods.includes(method)
-                            )
-                            .filter(
-                              ([, results]) => results.cosineSimilarity > 0
-                            ) // Filter out zero similarity results
-                            .map(([method, results]) => ({
-                              name:
-                                {
-                                  eduBars: "AkıllıRehber",
-                                  basicRag: "Basit RAG",
-                                  llmOnly: "Sadece LLM",
-                                }[method] || method,
-                              responseTime: results.avgResponseTime,
-                            }))}
-                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis
-                            dataKey="name"
-                            tick={{ fontSize: 12 }}
-                            angle={-45}
-                            textAnchor="end"
-                            height={60}
-                          />
-                          <YAxis />
-                          <Tooltip formatter={tooltipFormatterResponseTime} />
-                          <Legend />
-                          <Bar
-                            dataKey="responseTime"
-                            fill="#ef4444"
-                            name="Yanıt Süresi (ms)"
-                            radius={[2, 2, 0, 0]}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
+                      <div id="response-time-chart">
+                        <ResponsiveContainer width="100%" height={300}>
+                          <BarChart
+                            data={Object.entries(currentTest.methodComparison)
+                              .filter(([method]) =>
+                                config.testMethods.includes(method)
+                              )
+                              .filter(
+                                ([, results]) => results.cosineSimilarity > 0
+                              ) // Filter out zero similarity results
+                              .map(([method, results]) => ({
+                                name:
+                                  {
+                                    eduBars: "AkıllıRehber",
+                                    basicRag: "Basit RAG",
+                                    llmOnly: "Sadece LLM",
+                                  }[method] || method,
+                                responseTime: results.avgResponseTime,
+                              }))}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis
+                              dataKey="name"
+                              tick={{ fontSize: 12 }}
+                              angle={-45}
+                              textAnchor="end"
+                              height={60}
+                            />
+                            <YAxis />
+                            <Tooltip formatter={tooltipFormatterResponseTime} />
+                            <Legend />
+                            <Bar
+                              dataKey="responseTime"
+                              fill="#ef4444"
+                              name="Yanıt Süresi (ms)"
+                              radius={[2, 2, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
@@ -1870,109 +1968,119 @@ export default function TestSimulationPage() {
                 {/* Radar Chart for Overall Performance */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5" />
-                      Genel Performans Analizi
+                    <CardTitle className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5" />
+                        Genel Performans Analizi
+                      </div>
+                      <ChartExportControls
+                        chartId="performance-radar-chart"
+                        chartTitle="Genel Performans Analizi"
+                        variant="compact"
+                        showLabels={false}
+                      />
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={400}>
-                      <RadarChart
-                        data={[
-                          "cosine",
-                          "precision5",
-                          "precision10",
-                          "accuracy",
-                          "speed",
-                        ].map((metric) => ({
-                          metric: {
-                            cosine: "Cosine Similarity",
-                            precision5: "Precision@5",
-                            precision10: "Precision@10",
-                            accuracy: "Accuracy",
-                            speed: "Speed (Inverted)",
-                          }[metric],
-                          ...Object.entries(currentTest.methodComparison)
-                            .filter(([method]) =>
-                              config.testMethods.includes(method)
-                            )
-                            .reduce((acc, [method, results]) => {
-                              let value = 0;
-                              if (metric === "cosine")
-                                value = results.cosineSimilarity * 100;
-                              else if (metric === "precision5")
-                                value = results.precisionAt5;
-                              else if (metric === "precision10")
-                                value = results.precisionAt10;
-                              else if (metric === "accuracy")
-                                value = results.accuracy;
-                              else if (metric === "speed")
-                                value = Math.max(
-                                  0,
-                                  100 - results.avgResponseTime / 20
-                                ); // Inverted and scaled
+                    <div id="performance-radar-chart">
+                      <ResponsiveContainer width="100%" height={400}>
+                        <RadarChart
+                          data={[
+                            "cosine",
+                            "precision5",
+                            "precision10",
+                            "accuracy",
+                            "speed",
+                          ].map((metric) => ({
+                            metric: {
+                              cosine: "Cosine Similarity",
+                              precision5: "Precision@5",
+                              precision10: "Precision@10",
+                              accuracy: "Accuracy",
+                              speed: "Speed (Inverted)",
+                            }[metric],
+                            ...Object.entries(currentTest.methodComparison)
+                              .filter(([method]) =>
+                                config.testMethods.includes(method)
+                              )
+                              .reduce((acc, [method, results]) => {
+                                let value = 0;
+                                if (metric === "cosine")
+                                  value = results.cosineSimilarity * 100;
+                                else if (metric === "precision5")
+                                  value = results.precisionAt5;
+                                else if (metric === "precision10")
+                                  value = results.precisionAt10;
+                                else if (metric === "accuracy")
+                                  value = results.accuracy;
+                                else if (metric === "speed")
+                                  value = Math.max(
+                                    0,
+                                    100 - results.avgResponseTime / 20
+                                  ); // Inverted and scaled
 
-                              const methodName =
-                                {
-                                  eduBars: "AkıllıRehber",
-                                  singleModel: "TekModel",
-                                  twoStageRetrieval: "IkiAsama",
-                                  singleStageRetrieval: "TekAsama",
-                                }[method] || method;
+                                const methodName =
+                                  {
+                                    eduBars: "AkıllıRehber",
+                                    singleModel: "TekModel",
+                                    twoStageRetrieval: "IkiAsama",
+                                    singleStageRetrieval: "TekAsama",
+                                  }[method] || method;
 
-                              acc[methodName] = value;
-                              return acc;
-                            }, {} as Record<string, number>),
-                        }))}
-                        margin={{ top: 20, right: 80, bottom: 20, left: 80 }}
-                      >
-                        <PolarGrid />
-                        <PolarAngleAxis
-                          dataKey="metric"
-                          tick={{ fontSize: 12 }}
-                        />
-                        <PolarRadiusAxis
-                          angle={90}
-                          domain={[0, 100]}
-                          tick={{ fontSize: 10 }}
-                          tickCount={6}
-                        />
-                        {config.testMethods.map((method, index) => {
-                          const methodName =
-                            {
-                              eduBars: "AkıllıRehber",
-                              basicRag: "BasitRAG",
-                              llmOnly: "SadeceLLM",
-                            }[method] || method;
+                                acc[methodName] = value;
+                                return acc;
+                              }, {} as Record<string, number>),
+                          }))}
+                          margin={{ top: 20, right: 80, bottom: 20, left: 80 }}
+                        >
+                          <PolarGrid />
+                          <PolarAngleAxis
+                            dataKey="metric"
+                            tick={{ fontSize: 12 }}
+                          />
+                          <PolarRadiusAxis
+                            angle={90}
+                            domain={[0, 100]}
+                            tick={{ fontSize: 10 }}
+                            tickCount={6}
+                          />
+                          {config.testMethods.map((method, index) => {
+                            const methodName =
+                              {
+                                eduBars: "AkıllıRehber",
+                                basicRag: "BasitRAG",
+                                llmOnly: "SadeceLLM",
+                              }[method] || method;
 
-                          const colors = [
-                            "#3b82f6",
-                            "#10b981",
-                            "#f59e0b",
-                            "#ef4444",
-                          ];
-                          return (
-                            <Radar
-                              key={method}
-                              name={
-                                {
-                                  AkıllıRehber: "AkıllıRehber",
-                                  TekModel: "Tek Model",
-                                  IkiAsama: "İki Aşama",
-                                  TekAsama: "Tek Aşama",
-                                }[methodName] || methodName
-                              }
-                              dataKey={methodName}
-                              stroke={colors[index]}
-                              fill={colors[index]}
-                              fillOpacity={0.1}
-                              strokeWidth={2}
-                            />
-                          );
-                        })}
-                        <Legend />
-                      </RadarChart>
-                    </ResponsiveContainer>
+                            const colors = [
+                              "#3b82f6",
+                              "#10b981",
+                              "#f59e0b",
+                              "#ef4444",
+                            ];
+                            return (
+                              <Radar
+                                key={method}
+                                name={
+                                  {
+                                    AkıllıRehber: "AkıllıRehber",
+                                    TekModel: "Tek Model",
+                                    IkiAsama: "İki Aşama",
+                                    TekAsama: "Tek Aşama",
+                                  }[methodName] || methodName
+                                }
+                                dataKey={methodName}
+                                stroke={colors[index]}
+                                fill={colors[index]}
+                                fillOpacity={0.1}
+                                strokeWidth={2}
+                              />
+                            );
+                          })}
+                          <Legend />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -1980,89 +2088,99 @@ export default function TestSimulationPage() {
                 {config.enableBenchmark && (
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Target className="h-5 w-5" />
-                        Benchmark Karşılaştırması
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Target className="h-5 w-5" />
+                          Benchmark Karşılaştırması
+                        </div>
+                        <ChartExportControls
+                          chartId="benchmark-comparison-chart"
+                          chartTitle="Benchmark Karşılaştırması"
+                          variant="compact"
+                          showLabels={false}
+                        />
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="text-center p-6 bg-blue-50 rounded-lg">
-                          <div className="text-3xl font-bold text-blue-600 mb-2">
-                            {currentTest.benchmarkComparison.ekoBot.cosineSimilarity.toFixed(
-                              3
-                            )}
+                      <div id="benchmark-comparison-chart">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="text-center p-6 bg-blue-50 rounded-lg">
+                            <div className="text-3xl font-bold text-blue-600 mb-2">
+                              {currentTest.benchmarkComparison.ekoBot.cosineSimilarity.toFixed(
+                                3
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600 mb-1">
+                              EkoBot Referans
+                            </div>
+                            <div className="text-lg font-semibold text-blue-600">
+                              Precision@5:{" "}
+                              {
+                                currentTest.benchmarkComparison.ekoBot
+                                  .precisionAt5
+                              }
+                              %
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600 mb-1">
-                            EkoBot Referans
-                          </div>
-                          <div className="text-lg font-semibold text-blue-600">
-                            Precision@5:{" "}
-                            {
-                              currentTest.benchmarkComparison.ekoBot
-                                .precisionAt5
-                            }
-                            %
+                          <div className="text-center p-6 bg-green-50 rounded-lg">
+                            <div className="text-3xl font-bold text-green-600 mb-2">
+                              {currentTest.benchmarkComparison.current.cosineSimilarity.toFixed(
+                                3
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600 mb-1">
+                              Mevcut Test
+                            </div>
+                            <div className="text-lg font-semibold text-green-600">
+                              Precision@5:{" "}
+                              {currentTest.benchmarkComparison.current.precisionAt5.toFixed(
+                                1
+                              )}
+                              %
+                            </div>
                           </div>
                         </div>
-                        <div className="text-center p-6 bg-green-50 rounded-lg">
-                          <div className="text-3xl font-bold text-green-600 mb-2">
-                            {currentTest.benchmarkComparison.current.cosineSimilarity.toFixed(
-                              3
+                        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                          <div className="flex items-center justify-center">
+                            {currentTest.benchmarkComparison.current
+                              .cosineSimilarity >=
+                            currentTest.benchmarkComparison.ekoBot
+                              .cosineSimilarity ? (
+                              <div className="flex items-center gap-2 text-green-600">
+                                <CheckCircle className="h-5 w-5" />
+                                <span className="font-medium">
+                                  Benchmark'ı{" "}
+                                  {(
+                                    ((currentTest.benchmarkComparison.current
+                                      .cosineSimilarity -
+                                      currentTest.benchmarkComparison.ekoBot
+                                        .cosineSimilarity) /
+                                      currentTest.benchmarkComparison.ekoBot
+                                        .cosineSimilarity) *
+                                    100
+                                  ).toFixed(1)}
+                                  % geçti
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-orange-600">
+                                <AlertTriangle className="h-5 w-5" />
+                                <span className="font-medium">
+                                  Benchmark'ın{" "}
+                                  {(
+                                    ((currentTest.benchmarkComparison.ekoBot
+                                      .cosineSimilarity -
+                                      currentTest.benchmarkComparison.current
+                                        .cosineSimilarity) /
+                                      currentTest.benchmarkComparison.ekoBot
+                                        .cosineSimilarity) *
+                                    100
+                                  ).toFixed(1)}
+                                  % altında
+                                </span>
+                              </div>
                             )}
                           </div>
-                          <div className="text-sm text-gray-600 mb-1">
-                            Mevcut Test
-                          </div>
-                          <div className="text-lg font-semibold text-green-600">
-                            Precision@5:{" "}
-                            {currentTest.benchmarkComparison.current.precisionAt5.toFixed(
-                              1
-                            )}
-                            %
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                        <div className="flex items-center justify-center">
-                          {currentTest.benchmarkComparison.current
-                            .cosineSimilarity >=
-                          currentTest.benchmarkComparison.ekoBot
-                            .cosineSimilarity ? (
-                            <div className="flex items-center gap-2 text-green-600">
-                              <CheckCircle className="h-5 w-5" />
-                              <span className="font-medium">
-                                Benchmark'ı{" "}
-                                {(
-                                  ((currentTest.benchmarkComparison.current
-                                    .cosineSimilarity -
-                                    currentTest.benchmarkComparison.ekoBot
-                                      .cosineSimilarity) /
-                                    currentTest.benchmarkComparison.ekoBot
-                                      .cosineSimilarity) *
-                                  100
-                                ).toFixed(1)}
-                                % geçti
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2 text-orange-600">
-                              <AlertTriangle className="h-5 w-5" />
-                              <span className="font-medium">
-                                Benchmark'ın{" "}
-                                {(
-                                  ((currentTest.benchmarkComparison.ekoBot
-                                    .cosineSimilarity -
-                                    currentTest.benchmarkComparison.current
-                                      .cosineSimilarity) /
-                                    currentTest.benchmarkComparison.ekoBot
-                                      .cosineSimilarity) *
-                                  100
-                                ).toFixed(1)}
-                                % altında
-                              </span>
-                            </div>
-                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -2116,115 +2234,160 @@ export default function TestSimulationPage() {
                     {/* Cosine Similarity Distribution by Methodology */}
                     <Card>
                       <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <TrendingUp className="h-5 w-5" />
-                          Cosine Similarity Dağılımı (Metodoloji Bazında)
+                        <CardTitle className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <TrendingUp className="h-5 w-5" />
+                              Cosine Similarity Dağılımı (Metodoloji Bazında)
+                            </div>
+                            <CardDescription>
+                              Her metodoloji için cosine similarity değerlerinin
+                              ortalaması (max similarity bazlı)
+                            </CardDescription>
+                          </div>
+                          <ChartExportControls
+                            chartId="cosine-similarity-chart"
+                            chartTitle="Cosine Similarity Dağılımı"
+                            variant="compact"
+                            showLabels={false}
+                          />
                         </CardTitle>
-                        <CardDescription>
-                          Her metodoloji için cosine similarity değerlerinin
-                          ortalaması (max similarity bazlı)
-                        </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <BarChart
-                            data={Object.entries(currentTest.methodComparison)
-                              .filter(([method]) =>
-                                config.testMethods.includes(method)
-                              )
-                              .filter(
-                                ([, results]) => results.cosineSimilarity > 0
-                              )
-                              .map(([method, results]) => ({
-                                name:
-                                  {
-                                    eduBars: "AkıllıRehber",
-                                    basicRag: "Basit RAG",
-                                    llmOnly: "Sadece LLM",
-                                  }[method] || method,
-                                similarity: results.cosineSimilarity,
-                                avg: results.cosineSimilarity,
-                              }))}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                            <YAxis domain={[0, 1]} tick={{ fontSize: 12 }} />
-                            <Tooltip formatter={tooltipFormatterCosine} />
-                            <Legend />
-                            <Bar
-                              dataKey="similarity"
-                              fill="#3b82f6"
-                              name="Ortalama Cosine Similarity"
-                              radius={[2, 2, 0, 0]}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <div id="cosine-similarity-chart">
+                          <ResponsiveContainer width="100%" height={300}>
+                            <BarChart
+                              data={Object.entries(currentTest.methodComparison)
+                                .filter(([method]) =>
+                                  config.testMethods.includes(method)
+                                )
+                                .filter(
+                                  ([, results]) => results.cosineSimilarity > 0
+                                )
+                                .map(([method, results]) => ({
+                                  name:
+                                    {
+                                      eduBars: "AkıllıRehber",
+                                      basicRag: "Basit RAG",
+                                      llmOnly: "Sadece LLM",
+                                    }[method] || method,
+                                  similarity: results.cosineSimilarity,
+                                  avg: results.cosineSimilarity,
+                                }))}
+                              margin={{
+                                top: 20,
+                                right: 30,
+                                left: 20,
+                                bottom: 5,
+                              }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                              <YAxis domain={[0, 1]} tick={{ fontSize: 12 }} />
+                              <Tooltip formatter={tooltipFormatterCosine} />
+                              <Legend />
+                              <Bar
+                                dataKey="similarity"
+                                fill="#3b82f6"
+                                name="Ortalama Cosine Similarity"
+                                radius={[2, 2, 0, 0]}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
                       </CardContent>
                     </Card>
 
                     {/* Precision@5 and Precision@10 Comparison */}
                     <Card>
                       <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Target className="h-5 w-5" />
-                          Precision@k Karşılaştırması
+                        <CardTitle className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <Target className="h-5 w-5" />
+                              Precision@k Karşılaştırması
+                            </div>
+                            <CardDescription>
+                              Her metodoloji için Precision@5 ve Precision@10
+                              değerlerinin karşılaştırması
+                            </CardDescription>
+                          </div>
+                          <ChartExportControls
+                            chartId="precision-comparison-chart"
+                            chartTitle="Precision@k Karşılaştırması"
+                            variant="compact"
+                            showLabels={false}
+                          />
                         </CardTitle>
-                        <CardDescription>
-                          Her metodoloji için Precision@5 ve Precision@10
-                          değerlerinin karşılaştırması
-                        </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <BarChart
-                            data={Object.entries(currentTest.methodComparison)
-                              .filter(([method]) =>
-                                config.testMethods.includes(method)
-                              )
-                              .filter(
-                                ([, results]) => results.cosineSimilarity > 0
-                              )
-                              .map(([method, results]) => ({
-                                name:
-                                  {
-                                    eduBars: "AkıllıRehber",
-                                    basicRag: "Basit RAG",
-                                    llmOnly: "Sadece LLM",
-                                  }[method] || method,
-                                precision5: results.precisionAt5,
-                                precision10: results.precisionAt10,
-                              }))}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                            <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
-                            <Tooltip formatter={tooltipFormatterPrecision} />
-                            <Legend />
-                            <Bar
-                              dataKey="precision5"
-                              fill="#10b981"
-                              name="Precision@5 (%)"
-                              radius={[2, 2, 0, 0]}
-                            />
-                            <Bar
-                              dataKey="precision10"
-                              fill="#059669"
-                              name="Precision@10 (%)"
-                              radius={[2, 2, 0, 0]}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <div id="precision-comparison-chart">
+                          <ResponsiveContainer width="100%" height={300}>
+                            <BarChart
+                              data={Object.entries(currentTest.methodComparison)
+                                .filter(([method]) =>
+                                  config.testMethods.includes(method)
+                                )
+                                .filter(
+                                  ([, results]) => results.cosineSimilarity > 0
+                                )
+                                .map(([method, results]) => ({
+                                  name:
+                                    {
+                                      eduBars: "AkıllıRehber",
+                                      basicRag: "Basit RAG",
+                                      llmOnly: "Sadece LLM",
+                                    }[method] || method,
+                                  precision5: results.precisionAt5,
+                                  precision10: results.precisionAt10,
+                                }))}
+                              margin={{
+                                top: 20,
+                                right: 30,
+                                left: 20,
+                                bottom: 5,
+                              }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                              <YAxis
+                                domain={[0, 100]}
+                                tick={{ fontSize: 12 }}
+                              />
+                              <Tooltip formatter={tooltipFormatterPrecision} />
+                              <Legend />
+                              <Bar
+                                dataKey="precision5"
+                                fill="#10b981"
+                                name="Precision@5 (%)"
+                                radius={[2, 2, 0, 0]}
+                              />
+                              <Bar
+                                dataKey="precision10"
+                                fill="#059669"
+                                name="Precision@10 (%)"
+                                radius={[2, 2, 0, 0]}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
                       </CardContent>
                     </Card>
 
                     {/* Response Time Comparison */}
                     <Card>
                       <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Clock className="h-5 w-5" />
-                          Yanıt Süresi Karşılaştırması
+                        <CardTitle className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-5 w-5" />
+                            Yanıt Süresi Karşılaştırması
+                          </div>
+                          <ChartExportControls
+                            chartId="response-time-detailed-chart"
+                            chartTitle="Yanıt Süresi Karşılaştırması"
+                            variant="compact"
+                            showLabels={false}
+                          />
                         </CardTitle>
                         <CardDescription>
                           Her metodoloji için ortalama yanıt süresi (milisaniye
@@ -2232,48 +2395,65 @@ export default function TestSimulationPage() {
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <BarChart
-                            data={Object.entries(currentTest.methodComparison)
-                              .filter(([method]) =>
-                                config.testMethods.includes(method)
-                              )
-                              .filter(
-                                ([, results]) => results.cosineSimilarity > 0
-                              )
-                              .map(([method, results]) => ({
-                                name:
-                                  {
-                                    eduBars: "AkıllıRehber",
-                                    basicRag: "Basit RAG",
-                                    llmOnly: "Sadece LLM",
-                                  }[method] || method,
-                                responseTime: results.avgResponseTime,
-                              }))}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                            <YAxis tick={{ fontSize: 12 }} />
-                            <Tooltip formatter={tooltipFormatterResponseTime} />
-                            <Legend />
-                            <Bar
-                              dataKey="responseTime"
-                              fill="#ef4444"
-                              name="Yanıt Süresi (ms)"
-                              radius={[2, 2, 0, 0]}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <div id="response-time-detailed-chart">
+                          <ResponsiveContainer width="100%" height={300}>
+                            <BarChart
+                              data={Object.entries(currentTest.methodComparison)
+                                .filter(([method]) =>
+                                  config.testMethods.includes(method)
+                                )
+                                .filter(
+                                  ([, results]) => results.cosineSimilarity > 0
+                                )
+                                .map(([method, results]) => ({
+                                  name:
+                                    {
+                                      eduBars: "AkıllıRehber",
+                                      basicRag: "Basit RAG",
+                                      llmOnly: "Sadece LLM",
+                                    }[method] || method,
+                                  responseTime: results.avgResponseTime,
+                                }))}
+                              margin={{
+                                top: 20,
+                                right: 30,
+                                left: 20,
+                                bottom: 5,
+                              }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                              <YAxis tick={{ fontSize: 12 }} />
+                              <Tooltip
+                                formatter={tooltipFormatterResponseTime}
+                              />
+                              <Legend />
+                              <Bar
+                                dataKey="responseTime"
+                                fill="#ef4444"
+                                name="Yanıt Süresi (ms)"
+                                radius={[2, 2, 0, 0]}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
                       </CardContent>
                     </Card>
 
                     {/* Accuracy Comparison */}
                     <Card>
                       <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Award className="h-5 w-5" />
-                          Doğruluk Oranı Karşılaştırması
+                        <CardTitle className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Award className="h-5 w-5" />
+                            Doğruluk Oranı Karşılaştırması
+                          </div>
+                          <ChartExportControls
+                            chartId="accuracy-comparison-chart"
+                            chartTitle="Doğruluk Oranı Karşılaştırması"
+                            variant="compact"
+                            showLabels={false}
+                          />
                         </CardTitle>
                         <CardDescription>
                           Her metodoloji için doğruluk oranı (accuracy)
@@ -2281,39 +2461,49 @@ export default function TestSimulationPage() {
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <BarChart
-                            data={Object.entries(currentTest.methodComparison)
-                              .filter(([method]) =>
-                                config.testMethods.includes(method)
-                              )
-                              .filter(
-                                ([, results]) => results.cosineSimilarity > 0
-                              )
-                              .map(([method, results]) => ({
-                                name:
-                                  {
-                                    eduBars: "AkıllıRehber",
-                                    basicRag: "Basit RAG",
-                                    llmOnly: "Sadece LLM",
-                                  }[method] || method,
-                                accuracy: results.accuracy,
-                              }))}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                            <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
-                            <Tooltip formatter={tooltipFormatterPercent} />
-                            <Legend />
-                            <Bar
-                              dataKey="accuracy"
-                              fill="#f59e0b"
-                              name="Doğruluk Oranı (%)"
-                              radius={[2, 2, 0, 0]}
-                            />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <div id="accuracy-comparison-chart">
+                          <ResponsiveContainer width="100%" height={300}>
+                            <BarChart
+                              data={Object.entries(currentTest.methodComparison)
+                                .filter(([method]) =>
+                                  config.testMethods.includes(method)
+                                )
+                                .filter(
+                                  ([, results]) => results.cosineSimilarity > 0
+                                )
+                                .map(([method, results]) => ({
+                                  name:
+                                    {
+                                      eduBars: "AkıllıRehber",
+                                      basicRag: "Basit RAG",
+                                      llmOnly: "Sadece LLM",
+                                    }[method] || method,
+                                  accuracy: results.accuracy,
+                                }))}
+                              margin={{
+                                top: 20,
+                                right: 30,
+                                left: 20,
+                                bottom: 5,
+                              }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                              <YAxis
+                                domain={[0, 100]}
+                                tick={{ fontSize: 12 }}
+                              />
+                              <Tooltip formatter={tooltipFormatterPercent} />
+                              <Legend />
+                              <Bar
+                                dataKey="accuracy"
+                                fill="#f59e0b"
+                                name="Doğruluk Oranı (%)"
+                                radius={[2, 2, 0, 0]}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
                       </CardContent>
                     </Card>
                   </div>
@@ -2321,9 +2511,17 @@ export default function TestSimulationPage() {
                   {/* Question-by-Question Performance Heatmap */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5" />
-                        Soru Bazında Performans Analizi (Heatmap)
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <BarChart3 className="h-5 w-5" />
+                          Soru Bazında Performans Analizi (Heatmap)
+                        </div>
+                        <ChartExportControls
+                          chartId="question-performance-chart"
+                          chartTitle="Soru Bazında Performans Analizi"
+                          variant="compact"
+                          showLabels={false}
+                        />
                       </CardTitle>
                       <CardDescription>
                         Her soru için metodoloji bazında cosine similarity
@@ -2331,74 +2529,81 @@ export default function TestSimulationPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={400}>
-                        <BarChart
-                          data={
-                            currentTest.questions &&
-                            currentTest.questions.length > 0
-                              ? currentTest.questions
-                                  .filter((q) =>
-                                    Object.values(q.methodologies).some(
-                                      (m: any) => m.max_similarity > 0
+                      <div id="question-performance-chart">
+                        <ResponsiveContainer width="100%" height={400}>
+                          <BarChart
+                            data={
+                              currentTest.questions &&
+                              currentTest.questions.length > 0
+                                ? currentTest.questions
+                                    .filter((q) =>
+                                      Object.values(q.methodologies).some(
+                                        (m: any) => m.max_similarity > 0
+                                      )
                                     )
-                                  )
-                                  .map((q) => {
-                                    const data: any = {
-                                      question: `Soru ${q.question_id}`,
-                                    };
-                                    Object.entries(q.methodologies).forEach(
-                                      ([method, results]: [string, any]) => {
-                                        const methodName =
-                                          {
-                                            eduBars: "AkıllıRehber",
-                                            basicRag: "Basit RAG",
-                                            llmOnly: "Sadece LLM",
-                                          }[method] || method;
-                                        data[methodName] =
-                                          results.max_similarity || 0;
-                                      }
-                                    );
-                                    return data;
-                                  })
-                              : []
-                          }
-                          margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis
-                            dataKey="question"
-                            angle={-45}
-                            textAnchor="end"
-                            height={100}
-                            tick={{ fontSize: 10 }}
-                          />
-                          <YAxis domain={[0, 1]} tick={{ fontSize: 12 }} />
-                          <Tooltip formatter={tooltipFormatterCosine} />
-                          <Legend />
-                          {config.testMethods.map((method) => {
-                            const methodName =
-                              {
-                                eduBars: "AkıllıRehber",
-                                basicRag: "Basit RAG",
-                                llmOnly: "Sadece LLM",
-                              }[method] || method;
-                            const colors: Record<string, string> = {
-                              AkıllıRehber: "#3b82f6",
-                              "Basit RAG": "#10b981",
-                              "Sadece LLM": "#f59e0b",
-                            };
-                            return (
-                              <Bar
-                                key={method}
-                                dataKey={methodName}
-                                fill={colors[methodName] || "#6b7280"}
-                                name={methodName}
-                                radius={[2, 2, 0, 0]}
-                              />
-                            );
-                          })}
-                        </BarChart>
-                      </ResponsiveContainer>
+                                    .map((q) => {
+                                      const data: any = {
+                                        question: `Soru ${q.question_id}`,
+                                      };
+                                      Object.entries(q.methodologies).forEach(
+                                        ([method, results]: [string, any]) => {
+                                          const methodName =
+                                            {
+                                              eduBars: "AkıllıRehber",
+                                              basicRag: "Basit RAG",
+                                              llmOnly: "Sadece LLM",
+                                            }[method] || method;
+                                          data[methodName] =
+                                            results.max_similarity || 0;
+                                        }
+                                      );
+                                      return data;
+                                    })
+                                : []
+                            }
+                            margin={{
+                              top: 20,
+                              right: 30,
+                              left: 20,
+                              bottom: 100,
+                            }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis
+                              dataKey="question"
+                              angle={-45}
+                              textAnchor="end"
+                              height={100}
+                              tick={{ fontSize: 10 }}
+                            />
+                            <YAxis domain={[0, 1]} tick={{ fontSize: 12 }} />
+                            <Tooltip formatter={tooltipFormatterCosine} />
+                            <Legend />
+                            {config.testMethods.map((method) => {
+                              const methodName =
+                                {
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "Basit RAG",
+                                  llmOnly: "Sadece LLM",
+                                }[method] || method;
+                              const colors: Record<string, string> = {
+                                AkıllıRehber: "#3b82f6",
+                                "Basit RAG": "#10b981",
+                                "Sadece LLM": "#f59e0b",
+                              };
+                              return (
+                                <Bar
+                                  key={method}
+                                  dataKey={methodName}
+                                  fill={colors[methodName] || "#6b7280"}
+                                  name={methodName}
+                                  radius={[2, 2, 0, 0]}
+                                />
+                              );
+                            })}
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -2527,9 +2732,17 @@ export default function TestSimulationPage() {
                   {/* Cosine Similarity Distribution Histogram */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5" />
-                        Cosine Similarity Değer Dağılımı
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <BarChart3 className="h-5 w-5" />
+                          Cosine Similarity Değer Dağılımı
+                        </div>
+                        <ChartExportControls
+                          chartId="similarity-distribution-chart"
+                          chartTitle="Cosine Similarity Değer Dağılımı"
+                          variant="compact"
+                          showLabels={false}
+                        />
                       </CardTitle>
                       <CardDescription>
                         Her metodoloji için cosine similarity değerlerinin
@@ -2537,94 +2750,109 @@ export default function TestSimulationPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={350}>
-                        <BarChart
-                          data={(() => {
-                            // Group questions by similarity ranges for each methodology
-                            if (
-                              !currentTest.questions ||
-                              currentTest.questions.length === 0
-                            ) {
-                              return [];
-                            }
+                      <div id="similarity-distribution-chart">
+                        <ResponsiveContainer width="100%" height={350}>
+                          <BarChart
+                            data={(() => {
+                              // Group questions by similarity ranges for each methodology
+                              if (
+                                !currentTest.questions ||
+                                currentTest.questions.length === 0
+                              ) {
+                                return [];
+                              }
 
-                            const ranges = [
-                              { min: 0, max: 0.2, label: "0.0-0.2" },
-                              { min: 0.2, max: 0.4, label: "0.2-0.4" },
-                              { min: 0.4, max: 0.6, label: "0.4-0.6" },
-                              { min: 0.6, max: 0.8, label: "0.6-0.8" },
-                              { min: 0.8, max: 1.0, label: "0.8-1.0" },
-                            ];
+                              const ranges = [
+                                { min: 0, max: 0.2, label: "0.0-0.2" },
+                                { min: 0.2, max: 0.4, label: "0.2-0.4" },
+                                { min: 0.4, max: 0.6, label: "0.4-0.6" },
+                                { min: 0.6, max: 0.8, label: "0.6-0.8" },
+                                { min: 0.8, max: 1.0, label: "0.8-1.0" },
+                              ];
 
-                            return ranges.map((range) => {
-                              const data: any = { range: range.label };
-                              config.testMethods.forEach((method) => {
-                                const count = currentTest.questions!.filter(
-                                  (q) => {
-                                    const methodResult =
-                                      q.methodologies[method];
-                                    if (!methodResult) return false;
-                                    const sim =
-                                      methodResult.max_similarity || 0;
-                                    return sim >= range.min && sim < range.max;
-                                  }
-                                ).length;
-                                const methodName =
-                                  {
-                                    eduBars: "AkıllıRehber",
-                                    basicRag: "Basit RAG",
-                                    llmOnly: "Sadece LLM",
-                                  }[method] || method;
-                                data[methodName] = count;
+                              return ranges.map((range) => {
+                                const data: any = { range: range.label };
+                                config.testMethods.forEach((method) => {
+                                  const count = currentTest.questions!.filter(
+                                    (q) => {
+                                      const methodResult =
+                                        q.methodologies[method];
+                                      if (!methodResult) return false;
+                                      const sim =
+                                        methodResult.max_similarity || 0;
+                                      return (
+                                        sim >= range.min && sim < range.max
+                                      );
+                                    }
+                                  ).length;
+                                  const methodName =
+                                    {
+                                      eduBars: "AkıllıRehber",
+                                      basicRag: "Basit RAG",
+                                      llmOnly: "Sadece LLM",
+                                    }[method] || method;
+                                  data[methodName] = count;
+                                });
+                                return data;
                               });
-                              return data;
-                            });
-                          })()}
-                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="range" tick={{ fontSize: 12 }} />
-                          <YAxis tick={{ fontSize: 12 }} />
-                          <Tooltip
-                            formatter={(value, name, props, payload, index) => [
-                              `${value || 0} soru`,
-                              name,
-                            ]}
-                          />
-                          <Legend />
-                          {config.testMethods.map((method) => {
-                            const methodName =
-                              {
-                                eduBars: "AkıllıRehber",
-                                basicRag: "Basit RAG",
-                                llmOnly: "Sadece LLM",
-                              }[method] || method;
-                            const colors: Record<string, string> = {
-                              AkıllıRehber: "#3b82f6",
-                              "Basit RAG": "#10b981",
-                              "Sadece LLM": "#f59e0b",
-                            };
-                            return (
-                              <Bar
-                                key={method}
-                                dataKey={methodName}
-                                fill={colors[methodName] || "#6b7280"}
-                                name={methodName}
-                                radius={[2, 2, 0, 0]}
-                              />
-                            );
-                          })}
-                        </BarChart>
-                      </ResponsiveContainer>
+                            })()}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="range" tick={{ fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              formatter={(
+                                value,
+                                name,
+                                props,
+                                payload,
+                                index
+                              ) => [`${value || 0} soru`, name]}
+                            />
+                            <Legend />
+                            {config.testMethods.map((method) => {
+                              const methodName =
+                                {
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "Basit RAG",
+                                  llmOnly: "Sadece LLM",
+                                }[method] || method;
+                              const colors: Record<string, string> = {
+                                AkıllıRehber: "#3b82f6",
+                                "Basit RAG": "#10b981",
+                                "Sadece LLM": "#f59e0b",
+                              };
+                              return (
+                                <Bar
+                                  key={method}
+                                  dataKey={methodName}
+                                  fill={colors[methodName] || "#6b7280"}
+                                  name={methodName}
+                                  radius={[2, 2, 0, 0]}
+                                />
+                              );
+                            })}
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </CardContent>
                   </Card>
 
                   {/* Success Rate by Question */}
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <CheckCircle className="h-5 w-5" />
-                        Soru Bazında Başarı Oranı
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-5 w-5" />
+                          Soru Bazında Başarı Oranı
+                        </div>
+                        <ChartExportControls
+                          chartId="success-rate-chart"
+                          chartTitle="Soru Bazında Başarı Oranı"
+                          variant="compact"
+                          showLabels={false}
+                        />
                       </CardTitle>
                       <CardDescription>
                         Her soru için metodoloji bazında başarılı yanıt oranı
@@ -2633,85 +2861,93 @@ export default function TestSimulationPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <ResponsiveContainer width="100%" height={350}>
-                        <LineChart
-                          data={
-                            currentTest.questions &&
-                            currentTest.questions.length > 0
-                              ? currentTest.questions
-                                  .filter((q) =>
-                                    Object.values(q.methodologies).some(
-                                      (m: any) => m.max_similarity > 0
+                      <div id="success-rate-chart">
+                        <ResponsiveContainer width="100%" height={350}>
+                          <LineChart
+                            data={
+                              currentTest.questions &&
+                              currentTest.questions.length > 0
+                                ? currentTest.questions
+                                    .filter((q) =>
+                                      Object.values(q.methodologies).some(
+                                        (m: any) => m.max_similarity > 0
+                                      )
                                     )
-                                  )
-                                  .map((q) => {
-                                    const data: any = {
-                                      question: `S${q.question_id}`,
-                                      questionId: q.question_id,
-                                    };
-                                    Object.entries(q.methodologies).forEach(
-                                      ([method, results]: [string, any]) => {
-                                        const methodName =
-                                          {
-                                            eduBars: "AkıllıRehber",
-                                            basicRag: "Basit RAG",
-                                            llmOnly: "Sadece LLM",
-                                          }[method] || method;
-                                        // Success = max similarity > 0.5
-                                        data[methodName] =
-                                          (results.max_similarity || 0) > 0.5
-                                            ? 100
-                                            : 0;
-                                      }
-                                    );
-                                    return data;
-                                  })
-                              : []
-                          }
-                          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis
-                            dataKey="question"
-                            tick={{ fontSize: 10 }}
-                            angle={-45}
-                            textAnchor="end"
-                            height={80}
-                          />
-                          <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
-                          <Tooltip
-                            formatter={(value, name, props, payload, index) => [
-                              value === 100 ? "Başarılı" : "Başarısız",
-                              name,
-                            ]}
-                          />
-                          <Legend />
-                          {config.testMethods.map((method) => {
-                            const methodName =
-                              {
-                                eduBars: "AkıllıRehber",
-                                basicRag: "Basit RAG",
-                                llmOnly: "Sadece LLM",
-                              }[method] || method;
-                            const colors: Record<string, string> = {
-                              AkıllıRehber: "#3b82f6",
-                              "Basit RAG": "#10b981",
-                              "Sadece LLM": "#f59e0b",
-                            };
-                            return (
-                              <Line
-                                key={method}
-                                type="monotone"
-                                dataKey={methodName}
-                                stroke={colors[methodName] || "#6b7280"}
-                                strokeWidth={2}
-                                name={methodName}
-                                dot={{ r: 4 }}
-                              />
-                            );
-                          })}
-                        </LineChart>
-                      </ResponsiveContainer>
+                                    .map((q) => {
+                                      const data: any = {
+                                        question: `S${q.question_id}`,
+                                        questionId: q.question_id,
+                                      };
+                                      Object.entries(q.methodologies).forEach(
+                                        ([method, results]: [string, any]) => {
+                                          const methodName =
+                                            {
+                                              eduBars: "AkıllıRehber",
+                                              basicRag: "Basit RAG",
+                                              llmOnly: "Sadece LLM",
+                                            }[method] || method;
+                                          // Success = max similarity > 0.5
+                                          data[methodName] =
+                                            (results.max_similarity || 0) > 0.5
+                                              ? 100
+                                              : 0;
+                                        }
+                                      );
+                                      return data;
+                                    })
+                                : []
+                            }
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis
+                              dataKey="question"
+                              tick={{ fontSize: 10 }}
+                              angle={-45}
+                              textAnchor="end"
+                              height={80}
+                            />
+                            <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
+                            <Tooltip
+                              formatter={(
+                                value,
+                                name,
+                                props,
+                                payload,
+                                index
+                              ) => [
+                                value === 100 ? "Başarılı" : "Başarısız",
+                                name,
+                              ]}
+                            />
+                            <Legend />
+                            {config.testMethods.map((method) => {
+                              const methodName =
+                                {
+                                  eduBars: "AkıllıRehber",
+                                  basicRag: "Basit RAG",
+                                  llmOnly: "Sadece LLM",
+                                }[method] || method;
+                              const colors: Record<string, string> = {
+                                AkıllıRehber: "#3b82f6",
+                                "Basit RAG": "#10b981",
+                                "Sadece LLM": "#f59e0b",
+                              };
+                              return (
+                                <Line
+                                  key={method}
+                                  type="monotone"
+                                  dataKey={methodName}
+                                  stroke={colors[methodName] || "#6b7280"}
+                                  strokeWidth={2}
+                                  name={methodName}
+                                  dot={{ r: 4 }}
+                                />
+                              );
+                            })}
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -2794,10 +3030,12 @@ export default function TestSimulationPage() {
                                         </div>
                                         <div className="flex justify-between">
                                           <span className="text-gray-600">
-                                            Max Similarity:
+                                            Cosine Similarity:
                                           </span>
                                           <span className="font-medium">
-                                            {results.max_similarity.toFixed(3)}
+                                            {results.cosine_similarity?.toFixed(
+                                              3
+                                            ) || "N/A"}
                                           </span>
                                         </div>
                                         <div className="flex justify-between">
@@ -2831,38 +3069,61 @@ export default function TestSimulationPage() {
                                           </span>
                                         </div>
                                         {(() => {
-                                          const sim =
-                                            (results as any).similarity || {};
+                                          // Use the new helper function to get similarity metrics
                                           const semantic =
-                                            typeof sim.semanticSimilarity ===
-                                            "number"
-                                              ? sim.semanticSimilarity
-                                              : typeof (results as any)
-                                                  .answer_quality_similarity ===
-                                                "number"
-                                              ? (results as any)
-                                                  .answer_quality_similarity
-                                              : null;
+                                            getQuestionSimilarityValue(
+                                              results,
+                                              "semanticSimilarity"
+                                            );
                                           const bleu =
-                                            typeof sim.bleuScore === "number"
-                                              ? sim.bleuScore
-                                              : null;
+                                            getQuestionSimilarityValue(
+                                              results,
+                                              "bleuScore"
+                                            );
                                           const rougeL =
-                                            typeof sim.rougeL === "number"
-                                              ? sim.rougeL
-                                              : null;
-                                          const f1 =
-                                            typeof sim.f1Score === "number"
-                                              ? sim.f1Score
-                                              : null;
+                                            getQuestionSimilarityValue(
+                                              results,
+                                              "rougeL"
+                                            );
+                                          const rouge1 =
+                                            getQuestionSimilarityValue(
+                                              results,
+                                              "rouge1"
+                                            );
+                                          const rouge2 =
+                                            getQuestionSimilarityValue(
+                                              results,
+                                              "rouge2"
+                                            );
+                                          const f1 = getQuestionSimilarityValue(
+                                            results,
+                                            "f1Score"
+                                          );
+                                          const exactMatch =
+                                            getQuestionSimilarityValue(
+                                              results,
+                                              "exactMatchRate"
+                                            );
 
-                                          if (
-                                            semantic === null &&
-                                            bleu === null &&
-                                            rougeL === null &&
-                                            f1 === null
-                                          ) {
-                                            return null;
+                                          // Check if any metrics are available
+                                          const hasAnyMetric = [
+                                            semantic,
+                                            bleu,
+                                            rougeL,
+                                            rouge1,
+                                            rouge2,
+                                            f1,
+                                            exactMatch,
+                                          ].some((v) => v !== null);
+
+                                          if (!hasAnyMetric) {
+                                            // Show a message if no ground truth metrics are available
+                                            return (
+                                              <div className="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-600">
+                                                📝 Ground truth metrics require
+                                                expected answers
+                                              </div>
+                                            );
                                           }
 
                                           const renderValue = (
@@ -2870,50 +3131,67 @@ export default function TestSimulationPage() {
                                           ) =>
                                             v === null ? "N/A" : v.toFixed(3);
 
+                                          const renderColoredValue = (
+                                            v: number | null,
+                                            label: string
+                                          ) => (
+                                            <div className="flex justify-between">
+                                              <span className="text-gray-600">
+                                                {label}:
+                                              </span>
+                                              <span
+                                                className={`font-medium ${
+                                                  v !== null && v >= 0.7
+                                                    ? "text-green-600"
+                                                    : v !== null && v >= 0.5
+                                                    ? "text-yellow-600"
+                                                    : v !== null
+                                                    ? "text-red-600"
+                                                    : "text-gray-500"
+                                                }`}
+                                              >
+                                                {renderValue(v)}
+                                              </span>
+                                            </div>
+                                          );
+
                                           return (
-                                            <div className="mt-2 space-y-1 text-sm">
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-600">
-                                                  Semantic:
-                                                </span>
-                                                <span
-                                                  className={`font-medium ${
-                                                    semantic !== null &&
-                                                    semantic >= 0.7
-                                                      ? "text-green-600"
-                                                      : semantic !== null &&
-                                                        semantic >= 0.5
-                                                      ? "text-yellow-600"
-                                                      : "text-gray-700"
-                                                  }`}
-                                                >
-                                                  {renderValue(semantic)}
-                                                </span>
+                                            <div className="mt-2 space-y-1 text-sm border-t pt-2">
+                                              <div className="text-xs font-medium text-gray-700 mb-1">
+                                                🎯 Answer Quality Metrics:
                                               </div>
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-600">
-                                                  BLEU:
-                                                </span>
-                                                <span className="font-medium">
-                                                  {renderValue(bleu)}
-                                                </span>
-                                              </div>
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-600">
-                                                  ROUGE-L:
-                                                </span>
-                                                <span className="font-medium">
-                                                  {renderValue(rougeL)}
-                                                </span>
-                                              </div>
-                                              <div className="flex justify-between">
-                                                <span className="text-gray-600">
-                                                  F1:
-                                                </span>
-                                                <span className="font-medium">
-                                                  {renderValue(f1)}
-                                                </span>
-                                              </div>
+                                              {semantic !== null &&
+                                                renderColoredValue(
+                                                  semantic,
+                                                  "Semantic"
+                                                )}
+                                              {bleu !== null &&
+                                                renderColoredValue(
+                                                  bleu,
+                                                  "BLEU"
+                                                )}
+                                              {rougeL !== null &&
+                                                renderColoredValue(
+                                                  rougeL,
+                                                  "ROUGE-L"
+                                                )}
+                                              {rouge1 !== null &&
+                                                renderColoredValue(
+                                                  rouge1,
+                                                  "ROUGE-1"
+                                                )}
+                                              {rouge2 !== null &&
+                                                renderColoredValue(
+                                                  rouge2,
+                                                  "ROUGE-2"
+                                                )}
+                                              {f1 !== null &&
+                                                renderColoredValue(f1, "F1")}
+                                              {exactMatch !== null &&
+                                                renderColoredValue(
+                                                  exactMatch,
+                                                  "Exact Match"
+                                                )}
                                             </div>
                                           );
                                         })()}
