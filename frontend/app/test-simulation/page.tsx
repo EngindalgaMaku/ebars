@@ -438,16 +438,46 @@ export default function TestSimulationPage() {
   // Auto-import questions when text changes
   React.useEffect(() => {
     if (questionText.trim()) {
-      const questions = questionText
+      const lines = questionText
         .split("\n")
-        .map((q) => q.trim())
-        .filter((q) => q.length > 0)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
         .slice(0, 100);
+
+      const questions: string[] = [];
+      const expectedAnswers: Record<number, string> = {};
+
+      lines.forEach((line, index) => {
+        if (line.includes("|")) {
+          // Parse "Question|Answer" format
+          const parts = line.split("|");
+          if (parts.length >= 2) {
+            const question = parts[0].trim();
+            const answer = parts.slice(1).join("|").trim(); // Handle multiple | in answer
+            if (question && answer) {
+              questions.push(question);
+              expectedAnswers[index] = answer;
+            }
+          }
+        } else {
+          // Just a question without expected answer
+          questions.push(line);
+        }
+      });
 
       setConfig((prev) => ({
         ...prev,
         customQuestions: questions,
+        customExpectedAnswers: expectedAnswers,
         numQuestions: Math.min(questions.length, 100),
+      }));
+    } else {
+      // Clear everything when text is empty
+      setConfig((prev) => ({
+        ...prev,
+        customQuestions: [],
+        customExpectedAnswers: {},
+        numQuestions: 0,
       }));
     }
   }, [questionText]);
@@ -472,18 +502,33 @@ export default function TestSimulationPage() {
         config.numQuestions
       );
 
-      // Prepare expected answers map (convert to 0-based index for backend)
+      // Prepare expected answers map for backend (use final test question indices)
       const expectedAnswers: Record<number, string> = {};
       testQuestions.forEach((question, index) => {
-        // Find the original index in customQuestions
-        const originalIndex = config.customQuestions.indexOf(question);
+        // Find the original index in customQuestions to get the expected answer
+        const originalIndex = config.customQuestions.findIndex(
+          (q) => q === question
+        );
         if (
           originalIndex !== -1 &&
           config.customExpectedAnswers[originalIndex]
         ) {
+          // Use the test question index (0-based) as key for backend
           expectedAnswers[index] = config.customExpectedAnswers[originalIndex];
         }
       });
+
+      // Debug log to verify expected answers mapping
+      if (Object.keys(expectedAnswers).length > 0) {
+        console.log("🎯 Expected answers mapping:", expectedAnswers);
+        console.log("📝 Test questions count:", testQuestions.length);
+        console.log(
+          "💡 Questions with ground truth:",
+          Object.keys(expectedAnswers).length
+        );
+      } else {
+        console.log("⚠️ No expected answers found for any test questions");
+      }
 
       // Real API call to start test with session info
       const response = await fetch("/api/test-simulation/start", {
@@ -1683,6 +1728,9 @@ export default function TestSimulationPage() {
                               Avg Response (ms)
                             </th>
                             <th className="text-center p-2">Accuracy (%)</th>
+                            {/* <th className="text-center p-2">
+                              Cevap Kalitesi (Semantic / BLEU / ROUGE-L / F1)
+                            </th> */}
                           </tr>
                         </thead>
                         <tbody>
@@ -1691,7 +1739,7 @@ export default function TestSimulationPage() {
                               const methodNames: Record<string, string> = {
                                 eduBars:
                                   "AkıllıRehber(RAG +ReRanker Kombinasyonu)",
-                                basicRag: "AkıllıRehber(Sadece RAG)",
+                                basicRag: "Akıllı Rehber(Sadece Rag)",
                                 llmOnly: "Sadece LLM",
                               };
 
@@ -1778,6 +1826,78 @@ export default function TestSimulationPage() {
                                       {results.accuracy.toFixed(1)}%
                                     </span>
                                   </td>
+                                  {/* <td className="p-2 text-center">
+                                    <div className="text-xs space-y-1">
+                                      {(() => {
+                                        const semantic = getSimilarityValue(
+                                          results,
+                                          "semanticSimilarity"
+                                        );
+                                        const bleu = getSimilarityValue(
+                                          results,
+                                          "bleuScore"
+                                        );
+                                        const rougeL = getSimilarityValue(
+                                          results,
+                                          "rougeL"
+                                        );
+                                        const f1 = getSimilarityValue(
+                                          results,
+                                          "f1Score"
+                                        );
+
+                                        if (
+                                          !semantic &&
+                                          !bleu &&
+                                          !rougeL &&
+                                          !f1
+                                        ) {
+                                          return (
+                                            <span className="text-gray-500 italic">
+                                              Ground truth gerekli
+                                            </span>
+                                          );
+                                        }
+
+                                        return (
+                                          <>
+                                            {semantic !== null && (
+                                              <div>
+                                                <span className="font-medium text-blue-600">
+                                                  S:
+                                                </span>{" "}
+                                                {semantic.toFixed(3)}
+                                              </div>
+                                            )}
+                                            {bleu !== null && (
+                                              <div>
+                                                <span className="font-medium text-green-600">
+                                                  B:
+                                                </span>{" "}
+                                                {bleu.toFixed(3)}
+                                              </div>
+                                            )}
+                                            {rougeL !== null && (
+                                              <div>
+                                                <span className="font-medium text-orange-600">
+                                                  R:
+                                                </span>{" "}
+                                                {rougeL.toFixed(3)}
+                                              </div>
+                                            )}
+                                            {f1 !== null && (
+                                              <div>
+                                                <span className="font-medium text-purple-600">
+                                                  F1:
+                                                </span>{" "}
+                                                {f1.toFixed(3)}
+                                              </div>
+                                            )}
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                  </td> */}
                                 </tr>
                               );
                             }
@@ -2269,6 +2389,367 @@ export default function TestSimulationPage() {
             {currentTest && currentTest.status === "completed" ? (
               currentTest.questions && currentTest.questions.length > 0 ? (
                 <div className="space-y-6">
+                  {/* Comprehensive Question-by-Question Metrics Table */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="h-5 w-5" />
+                        Soru Bazlı Kapsamlı Metrik Tablosu
+                      </CardTitle>
+                      <CardDescription>
+                        Tüm sorular için metodoloji bazında detaylı metrikler:
+                        cosine similarity, precision, yanıt süresi, yanıt
+                        uzunluğu ve ground truth metrikleri
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse text-sm">
+                          <thead>
+                            <tr className="border-b bg-gray-50">
+                              <th className="text-left p-3 font-semibold">
+                                Soru No
+                              </th>
+                              <th className="text-left p-3 font-semibold">
+                                Soru
+                              </th>
+                              <th className="text-left p-3 font-semibold">
+                                Metodoloji
+                              </th>
+                              <th className="text-center p-3 font-semibold">
+                                Max Similarity
+                              </th>
+                              <th className="text-center p-3 font-semibold">
+                                Cosine Similarity
+                              </th>
+                              <th className="text-center p-3 font-semibold">
+                                Precision@5 (%)
+                              </th>
+                              <th className="text-center p-3 font-semibold">
+                                Precision@10 (%)
+                              </th>
+                              <th className="text-center p-3 font-semibold">
+                                Cevap Süresi (ms)
+                              </th>
+                              <th className="text-center p-3 font-semibold">
+                                Yanıt Uzunluğu
+                              </th>
+                              <th className="text-center p-3 font-semibold">
+                                Semantic
+                              </th>
+                              <th className="text-center p-3 font-semibold">
+                                BLEU
+                              </th>
+                              <th className="text-center p-3 font-semibold">
+                                ROUGE-L
+                              </th>
+                              <th className="text-center p-3 font-semibold">
+                                F1
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {currentTest.questions.map((question) =>
+                              Object.entries(question.methodologies).map(
+                                ([method, results]) => {
+                                  const methodNames: Record<string, string> = {
+                                    eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                    basicRag: "Akıllı Rehber(Sadece Rag)",
+                                    llmOnly: "Sadece LLM",
+                                  };
+
+                                  // Get similarity metrics
+                                  const semantic = getQuestionSimilarityValue(
+                                    results,
+                                    "semanticSimilarity"
+                                  );
+                                  const bleu = getQuestionSimilarityValue(
+                                    results,
+                                    "bleuScore"
+                                  );
+                                  const rougeL = getQuestionSimilarityValue(
+                                    results,
+                                    "rougeL"
+                                  );
+                                  const f1 = getQuestionSimilarityValue(
+                                    results,
+                                    "f1Score"
+                                  );
+
+                                  // Calculate response length
+                                  const responseLength = results.response
+                                    ? results.response.length
+                                    : 0;
+
+                                  return (
+                                    <tr
+                                      key={`${question.question_id}-${method}`}
+                                      className="border-b hover:bg-gray-50"
+                                    >
+                                      <td className="p-3 font-medium">
+                                        #{question.question_id}
+                                      </td>
+                                      <td className="p-3 max-w-xs">
+                                        <div
+                                          className="truncate"
+                                          title={question.question}
+                                        >
+                                          {question.question.length > 50
+                                            ? question.question.substring(
+                                                0,
+                                                50
+                                              ) + "..."
+                                            : question.question}
+                                        </div>
+                                        {question.expected_answer && (
+                                          <div className="text-xs text-blue-600 mt-1">
+                                            📝 Ground truth var
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="p-3">
+                                        <Badge
+                                          variant="outline"
+                                          className={`text-xs ${
+                                            method === "eduBars"
+                                              ? "border-blue-500 text-blue-700"
+                                              : method === "basicRag"
+                                              ? "border-green-500 text-green-700"
+                                              : "border-orange-500 text-orange-700"
+                                          }`}
+                                        >
+                                          {methodNames[method] || method}
+                                        </Badge>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <span
+                                          className={`font-medium ${
+                                            results.max_similarity >= 0.8
+                                              ? "text-green-600"
+                                              : results.max_similarity >= 0.6
+                                              ? "text-yellow-600"
+                                              : results.max_similarity >= 0.4
+                                              ? "text-orange-600"
+                                              : "text-red-600"
+                                          }`}
+                                        >
+                                          {results.max_similarity.toFixed(3)}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <span className="font-medium">
+                                          {results.cosine_similarity?.toFixed(
+                                            3
+                                          ) || "N/A"}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <span
+                                          className={`font-medium ${
+                                            method === "llmOnly"
+                                              ? "text-gray-500"
+                                              : results.precision_at_5 >= 0.8
+                                              ? "text-green-600"
+                                              : results.precision_at_5 >= 0.6
+                                              ? "text-yellow-600"
+                                              : "text-red-600"
+                                          }`}
+                                        >
+                                          {method === "llmOnly"
+                                            ? "Ölçülmedi"
+                                            : (
+                                                results.precision_at_5 * 100
+                                              ).toFixed(1) + "%"}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <span
+                                          className={`font-medium ${
+                                            method === "llmOnly"
+                                              ? "text-gray-500"
+                                              : results.precision_at_10 >= 0.8
+                                              ? "text-green-600"
+                                              : results.precision_at_10 >= 0.6
+                                              ? "text-yellow-600"
+                                              : "text-red-600"
+                                          }`}
+                                        >
+                                          {method === "llmOnly"
+                                            ? "Ölçülmedi"
+                                            : (
+                                                results.precision_at_10 * 100
+                                              ).toFixed(1) + "%"}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <span
+                                          className={`font-medium ${
+                                            results.response_time_ms <= 1000
+                                              ? "text-green-600"
+                                              : results.response_time_ms <= 2000
+                                              ? "text-yellow-600"
+                                              : "text-red-600"
+                                          }`}
+                                        >
+                                          {Math.round(results.response_time_ms)}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <span
+                                          className={`font-medium ${
+                                            responseLength > 500
+                                              ? "text-blue-600"
+                                              : responseLength > 200
+                                              ? "text-green-600"
+                                              : responseLength > 50
+                                              ? "text-yellow-600"
+                                              : "text-red-600"
+                                          }`}
+                                        >
+                                          {responseLength} karakter
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <span
+                                          className={`font-medium text-xs ${
+                                            semantic !== null
+                                              ? semantic >= 0.7
+                                                ? "text-green-600"
+                                                : semantic >= 0.5
+                                                ? "text-yellow-600"
+                                                : "text-red-600"
+                                              : "text-gray-400"
+                                          }`}
+                                        >
+                                          {semantic !== null
+                                            ? semantic.toFixed(3)
+                                            : "N/A"}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <span
+                                          className={`font-medium text-xs ${
+                                            bleu !== null
+                                              ? bleu >= 0.7
+                                                ? "text-green-600"
+                                                : bleu >= 0.5
+                                                ? "text-yellow-600"
+                                                : "text-red-600"
+                                              : "text-gray-400"
+                                          }`}
+                                        >
+                                          {bleu !== null
+                                            ? bleu.toFixed(3)
+                                            : "N/A"}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <span
+                                          className={`font-medium text-xs ${
+                                            rougeL !== null
+                                              ? rougeL >= 0.7
+                                                ? "text-green-600"
+                                                : rougeL >= 0.5
+                                                ? "text-yellow-600"
+                                                : "text-red-600"
+                                              : "text-gray-400"
+                                          }`}
+                                        >
+                                          {rougeL !== null
+                                            ? rougeL.toFixed(3)
+                                            : "N/A"}
+                                        </span>
+                                      </td>
+                                      <td className="p-3 text-center">
+                                        <span
+                                          className={`font-medium text-xs ${
+                                            f1 !== null
+                                              ? f1 >= 0.7
+                                                ? "text-green-600"
+                                                : f1 >= 0.5
+                                                ? "text-yellow-600"
+                                                : "text-red-600"
+                                              : "text-gray-400"
+                                          }`}
+                                        >
+                                          {f1 !== null ? f1.toFixed(3) : "N/A"}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                }
+                              )
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Table Legend */}
+                      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                        <h5 className="text-sm font-semibold text-gray-800 mb-2">
+                          📊 Tablo Renk Kodları
+                        </h5>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-gray-700">
+                          <div>
+                            <strong>Max/Cosine Similarity:</strong>
+                            <span className="text-green-600 ml-2">
+                              ≥0.8 Mükemmel
+                            </span>
+                            <span className="text-yellow-600 ml-2">
+                              ≥0.6 İyi
+                            </span>
+                            <span className="text-orange-600 ml-2">
+                              ≥0.4 Orta
+                            </span>
+                            <span className="text-red-600 ml-2">
+                              &lt;0.4 Düşük
+                            </span>
+                          </div>
+                          <div>
+                            <strong>Yanıt Süresi:</strong>
+                            <span className="text-green-600 ml-2">
+                              ≤1s Hızlı
+                            </span>
+                            <span className="text-yellow-600 ml-2">
+                              ≤2s Normal
+                            </span>
+                            <span className="text-red-600 ml-2">
+                              &gt;2s Yavaş
+                            </span>
+                          </div>
+                          <div>
+                            <strong>Yanıt Uzunluğu:</strong>
+                            <span className="text-blue-600 ml-2">
+                              &gt;500 Uzun
+                            </span>
+                            <span className="text-green-600 ml-2">
+                              &gt;200 Normal
+                            </span>
+                            <span className="text-yellow-600 ml-2">
+                              &gt;50 Kısa
+                            </span>
+                            <span className="text-red-600 ml-2">
+                              ≤50 Çok Kısa
+                            </span>
+                          </div>
+                          <div>
+                            <strong>Ground Truth Metrikleri:</strong>
+                            <span className="text-green-600 ml-2">
+                              ≥0.7 İyi
+                            </span>
+                            <span className="text-yellow-600 ml-2">
+                              ≥0.5 Orta
+                            </span>
+                            <span className="text-red-600 ml-2">
+                              &lt;0.5 Düşük
+                            </span>
+                            <span className="text-gray-400 ml-2">N/A Yok</span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
                   {/* Performance Analysis Charts Section */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Cosine Similarity Distribution by Methodology */}
