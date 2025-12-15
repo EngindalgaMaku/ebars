@@ -10,14 +10,20 @@ interface SimilarityMetrics {
 }
 
 interface MethodResults {
-  cosineSimilarity: number;
-  precisionAt5: number;
-  precisionAt10: number;
-  avgResponseTime: number;
-  accuracy: number;
+  cosineSimilarity?: number | null;
+  precisionAt5?: number | null;
+  precisionAt10?: number | null;
+  avgResponseTime?: number | null;
+  accuracy?: number | null;
   similarity?: SimilarityMetrics;
   answerQualitySimilarity?: number | null;
   answerQualityAvailable?: number;
+  semanticSimilarity?: number | null;
+  bleuScore?: number | null;
+  rougeL?: number | null;
+  rouge1?: number | null;
+  rouge2?: number | null;
+  f1Score?: number | null;
 }
 
 interface TestMetrics {
@@ -34,7 +40,7 @@ interface TestMetrics {
 
 // Clean helper to read similarity metrics (removed all console.log statements)
 export const getSimilarityValue = (
-  results: MethodResults | TestMetrics,
+  results: MethodResults | TestMetrics | any,
   key: keyof SimilarityMetrics
 ): number | null => {
   if (!results) {
@@ -45,6 +51,26 @@ export const getSimilarityValue = (
   const sim = results?.similarity;
   if (sim && typeof sim[key] === "number") {
     return sim[key] as number;
+  }
+
+  // Try direct properties on MethodResults (for semantic similarity tests)
+  if (key === "semanticSimilarity" && typeof results.semanticSimilarity === "number") {
+    return results.semanticSimilarity;
+  }
+  if (key === "bleuScore" && typeof results.bleuScore === "number") {
+    return results.bleuScore;
+  }
+  if (key === "rougeL" && typeof results.rougeL === "number") {
+    return results.rougeL;
+  }
+  if (key === "rouge1" && typeof results.rouge1 === "number") {
+    return results.rouge1;
+  }
+  if (key === "rouge2" && typeof results.rouge2 === "number") {
+    return results.rouge2;
+  }
+  if (key === "f1Score" && typeof results.f1Score === "number") {
+    return results.f1Score;
   }
 
   // Fallback to legacy field for semantic similarity
