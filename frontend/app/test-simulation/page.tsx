@@ -143,9 +143,9 @@ interface TestResult {
     answerQualityAvailable?: number; // Number of questions with ground truth
   };
   methodComparison: {
-    eduBars: MethodResults;
-    basicRag: MethodResults;
-    llmOnly: MethodResults;
+    eduBars?: MethodResults;
+    basicRag?: MethodResults;
+    llmOnly?: MethodResults;
   };
   benchmarkComparison: {
     ekoBot: BenchmarkResults;
@@ -451,9 +451,14 @@ export default function TestSimulationPage() {
       const data = await response.json();
       if (data.success && data.tests) {
         setTestList(data.tests);
-        // Auto-load the most recent test if available
-        if (data.tests.length > 0 && !currentTest) {
-          loadTestDetails(data.tests[0].testId);
+        // Auto-load the most recent test if available (only if no test is currently selected)
+        if (data.tests.length > 0 && !currentTest && !selectedTestId) {
+          // Use setTimeout to avoid calling loadTestDetails before it's defined
+          setTimeout(() => {
+            if (data.tests[0]?.testId) {
+              loadTestDetails(data.tests[0].testId);
+            }
+          }, 100);
         }
       }
     } catch (error) {
@@ -490,7 +495,11 @@ export default function TestSimulationPage() {
           totalQuestions: status.total_questions_in_results || 0,
           correctAnswers: 0,
         },
-        methodComparison: status.methodComparison || {},
+        methodComparison: status.methodComparison || {
+          eduBars: {} as MethodResults,
+          basicRag: {} as MethodResults,
+          llmOnly: {} as MethodResults,
+        },
         benchmarkComparison: status.benchmarkComparison || {},
         testType: status.testType,
         questions: status.questions || [],
@@ -506,6 +515,7 @@ export default function TestSimulationPage() {
   useEffect(() => {
     // Load test list when component mounts
     loadTestList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-import questions when text changes
