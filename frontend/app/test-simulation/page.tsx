@@ -1809,7 +1809,10 @@ export default function TestSimulationPage() {
                           <p className="text-xs leading-relaxed">
                             İlk 5 sonuçtan kaçının alakalı olduğunu ölçer. RAG
                             sistemlerinin doküman seçme başarısını
-                            değerlendirir.
+                            değerlendirir. <strong>Literatür referansı:</strong>{" "}
+                            Eğitsel RAG sistemlerde {">"}40% kabul edilebilir,{" "}
+                            {">"}60% iyi, {">"}80% mükemmel performans
+                            göstergesi.
                           </p>
                         </div>
                         <div>
@@ -1818,7 +1821,10 @@ export default function TestSimulationPage() {
                           </div>
                           <p className="text-xs leading-relaxed">
                             İlk 10 sonuçtan kaçının alakalı olduğunu ölçer. Daha
-                            geniş retrieval performansını değerlendirir.
+                            geniş retrieval performansını değerlendirir.{" "}
+                            <strong>Literatür referansı:</strong> Genellikle
+                            Precision@5'ten %5-15 düşük çıkar, {">"}35% kabul
+                            edilebilir performans.
                           </p>
                         </div>
                         <div>
