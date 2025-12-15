@@ -9,6 +9,7 @@ pydantic>=2.5.0
 
 # HTTP requests to other microservices
 requests>=2.31.0
+httpx>=0.24.0
 
 # Configuration and logging
 python-dotenv
