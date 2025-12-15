@@ -691,12 +691,12 @@ export default function ResultsTab({
                 <BarChart
                   data={Object.entries(currentTest.methodComparison)
                     .filter(([method]) => config.testMethods.includes(method))
-                    .filter(([, results]) => results.cosineSimilarity > 0)
+                    .filter(([, results]) => (results.cosineSimilarity ?? 0) > 0)
                     .map(([method, results]) => ({
                       name: methodNames[method] || method,
-                      cosine: results.cosineSimilarity,
-                      precision5: results.precisionAt5,
-                      accuracy: results.accuracy,
+                      cosine: results.cosineSimilarity ?? 0,
+                      precision5: results.precisionAt5 ?? 0,
+                      accuracy: results.accuracy ?? 0,
                     }))}
                   margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                 >
