@@ -130,6 +130,7 @@ interface TestResult {
     elapsed_minutes?: number;
     status?: string;
   };
+  testType?: string; // "semantic_similarity_only" or "standard"
   metrics: {
     cosineSimilarity: number;
     precisionAt5: number;
