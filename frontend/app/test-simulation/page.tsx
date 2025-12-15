@@ -2373,12 +2373,7 @@ export default function TestSimulationPage() {
                             tick={{ fontSize: 10 }}
                           />
                           <YAxis domain={[0, 1]} tick={{ fontSize: 12 }} />
-                          <Tooltip
-                            formatter={(value: number, name: string) => [
-                              value.toFixed(3),
-                              name,
-                            ]}
-                          />
+                          <Tooltip formatter={tooltipFormatterCosine} />
                           <Legend />
                           {config.testMethods.map((method) => {
                             const methodName =
