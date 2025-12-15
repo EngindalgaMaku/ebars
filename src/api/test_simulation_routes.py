@@ -29,21 +29,40 @@ import httpx
 import math
 from collections import Counter
 
-# Import the AnswerSimilarityEvaluator
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# CRITICAL FIX: Initialize logger BEFORE using it
+logger = logging.getLogger(__name__)
+
+# PRODUCTION FIX: Import AnswerSimilarityEvaluator with graceful fallback
+SIMILARITY_EVALUATOR_AVAILABLE = False
+AnswerSimilarityEvaluator = None
+
 try:
+    # Add path for simulasyon_testleri module
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    
+    # Try to import AnswerSimilarityEvaluator
     from simulasyon_testleri.test_answer_similarity import AnswerSimilarityEvaluator
     SIMILARITY_EVALUATOR_AVAILABLE = True
     logger.info("✅ AnswerSimilarityEvaluator import successful")
+    
 except ImportError as e:
     SIMILARITY_EVALUATOR_AVAILABLE = False
-    logger.error(f"❌ Could not import AnswerSimilarityEvaluator: {e}")
-    logger.error("🔍 This will cause similarity metrics to show as 'N/A'")
+    AnswerSimilarityEvaluator = None
+    logger.warning(f"⚠️ Could not import AnswerSimilarityEvaluator: {e}")
+    logger.warning("🔧 PRODUCTION FALLBACK: Using basic similarity calculations instead")
+    logger.warning("📊 Comprehensive similarity metrics (BLEU, ROUGE, F1) will not be available")
+
 except Exception as e:
     SIMILARITY_EVALUATOR_AVAILABLE = False
-    logger.error(f"❌ Unexpected error importing AnswerSimilarityEvaluator: {e}")
+    AnswerSimilarityEvaluator = None
+    logger.warning(f"⚠️ Unexpected error importing AnswerSimilarityEvaluator: {e}")
+    logger.warning("🔧 PRODUCTION FALLBACK: Using basic similarity calculations instead")
 
-logger = logging.getLogger(__name__)
+# Log final status
+if SIMILARITY_EVALUATOR_AVAILABLE:
+    logger.info("🚀 Production system ready with full similarity evaluation capabilities")
+else:
+    logger.info("🚀 Production system ready with basic similarity evaluation (graceful degradation)")
 
 # Test Simulation Router
 router = APIRouter(prefix="/test-simulation", tags=["Test Simulation"])
@@ -1506,7 +1525,7 @@ async def execute_full_test_simulation(
                                 logger.info(f"   ✅ Legacy answer quality similarity: {answer_quality_similarity}")
                                 
                                 # Calculate comprehensive similarity metrics using AnswerSimilarityEvaluator
-                                if SIMILARITY_EVALUATOR_AVAILABLE:
+                                if SIMILARITY_EVALUATOR_AVAILABLE and AnswerSimilarityEvaluator is not None:
                                     logger.info("🧠 Using AnswerSimilarityEvaluator for comprehensive metrics calculation")
                                     
                                     try:
@@ -1547,16 +1566,48 @@ async def execute_full_test_simulation(
                                         logger.error(f"❌ AnswerSimilarityEvaluator failed: {evaluator_error}")
                                         import traceback
                                         logger.error(f"   🐛 Evaluator traceback: {traceback.format_exc()}")
-                                        # Fallback to basic similarity
+                                        logger.warning("🔧 PRODUCTION FALLBACK: Using basic similarity calculations")
+                                        # GRACEFUL FALLBACK: Use basic similarity calculations
                                         if answer_quality_similarity is not None:
-                                            similarity_metrics["semanticSimilarity"] = answer_quality_similarity
-                                            logger.warning(f"   🔄 Using legacy fallback: {answer_quality_similarity}")
+                                            similarity_metrics = {
+                                                "semanticSimilarity": answer_quality_similarity,
+                                                "bleuScore": None,  # Not available in fallback
+                                                "rougeL": None,     # Not available in fallback
+                                                "rouge1": None,     # Not available in fallback
+                                                "rouge2": None,     # Not available in fallback
+                                                "f1Score": None,    # Not available in fallback
+                                                "exactMatchRate": None  # Not available in fallback
+                                            }
+                                            logger.warning(f"   🔄 Using legacy fallback semantic similarity: {answer_quality_similarity}")
+                                        else:
+                                            logger.error("❌ No fallback similarity available - all metrics will be None")
                                 else:
-                                    logger.warning("⚠️ AnswerSimilarityEvaluator not available, using basic similarity calculation")
-                                    # Keep only the legacy answer_quality_similarity
+                                    logger.warning("⚠️ AnswerSimilarityEvaluator not available - PRODUCTION FALLBACK MODE")
+                                    logger.info("🔧 Using basic similarity calculation (graceful degradation)")
+                                    # GRACEFUL FALLBACK: Keep only the legacy answer_quality_similarity
                                     if answer_quality_similarity is not None:
-                                        similarity_metrics["semanticSimilarity"] = answer_quality_similarity
+                                        similarity_metrics = {
+                                            "semanticSimilarity": answer_quality_similarity,
+                                            "bleuScore": None,      # Not available without AnswerSimilarityEvaluator
+                                            "rougeL": None,         # Not available without AnswerSimilarityEvaluator
+                                            "rouge1": None,         # Not available without AnswerSimilarityEvaluator
+                                            "rouge2": None,         # Not available without AnswerSimilarityEvaluator
+                                            "f1Score": None,        # Not available without AnswerSimilarityEvaluator
+                                            "exactMatchRate": None  # Not available without AnswerSimilarityEvaluator
+                                        }
                                         logger.info(f"   🔄 Using legacy semantic similarity: {answer_quality_similarity}")
+                                    else:
+                                        # Even basic similarity failed - system continues but with limited metrics
+                                        logger.warning("⚠️ No similarity metrics available - system will continue with basic retrieval metrics only")
+                                        similarity_metrics = {
+                                            "semanticSimilarity": None,
+                                            "bleuScore": None,
+                                            "rougeL": None,
+                                            "rouge1": None,
+                                            "rouge2": None,
+                                            "f1Score": None,
+                                            "exactMatchRate": None
+                                        }
                                     
                             except Exception as sim_error:
                                 logger.error(f"Comprehensive similarity calculation failed for question {question_id}: {sim_error}")
