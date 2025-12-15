@@ -6,7 +6,15 @@ const nextConfig = {
   // Optimize memory usage
   swcMinify: true,
   experimental: {
-    // Remove deprecated experimental features that might cause issues in Next.js 15
+    // Force include client-side export dependencies in standalone build
+    outputFileTracingIncludes: {
+      "/": [
+        "./node_modules/html2canvas/**/*",
+        "./node_modules/jspdf/**/*",
+        "./node_modules/file-saver/**/*",
+        "./node_modules/xlsx/**/*",
+      ],
+    },
   },
   // Reduce memory usage in development
   webpack: (config, { dev, isServer }) => {
@@ -157,12 +165,16 @@ const nextConfig = {
       }
 
       const authServiceHost = process.env.AUTH_SERVICE_INTERNAL_URL
-        ? process.env.AUTH_SERVICE_INTERNAL_URL.replace("http://", "").split(":")[0]
+        ? process.env.AUTH_SERVICE_INTERNAL_URL.replace("http://", "").split(
+            ":"
+          )[0]
         : process.env.AUTH_SERVICE_HOST ||
           (isDocker ? "auth-service" : "localhost");
 
       const authServicePort = process.env.AUTH_SERVICE_INTERNAL_URL
-        ? process.env.AUTH_SERVICE_INTERNAL_URL.replace("http://", "").split(":")[1] || "8006"
+        ? process.env.AUTH_SERVICE_INTERNAL_URL.replace("http://", "").split(
+            ":"
+          )[1] || "8006"
         : process.env.AUTH_SERVICE_PORT || "8006";
 
       if (
@@ -182,7 +194,7 @@ const nextConfig = {
       },
       {
         source: "/api/:path*",
-        destination: `${apiUrl}/api/:path*`,  // /api prefix'ini koru (API Gateway'de /api prefix'i var)
+        destination: `${apiUrl}/api/:path*`, // /api prefix'ini koru (API Gateway'de /api prefix'i var)
       },
     ];
   },

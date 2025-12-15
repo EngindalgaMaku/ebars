@@ -20,9 +20,9 @@ services:
       - DOCUMENT_PROCESSOR_HOST=document-processing-service
       - DOCUMENT_PROCESSOR_PORT=8080
       - DOCUMENT_PROCESSOR_URL=http://document-processing-service:8080
-      - MODEL_INFERENCE_HOST=host.docker.internal
+      - MODEL_INFERENCE_HOST=65.109.230.236
       - MODEL_INFERENCE_PORT=8002
-      - MODEL_INFERENCE_URL=http://host.docker.internal:8002
+      - MODEL_INFERENCE_URL=http://65.109.230.236:8002
       - RAG_EVALUATOR_URL=http://rag-evaluator-service:8005
       - CHROMADB_HOST=chromadb-service
       - CHROMADB_PORT=8000
@@ -72,7 +72,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 2G
         reservations:
           memory: 512M
@@ -87,7 +87,13 @@ services:
     ports:
       - "${APRAG_SERVICE_PORT:-8007}:8007"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8007/health').read()"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8007/health').read()",
+        ]
       interval: 30s
       timeout: 10s
       start_period: 60s
@@ -96,10 +102,10 @@ services:
       - HOST=0.0.0.0
       - PORT=8007
       - APRAG_SERVICE_PORT=8007
-      - MODEL_INFERENCE_HOST=host.docker.internal
+      - MODEL_INFERENCE_HOST=65.109.230.236
       - MODEL_INFERENCE_PORT=8002
-      - MODEL_INFERENCE_URL=http://host.docker.internal:8002
-      - MODEL_INFERENCER_URL=http://host.docker.internal:8002
+      - MODEL_INFERENCE_URL=http://65.109.230.236:8002
+      - MODEL_INFERENCER_URL=http://65.109.230.236:8002
       - RERANKER_SERVICE_HOST=reranker-service
       - RERANKER_SERVICE_PORT=8008
       - RERANKER_SERVICE_URL=http://reranker-service:8008
@@ -140,7 +146,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 2G
         reservations:
           memory: 512M
@@ -175,7 +181,13 @@ services:
       - ./services/auth_service/create_test_user.py:/app/create_test_user.py
       - ./services/auth_service/reset_admin_password.py:/app/reset_admin_password.py
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8006/health').read()"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8006/health').read()",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -189,7 +201,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 1G
         reservations:
           memory: 256M
@@ -217,9 +229,9 @@ services:
     ports:
       - "${DOCUMENT_PROCESSOR_PORT:-8003}:8080"
     environment:
-      - MODEL_INFERENCER_HOST=host.docker.internal
+      - MODEL_INFERENCER_HOST=65.109.230.236
       - MODEL_INFERENCER_PORT=8002
-      - MODEL_INFERENCER_URL=http://host.docker.internal:8002
+      - MODEL_INFERENCER_URL=http://65.109.230.236:8002
       - RERANKER_SERVICE_HOST=reranker-service
       - RERANKER_SERVICE_PORT=8008
       - RERANKER_SERVICE_URL=http://reranker-service:8008
@@ -243,7 +255,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 3G
         reservations:
           memory: 1G
@@ -274,7 +286,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: "2"
           memory: 2G
         reservations:
           memory: 512M
@@ -304,7 +316,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 2G
         reservations:
           memory: 512M
@@ -329,7 +341,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 2G
         reservations:
           memory: 512M
@@ -345,7 +357,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 2G
         reservations:
           memory: 512M
@@ -389,7 +401,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: "1"
           memory: 1G
         reservations:
           memory: 256M
@@ -410,4 +422,3 @@ networks:
     ipam:
       config:
         - subnet: 172.18.0.0/16
-

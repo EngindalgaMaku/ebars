@@ -34,9 +34,14 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 try:
     from simulasyon_testleri.test_answer_similarity import AnswerSimilarityEvaluator
     SIMILARITY_EVALUATOR_AVAILABLE = True
+    logger.info("✅ AnswerSimilarityEvaluator import successful")
 except ImportError as e:
     SIMILARITY_EVALUATOR_AVAILABLE = False
-    print(f"⚠️ Warning: Could not import AnswerSimilarityEvaluator: {e}")
+    logger.error(f"❌ Could not import AnswerSimilarityEvaluator: {e}")
+    logger.error("🔍 This will cause similarity metrics to show as 'N/A'")
+except Exception as e:
+    SIMILARITY_EVALUATOR_AVAILABLE = False
+    logger.error(f"❌ Unexpected error importing AnswerSimilarityEvaluator: {e}")
 
 logger = logging.getLogger(__name__)
 
@@ -1487,52 +1492,71 @@ async def execute_full_test_simulation(
                         
                         if ground_truth and result.get("response"):
                             try:
-                                logger.info(f"Calculating comprehensive similarity metrics for question {question_id}")
+                                logger.info(f"🎯 Ground truth available for question {question_id}")
+                                logger.info(f"   📝 Ground truth: {ground_truth[:100]}...")
+                                logger.info(f"   🤖 LLM response: {result['response'][:100]}...")
+                                logger.info(f"   🔧 SIMILARITY_EVALUATOR_AVAILABLE: {SIMILARITY_EVALUATOR_AVAILABLE}")
                                 
                                 # Calculate legacy answer quality similarity for backward compatibility
+                                logger.info("📊 Calculating legacy answer quality similarity...")
                                 answer_quality_similarity = await calculate_answer_quality_similarity(
                                     result["response"],
                                     ground_truth
                                 )
+                                logger.info(f"   ✅ Legacy answer quality similarity: {answer_quality_similarity}")
                                 
                                 # Calculate comprehensive similarity metrics using AnswerSimilarityEvaluator
                                 if SIMILARITY_EVALUATOR_AVAILABLE:
-                                    logger.info("Using AnswerSimilarityEvaluator for comprehensive metrics calculation")
+                                    logger.info("🧠 Using AnswerSimilarityEvaluator for comprehensive metrics calculation")
                                     
-                                    # Create evaluator instance (use API_GATEWAY_URL as base)
-                                    evaluator = AnswerSimilarityEvaluator(api_base_url=API_GATEWAY_URL)
-                                    
-                                    # Calculate all similarity metrics
-                                    all_metrics = evaluator.calculate_all_metrics(
-                                        reference=ground_truth,
-                                        candidate=result["response"]
-                                    )
-                                    
-                                    # Map to expected structure
-                                    similarity_metrics = {
-                                        "semanticSimilarity": float(all_metrics.semantic_similarity),
-                                        "bleuScore": float(all_metrics.bleu_score),
-                                        "rougeL": float(all_metrics.rouge_l),
-                                        "rouge1": float(all_metrics.rouge_1),
-                                        "rouge2": float(all_metrics.rouge_2),
-                                        "f1Score": float(all_metrics.f1_score),
-                                        "exactMatchRate": 1.0 if all_metrics.exact_match else 0.0
-                                    }
-                                    
-                                    # Use semantic similarity as primary answer quality measure if legacy failed
-                                    if answer_quality_similarity is None or answer_quality_similarity == 0.0:
-                                        answer_quality_similarity = similarity_metrics["semanticSimilarity"]
-                                    
-                                    logger.info(f"Comprehensive similarity metrics calculated: "
-                                              f"Semantic={similarity_metrics['semanticSimilarity']:.3f}, "
-                                              f"BLEU={similarity_metrics['bleuScore']:.3f}, "
-                                              f"ROUGE-L={similarity_metrics['rougeL']:.3f}, "
-                                              f"F1={similarity_metrics['f1Score']:.3f}")
+                                    try:
+                                        # Create evaluator instance (use API_GATEWAY_URL as base)
+                                        evaluator = AnswerSimilarityEvaluator(api_base_url=API_GATEWAY_URL)
+                                        logger.info(f"   📡 Evaluator initialized with API base: {API_GATEWAY_URL}")
+                                        
+                                        # Calculate all similarity metrics
+                                        logger.info("   🔄 Calculating all metrics...")
+                                        all_metrics = evaluator.calculate_all_metrics(
+                                            reference=ground_truth,
+                                            candidate=result["response"]
+                                        )
+                                        logger.info(f"   ✅ Metrics calculation completed: {all_metrics}")
+                                        
+                                        # Map to expected structure
+                                        similarity_metrics = {
+                                            "semanticSimilarity": float(all_metrics.semantic_similarity),
+                                            "bleuScore": float(all_metrics.bleu_score),
+                                            "rougeL": float(all_metrics.rouge_l),
+                                            "rouge1": float(all_metrics.rouge_1),
+                                            "rouge2": float(all_metrics.rouge_2),
+                                            "f1Score": float(all_metrics.f1_score),
+                                            "exactMatchRate": 1.0 if all_metrics.exact_match else 0.0
+                                        }
+                                        
+                                        # Use semantic similarity as primary answer quality measure if legacy failed
+                                        if answer_quality_similarity is None or answer_quality_similarity == 0.0:
+                                            answer_quality_similarity = similarity_metrics["semanticSimilarity"]
+                                            logger.info(f"   🔄 Updated answer_quality_similarity from semantic: {answer_quality_similarity}")
+                                        
+                                        logger.info(f"✅ Comprehensive similarity metrics calculated: "
+                                                  f"Semantic={similarity_metrics['semanticSimilarity']:.3f}, "
+                                                  f"BLEU={similarity_metrics['bleuScore']:.3f}, "
+                                                  f"ROUGE-L={similarity_metrics['rougeL']:.3f}, "
+                                                  f"F1={similarity_metrics['f1Score']:.3f}")
+                                    except Exception as evaluator_error:
+                                        logger.error(f"❌ AnswerSimilarityEvaluator failed: {evaluator_error}")
+                                        import traceback
+                                        logger.error(f"   🐛 Evaluator traceback: {traceback.format_exc()}")
+                                        # Fallback to basic similarity
+                                        if answer_quality_similarity is not None:
+                                            similarity_metrics["semanticSimilarity"] = answer_quality_similarity
+                                            logger.warning(f"   🔄 Using legacy fallback: {answer_quality_similarity}")
                                 else:
-                                    logger.warning("AnswerSimilarityEvaluator not available, using basic similarity calculation")
+                                    logger.warning("⚠️ AnswerSimilarityEvaluator not available, using basic similarity calculation")
                                     # Keep only the legacy answer_quality_similarity
                                     if answer_quality_similarity is not None:
                                         similarity_metrics["semanticSimilarity"] = answer_quality_similarity
+                                        logger.info(f"   🔄 Using legacy semantic similarity: {answer_quality_similarity}")
                                     
                             except Exception as sim_error:
                                 logger.error(f"Comprehensive similarity calculation failed for question {question_id}: {sim_error}")

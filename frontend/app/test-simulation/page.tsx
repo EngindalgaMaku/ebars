@@ -210,8 +210,29 @@ export default function TestSimulationPage() {
     results: MethodResults | TestResult["metrics"],
     key: keyof SimilarityMetrics
   ): number | null => {
+    // Debug: Log what we're trying to extract
+    console.log(`🔍 Frontend getSimilarityValue called for ${key}`, {
+      resultsType: typeof results,
+      resultsKeys: results ? Object.keys(results) : [],
+      hasResults: Boolean(results),
+    });
+
+    if (!results) {
+      console.log(`❌ No results object provided for ${key}`);
+      return null;
+    }
+
     // First, try to get from nested similarity object
     const sim = results?.similarity;
+    console.log(`🔍 Checking nested similarity object:`, {
+      hasSimilarity: Boolean(sim),
+      similarityType: typeof sim,
+      similarityKeys: sim ? Object.keys(sim) : [],
+      targetKey: key,
+      targetValue: sim?.[key],
+      targetValueType: typeof sim?.[key],
+    });
+
     if (sim && typeof sim[key] === "number") {
       console.log(`✅ Found ${key} in nested similarity:`, sim[key]);
       return sim[key] as number;
@@ -224,6 +245,12 @@ export default function TestSimulationPage() {
       "answerQualitySimilarity" in results
     ) {
       const legacy = (results as any).answerQualitySimilarity;
+      console.log(`🔍 Checking legacy answerQualitySimilarity:`, {
+        hasLegacy: legacy !== undefined,
+        legacyValue: legacy,
+        legacyType: typeof legacy,
+      });
+
       if (typeof legacy === "number") {
         console.log(
           `⚠️ Using legacy answerQualitySimilarity for ${key}:`,
@@ -233,11 +260,13 @@ export default function TestSimulationPage() {
       }
     }
 
-    // Additional debugging
-    console.log(`❌ No value found for ${key} in:`, {
+    // Additional debugging - show the full structure
+    console.log(`❌ No value found for ${key}`, {
+      fullResults: results,
       similarity: sim,
       answerQualitySimilarity: (results as any)?.answerQualitySimilarity,
       allKeys: Object.keys(results || {}),
+      searchedKey: key,
     });
 
     return null;
