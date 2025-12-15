@@ -1583,15 +1583,15 @@ export default function TestSimulationPage() {
                           />
                           <YAxis />
                           <Tooltip
-                            formatter={(value: number | string, name: string) => {
+                            formatter={(value, name) => {
+                              if (Array.isArray(value)) return ["", ""];
                               let numericValue: number | null = null;
-                              if (typeof value === "number") {
-                                numericValue = value;
-                              } else if (typeof value === "string") {
+                              if (typeof value === "number") numericValue = value;
+                              else if (typeof value === "string") {
                                 const parsed = parseFloat(value);
                                 numericValue = Number.isFinite(parsed) ? parsed : null;
                               }
-                              if (numericValue === null) return ["", ""];
+                              if (numericValue === null || typeof name !== "string") return ["", ""];
 
                               const formatted =
                                 name === "cosine"
