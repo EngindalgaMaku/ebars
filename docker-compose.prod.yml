@@ -296,7 +296,7 @@ services:
     environment:
       - PORT=8008
       - RERANKER_TYPE=${RERANKER_TYPE:-alibaba}
-      - ALIBABA_API_KEY=${ALIBABA_API_KEY:-${DASHSCOPE_API_KEY}}
+      # API keys are loaded from .env.production via env_file
       - BGE_MODEL_NAME=${BGE_MODEL_NAME:-BAAI/bge-reranker-v2-m3}
       - MS_MARCO_MODEL_NAME=${MS_MARCO_MODEL_NAME:-cross-encoder/ms-marco-MiniLM-L-6-v2}
       - HF_HOME=/app/models
