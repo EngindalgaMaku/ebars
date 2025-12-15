@@ -347,14 +347,15 @@ async def calculate_semantic_similarity(text1: str, text2: str) -> float:
         return 0.0
     
     try:
-        # Use Document Processing Service's embedding endpoint
-        embedding_url = f"{DOCUMENT_PROCESSOR_URL}/embeddings"
+        # Use Model Inference Service's embed endpoint directly
+        # This is the same service that Document Processing Service uses
+        embed_url = f"{MODEL_INFERENCE_URL}/embed"
         
         # Get embeddings for both texts
         async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
             # Get first text embedding
             text1_response = await client.post(
-                embedding_url,
+                embed_url,
                 json={"texts": [text1], "model": "text-embedding-v4"},
                 timeout=30
             )
@@ -370,7 +371,7 @@ async def calculate_semantic_similarity(text1: str, text2: str) -> float:
             
             # Get second text embedding
             text2_response = await client.post(
-                embedding_url,
+                embed_url,
                 json={"texts": [text2], "model": "text-embedding-v4"},
                 timeout=30
             )
@@ -626,6 +627,8 @@ async def start_test_simulation(
         # Convert questions to proper format
         test_questions = []
         expected_answers = request_data.expectedAnswers or {}
+        logger.info(f"Received {len(request_data.questions)} questions and {len(expected_answers)} expected answers")
+        
         for i, question in enumerate(request_data.questions):
             question_data = {
                 "id": i + 1,
@@ -635,9 +638,15 @@ async def start_test_simulation(
             # Add expected answer if provided (index is 0-based in the map, but we use 1-based IDs)
             if i in expected_answers:
                 question_data["expected_answer"] = expected_answers[i]
+                logger.debug(f"Question {i+1}: Added expected answer (index {i})")
             elif (i + 1) in expected_answers:  # Also check 1-based index for convenience
                 question_data["expected_answer"] = expected_answers[i + 1]
+                logger.debug(f"Question {i+1}: Added expected answer (index {i+1})")
             test_questions.append(question_data)
+        
+        # Log summary
+        questions_with_answers = sum(1 for q in test_questions if q.get("expected_answer"))
+        logger.info(f"Total questions: {len(test_questions)}, Questions with expected answers: {questions_with_answers}")
         
         # Create configuration object
         config = TestConfiguration(
@@ -745,18 +754,32 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         for method, method_metrics in results_by_method.items():
             if method_metrics:
                 # Filter out zero similarity results for chart/visualization
-                filtered_metrics = [m for m in method_metrics if m.get("cosine_similarity", 0) > 0]
+                # For llmOnly, use query_response_similarity instead of cosine_similarity
+                # For other methods, use max_similarity (which is based on retrieval)
+                filtered_metrics = [
+                    m for m in method_metrics 
+                    if (m.get("is_llm_only", False) and m.get("query_response_similarity", 0) > 0) or 
+                       (not m.get("is_llm_only", False) and m.get("max_similarity", 0) > 0)
+                ]
                 
                 if filtered_metrics:
                     # Calculate averages only from successful queries (similarity > 0)
                     # Filter answer quality metrics (only include non-None values)
                     answer_quality_values = [m.get("answer_quality_similarity") for m in filtered_metrics if m.get("answer_quality_similarity") is not None]
+                    
+                    # For llmOnly, use query_response_similarity; for others, use max_similarity
+                    similarity_values = [
+                        m.get("query_response_similarity", 0) if m.get("is_llm_only", False) 
+                        else m.get("max_similarity", 0) 
+                        for m in filtered_metrics
+                    ]
+                    
                     method_comparison[method] = {
-                        "cosineSimilarity": sum(m["max_similarity"] for m in filtered_metrics) / len(filtered_metrics),  # Use max_similarity
+                        "cosineSimilarity": sum(similarity_values) / len(similarity_values) if similarity_values else 0.0,  # Use appropriate similarity metric
                         "precisionAt5": sum(m["precision_at_5"] for m in filtered_metrics) / len(filtered_metrics) * 100,
                         "precisionAt10": sum(m["precision_at_10"] for m in filtered_metrics) / len(filtered_metrics) * 100,
                         "avgResponseTime": sum(m["response_time_ms"] for m in filtered_metrics) / len(filtered_metrics),
-                        "accuracy": sum(m.get("max_similarity", 0) * 100 for m in filtered_metrics) / len(filtered_metrics),  # Use max_similarity for accuracy
+                        "accuracy": sum(similarity_values) / len(similarity_values) * 100 if similarity_values else 0.0,  # Use appropriate similarity for accuracy
                         "answerQualitySimilarity": sum(answer_quality_values) / len(answer_quality_values) if answer_quality_values else None,  # Answer quality (LLM response vs ground truth)
                         "answerQualityAvailable": len(answer_quality_values),  # Number of questions with ground truth
                         "successfulQueries": len(filtered_metrics),
@@ -829,6 +852,22 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                 }
     
     # Benchmark comparison (using filtered metrics - similarity > 0)
+    # Use the best performing methodology (highest cosine similarity) for comparison
+    best_method = None
+    best_similarity = 0.0
+    best_precision = 0.0
+    
+    for method, method_metrics in method_comparison.items():
+        if method_metrics.get("cosineSimilarity", 0) > best_similarity:
+            best_similarity = method_metrics.get("cosineSimilarity", 0)
+            best_precision = method_metrics.get("precisionAt5", 0)
+            best_method = method
+    
+    # If no method found, use overall metrics
+    if best_method is None:
+        best_similarity = metrics.get("cosineSimilarity", 0.0)
+        best_precision = metrics.get("precisionAt5", 0.0)
+    
     benchmark_comparison = {
         "ekoBot": {
             "cosineSimilarity": EKOBOT_BENCHMARKS["cosine_similarity"],
@@ -836,11 +875,11 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
             "label": "EkoBot Referans"
         },
         "current": {
-            "cosineSimilarity": metrics["cosineSimilarity"],  # Already filtered (similarity > 0)
-            "precisionAt5": metrics["precisionAt5"],  # Already filtered
-            "label": "Mevcut Test (Başarılı Sorgular)"
+            "cosineSimilarity": best_similarity,  # Best methodology's similarity
+            "precisionAt5": best_precision,  # Best methodology's precision
+            "label": f"Mevcut Test ({best_method if best_method else 'Ortalama'})"
         },
-        "note": "Grafiklerde similarity > 0 olan başarılı sorgular gösterilmektedir"
+        "note": "Grafiklerde similarity > 0 olan başarılı sorgular gösterilmektedir. Benchmark karşılaştırması en iyi metodoloji ile yapılmaktadır."
     }
     
     # Calculate execution time
@@ -1346,10 +1385,20 @@ async def execute_full_test_simulation(
                         # This measures how well the LLM's answer matches the expected answer
                         answer_quality_similarity = None
                         if ground_truth and result.get("response"):
-                            answer_quality_similarity = await calculate_answer_quality_similarity(
-                                result["response"], 
-                                ground_truth
-                            )
+                            try:
+                                answer_quality_similarity = await calculate_answer_quality_similarity(
+                                    result["response"], 
+                                    ground_truth
+                                )
+                                logger.info(f"Question {question_id} ({methodology}): Answer Quality Similarity = {answer_quality_similarity:.3f}")
+                            except Exception as e:
+                                logger.error(f"Failed to calculate answer quality similarity for question {question_id}: {e}")
+                                answer_quality_similarity = None
+                        else:
+                            if not ground_truth:
+                                logger.debug(f"Question {question_id} ({methodology}): No ground truth available")
+                            if not result.get("response"):
+                                logger.debug(f"Question {question_id} ({methodology}): No response available")
                         
                         metrics = {
                             "cosine_similarity": avg_similarity,  # Keep for backward compatibility, but use max_similarity for calculations

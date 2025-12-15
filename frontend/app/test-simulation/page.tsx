@@ -233,15 +233,38 @@ export default function TestSimulationPage() {
   };
 
   const importQuestionsFromText = () => {
-    const questions = questionText
+    const lines = questionText
       .split("\n")
-      .map((q) => q.trim())
-      .filter((q) => q.length > 0)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
       .slice(0, 100); // Limit to 100 questions max
+
+    const questions: string[] = [];
+    const expectedAnswers: Record<number, string> = {};
+
+    lines.forEach((line, index) => {
+      // Check if line contains "|" separator (Soru|Cevap formatı)
+      if (line.includes("|")) {
+        const parts = line.split("|").map((p) => p.trim());
+        if (parts.length >= 2 && parts[0]) {
+          questions.push(parts[0]); // Soru
+          if (parts[1]) {
+            expectedAnswers[index] = parts[1]; // Cevap (ground truth)
+          }
+        } else if (parts[0]) {
+          // Sadece soru var, cevap yok
+          questions.push(parts[0]);
+        }
+      } else {
+        // Sadece soru var, cevap yok
+        questions.push(line);
+      }
+    });
 
     setConfig({
       ...config,
       customQuestions: questions,
+      customExpectedAnswers: expectedAnswers,
       numQuestions: Math.min(questions.length, 100),
     });
   };
@@ -249,15 +272,38 @@ export default function TestSimulationPage() {
   // Auto-import questions when text changes
   React.useEffect(() => {
     if (questionText.trim()) {
-      const questions = questionText
+      const lines = questionText
         .split("\n")
-        .map((q) => q.trim())
-        .filter((q) => q.length > 0)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
         .slice(0, 100);
+
+      const questions: string[] = [];
+      const expectedAnswers: Record<number, string> = {};
+
+      lines.forEach((line, index) => {
+        // Check if line contains "|" separator (Soru|Cevap formatı)
+        if (line.includes("|")) {
+          const parts = line.split("|").map((p) => p.trim());
+          if (parts.length >= 2 && parts[0]) {
+            questions.push(parts[0]); // Soru
+            if (parts[1]) {
+              expectedAnswers[index] = parts[1]; // Cevap (ground truth)
+            }
+          } else if (parts[0]) {
+            // Sadece soru var, cevap yok
+            questions.push(parts[0]);
+          }
+        } else {
+          // Sadece soru var, cevap yok
+          questions.push(line);
+        }
+      });
 
       setConfig((prev) => ({
         ...prev,
         customQuestions: questions,
+        customExpectedAnswers: expectedAnswers,
         numQuestions: Math.min(questions.length, 100),
       }));
     }
