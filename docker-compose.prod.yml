@@ -37,8 +37,7 @@ services:
       - APRAG_SERVICE_URL=http://aprag-service:8007
       # Database configuration
       - DATABASE_PATH=/app/data/rag_assistant.db
-      # JWT configuration - MUST be set in .env
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      # JWT configuration - Loaded from .env.production via env_file
       # CORS configuration - Update with your Hetzner server IP/domain
       - CORS_ORIGINS=${CORS_ORIGINS}
       - CORS_CREDENTIALS=true
@@ -163,7 +162,7 @@ services:
       - PORT=8006
       - AUTH_SERVICE_PORT=8006
       - DEBUG=false
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      # JWT_SECRET_KEY loaded from .env.production via env_file
       - JWT_ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
       - REFRESH_TOKEN_EXPIRE_DAYS=7
