@@ -8,11 +8,17 @@ cd ~/ebars || exit 1
 
 echo "🚀 Starting production deployment..."
 
-# Load environment variables (safer method - handles comments and special chars)
+# Load environment variables (safer method - only loads valid KEY=VALUE pairs)
 if [ -f .env.production ]; then
-    set -a  # automatically export all variables
-    source .env.production
-    set +a  # stop automatically exporting
+    # Only export lines that match KEY=VALUE format (ignore comments and invalid lines)
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Skip empty lines and comments
+        [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+        # Only export if line contains = and doesn't start with =
+        if [[ "$line" =~ ^[^=]+= ]]; then
+            export "$line" 2>/dev/null || true
+        fi
+    done < .env.production
     echo "✅ Environment variables loaded from .env.production"
 else
     echo "⚠️  Warning: .env.production not found"
