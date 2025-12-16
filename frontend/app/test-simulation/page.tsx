@@ -214,64 +214,23 @@ export default function TestSimulationPage() {
     results: MethodResults | TestResult["metrics"] | undefined,
     key: keyof SimilarityMetrics
   ): number | null => {
-    // Debug: Log what we're trying to extract
-    console.log(`🔍 Frontend getSimilarityValue called for ${key}`, {
-      resultsType: typeof results,
-      resultsKeys: results ? Object.keys(results) : [],
-      hasResults: Boolean(results),
-    });
-
     if (!results) {
-      console.log(`❌ No results object provided for ${key}`);
       return null;
     }
 
     // First, try to get from nested similarity object
-    const sim = results?.similarity;
-    console.log(`🔍 Checking nested similarity object:`, {
-      hasSimilarity: Boolean(sim),
-      similarityType: typeof sim,
-      similarityKeys: sim ? Object.keys(sim) : [],
-      targetKey: key,
-      targetValue: sim?.[key],
-      targetValueType: typeof sim?.[key],
-    });
-
+    const sim = results.similarity;
     if (sim && typeof sim[key] === "number") {
-      console.log(`✅ Found ${key} in nested similarity:`, sim[key]);
       return sim[key] as number;
     }
 
     // Fallback to legacy field for semantic similarity
-    if (
-      key === "semanticSimilarity" &&
-      results &&
-      "answerQualitySimilarity" in results
-    ) {
-      const legacy = (results as any).answerQualitySimilarity;
-      console.log(`🔍 Checking legacy answerQualitySimilarity:`, {
-        hasLegacy: legacy !== undefined,
-        legacyValue: legacy,
-        legacyType: typeof legacy,
-      });
-
+    if (key === "semanticSimilarity" && "answerQualitySimilarity" in results) {
+      const legacy = results.answerQualitySimilarity;
       if (typeof legacy === "number") {
-        console.log(
-          `⚠️ Using legacy answerQualitySimilarity for ${key}:`,
-          legacy
-        );
         return legacy;
       }
     }
-
-    // Additional debugging - show the full structure
-    console.log(`❌ No value found for ${key}`, {
-      fullResults: results,
-      similarity: sim,
-      answerQualitySimilarity: (results as any)?.answerQualitySimilarity,
-      allKeys: Object.keys(results || {}),
-      searchedKey: key,
-    });
 
     return null;
   };
@@ -1029,13 +988,7 @@ export default function TestSimulationPage() {
             "Semantic Similarity",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars || {
-                  cosineSimilarity: 0,
-                  precisionAt5: 0,
-                  precisionAt10: 0,
-                  avgResponseTime: 0,
-                  accuracy: 0,
-                },
+                currentTest.methodComparison.eduBars,
                 "semanticSimilarity"
               ) ?? 0
             ).toFixed(3),
