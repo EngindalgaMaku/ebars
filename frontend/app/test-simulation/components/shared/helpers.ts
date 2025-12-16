@@ -40,10 +40,15 @@ interface TestMetrics {
 
 // Clean helper to read similarity metrics (removed all console.log statements)
 export const getSimilarityValue = (
-  results: MethodResults | TestMetrics | any | null | undefined,
+  results: any,
   key: keyof SimilarityMetrics
 ): number | null => {
-  if (!results || typeof results !== 'object') {
+  if (!results) {
+    return null;
+  }
+  
+  // Type guard: ensure results is an object
+  if (typeof results !== 'object') {
     return null;
   }
 
