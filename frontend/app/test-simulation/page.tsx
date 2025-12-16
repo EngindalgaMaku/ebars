@@ -1012,28 +1012,28 @@ export default function TestSimulationPage() {
           ["Metric", "AkıllıRehber", "Basic RAG", "LLM Only", "Benchmark"],
           [
             "Cosine Similarity",
-            currentTest.methodComparison.eduBars.cosineSimilarity.toFixed(3),
-            currentTest.methodComparison.basicRag.cosineSimilarity.toFixed(3),
-            currentTest.methodComparison.llmOnly.cosineSimilarity.toFixed(3),
-            currentTest.benchmarkComparison.ekoBot.cosineSimilarity.toFixed(3),
+            (currentTest.methodComparison.eduBars?.cosineSimilarity ?? 0).toFixed(3),
+            (currentTest.methodComparison.basicRag?.cosineSimilarity ?? 0).toFixed(3),
+            (currentTest.methodComparison.llmOnly?.cosineSimilarity ?? 0).toFixed(3),
+            (currentTest.benchmarkComparison?.ekoBot?.cosineSimilarity ?? 0).toFixed(3),
           ],
           [
             "Semantic Similarity",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars,
+                currentTest.methodComparison.eduBars || {},
                 "semanticSimilarity"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.basicRag,
+                currentTest.methodComparison.basicRag || {},
                 "semanticSimilarity"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.llmOnly,
+                currentTest.methodComparison.llmOnly || {},
                 "semanticSimilarity"
               ) ?? 0
             ).toFixed(3),
@@ -1043,19 +1043,19 @@ export default function TestSimulationPage() {
             "BLEU",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars,
+                currentTest.methodComparison.eduBars || {},
                 "bleuScore"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.basicRag,
+                currentTest.methodComparison.basicRag || {},
                 "bleuScore"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.llmOnly,
+                currentTest.methodComparison.llmOnly || {},
                 "bleuScore"
               ) ?? 0
             ).toFixed(3),
@@ -1065,19 +1065,19 @@ export default function TestSimulationPage() {
             "ROUGE-L",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars,
+                currentTest.methodComparison.eduBars || {},
                 "rougeL"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.basicRag,
+                currentTest.methodComparison.basicRag || {},
                 "rougeL"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.llmOnly,
+                currentTest.methodComparison.llmOnly || {},
                 "rougeL"
               ) ?? 0
             ).toFixed(3),
@@ -1087,19 +1087,19 @@ export default function TestSimulationPage() {
             "F1 (Token)",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars,
+                currentTest.methodComparison.eduBars || {},
                 "f1Score"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.basicRag,
+                currentTest.methodComparison.basicRag || {},
                 "f1Score"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.llmOnly,
+                currentTest.methodComparison.llmOnly || {},
                 "f1Score"
               ) ?? 0
             ).toFixed(3),
@@ -1107,30 +1107,30 @@ export default function TestSimulationPage() {
           ],
           [
             "Precision@5 (%)",
-            currentTest.methodComparison.eduBars.precisionAt5.toFixed(1),
-            currentTest.methodComparison.basicRag.precisionAt5.toFixed(1),
-            currentTest.methodComparison.llmOnly.precisionAt5.toFixed(1),
-            currentTest.benchmarkComparison.ekoBot.precisionAt5.toFixed(1),
+            (currentTest.methodComparison.eduBars?.precisionAt5 ?? 0).toFixed(1),
+            (currentTest.methodComparison.basicRag?.precisionAt5 ?? 0).toFixed(1),
+            (currentTest.methodComparison.llmOnly?.precisionAt5 ?? 0).toFixed(1),
+            (currentTest.benchmarkComparison?.ekoBot?.precisionAt5 ?? 0).toFixed(1),
           ],
           [
             "Precision@10 (%)",
-            currentTest.methodComparison.eduBars.precisionAt10.toFixed(1),
-            currentTest.methodComparison.basicRag.precisionAt10.toFixed(1),
-            currentTest.methodComparison.llmOnly.precisionAt10.toFixed(1),
+            (currentTest.methodComparison.eduBars?.precisionAt10 ?? 0).toFixed(1),
+            (currentTest.methodComparison.basicRag?.precisionAt10 ?? 0).toFixed(1),
+            (currentTest.methodComparison.llmOnly?.precisionAt10 ?? 0).toFixed(1),
             "N/A",
           ],
           [
             "Avg Response Time (ms)",
-            currentTest.methodComparison.eduBars.avgResponseTime.toFixed(0),
-            currentTest.methodComparison.basicRag.avgResponseTime.toFixed(0),
-            currentTest.methodComparison.llmOnly.avgResponseTime.toFixed(0),
+            (currentTest.methodComparison.eduBars?.avgResponseTime ?? 0).toFixed(0),
+            (currentTest.methodComparison.basicRag?.avgResponseTime ?? 0).toFixed(0),
+            (currentTest.methodComparison.llmOnly?.avgResponseTime ?? 0).toFixed(0),
             "N/A",
           ],
           [
             "Accuracy (%)",
-            currentTest.methodComparison.eduBars.accuracy.toFixed(1),
-            currentTest.methodComparison.basicRag.accuracy.toFixed(1),
-            currentTest.methodComparison.llmOnly.accuracy.toFixed(1),
+            (currentTest.methodComparison.eduBars?.accuracy ?? 0).toFixed(1),
+            (currentTest.methodComparison.basicRag?.accuracy ?? 0).toFixed(1),
+            (currentTest.methodComparison.llmOnly?.accuracy ?? 0).toFixed(1),
             "N/A",
           ],
         ];
