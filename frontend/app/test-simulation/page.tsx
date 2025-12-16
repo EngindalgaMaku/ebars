@@ -2052,7 +2052,10 @@ export default function TestSimulationPage() {
                                           : "text-red-600"
                                       }`}
                                     >
-                                      {results.cosineSimilarity.toFixed(3)}
+                                      {results.cosineSimilarity !== null &&
+                                      results.cosineSimilarity !== undefined
+                                        ? results.cosineSimilarity.toFixed(3)
+                                        : "N/A"}
                                     </span>
                                   </td>
                                   <td className="p-2 text-center">
@@ -2069,7 +2072,10 @@ export default function TestSimulationPage() {
                                     >
                                       {method === "llmOnly"
                                         ? "Ölçülmedi"
-                                        : `${results.precisionAt5.toFixed(1)}%`}
+                                        : results.precisionAt5 !== null &&
+                                          results.precisionAt5 !== undefined
+                                        ? `${results.precisionAt5.toFixed(1)}%`
+                                        : "N/A"}
                                     </span>
                                   </td>
                                   <td className="p-2 text-center">
@@ -2086,9 +2092,10 @@ export default function TestSimulationPage() {
                                     >
                                       {method === "llmOnly"
                                         ? "Ölçülmedi"
-                                        : `${results.precisionAt10.toFixed(
-                                            1
-                                          )}%`}
+                                        : results.precisionAt10 !== null &&
+                                          results.precisionAt10 !== undefined
+                                        ? `${results.precisionAt10.toFixed(1)}%`
+                                        : "N/A"}
                                     </span>
                                   </td>
                                   <td className="p-2 text-center">
@@ -2101,7 +2108,10 @@ export default function TestSimulationPage() {
                                           : "text-red-600"
                                       }`}
                                     >
-                                      {Math.round(results.avgResponseTime)}
+                                      {results.avgResponseTime !== null &&
+                                      results.avgResponseTime !== undefined
+                                        ? Math.round(results.avgResponseTime)
+                                        : "N/A"}
                                     </span>
                                   </td>
                                   <td className="p-2 text-center">
@@ -2114,7 +2124,10 @@ export default function TestSimulationPage() {
                                           : "text-red-600"
                                       }`}
                                     >
-                                      {results.accuracy.toFixed(1)}%
+                                      {results.accuracy !== null &&
+                                      results.accuracy !== undefined
+                                        ? `${results.accuracy.toFixed(1)}%`
+                                        : "N/A"}
                                     </span>
                                   </td>
                                   <td className="p-2 text-center">
