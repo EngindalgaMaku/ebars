@@ -1021,19 +1021,19 @@ export default function TestSimulationPage() {
             "Semantic Similarity",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars || {},
+                currentTest.methodComparison.eduBars,
                 "semanticSimilarity"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.basicRag || {},
+                currentTest.methodComparison.basicRag,
                 "semanticSimilarity"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.llmOnly || {},
+                currentTest.methodComparison.llmOnly,
                 "semanticSimilarity"
               ) ?? 0
             ).toFixed(3),
@@ -1043,19 +1043,19 @@ export default function TestSimulationPage() {
             "BLEU",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars || {},
+                currentTest.methodComparison.eduBars,
                 "bleuScore"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.basicRag || {},
+                currentTest.methodComparison.basicRag,
                 "bleuScore"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.llmOnly || {},
+                currentTest.methodComparison.llmOnly,
                 "bleuScore"
               ) ?? 0
             ).toFixed(3),
@@ -1065,19 +1065,19 @@ export default function TestSimulationPage() {
             "ROUGE-L",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars || {},
+                currentTest.methodComparison.eduBars,
                 "rougeL"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.basicRag || {},
+                currentTest.methodComparison.basicRag,
                 "rougeL"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.llmOnly || {},
+                currentTest.methodComparison.llmOnly,
                 "rougeL"
               ) ?? 0
             ).toFixed(3),
@@ -1087,19 +1087,19 @@ export default function TestSimulationPage() {
             "F1 (Token)",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars || {},
+                currentTest.methodComparison.eduBars,
                 "f1Score"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.basicRag || {},
+                currentTest.methodComparison.basicRag,
                 "f1Score"
               ) ?? 0
             ).toFixed(3),
             (
               getSimilarityValue(
-                currentTest.methodComparison.llmOnly || {},
+                currentTest.methodComparison.llmOnly,
                 "f1Score"
               ) ?? 0
             ).toFixed(3),
