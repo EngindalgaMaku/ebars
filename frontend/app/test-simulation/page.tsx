@@ -211,7 +211,7 @@ export default function TestSimulationPage() {
 
   // Enhanced helper to read similarity metrics with fallback to legacy fields
   const getSimilarityValue = (
-    results: MethodResults | TestResult["metrics"],
+    results: MethodResults | TestResult["metrics"] | undefined,
     key: keyof SimilarityMetrics
   ): number | null => {
     // Debug: Log what we're trying to extract
@@ -477,7 +477,7 @@ export default function TestSimulationPage() {
         return;
       }
       const status = await response.json();
-      
+
       // Convert API response to TestResult format
       const testResult: TestResult = {
         testId: status.testId || testId,
@@ -504,7 +504,7 @@ export default function TestSimulationPage() {
         testType: status.testType,
         questions: status.questions || [],
       };
-      
+
       setCurrentTest(testResult);
       setSelectedTestId(testId);
     } catch (error) {
@@ -1012,16 +1012,30 @@ export default function TestSimulationPage() {
           ["Metric", "AkıllıRehber", "Basic RAG", "LLM Only", "Benchmark"],
           [
             "Cosine Similarity",
-            (currentTest.methodComparison.eduBars?.cosineSimilarity ?? 0).toFixed(3),
-            (currentTest.methodComparison.basicRag?.cosineSimilarity ?? 0).toFixed(3),
-            (currentTest.methodComparison.llmOnly?.cosineSimilarity ?? 0).toFixed(3),
-            (currentTest.benchmarkComparison?.ekoBot?.cosineSimilarity ?? 0).toFixed(3),
+            (
+              currentTest.methodComparison.eduBars?.cosineSimilarity ?? 0
+            ).toFixed(3),
+            (
+              currentTest.methodComparison.basicRag?.cosineSimilarity ?? 0
+            ).toFixed(3),
+            (
+              currentTest.methodComparison.llmOnly?.cosineSimilarity ?? 0
+            ).toFixed(3),
+            (
+              currentTest.benchmarkComparison?.ekoBot?.cosineSimilarity ?? 0
+            ).toFixed(3),
           ],
           [
             "Semantic Similarity",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars,
+                currentTest.methodComparison.eduBars || {
+                  cosineSimilarity: 0,
+                  precisionAt5: 0,
+                  precisionAt10: 0,
+                  avgResponseTime: 0,
+                  accuracy: 0,
+                },
                 "semanticSimilarity"
               ) ?? 0
             ).toFixed(3),
@@ -1107,23 +1121,43 @@ export default function TestSimulationPage() {
           ],
           [
             "Precision@5 (%)",
-            (currentTest.methodComparison.eduBars?.precisionAt5 ?? 0).toFixed(1),
-            (currentTest.methodComparison.basicRag?.precisionAt5 ?? 0).toFixed(1),
-            (currentTest.methodComparison.llmOnly?.precisionAt5 ?? 0).toFixed(1),
-            (currentTest.benchmarkComparison?.ekoBot?.precisionAt5 ?? 0).toFixed(1),
+            (currentTest.methodComparison.eduBars?.precisionAt5 ?? 0).toFixed(
+              1
+            ),
+            (currentTest.methodComparison.basicRag?.precisionAt5 ?? 0).toFixed(
+              1
+            ),
+            (currentTest.methodComparison.llmOnly?.precisionAt5 ?? 0).toFixed(
+              1
+            ),
+            (
+              currentTest.benchmarkComparison?.ekoBot?.precisionAt5 ?? 0
+            ).toFixed(1),
           ],
           [
             "Precision@10 (%)",
-            (currentTest.methodComparison.eduBars?.precisionAt10 ?? 0).toFixed(1),
-            (currentTest.methodComparison.basicRag?.precisionAt10 ?? 0).toFixed(1),
-            (currentTest.methodComparison.llmOnly?.precisionAt10 ?? 0).toFixed(1),
+            (currentTest.methodComparison.eduBars?.precisionAt10 ?? 0).toFixed(
+              1
+            ),
+            (currentTest.methodComparison.basicRag?.precisionAt10 ?? 0).toFixed(
+              1
+            ),
+            (currentTest.methodComparison.llmOnly?.precisionAt10 ?? 0).toFixed(
+              1
+            ),
             "N/A",
           ],
           [
             "Avg Response Time (ms)",
-            (currentTest.methodComparison.eduBars?.avgResponseTime ?? 0).toFixed(0),
-            (currentTest.methodComparison.basicRag?.avgResponseTime ?? 0).toFixed(0),
-            (currentTest.methodComparison.llmOnly?.avgResponseTime ?? 0).toFixed(0),
+            (
+              currentTest.methodComparison.eduBars?.avgResponseTime ?? 0
+            ).toFixed(0),
+            (
+              currentTest.methodComparison.basicRag?.avgResponseTime ?? 0
+            ).toFixed(0),
+            (
+              currentTest.methodComparison.llmOnly?.avgResponseTime ?? 0
+            ).toFixed(0),
             "N/A",
           ],
           [
@@ -1232,16 +1266,37 @@ export default function TestSimulationPage() {
                   <option value="">Yeni test başlat...</option>
                   {testList.map((test) => (
                     <option key={test.testId} value={test.testId}>
-                      {test.testName} - {test.status === "completed" ? "✅ Tamamlandı" : test.status === "running" ? "🔄 Çalışıyor" : test.status === "failed" ? "❌ Başarısız" : test.status} - {new Date(test.updatedAt || test.endTime || test.startTime).toLocaleString("tr-TR")} - {test.testType === "semantic_similarity_only" ? "Anlamsal Benzerlik" : "Standart Test"}
+                      {test.testName} -{" "}
+                      {test.status === "completed"
+                        ? "✅ Tamamlandı"
+                        : test.status === "running"
+                        ? "🔄 Çalışıyor"
+                        : test.status === "failed"
+                        ? "❌ Başarısız"
+                        : test.status}{" "}
+                      -{" "}
+                      {new Date(
+                        test.updatedAt || test.endTime || test.startTime
+                      ).toLocaleString("tr-TR")}{" "}
+                      -{" "}
+                      {test.testType === "semantic_similarity_only"
+                        ? "Anlamsal Benzerlik"
+                        : "Standart Test"}
                     </option>
                   ))}
                 </select>
                 {selectedTestId && currentTest && (
                   <div className="mt-2 text-sm text-gray-600">
-                    <span className="font-medium">Seçili Test:</span> {currentTest.testName} - {currentTest.status === "completed" ? "Tamamlandı" : currentTest.status}
+                    <span className="font-medium">Seçili Test:</span>{" "}
+                    {currentTest.testName} -{" "}
+                    {currentTest.status === "completed"
+                      ? "Tamamlandı"
+                      : currentTest.status}
                     {currentTest.testType && (
                       <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                        {currentTest.testType === "semantic_similarity_only" ? "Anlamsal Benzerlik Testi" : "Standart Test"}
+                        {currentTest.testType === "semantic_similarity_only"
+                          ? "Anlamsal Benzerlik Testi"
+                          : "Standart Test"}
                       </span>
                     )}
                   </div>
