@@ -898,12 +898,31 @@ async def single_query_comparison(
             "edubars_sources_count": len(edubars_result.get("sources", [])),
         }
         
-        # "ders kapsamı dışında" kontrolü
-        basic_response_lower = basic_rag_result.get("response", "").lower()
-        edubars_response_lower = edubars_result.get("response", "").lower()
+        # "ders kapsamı dışında" kontrolü - farklı varyasyonları kontrol et
+        basic_response = basic_rag_result.get("response", "")
+        edubars_response = edubars_result.get("response", "")
+        basic_response_lower = basic_response.lower()
+        edubars_response_lower = edubars_response.lower()
         
-        analysis["basic_rag_out_of_scope"] = "ders kapsamı dışında" in basic_response_lower or "kapsam dışı" in basic_response_lower
-        analysis["edubars_out_of_scope"] = "ders kapsamı dışında" in edubars_response_lower or "kapsam dışı" in edubars_response_lower
+        # Farklı varyasyonları kontrol et
+        out_of_scope_patterns = [
+            "ders kapsamı dışında",
+            "kapsam dışı",
+            "ders kapsamında değil",
+            "ders kapsamında bulunamadı",
+            "ders dökümanlarında bulunamamış",
+            "ders içeriğiyle ilgili değil",
+            "ders materyalleri kapsamında değil"
+        ]
+        
+        analysis["basic_rag_out_of_scope"] = any(pattern in basic_response_lower for pattern in out_of_scope_patterns)
+        analysis["edubars_out_of_scope"] = any(pattern in edubars_response_lower for pattern in out_of_scope_patterns)
+        
+        # Ayrıca kaynak sayısı 0 ise de "out of scope" olarak işaretle
+        if len(basic_rag_result.get("sources", [])) == 0 and basic_rag_result["success"]:
+            analysis["basic_rag_out_of_scope"] = True
+        if len(edubars_result.get("sources", [])) == 0 and edubars_result["success"]:
+            analysis["edubars_out_of_scope"] = True
         
         # Kaynak skorları analizi
         if basic_rag_result.get("sources"):

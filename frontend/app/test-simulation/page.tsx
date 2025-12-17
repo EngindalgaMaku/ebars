@@ -1845,9 +1845,51 @@ export default function TestSimulationPage() {
                               {singleQueryResult.edubars_full_system.crag_evaluation && (
                                 <div className="mt-2 p-2 bg-white rounded border">
                                   <strong>CRAG Değerlendirmesi:</strong>
-                                  <pre className="mt-1 text-xs overflow-auto">
-                                    {JSON.stringify(singleQueryResult.edubars_full_system.crag_evaluation, null, 2)}
-                                  </pre>
+                                  <div className="mt-1 text-xs space-y-1">
+                                    {singleQueryResult.edubars_full_system.crag_evaluation.relevant !== undefined && (
+                                      <div>
+                                        <strong>İlgili mi?</strong>{" "}
+                                        {singleQueryResult.edubars_full_system.crag_evaluation.relevant ? (
+                                          <span className="text-green-600">✅ Evet</span>
+                                        ) : (
+                                          <span className="text-red-600">❌ Hayır</span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {singleQueryResult.edubars_full_system.crag_evaluation.reasoning && (
+                                      <div>
+                                        <strong>Gerekçe:</strong>
+                                        <div className="mt-1 p-1 bg-gray-50 rounded text-xs">
+                                          {singleQueryResult.edubars_full_system.crag_evaluation.reasoning}
+                                        </div>
+                                      </div>
+                                    )}
+                                    <details className="mt-2">
+                                      <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
+                                        Tüm CRAG Detayları
+                                      </summary>
+                                      <pre className="mt-1 text-xs overflow-auto max-h-40">
+                                        {JSON.stringify(singleQueryResult.edubars_full_system.crag_evaluation, null, 2)}
+                                      </pre>
+                                    </details>
+                                  </div>
+                                </div>
+                              )}
+                              {singleQueryResult.edubars_full_system.sources.length === 0 && (
+                                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                                  <strong className="text-yellow-800">⚠️ Kaynak Bulunamadı</strong>
+                                  <div className="mt-1 text-xs text-yellow-700">
+                                    <div>Rerankerlı sistem 0 kaynak buldu.</div>
+                                    <div className="mt-1">
+                                      <strong>Olası Nedenler:</strong>
+                                      <ul className="list-disc list-inside mt-1 space-y-1">
+                                        <li>CRAG değerlendirmesi kaynakları reddetti</li>
+                                        <li>Rerank skorları çok düşük</li>
+                                        <li>Kaynak skorları threshold'u geçemedi</li>
+                                        <li>Embedding similarity çok düşük</li>
+                                      </ul>
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                             </>
@@ -1863,27 +1905,69 @@ export default function TestSimulationPage() {
                       {/* Analysis Summary */}
                       <div className="border rounded-lg p-4 bg-gray-50">
                         <h4 className="font-semibold mb-2">Analiz Özeti</h4>
-                        <div className="space-y-1 text-sm">
+                        <div className="space-y-2 text-sm">
                           {singleQueryResult.analysis.basic_rag_out_of_scope && !singleQueryResult.analysis.edubars_out_of_scope && (
-                            <div className="text-red-600 font-semibold">
-                              ⚠️ Rerankersız sistem "ders kapsamı dışında" diyor, rerankerlı sistem cevap veriyor
+                            <div className="text-red-600 font-semibold p-2 bg-red-50 rounded">
+                              ⚠️ <strong>Sorun Tespit Edildi:</strong> Rerankersız sistem "ders kapsamı dışında" diyor, rerankerlı sistem cevap veriyor
                             </div>
                           )}
                           {!singleQueryResult.analysis.basic_rag_out_of_scope && singleQueryResult.analysis.edubars_out_of_scope && (
-                            <div className="text-red-600 font-semibold">
-                              ⚠️ Rerankerlı sistem "ders kapsamı dışında" diyor, rerankersız sistem cevap veriyor
+                            <div className="text-red-600 font-semibold p-2 bg-red-50 rounded">
+                              ⚠️ <strong>Sorun Tespit Edildi:</strong> Rerankerlı sistem "ders kapsamı dışında" diyor, rerankersız sistem cevap veriyor
+                              <div className="mt-2 text-xs">
+                                <strong>Olası Nedenler:</strong>
+                                <ul className="list-disc list-inside mt-1 space-y-1">
+                                  <li>Reranker kaynakları filtreliyor olabilir</li>
+                                  <li>CRAG değerlendirmesi kaynakları reddediyor olabilir</li>
+                                  <li>Rerank skorları çok düşük olabilir</li>
+                                  <li>Kaynak skorları threshold'u geçemiyor olabilir</li>
+                                </ul>
+                              </div>
                             </div>
                           )}
                           {singleQueryResult.analysis.basic_rag_out_of_scope && singleQueryResult.analysis.edubars_out_of_scope && (
-                            <div className="text-orange-600">
+                            <div className="text-orange-600 p-2 bg-orange-50 rounded">
                               ⚠️ Her iki sistem de "ders kapsamı dışında" diyor
                             </div>
                           )}
                           {!singleQueryResult.analysis.basic_rag_out_of_scope && !singleQueryResult.analysis.edubars_out_of_scope && (
-                            <div className="text-green-600">
+                            <div className="text-green-600 p-2 bg-green-50 rounded">
                               ✅ Her iki sistem de cevap veriyor
                             </div>
                           )}
+                          
+                          {/* Kaynak karşılaştırması */}
+                          <div className="mt-3 pt-3 border-t">
+                            <strong>Kaynak Karşılaştırması:</strong>
+                            <div className="mt-1 space-y-1">
+                              <div>
+                                Basic RAG: {singleQueryResult.basic_rag.sources.length} kaynak
+                                {singleQueryResult.analysis.basic_rag_avg_score !== undefined && (
+                                  <span className="ml-2">
+                                    (Ortalama: {singleQueryResult.analysis.basic_rag_avg_score.toFixed(4)})
+                                  </span>
+                                )}
+                              </div>
+                              <div>
+                                EduBars: {singleQueryResult.edubars_full_system.sources.length} kaynak
+                                {singleQueryResult.analysis.edubars_avg_score !== undefined && (
+                                  <span className="ml-2">
+                                    (Ortalama: {singleQueryResult.analysis.edubars_avg_score.toFixed(4)})
+                                    {singleQueryResult.analysis.edubars_avg_rerank_score !== undefined && (
+                                      <span className="ml-1">
+                                        | Rerank: {singleQueryResult.analysis.edubars_avg_rerank_score.toFixed(4)}
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                              {singleQueryResult.basic_rag.sources.length > 0 && singleQueryResult.edubars_full_system.sources.length === 0 && (
+                                <div className="text-red-600 font-semibold mt-2">
+                                  ⚠️ Rerankerlı sistem kaynak bulamadı ama rerankersız sistem {singleQueryResult.basic_rag.sources.length} kaynak buldu!
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
