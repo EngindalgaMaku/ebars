@@ -1103,8 +1103,36 @@ async def single_query_comparison(
     except Exception as e:
         logger.error(f"❌ Single query comparison test failed: {e}")
         import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
+        error_traceback = traceback.format_exc()
+        logger.error(f"Traceback: {error_traceback}")
+        
+        # Return error details instead of raising exception to see what went wrong
+        return {
+            "question": question if question else "N/A",
+            "session_id": sessionId if sessionId else "N/A",
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": True,
+            "error_message": str(e),
+            "error_traceback": error_traceback,
+            "basic_rag": {
+                "success": False,
+                "error": f"Test failed before execution: {str(e)}"
+            },
+            "edubars_full_system": {
+                "success": False,
+                "error": f"Test failed before execution: {str(e)}"
+            },
+            "analysis": {
+                "root_cause": {
+                    "detected": True,
+                    "reason": "TEST_EXECUTION_ERROR",
+                    "details": {
+                        "error": str(e),
+                        "traceback": error_traceback
+                    }
+                }
+            }
+        }
 
 @router.post("/semantic-similarity", summary="Start Semantic Similarity Only Test")
 async def start_semantic_similarity_test(
