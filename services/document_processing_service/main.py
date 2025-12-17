@@ -1213,8 +1213,8 @@ async def rag_query(request: RAGQueryRequest):
                     logger.info("✅ No reranker: using all retrieved documents")
                 
                 # Check source scores - get threshold from RAG settings (default: 0.4)
-                # Skip threshold check if external reranker was used (it already did relevance filtering)
-                if context_docs and not skip_threshold_check:
+                # ALWAYS do threshold check, but use reranker scores if available (reranker does filtering too)
+                if context_docs:
                     # Get min_score_threshold from session RAG settings
                     min_score_threshold = 0.4  # Default
                     try:
@@ -1255,13 +1255,15 @@ async def rag_query(request: RAGQueryRequest):
                             else:
                                 rerank_score = rerank_score / 10.0  # ms-marco format (0-10)
                         
-                        # Use similarity_score as primary (reranker is for ranking, not threshold)
-                        # Only use rerank_score if similarity_score is missing or very low
-                        # This ensures threshold check works even when external reranker doesn't add scores
-                        if similarity_score > 0.0:
-                            doc_max = max(similarity_score, rerank_score)  # Use higher of the two
+                        # Reranker skorları varsa öncelikli kullan (reranker hem sıralama hem filtreleme yapar)
+                        # Eğer reranker bir document'a düşük skor verirse, o document filtrelenmeli
+                        if rerank_score > 0.0:
+                            # Reranker skorları varsa, onları kullan (daha güvenilir - cross-encoder model)
+                            # Ama similarity_score çok yüksekse, onu da dikkate al (fallback)
+                            doc_max = max(rerank_score, similarity_score * 0.9)  # Reranker öncelikli ama similarity de dikkate alınır
                         else:
-                            doc_max = rerank_score  # Fallback to rerank_score if similarity is 0
+                            # Reranker skorları yoksa, similarity_score kullan
+                            doc_max = similarity_score
                         max_score = max(max_score, doc_max)
                         all_scores.append({
                             "similarity": similarity_score,
@@ -1285,9 +1287,6 @@ async def rag_query(request: RAGQueryRequest):
                         )
                     else:
                         logger.info(f"✅ ACCEPTED: Max source score ({max_score:.4f}) is above threshold ({min_score_threshold:.4f})")
-                elif context_docs and skip_threshold_check:
-                    # External reranker was used - skip threshold check, use all documents
-                    logger.info("✅ External reranker used: skipping threshold check, using all retrieved documents")
                 
                 # Generate answer using Model Inference Service
                 if context_docs:
