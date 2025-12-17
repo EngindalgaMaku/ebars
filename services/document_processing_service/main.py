@@ -1284,6 +1284,7 @@ async def rag_query(request: RAGQueryRequest):
                     logger.info(f"📊 Source score check: max_score={max_score:.4f}, threshold={min_score_threshold:.4f}")
                     logger.info(f"📊 All scores (first 5): {all_scores[:5]}")  # İlk 5 skoru göster
                     logger.info(f"📊 Total documents: {len(context_docs)}, Documents with rerank_score: {sum(1 for s in all_scores if s.get('has_rerank_score'))}, Documents with crag_score: {sum(1 for s in all_scores if s.get('has_crag_score'))}")
+                    logger.info(f"🔍 THRESHOLD CHECK: context_docs length={len(context_docs)}, will check threshold now...")
                     
                     if max_score < min_score_threshold:
                         logger.warning(f"❌ REJECTED: Max source score ({max_score:.4f}) is below threshold ({min_score_threshold:.4f})")
