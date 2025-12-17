@@ -319,7 +319,10 @@ def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k
     Calculate Precision@k using system's cosine similarity scores only.
     Uses the system's "score" field (cosine similarity from embedding search).
     
-    FIXED: Precision@k = relevant_count_in_top_k / k (not divided by doc count)
+    FIXED (2024-12): Adjusted Precision@k calculation
+    - If fewer than k documents are retrieved, divide by actual retrieved count (not k)
+    - This prevents penalizing systems that find fewer but all relevant documents
+    - Example: If only 3 docs retrieved and all 3 are relevant: 3/3 = 1.0 (not 3/5 = 0.6)
     
     LITERATURE BENCHMARKS (Information Retrieval Research):
     - Web Search (TREC): P@10 typically 0.1-0.3 (10-30%) - very challenging
@@ -330,6 +333,7 @@ def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k
     OUR EVALUATION:
     - Cosine similarity > 0.4 (40%) threshold = relevant document
     - This is conservative - stricter than many IR systems (often use 0.2-0.3)
+    - Adjusted precision: divides by min(k, actual_retrieved_count) for fairness
     """
     if not retrieved_docs or k <= 0:
         return 0.0
@@ -337,6 +341,11 @@ def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k
     try:
         # Take top k documents (already sorted by system)
         top_k_docs = retrieved_docs[:k]
+        actual_count = len(top_k_docs)
+        
+        # If no documents retrieved, precision is 0
+        if actual_count == 0:
+            return 0.0
         
         # Use ONLY system's cosine similarity scores (score field)
         relevant_count = 0
@@ -356,9 +365,12 @@ def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k
             if score > 0.4:
                 relevant_count += 1
         
-        # FIXED: Precision@k = relevant_count / k (always k, not doc count!)
-        # This is the correct Precision@k formula
-        precision = relevant_count / k
+        # FIXED: Adjusted Precision@k = relevant_count / min(k, actual_retrieved_count)
+        # If fewer than k documents retrieved, divide by actual count (not k)
+        # This prevents unfairly penalizing systems when retrieval finds fewer docs
+        # Example: 3 relevant docs out of 3 retrieved = 1.0 (not 0.6)
+        denominator = min(k, actual_count)
+        precision = relevant_count / denominator if denominator > 0 else 0.0
         return float(precision)
         
     except Exception as e:
