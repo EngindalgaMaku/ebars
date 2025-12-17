@@ -222,6 +222,63 @@ async def rag_query(request: RAGQueryRequest):
             # use_crag is None - use default behavior (CRAG disabled by default, independent of rerank)
             logger.info(f"⏭️ CRAG evaluation (default): Skipping (use_crag not specified)")
         
+        # Step 6.6: Threshold Check - ALWAYS check source scores before generating answer
+        if context_docs:
+            # Get threshold from request or session RAG settings (default: 0.4)
+            min_score_threshold = request.min_score if request.min_score > 0 else 0.4
+            if session_rag_settings.get('min_score_threshold') is not None:
+                min_score_threshold = float(session_rag_settings.get('min_score_threshold', 0.4))
+                logger.info(f"📊 Using min_score_threshold from RAG settings: {min_score_threshold:.4f}")
+            max_score = 0.0
+            all_scores = []
+            
+            for doc in context_docs:
+                similarity_score = doc.get("score", 0.0)
+                rerank_score = doc.get("rerank_score") or doc.get("crag_score", 0.0)
+                
+                # Normalize scores if needed
+                if similarity_score > 1.0:
+                    if similarity_score <= 100.0:
+                        similarity_score = similarity_score / 100.0
+                    else:
+                        similarity_score = max(0.0, min(1.0, similarity_score / 1000.0))
+                
+                if rerank_score > 1.0:
+                    if rerank_score <= 100.0:
+                        rerank_score = rerank_score / 100.0
+                    else:
+                        rerank_score = rerank_score / 10.0
+                
+                similarity_score = max(0.0, min(1.0, similarity_score))
+                rerank_score = max(0.0, min(1.0, rerank_score))
+                
+                # Use reranker score if available, otherwise use similarity score
+                if rerank_score > 0.0:
+                    doc_max = rerank_score
+                else:
+                    doc_max = similarity_score
+                
+                max_score = max(max_score, doc_max)
+                all_scores.append({
+                    "similarity": similarity_score,
+                    "rerank": rerank_score,
+                    "max": doc_max
+                })
+            
+            logger.info(f"📊 Source score check: max_score={max_score:.4f}, threshold={min_score_threshold:.4f}")
+            logger.info(f"📊 All scores (first 5): {all_scores[:5]}")
+            logger.info(f"📊 Total documents: {len(context_docs)}, Documents with rerank_score: {sum(1 for s in all_scores if s.get('rerank', 0.0) > 0.0)}")
+            
+            if max_score < min_score_threshold:
+                logger.warning(f"❌ REJECTED: Max source score ({max_score:.4f}) is below threshold ({min_score_threshold:.4f})")
+                return RAGQueryResponse(
+                    answer="Bu bilgi ders dökümanlarında bulunamamıştır.",
+                    sources=[],
+                    chain_type=chain_type
+                )
+            else:
+                logger.info(f"✅ ACCEPTED: Max source score ({max_score:.4f}) is above threshold ({min_score_threshold:.4f})")
+        
         # Step 7: Generate answer (skip if skip_llm=True)
         if request.skip_llm:
             logger.info(f"⏭️ Skipping LLM generation (skip_llm=True), returning only chunks")
