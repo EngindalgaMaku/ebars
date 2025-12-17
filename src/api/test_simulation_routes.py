@@ -1001,10 +1001,19 @@ async def single_query_comparison(
         # 2. Rerank öncesi kaynak kontrolü
         if not root_cause["detected"]:
             # Rerank öncesi kaynak sayısını kontrol et
-            rerank_info = edubars_result.get("debug_info", {}).get("rerank_info", {})
-            retrieval_info = edubars_result.get("debug_info", {}).get("retrieval_info", {})
+            debug_info = edubars_result.get("debug_info", {}) or {}
+            rerank_info = debug_info.get("rerank_info") if debug_info else {}
+            retrieval_info = debug_info.get("retrieval_info") if debug_info else {}
             
-            initial_sources_count = retrieval_info.get("initial_sources_count") or len(edubars_result.get("sources", []))
+            # Safe access with None checks
+            if retrieval_info and isinstance(retrieval_info, dict):
+                initial_sources_count = retrieval_info.get("initial_sources_count")
+            else:
+                initial_sources_count = None
+            
+            if initial_sources_count is None:
+                initial_sources_count = len(edubars_result.get("sources", []))
+            
             reranked_sources_count = len(edubars_result.get("sources", []))
             
             if initial_sources_count > 0 and reranked_sources_count == 0:
