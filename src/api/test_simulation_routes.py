@@ -553,7 +553,16 @@ async def execute_edubars_full_system(session_id: str, question: str, session_se
                     "sources": result.get("sources", []),
                     "execution_time_ms": execution_time,
                     "success": True,
-                    "config": "Full System (APRAG OFF, CRAG ON, Reranker ON)"
+                    "config": "Full System (APRAG OFF, CRAG ON, Reranker ON)",
+                    "full_response": result,  # Store full response for debugging
+                    "debug_info": {
+                        "crag_evaluation": result.get("crag_evaluation"),
+                        "rerank_info": result.get("rerank_info"),
+                        "retrieval_info": result.get("retrieval_info"),
+                        "metadata": result.get("metadata"),
+                        # Extract all debug fields
+                        "all_keys": list(result.keys())
+                    }
                 }
             else:
                 return {
@@ -611,7 +620,13 @@ async def execute_basic_rag(session_id: str, question: str, session_settings: Op
                     "sources": result.get("sources", []),
                     "execution_time_ms": execution_time,
                     "success": True,
-                    "config": "Basic RAG (no CRAG, no Reranker)"
+                    "config": "Basic RAG (no CRAG, no Reranker)",
+                    "full_response": result,  # Store full response for debugging
+                    "debug_info": {
+                        "retrieval_info": result.get("retrieval_info"),
+                        "metadata": result.get("metadata"),
+                        "all_keys": list(result.keys())
+                    }
                 }
             else:
                 return {
@@ -949,6 +964,97 @@ async def single_query_comparison(
         if edubars_result.get("full_response") and "crag_evaluation" in edubars_result["full_response"]:
             crag_evaluation = edubars_result["full_response"]["crag_evaluation"]
             analysis["crag_evaluation"] = crag_evaluation
+        
+        # Detaylı sebep analizi
+        root_cause = {
+            "detected": False,
+            "reason": None,
+            "details": {}
+        }
+        
+        # 1. CRAG reddetme kontrolü
+        if crag_evaluation:
+            if crag_evaluation.get("action") == "reject":
+                root_cause["detected"] = True
+                root_cause["reason"] = "CRAG_DEĞERLENDİRMESİ_REDDETTİ"
+                root_cause["details"] = {
+                    "action": crag_evaluation.get("action"),
+                    "reasoning": crag_evaluation.get("reasoning", "N/A"),
+                    "confidence": crag_evaluation.get("confidence"),
+                    "relevance_score": crag_evaluation.get("relevance_score")
+                }
+                logger.info(f"🔍 ROOT CAUSE: CRAG rejected the query")
+        
+        # 2. Rerank öncesi kaynak kontrolü
+        if not root_cause["detected"]:
+            # Rerank öncesi kaynak sayısını kontrol et
+            rerank_info = edubars_result.get("debug_info", {}).get("rerank_info", {})
+            retrieval_info = edubars_result.get("debug_info", {}).get("retrieval_info", {})
+            
+            initial_sources_count = retrieval_info.get("initial_sources_count") or len(edubars_result.get("sources", []))
+            reranked_sources_count = len(edubars_result.get("sources", []))
+            
+            if initial_sources_count > 0 and reranked_sources_count == 0:
+                root_cause["detected"] = True
+                root_cause["reason"] = "RERANKER_TÜM_KAYNAKLARI_FİLTRELEDİ"
+                root_cause["details"] = {
+                    "initial_sources": initial_sources_count,
+                    "after_rerank": reranked_sources_count,
+                    "rerank_scores": [s.get("rerank_score") for s in edubars_result.get("sources", []) if s.get("rerank_score") is not None]
+                }
+                logger.info(f"🔍 ROOT CAUSE: Reranker filtered all sources")
+        
+        # 3. Threshold kontrolü
+        if not root_cause["detected"]:
+            sources = edubars_result.get("sources", [])
+            if len(sources) == 0:
+                # Basic RAG'de kaynak var mı kontrol et
+                basic_sources = basic_rag_result.get("sources", [])
+                if len(basic_sources) > 0:
+                    # Basic RAG skorlarını kontrol et
+                    basic_scores = [s.get("score", 0.0) for s in basic_sources]
+                    max_basic_score = max(basic_scores) if basic_scores else 0.0
+                    
+                    root_cause["detected"] = True
+                    root_cause["reason"] = "THRESHOLD_GEÇEMEDİ"
+                    root_cause["details"] = {
+                        "basic_rag_max_score": max_basic_score,
+                        "basic_rag_avg_score": sum(basic_scores) / len(basic_scores) if basic_scores else 0.0,
+                        "basic_rag_sources_count": len(basic_sources),
+                        "edubars_sources_count": 0,
+                        "threshold": "0.4 (default) veya session ayarlarından"
+                    }
+                    logger.info(f"🔍 ROOT CAUSE: Sources filtered by threshold")
+        
+        # 4. Embedding similarity kontrolü
+        if not root_cause["detected"] and len(edubars_result.get("sources", [])) == 0:
+            # Basic RAG'de kaynak var ama EduBars'da yok
+            basic_sources = basic_rag_result.get("sources", [])
+            if len(basic_sources) > 0:
+                basic_scores = [s.get("score", 0.0) for s in basic_sources]
+                if max(basic_scores) < 0.1:  # Çok düşük similarity
+                    root_cause["detected"] = True
+                    root_cause["reason"] = "EMBEDDING_SIMILARITY_ÇOK_DÜŞÜK"
+                    root_cause["details"] = {
+                        "max_similarity": max(basic_scores),
+                        "avg_similarity": sum(basic_scores) / len(basic_scores) if basic_scores else 0.0
+                    }
+                    logger.info(f"🔍 ROOT CAUSE: Embedding similarity too low")
+        
+        # 5. Hiç kaynak bulunamadı
+        if not root_cause["detected"]:
+            basic_sources = basic_rag_result.get("sources", [])
+            edubars_sources = edubars_result.get("sources", [])
+            if len(basic_sources) == 0 and len(edubars_sources) == 0:
+                root_cause["detected"] = True
+                root_cause["reason"] = "HİÇ_KAYNAK_BULUNAMADI"
+                root_cause["details"] = {
+                    "query": question[:100],
+                    "session_id": sessionId
+                }
+                logger.info(f"🔍 ROOT CAUSE: No sources found at all")
+        
+        analysis["root_cause"] = root_cause
         
         # Sonuç
         result = {

@@ -1876,20 +1876,63 @@ export default function TestSimulationPage() {
                                 </div>
                               )}
                               {singleQueryResult.edubars_full_system.sources.length === 0 && (
-                                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded">
-                                  <strong className="text-yellow-800">⚠️ Kaynak Bulunamadı</strong>
-                                  <div className="mt-1 text-xs text-yellow-700">
-                                    <div>Rerankerlı sistem 0 kaynak buldu.</div>
-                                    <div className="mt-1">
-                                      <strong>Olası Nedenler:</strong>
-                                      <ul className="list-disc list-inside mt-1 space-y-1">
-                                        <li>CRAG değerlendirmesi kaynakları reddetti</li>
-                                        <li>Rerank skorları çok düşük</li>
-                                        <li>Kaynak skorları threshold'u geçemedi</li>
-                                        <li>Embedding similarity çok düşük</li>
-                                      </ul>
+                                <div className="mt-2 p-2 bg-red-50 border-2 border-red-300 rounded">
+                                  <strong className="text-red-800 text-base">🔍 TESPİT EDİLEN SEBEP</strong>
+                                  {singleQueryResult.analysis.root_cause?.detected ? (
+                                    <div className="mt-2 space-y-2">
+                                      <div className="p-2 bg-white rounded border border-red-200">
+                                        <strong className="text-red-700">
+                                          {singleQueryResult.analysis.root_cause.reason === "CRAG_DEĞERLENDİRMESİ_REDDETTİ" && "❌ CRAG Değerlendirmesi Kaynakları Reddetti"}
+                                          {singleQueryResult.analysis.root_cause.reason === "RERANKER_TÜM_KAYNAKLARI_FİLTRELEDİ" && "❌ Reranker Tüm Kaynakları Filtreledi"}
+                                          {singleQueryResult.analysis.root_cause.reason === "THRESHOLD_GEÇEMEDİ" && "❌ Kaynak Skorları Threshold'u Geçemedi"}
+                                          {singleQueryResult.analysis.root_cause.reason === "EMBEDDING_SIMILARITY_ÇOK_DÜŞÜK" && "❌ Embedding Similarity Çok Düşük"}
+                                          {singleQueryResult.analysis.root_cause.reason === "HİÇ_KAYNAK_BULUNAMADI" && "❌ Hiç Kaynak Bulunamadı"}
+                                        </strong>
+                                      </div>
+                                      {singleQueryResult.analysis.root_cause.details && (
+                                        <div className="text-xs space-y-1">
+                                          {singleQueryResult.analysis.root_cause.reason === "CRAG_DEĞERLENDİRMESİ_REDDETTİ" && (
+                                            <>
+                                              <div><strong>Action:</strong> {singleQueryResult.analysis.root_cause.details.action}</div>
+                                              {singleQueryResult.analysis.root_cause.details.reasoning && (
+                                                <div><strong>Gerekçe:</strong> {singleQueryResult.analysis.root_cause.details.reasoning}</div>
+                                              )}
+                                              {singleQueryResult.analysis.root_cause.details.relevance_score !== undefined && (
+                                                <div><strong>Relevance Score:</strong> {singleQueryResult.analysis.root_cause.details.relevance_score}</div>
+                                              )}
+                                            </>
+                                          )}
+                                          {singleQueryResult.analysis.root_cause.reason === "RERANKER_TÜM_KAYNAKLARI_FİLTRELEDİ" && (
+                                            <>
+                                              <div><strong>Rerank Öncesi Kaynak:</strong> {singleQueryResult.analysis.root_cause.details.initial_sources}</div>
+                                              <div><strong>Rerank Sonrası Kaynak:</strong> {singleQueryResult.analysis.root_cause.details.after_rerank}</div>
+                                              {singleQueryResult.analysis.root_cause.details.rerank_scores && singleQueryResult.analysis.root_cause.details.rerank_scores.length > 0 && (
+                                                <div><strong>Rerank Skorları:</strong> {singleQueryResult.analysis.root_cause.details.rerank_scores.map((s: number) => s.toFixed(4)).join(", ")}</div>
+                                              )}
+                                            </>
+                                          )}
+                                          {singleQueryResult.analysis.root_cause.reason === "THRESHOLD_GEÇEMEDİ" && (
+                                            <>
+                                              <div><strong>Basic RAG Max Score:</strong> {singleQueryResult.analysis.root_cause.details.basic_rag_max_score?.toFixed(4)}</div>
+                                              <div><strong>Basic RAG Avg Score:</strong> {singleQueryResult.analysis.root_cause.details.basic_rag_avg_score?.toFixed(4)}</div>
+                                              <div><strong>Threshold:</strong> {singleQueryResult.analysis.root_cause.details.threshold}</div>
+                                              <div><strong>Basic RAG Kaynak Sayısı:</strong> {singleQueryResult.analysis.root_cause.details.basic_rag_sources_count}</div>
+                                            </>
+                                          )}
+                                          {singleQueryResult.analysis.root_cause.reason === "EMBEDDING_SIMILARITY_ÇOK_DÜŞÜK" && (
+                                            <>
+                                              <div><strong>Max Similarity:</strong> {singleQueryResult.analysis.root_cause.details.max_similarity?.toFixed(4)}</div>
+                                              <div><strong>Avg Similarity:</strong> {singleQueryResult.analysis.root_cause.details.avg_similarity?.toFixed(4)}</div>
+                                            </>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
-                                  </div>
+                                  ) : (
+                                    <div className="mt-1 text-xs text-yellow-700">
+                                      <div>Rerankerlı sistem 0 kaynak buldu. Sebep tespit edilemedi.</div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </>
@@ -1912,17 +1955,20 @@ export default function TestSimulationPage() {
                             </div>
                           )}
                           {!singleQueryResult.analysis.basic_rag_out_of_scope && singleQueryResult.analysis.edubars_out_of_scope && (
-                            <div className="text-red-600 font-semibold p-2 bg-red-50 rounded">
+                            <div className="text-red-600 font-semibold p-2 bg-red-50 rounded border-2 border-red-300">
                               ⚠️ <strong>Sorun Tespit Edildi:</strong> Rerankerlı sistem "ders kapsamı dışında" diyor, rerankersız sistem cevap veriyor
-                              <div className="mt-2 text-xs">
-                                <strong>Olası Nedenler:</strong>
-                                <ul className="list-disc list-inside mt-1 space-y-1">
-                                  <li>Reranker kaynakları filtreliyor olabilir</li>
-                                  <li>CRAG değerlendirmesi kaynakları reddediyor olabilir</li>
-                                  <li>Rerank skorları çok düşük olabilir</li>
-                                  <li>Kaynak skorları threshold'u geçemiyor olabilir</li>
-                                </ul>
-                              </div>
+                              {singleQueryResult.analysis.root_cause?.detected && (
+                                <div className="mt-2 p-2 bg-white rounded border border-red-200">
+                                  <strong className="text-red-700">🔍 Tespit Edilen Sebep:</strong>
+                                  <div className="mt-1 text-xs">
+                                    {singleQueryResult.analysis.root_cause.reason === "CRAG_DEĞERLENDİRMESİ_REDDETTİ" && "CRAG değerlendirmesi kaynakları reddetti"}
+                                    {singleQueryResult.analysis.root_cause.reason === "RERANKER_TÜM_KAYNAKLARI_FİLTRELEDİ" && "Reranker tüm kaynakları filtreledi"}
+                                    {singleQueryResult.analysis.root_cause.reason === "THRESHOLD_GEÇEMEDİ" && "Kaynak skorları threshold'u geçemedi"}
+                                    {singleQueryResult.analysis.root_cause.reason === "EMBEDDING_SIMILARITY_ÇOK_DÜŞÜK" && "Embedding similarity çok düşük"}
+                                    {singleQueryResult.analysis.root_cause.reason === "HİÇ_KAYNAK_BULUNAMADI" && "Hiç kaynak bulunamadı"}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                           {singleQueryResult.analysis.basic_rag_out_of_scope && singleQueryResult.analysis.edubars_out_of_scope && (
