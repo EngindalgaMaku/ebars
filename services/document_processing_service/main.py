@@ -1180,11 +1180,8 @@ async def rag_query(request: RAGQueryRequest):
                         logger.info(f"🚫 [UNIFIED RERANKER] Preventing Document Processing Service CRAG evaluation due to external reranker usage")
                         # Skip CRAG evaluation - external reranker (API Gateway or dedicated service) will handle it
                         logger.info("✅ External reranker active: using all retrieved documents without CRAG evaluation")
-                        # External reranker already did relevance filtering, so skip threshold check
-                        # Set a flag to skip threshold check later
-                        skip_threshold_check = True
+                        # Note: Threshold check will still be done using reranker scores (reranker does filtering too)
                     else:
-                        skip_threshold_check = False
                         # Import new CRAGEvaluator from services
                         from services.crag_evaluator import CRAGEvaluator as NewCRAGEvaluator
                         crag_evaluator = NewCRAGEvaluator(model_inference_url=MODEL_INFERENCER_URL, reranker_type=reranker_type)
