@@ -1240,9 +1240,14 @@ async def rag_query(request: RAGQueryRequest):
                         # Get rerank score from either field (external reranker vs internal CRAG)
                         rerank_score = doc.get("rerank_score") or doc.get("crag_score", 0.0)
                         
-                        # Normalize scores if they're in percentage format (0-100) to 0-1 range
+                        # Normalize similarity_score if it's in percentage format (0-100) to 0-1 range
+                        # ChromaDB similarity scores are typically 0-1 (cosine similarity), but check for percentage format
                         if similarity_score > 1.0:
-                            similarity_score = similarity_score / 100.0  # 24.5% -> 0.245
+                            if similarity_score <= 100.0:
+                                similarity_score = similarity_score / 100.0  # Percentage format (24.5% -> 0.245)
+                            else:
+                                # Very high score, might be distance-based, normalize differently
+                                similarity_score = max(0.0, min(1.0, similarity_score / 1000.0))
                         
                         # Normalize rerank score
                         if rerank_score > 1.0:
@@ -1252,25 +1257,23 @@ async def rag_query(request: RAGQueryRequest):
                             else:
                                 rerank_score = rerank_score / 10.0  # ms-marco format (0-10)
                         
-                        # Reranker skorları varsa öncelikli kullan (reranker hem sıralama hem filtreleme yapar)
-                        # Eğer reranker bir document'a düşük skor verirse, o document filtrelenmeli
-                        # Ama eğer reranker skorları yoksa veya çok düşükse, similarity_score'u kullan
+                        # Ensure both scores are in 0-1 range
+                        similarity_score = max(0.0, min(1.0, similarity_score))
+                        rerank_score = max(0.0, min(1.0, rerank_score))
+                        
+                        # Threshold kontrolü için skor seçimi:
+                        # 1. Reranker skorları varsa: reranker skorunu kullan (daha güvenilir - cross-encoder)
+                        # 2. Reranker skorları yoksa: similarity_score kullan
+                        # 3. Her iki durumda da threshold kontrolü yapılır (tutarlılık için)
                         if rerank_score > 0.0:
                             # Reranker skorları varsa, onları kullan (daha güvenilir - cross-encoder model)
-                            # Ama similarity_score çok yüksekse ve rerank_score düşükse, similarity_score'u tercih et
-                            # Çünkü reranker bazen çok strict olabilir
-                            if similarity_score > 0.7 and rerank_score < 0.3:
-                                # Similarity yüksek ama rerank düşük - similarity'yi kullan (reranker çok strict olabilir)
-                                doc_max = similarity_score
-                                logger.info(f"⚠️ Document {len(all_scores)}: Using similarity_score ({similarity_score:.4f}) instead of rerank_score ({rerank_score:.4f}) - reranker too strict")
-                            else:
-                                # Normal durum: reranker skorunu kullan
-                                doc_max = max(rerank_score, similarity_score * 0.9)  # Reranker öncelikli ama similarity de dikkate alınır
+                            # Reranker hem sıralama hem filtreleme yapar, bu yüzden reranker skorunu kullan
+                            doc_max = rerank_score
+                            logger.debug(f"📊 Document {len(all_scores)}: Using rerank_score ({rerank_score:.4f}) for threshold check (similarity: {similarity_score:.4f})")
                         else:
-                            # Reranker skorları yoksa, similarity_score kullan
+                            # Reranker skorları yoksa, similarity_score kullan (Basic RAG durumu)
                             doc_max = similarity_score
-                            if similarity_score > 0.0:
-                                logger.info(f"⚠️ Document {len(all_scores)}: No rerank_score, using similarity_score ({similarity_score:.4f})")
+                            logger.debug(f"📊 Document {len(all_scores)}: No rerank_score, using similarity_score ({similarity_score:.4f}) for threshold check")
                         max_score = max(max_score, doc_max)
                         all_scores.append({
                             "similarity": similarity_score,
