@@ -1250,8 +1250,13 @@ async def rag_query(request: RAGQueryRequest):
                             else:
                                 rerank_score = rerank_score / 10.0  # ms-marco format (0-10)
                         
-                        # Use the higher of similarity or rerank score
-                        doc_max = max(similarity_score, rerank_score)
+                        # Use similarity_score as primary (reranker is for ranking, not threshold)
+                        # Only use rerank_score if similarity_score is missing or very low
+                        # This ensures threshold check works even when external reranker doesn't add scores
+                        if similarity_score > 0.0:
+                            doc_max = max(similarity_score, rerank_score)  # Use higher of the two
+                        else:
+                            doc_max = rerank_score  # Fallback to rerank_score if similarity is 0
                         max_score = max(max_score, doc_max)
                         all_scores.append({
                             "similarity": similarity_score,
