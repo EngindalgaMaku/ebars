@@ -614,10 +614,17 @@ def _generate_answer_with_llm(
             if total_chars + len(content) > max_context_chars:
                 break
             context_parts.append(content)
+            # Include both similarity_score and rerank_score in sources
+            similarity_score = doc.get("score", 0.0)
+            rerank_score = doc.get("rerank_score") or doc.get("crag_score", 0.0)
+            # Use rerank_score if available, otherwise use similarity_score
+            final_score = rerank_score if rerank_score > 0.0 else similarity_score
             sources.append({
                 "content": content,  # Send full content for source modal
                 "metadata": doc.get("metadata", {}),
-                "score": doc.get("score", 0.0)
+                "score": final_score,  # Use rerank_score if available, otherwise similarity_score
+                "similarity_score": similarity_score,  # Keep for reference
+                "rerank_score": rerank_score if rerank_score > 0.0 else None  # Include rerank_score if available
             })
             total_chars += len(content)
         
