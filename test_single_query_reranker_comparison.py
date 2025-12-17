@@ -16,18 +16,25 @@ import json
 import time
 import asyncio
 import httpx
+import ssl
 from typing import Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
+
+# SSL uyarılarını bastır
+import warnings
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # API Gateway URL
 # Docker container içinde çalışıyorsa, container network'ünde API Gateway'e erişim
 # Host'ta çalışıyorsa localhost kullan
 if os.path.exists("/.dockerenv"):
     # Docker container içindeyiz - aynı container içinde çalışıyoruz, localhost kullan
-    API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://localhost:8000")
+    # Port 8000 (production) veya 8007 (development) olabilir
+    API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://127.0.0.1:8000")
 else:
-    # Host'ta çalışıyoruz
+    # Host'ta çalışıyoruz - container'ın dış portunu kullan
     API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://localhost:8000")
 
 # Test sorgusu
@@ -43,7 +50,14 @@ async def execute_basic_rag(session_id: str, question: str, session_settings: Op
         print(f"   Session ID: {session_id}")
         print(f"   Sorgu: {question}")
         
-        async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
+        # SSL doğrulamasını tamamen devre dışı bırak
+        # Container içinde localhost'a erişirken SSL hatası olmaması için
+        async with httpx.AsyncClient(
+            timeout=120.0, 
+            verify=False,
+            http2=False,
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
+        ) as client:
             response = await client.post(
                 f"{API_GATEWAY_URL}/rag/query",
                 json={
@@ -113,7 +127,14 @@ async def execute_edubars_full_system(session_id: str, question: str, session_se
         print(f"   Reranker: ENABLED")
         print(f"   CRAG: ENABLED")
         
-        async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
+        # SSL doğrulamasını tamamen devre dışı bırak
+        # Container içinde localhost'a erişirken SSL hatası olmaması için
+        async with httpx.AsyncClient(
+            timeout=120.0, 
+            verify=False,
+            http2=False,
+            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
+        ) as client:
             response = await client.post(
                 f"{API_GATEWAY_URL}/rag/query",
                 json={
