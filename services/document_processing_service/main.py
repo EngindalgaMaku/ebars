@@ -1285,6 +1285,9 @@ async def rag_query(request: RAGQueryRequest):
                         )
                     else:
                         logger.info(f"✅ ACCEPTED: Max source score ({max_score:.4f}) is above threshold ({min_score_threshold:.4f})")
+                elif context_docs and skip_threshold_check:
+                    # External reranker was used - skip threshold check, use all documents
+                    logger.info("✅ External reranker used: skipping threshold check, using all retrieved documents")
                 
                 # Generate answer using Model Inference Service
                 if context_docs:
