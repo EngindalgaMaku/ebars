@@ -208,6 +208,11 @@ export default function TestSimulationPage() {
   // UI State
   const [questionText, setQuestionText] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  
+  // Single Query Test State
+  const [singleQueryResult, setSingleQueryResult] = useState<any>(null);
+  const [isRunningSingleQuery, setIsRunningSingleQuery] = useState(false);
+  const [singleQueryQuestion, setSingleQueryQuestion] = useState("");
 
   // Enhanced helper to read similarity metrics with fallback to legacy fields
   const getSimilarityValue = (
@@ -634,6 +639,56 @@ export default function TestSimulationPage() {
       setError(err.message || "Semantic similarity testi başlatılamadı");
       toast.error(err.message || "Semantic similarity testi başlatılamadı");
       setIsRunning(false);
+    }
+  };
+
+  // Single Query Comparison Test
+  const runSingleQueryComparison = async () => {
+    if (!singleQueryQuestion.trim()) {
+      toast.error("Lütfen bir soru girin");
+      return;
+    }
+    if (!selectedSessionId) {
+      toast.error("Lütfen bir session seçin");
+      return;
+    }
+
+    setIsRunningSingleQuery(true);
+    setSingleQueryResult(null);
+    setError(null);
+
+    try {
+      toast.info("Tek sorguluk karşılaştırma testi başlatılıyor...");
+
+      const response = await fetch("/api/test-simulation/single-query-comparison", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: singleQueryQuestion,
+          sessionId: selectedSessionId,
+          sessionSettings: selectedSession?.rag_settings || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response
+          .json()
+          .catch(() => ({ error: "Test başlatılamadı" }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      setSingleQueryResult(result);
+      
+      toast.success("Test tamamlandı! Sonuçlar görüntüleniyor.");
+    } catch (error: any) {
+      console.error("Single query comparison error:", error);
+      setError(error.message);
+      toast.error("Test başarısız: " + error.message);
+    } finally {
+      setIsRunningSingleQuery(false);
     }
   };
 
@@ -1639,7 +1694,200 @@ export default function TestSimulationPage() {
                         </>
                       )}
                     </Button>
+                    <Button
+                      onClick={runSingleQueryComparison}
+                      disabled={
+                        isRunningSingleQuery ||
+                        !singleQueryQuestion.trim() ||
+                        !selectedSessionId ||
+                        !selectedSession
+                      }
+                      className="w-full"
+                      size="lg"
+                      variant="secondary"
+                    >
+                      {isRunningSingleQuery ? (
+                        <>
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          Test Çalıştırılıyor...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="mr-2 h-5 w-5" />
+                          Tek Sorguluk Karşılaştırma Testi
+                        </>
+                      )}
+                    </Button>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Single Query Test */}
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-yellow-500" />
+                    Tek Sorguluk Karşılaştırma Testi
+                  </CardTitle>
+                  <CardDescription>
+                    Rerankersız ve rerankerlı sistemleri karşılaştırmak için tek bir soru girin.
+                    Detaylı analiz sonuçları gösterilecektir.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="singleQuery">Test Sorusu</Label>
+                    <Input
+                      id="singleQuery"
+                      value={singleQueryQuestion}
+                      onChange={(e) => setSingleQueryQuestion(e.target.value)}
+                      placeholder="Selçuklularda meliklerin (şehzadelerin) eğitiminden sorumlu olan tecrübeli devlet adamına ne ad verilir?"
+                      disabled={isRunningSingleQuery}
+                    />
+                  </div>
+                  {singleQueryResult && (
+                    <div className="mt-4 space-y-4 border-t pt-4">
+                      <h3 className="font-semibold text-lg">Test Sonuçları</h3>
+                      
+                      {/* Basic RAG Results */}
+                      <div className="border rounded-lg p-4 bg-blue-50">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                          Basic RAG (Rerankersız)
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <strong>Durum:</strong>{" "}
+                            {singleQueryResult.basic_rag.success ? (
+                              <span className="text-green-600">✅ Başarılı</span>
+                            ) : (
+                              <span className="text-red-600">❌ Başarısız</span>
+                            )}
+                          </div>
+                          {singleQueryResult.basic_rag.success && (
+                            <>
+                              <div>
+                                <strong>Süre:</strong> {singleQueryResult.basic_rag.execution_time_ms.toFixed(0)}ms
+                              </div>
+                              <div>
+                                <strong>Cevap:</strong>
+                                <div className="mt-1 p-2 bg-white rounded border">
+                                  {singleQueryResult.basic_rag.response || "(Cevap yok)"}
+                                </div>
+                              </div>
+                              <div>
+                                <strong>Kaynaklar:</strong> {singleQueryResult.basic_rag.sources.length} adet
+                                {singleQueryResult.analysis.basic_rag_avg_score !== undefined && (
+                                  <span className="ml-2">
+                                    (Ortalama skor: {singleQueryResult.analysis.basic_rag_avg_score.toFixed(4)})
+                                  </span>
+                                )}
+                              </div>
+                              {singleQueryResult.analysis.basic_rag_out_of_scope && (
+                                <div className="text-orange-600 font-semibold">
+                                  ⚠️ "Ders kapsamı dışında" mesajı tespit edildi
+                                </div>
+                              )}
+                            </>
+                          )}
+                          {singleQueryResult.basic_rag.error && (
+                            <div className="text-red-600">
+                              <strong>Hata:</strong> {singleQueryResult.basic_rag.error}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* EduBars Results */}
+                      <div className="border rounded-lg p-4 bg-green-50">
+                        <h4 className="font-semibold mb-2 flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                          EduBars Full System (Rerankerlı)
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <strong>Durum:</strong>{" "}
+                            {singleQueryResult.edubars_full_system.success ? (
+                              <span className="text-green-600">✅ Başarılı</span>
+                            ) : (
+                              <span className="text-red-600">❌ Başarısız</span>
+                            )}
+                          </div>
+                          {singleQueryResult.edubars_full_system.success && (
+                            <>
+                              <div>
+                                <strong>Süre:</strong> {singleQueryResult.edubars_full_system.execution_time_ms.toFixed(0)}ms
+                              </div>
+                              <div>
+                                <strong>Cevap:</strong>
+                                <div className="mt-1 p-2 bg-white rounded border">
+                                  {singleQueryResult.edubars_full_system.response || "(Cevap yok)"}
+                                </div>
+                              </div>
+                              <div>
+                                <strong>Kaynaklar:</strong> {singleQueryResult.edubars_full_system.sources.length} adet
+                                {singleQueryResult.analysis.edubars_avg_score !== undefined && (
+                                  <span className="ml-2">
+                                    (Ortalama skor: {singleQueryResult.analysis.edubars_avg_score.toFixed(4)})
+                                    {singleQueryResult.analysis.edubars_avg_rerank_score !== undefined && (
+                                      <span className="ml-2">
+                                        | Rerank: {singleQueryResult.analysis.edubars_avg_rerank_score.toFixed(4)}
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                              {singleQueryResult.analysis.edubars_out_of_scope && (
+                                <div className="text-orange-600 font-semibold">
+                                  ⚠️ "Ders kapsamı dışında" mesajı tespit edildi
+                                </div>
+                              )}
+                              {singleQueryResult.edubars_full_system.crag_evaluation && (
+                                <div className="mt-2 p-2 bg-white rounded border">
+                                  <strong>CRAG Değerlendirmesi:</strong>
+                                  <pre className="mt-1 text-xs overflow-auto">
+                                    {JSON.stringify(singleQueryResult.edubars_full_system.crag_evaluation, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
+                            </>
+                          )}
+                          {singleQueryResult.edubars_full_system.error && (
+                            <div className="text-red-600">
+                              <strong>Hata:</strong> {singleQueryResult.edubars_full_system.error}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Analysis Summary */}
+                      <div className="border rounded-lg p-4 bg-gray-50">
+                        <h4 className="font-semibold mb-2">Analiz Özeti</h4>
+                        <div className="space-y-1 text-sm">
+                          {singleQueryResult.analysis.basic_rag_out_of_scope && !singleQueryResult.analysis.edubars_out_of_scope && (
+                            <div className="text-red-600 font-semibold">
+                              ⚠️ Rerankersız sistem "ders kapsamı dışında" diyor, rerankerlı sistem cevap veriyor
+                            </div>
+                          )}
+                          {!singleQueryResult.analysis.basic_rag_out_of_scope && singleQueryResult.analysis.edubars_out_of_scope && (
+                            <div className="text-red-600 font-semibold">
+                              ⚠️ Rerankerlı sistem "ders kapsamı dışında" diyor, rerankersız sistem cevap veriyor
+                            </div>
+                          )}
+                          {singleQueryResult.analysis.basic_rag_out_of_scope && singleQueryResult.analysis.edubars_out_of_scope && (
+                            <div className="text-orange-600">
+                              ⚠️ Her iki sistem de "ders kapsamı dışında" diyor
+                            </div>
+                          )}
+                          {!singleQueryResult.analysis.basic_rag_out_of_scope && !singleQueryResult.analysis.edubars_out_of_scope && (
+                            <div className="text-green-600">
+                              ✅ Her iki sistem de cevap veriyor
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

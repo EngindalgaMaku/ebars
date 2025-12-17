@@ -849,6 +849,125 @@ async def start_test_simulation(
         logger.error(f"Failed to start test simulation: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start test simulation: {str(e)}")
 
+@router.post("/single-query-comparison", summary="Single Query Reranker Comparison Test")
+async def single_query_comparison(
+    request: Request,
+    question: str = None,
+    sessionId: str = None,
+    sessionSettings: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Tek sorguluk reranker karşılaştırma testi.
+    Hem rerankersız hem rerankerlı sistemle sorguyu çalıştırıp detaylı karşılaştırma yapar.
+    """
+    from src.api.main import _require_owner_or_admin
+    
+    # Request body'den verileri al
+    try:
+        body = await request.json()
+        question = body.get("question") or question
+        sessionId = body.get("sessionId") or sessionId
+        sessionSettings = body.get("sessionSettings") or sessionSettings
+    except:
+        pass
+    
+    if not question:
+        raise HTTPException(status_code=400, detail="Question is required")
+    if not sessionId:
+        raise HTTPException(status_code=400, detail="Session ID is required")
+    
+    # Verify access to session
+    _require_owner_or_admin(request, sessionId)
+    
+    try:
+        logger.info(f"🔍 Single query comparison test starting")
+        logger.info(f"   Question: {question[:100]}...")
+        logger.info(f"   Session ID: {sessionId}")
+        
+        # Her iki sistemi de çalıştır
+        basic_rag_result = await execute_basic_rag(sessionId, question, sessionSettings)
+        edubars_result = await execute_edubars_full_system(sessionId, question, sessionSettings)
+        
+        # Detaylı analiz
+        analysis = {
+            "basic_rag_success": basic_rag_result["success"],
+            "edubars_success": edubars_result["success"],
+            "basic_rag_response_length": len(basic_rag_result.get("response", "")),
+            "edubars_response_length": len(edubars_result.get("response", "")),
+            "basic_rag_sources_count": len(basic_rag_result.get("sources", [])),
+            "edubars_sources_count": len(edubars_result.get("sources", [])),
+        }
+        
+        # "ders kapsamı dışında" kontrolü
+        basic_response_lower = basic_rag_result.get("response", "").lower()
+        edubars_response_lower = edubars_result.get("response", "").lower()
+        
+        analysis["basic_rag_out_of_scope"] = "ders kapsamı dışında" in basic_response_lower or "kapsam dışı" in basic_response_lower
+        analysis["edubars_out_of_scope"] = "ders kapsamı dışında" in edubars_response_lower or "kapsam dışı" in edubars_response_lower
+        
+        # Kaynak skorları analizi
+        if basic_rag_result.get("sources"):
+            basic_scores = [s.get("score", 0.0) for s in basic_rag_result["sources"]]
+            analysis["basic_rag_avg_score"] = sum(basic_scores) / len(basic_scores) if basic_scores else 0.0
+            analysis["basic_rag_max_score"] = max(basic_scores) if basic_scores else 0.0
+            analysis["basic_rag_min_score"] = min(basic_scores) if basic_scores else 0.0
+        
+        if edubars_result.get("sources"):
+            edubars_scores = [s.get("score", 0.0) for s in edubars_result["sources"]]
+            edubars_rerank_scores = [s.get("rerank_score") for s in edubars_result["sources"] if s.get("rerank_score") is not None]
+            
+            analysis["edubars_avg_score"] = sum(edubars_scores) / len(edubars_scores) if edubars_scores else 0.0
+            analysis["edubars_max_score"] = max(edubars_scores) if edubars_scores else 0.0
+            analysis["edubars_min_score"] = min(edubars_scores) if edubars_scores else 0.0
+            
+            if edubars_rerank_scores:
+                analysis["edubars_avg_rerank_score"] = sum(edubars_rerank_scores) / len(edubars_rerank_scores)
+                analysis["edubars_max_rerank_score"] = max(edubars_rerank_scores)
+                analysis["edubars_min_rerank_score"] = min(edubars_rerank_scores)
+        
+        # CRAG değerlendirmesi (varsa)
+        crag_evaluation = None
+        if edubars_result.get("full_response") and "crag_evaluation" in edubars_result["full_response"]:
+            crag_evaluation = edubars_result["full_response"]["crag_evaluation"]
+            analysis["crag_evaluation"] = crag_evaluation
+        
+        # Sonuç
+        result = {
+            "question": question,
+            "session_id": sessionId,
+            "timestamp": datetime.utcnow().isoformat(),
+            "basic_rag": {
+                "success": basic_rag_result["success"],
+                "response": basic_rag_result.get("response", ""),
+                "sources": basic_rag_result.get("sources", []),
+                "execution_time_ms": basic_rag_result.get("execution_time_ms", 0),
+                "error": basic_rag_result.get("error"),
+                "config": basic_rag_result.get("config", "")
+            },
+            "edubars_full_system": {
+                "success": edubars_result["success"],
+                "response": edubars_result.get("response", ""),
+                "sources": edubars_result.get("sources", []),
+                "execution_time_ms": edubars_result.get("execution_time_ms", 0),
+                "error": edubars_result.get("error"),
+                "config": edubars_result.get("config", ""),
+                "crag_evaluation": crag_evaluation
+            },
+            "analysis": analysis
+        }
+        
+        logger.info(f"✅ Single query comparison test completed")
+        logger.info(f"   Basic RAG: {'✅' if basic_rag_result['success'] else '❌'}")
+        logger.info(f"   EduBars: {'✅' if edubars_result['success'] else '❌'}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ Single query comparison test failed: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
+
 @router.post("/semantic-similarity", summary="Start Semantic Similarity Only Test")
 async def start_semantic_similarity_test(
     request_data: TestStartRequest,
