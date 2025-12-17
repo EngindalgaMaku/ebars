@@ -538,7 +538,7 @@ async def execute_edubars_full_system(session_id: str, question: str, session_se
                     "max_context_chars": 8000,
                     "use_direct_llm": False,
                     "disable_aprag": True,  # CRITICAL: Disable APRAG personalization for academic study
-                    "use_crag": True,  # Enable CRAG evaluation for quality control
+                    "use_crag": False,  # DISABLED: CRAG evaluation causes issues when rerank service fails
                     "session_settings": session_settings  # Use dynamic session settings
                 }
             )
@@ -553,7 +553,7 @@ async def execute_edubars_full_system(session_id: str, question: str, session_se
                     "sources": result.get("sources", []),
                     "execution_time_ms": execution_time,
                     "success": True,
-                    "config": "Full System (APRAG OFF, CRAG ON, Reranker ON)",
+                    "config": "Full System (APRAG OFF, CRAG OFF, Reranker ON)",
                     "full_response": result,  # Store full response for debugging
                     "debug_info": {
                         "crag_evaluation": result.get("crag_evaluation"),
@@ -981,9 +981,22 @@ async def single_query_comparison(
                     "action": crag_evaluation.get("action"),
                     "reasoning": crag_evaluation.get("reasoning", "N/A"),
                     "confidence": crag_evaluation.get("confidence"),
-                    "relevance_score": crag_evaluation.get("relevance_score")
+                    "relevance_score": crag_evaluation.get("relevance_score"),
+                    "max_score": crag_evaluation.get("max_score"),
+                    "avg_score": crag_evaluation.get("avg_score"),
+                    "thresholds": crag_evaluation.get("thresholds")
                 }
                 logger.info(f"🔍 ROOT CAUSE: CRAG rejected the query")
+            elif crag_evaluation.get("error"):
+                # CRAG evaluation başarısız oldu ama fail-open stratejisi kullanıldı
+                root_cause["detected"] = True
+                root_cause["reason"] = "CRAG_EVALUATION_BAŞARISIZ_FAİL_OPEN"
+                root_cause["details"] = {
+                    "action": crag_evaluation.get("action"),
+                    "error": crag_evaluation.get("error"),
+                    "note": "CRAG evaluation başarısız oldu, fail-open stratejisi ile tüm dokümanlar kabul edildi"
+                }
+                logger.info(f"🔍 ROOT CAUSE: CRAG evaluation failed but fail-open strategy used")
         
         # 2. Rerank öncesi kaynak kontrolü
         if not root_cause["detected"]:
