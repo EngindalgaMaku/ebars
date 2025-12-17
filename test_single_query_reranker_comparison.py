@@ -21,7 +21,14 @@ from datetime import datetime
 from pathlib import Path
 
 # API Gateway URL
-API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://localhost:8007")
+# Docker container içinde çalışıyorsa, container network'ünde API Gateway'e erişim
+# Host'ta çalışıyorsa localhost kullan
+if os.path.exists("/.dockerenv"):
+    # Docker container içindeyiz
+    API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://api-gateway:8007")
+else:
+    # Host'ta çalışıyoruz
+    API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://localhost:8007")
 
 # Test sorgusu
 TEST_QUESTION = "Selçuklularda meliklerin (şehzadelerin) eğitiminden sorumlu olan tecrübeli devlet adamına ne ad verilir?"
