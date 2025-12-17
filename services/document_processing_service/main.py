@@ -1254,13 +1254,23 @@ async def rag_query(request: RAGQueryRequest):
                         
                         # Reranker skorları varsa öncelikli kullan (reranker hem sıralama hem filtreleme yapar)
                         # Eğer reranker bir document'a düşük skor verirse, o document filtrelenmeli
+                        # Ama eğer reranker skorları yoksa veya çok düşükse, similarity_score'u kullan
                         if rerank_score > 0.0:
                             # Reranker skorları varsa, onları kullan (daha güvenilir - cross-encoder model)
-                            # Ama similarity_score çok yüksekse, onu da dikkate al (fallback)
-                            doc_max = max(rerank_score, similarity_score * 0.9)  # Reranker öncelikli ama similarity de dikkate alınır
+                            # Ama similarity_score çok yüksekse ve rerank_score düşükse, similarity_score'u tercih et
+                            # Çünkü reranker bazen çok strict olabilir
+                            if similarity_score > 0.7 and rerank_score < 0.3:
+                                # Similarity yüksek ama rerank düşük - similarity'yi kullan (reranker çok strict olabilir)
+                                doc_max = similarity_score
+                                logger.info(f"⚠️ Document {len(all_scores)}: Using similarity_score ({similarity_score:.4f}) instead of rerank_score ({rerank_score:.4f}) - reranker too strict")
+                            else:
+                                # Normal durum: reranker skorunu kullan
+                                doc_max = max(rerank_score, similarity_score * 0.9)  # Reranker öncelikli ama similarity de dikkate alınır
                         else:
                             # Reranker skorları yoksa, similarity_score kullan
                             doc_max = similarity_score
+                            if similarity_score > 0.0:
+                                logger.info(f"⚠️ Document {len(all_scores)}: No rerank_score, using similarity_score ({similarity_score:.4f})")
                         max_score = max(max_score, doc_max)
                         all_scores.append({
                             "similarity": similarity_score,
