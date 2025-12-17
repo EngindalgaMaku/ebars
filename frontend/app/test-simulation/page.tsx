@@ -1096,6 +1096,9 @@ export default function TestSimulationPage() {
         link.click();
         URL.revokeObjectURL(url);
         toast.success(`${format.toUpperCase()} dosyası indirildi (fallback)!`);
+      } else if (format === "excel") {
+        // Excel fallback - backend'den indirme gerekli, fallback yok
+        toast.error("Excel export için backend bağlantısı gerekli");
       }
     }
   };
