@@ -653,3 +653,5 @@ Test sonuçları, bu metodoloji çerçevesinde sistemin güçlü ve zayıf yönl
 
 
 
+
+

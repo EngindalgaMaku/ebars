@@ -38,5 +38,8 @@ psutil>=5.9.0                # For system resource monitoring
 bcrypt>=4.0.0                # For password hashing in database modules
 passlib>=1.7.4              # For password context management
 
+# Excel export support
+openpyxl>=3.1.0             # For Excel file generation
+
 # Basic dependencies only - ChromaDB, FAISS moved to microservices
 # CRAG evaluation moved to Document Processing Service

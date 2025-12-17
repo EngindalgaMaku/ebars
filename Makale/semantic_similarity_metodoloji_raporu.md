@@ -373,6 +373,87 @@ Sınırlamaları:
 - **Vektör Boyutu**: 1024 boyut
 - **Formül**: `cosine_similarity = (A · B) / (||A|| × ||B||)`
 
+## 11. Ekler
+
+### Ek A: Test Veri Seti - Tarih Soruları ve Referans Yanıtları
+
+Bu ek, EBARS sisteminin semantic similarity değerlendirmesi için kullanılan test veri setini içermektedir. Veri seti, Türk tarihi konularında 50 adet soru-cevap çiftinden oluşmaktadır. Bu sorular, sistemin tarihsel bilgi erişimi ve yanıt üretme performansını değerlendirmek amacıyla hazırlanmıştır.
+
+**Veri Seti Özellikleri:**
+- **Toplam Soru Sayısı**: 50
+- **Konu Alanı**: Türk Tarihi (Selçuklular, Anadolu Beylikleri, Türk-İslam Devletleri)
+- **Kullanım Amacı**: Semantic similarity metriğinin hesaplanması için referans yanıtların belirlenmesi
+- **Yanıt Formatı**: Kısa, öz ve doğrudan yanıtlar (genellikle tek kelime veya kısa ifadeler)
+
+**Not**: Bu veri setindeki referans yanıtlar, LLM-only modu kullanılarak doğrudan büyük dil modelinden alınmıştır. Sistem yanıtları ile bu referans yanıtlar arasındaki semantic similarity skorları, Alibaba text-embedding-v4 modeli kullanılarak hesaplanmıştır.
+
+#### Test Soruları ve Referans Yanıtları
+
+| # | Soru | Referans Yanıt |
+|---|------|----------------|
+| 1 | Anadolu'ya ilk Türk akınlarını başlatan topluluk kimdir? | İskitler |
+| 2 | Batılı kaynaklarda Anadolu için "Türkiye" ismi ilk kez hangi yüzyıldan itibaren kullanılmaya başlanmıştır? | XII. yüzyıl |
+| 3 | 1040 yılında Gaznelilere karşı kazanılan ve Büyük Selçuklu Devleti'nin kuruluşunu sağlayan savaş hangisidir? | Dandanakan Savaşı |
+| 4 | Büyük Selçukluların Bizans ile yaptığı ilk büyük savaş hangisidir? | Pasinler Savaş |
+| 5 | Sultan Alp Arslan'a Ani Kalesi'ni fethinden dolayı Abbasi halifesi tarafından hangi unvan verilmiştir? | Ebu'l Feth |
+| 6 | Malazgirt Savaşı'nda Selçuklu ordusunun uyguladığı sahte geri çekilme taktiğinin adı nedir? | Turan taktiği |
+| 7 | Malazgirt Savaşı sonrasında İzmir ve çevresinde kurulan ilk Türk denizci beyliği hangisidir? | Çaka Beyliği |
+| 8 | UNESCO Dünya Mirası Listesi'nde yer alan Divriği Ulu Camii ve Darüşşifası hangi beylik döneminde inşa edilmiştir? | Mengücekliler |
+| 9 | Anadolu'nun ilk medresesi kabul edilen Yağıbasan Medresesi hangi beylik tarafından yapılmıştır? | Danişmentliler |
+| 10 | Anadolu'nun kesin olarak Türk yurdu haline gelmesini sağlayan savaş hangisidir? | Miryokefalon Savaşı |
+| 11 | I. Haçlı Seferi sonucunda Türkiye Selçuklu Devleti başkentini İznik'ten hangi şehre taşımak zorunda kalmıştır? | Konya |
+| 12 | 1187 Hıttin Savaşı ile Kudüs'ü Haçlılardan geri alan komutan kimdir? | Selahaddin Eyyubi |
+| 13 | 4. Haçlı Seferi sonucunda Haçlılar Kudüs yerine hangi şehri işgal ederek burada bir Latin İmparatorluğu kurmuştur? | İstanbul |
+| 14 | Anadolu Selçuklu Devleti'nde çıkan ilk büyük toplumsal ve dini nitelikli isyan hangisidir? | Babai Ayaklanması |
+| 15 | 1243 yılında yapılan ve Anadolu Selçuklu Devleti'nin Moğol egemenliğine girmesine neden olan savaş hangisidir? | Kösedağ Savaşı |
+| 16 | İslamiyet öncesi Türklerdeki "Kut" anlayışı, İslamiyet'in kabulüyle hangi kavrama dönüşmüştür? | Zillullah fi'l-arz |
+| 17 | Türk-İslam devletlerinde hükümdarın yetkilerini sınırlayan geleneksel hukuk kurallarına ne ad verilir? | Töre |
+| 18 | Karahanlılar döneminde vezir için kullanılan Türkçe unvan nedir? | Yuğruş |
+| 19 | Selçuklularda meliklerin (şehzadelerin) eğitiminden sorumlu olan tecrübeli devlet adamına ne ad verilir? | Atabey |
+| 20 | Türkiye Selçuklu Devleti'nde donanma komutanlarına ne ad verilir? | Melikü's-Sevâhil |
+| 21 | İslamiyet'in kabulünden sonra Türk hükümdarlık alametlerine eklenen ve hükümdar adına yapılan konuşmaya ne denir? | Hutbe |
+| 22 | Büyük Selçuklu Devleti'nde devletin en yüksek karar organı olan divanın adı nedir? | Divan-ı A'lâ |
+| 23 | Selçuklularda devlet hazinesinden para çıkmadan asker yetiştirilmesini sağlayan toprak sisteminin adı nedir? | İkta sistemi |
+| 24 | Sarayda özel olarak yetiştirilen ve doğrudan hükümdara bağlı olan maaşlı askerlere ne ad verilir? | Gulam |
+| 25 | Gazneli ordusunu diğer Türk ordularından ayıran ve savaşlarda kullanılan en belirgin hayvan hangisidir? | Fil |
+| 26 | Anadolu'da esnaf ve zanaatkârların oluşturduğu, mesleki ahlakı savunan teşkilatın adı nedir? | Ahilik Teşkilatı |
+| 27 | Selçuklular döneminde ticaret yolları üzerinde tüccarların konaklaması için yapılan yapılara ne ad verilir? | Kervansaray |
+| 28 | Türkiye Selçukluları hangi devletle yaptıkları ticaret anlaşmasında tüccarlara düşük gümrük vergisi uygulamıştır? | Venedik |
+| 29 | Selçuklular döneminde Aksaray'da üretilen ve ihraç edilen ünlü ticari ürün nedir? | Taşpınar halısı |
+| 30 | Ahilik teşkilatının kurucusu kimdir? | Ahi Evran |
+| 31 | Selçuklu sarayında protokol işlerini düzenleyen ve hükümdar ile halk arasındaki görüşmeleri ayarlayan görevliye ne ad verilir? | Hacib |
+| 32 | Büyük Selçuklu Veziri Nizamülmülk tarafından kurulan ünlü eğitim kurumu hangisidir? | Nizamiye Medreseleri |
+| 33 | Türk-İslam medreselerinde eğitim veren öğretim üyesine ne ad verilir? | Müderris |
+| 34 | Küçük kan dolaşımını keşfederek tıp tarihine geçen bilim insanı kimdir? | İbn Nefis |
+| 35 | "Kitabü'l-Hiyel" adlı eseriyle robotik ve sibernetiğin öncüsü kabul edilen bilim insanı kimdir? | Cezerî |
+| 36 | İlk Türkçe-Arapça sözlük olan "Divânu Lügati't-Türk" eserini kim yazmıştır? | Kaşgarlı Mahmud |
+| 37 | Melikşah adına "Celali Takvimi"ni hazırlayan ünlü matematikçi ve astronom kimdir? | Ömer Hayyam |
+| 38 | "Divan-ı Hikmet" adlı eserin yazarı olan ve "Pir-i Türkistan" olarak anılan mutasavvıf kimdir? | Hoca Ahmed Yesevi |
+| 39 | "Mesnevi" adlı eseriyle tanınan ve hoşgörü felsefesiyle bilinen düşünür kimdir? | Mevlâna Celâleddin Rûmî |
+| 40 | Bektaşilik tarikatının önderi kabul edilen ve "Makalat" adlı eseri yazan mutasavvıf kimdir? | Hacı Bektaş Veli |
+| 41 | Şiirlerini sade bir Türkçe ile yazan ve "Yaratılanı severim Yaratan'dan ötürü" sözüyle tanınan halk ozanı kimdir? | Yunus Emre |
+| 42 | "Vahdet-i Vücud" (Varlık Birliği) düşüncesini sistemleştiren Endülüslü mutasavvıf kimdir? | Muhyiddin İbnü'l Arabi |
+| 43 | Anadolu Selçuklu tarihini anlatan "El-Evâmirü'l-Alâiyye" adlı eserin yazarı olan tarihçi kimdir? | İbn Bîbî |
+| 44 | Türk-İslam mimarisinde anıt mezar özelliği taşıyan, genellikle konik çatılı yapılara ne ad verilir? | Kümbet |
+| 45 | Orta Çağ Avrupa'sında eğitimin kilise kontrolünde olduğu ve eleştirinin yasaklandığı düşünce sistemine ne ad verilir? | Skolastik düşünce |
+| 46 | Türkiye Selçuklu Devleti'nde örfi yargı davalarına bakan görevlinin unvanı nedir? | Emir-i Dâd |
+| 47 | Selçuklu şehirlerinde ticaretin ve ekonomik hayatın kalbi olan bölüme ne ad verilir? | Rabad |
+| 48 | 1220 yılında Alaaddin Keykubad tarafından yaptırılan ve savunma mimarisinin önemli bir örneği olan Antalya'daki kalenin adı nedir? | Alaiye Kalesi |
+| 49 | Artuklular döneminde yapılan ve dünyanın en geniş taş kemerli köprülerinden biri olan eser hangisidir? | Malabadi Köprüsü |
+| 50 | Selçuklu Devleti'nde mali işlerden sorumlu olan divan hangisidir? | Divan-ı İstifa |
+
+**Kullanım Notları:**
+
+1. **Referans Yanıt Belirleme**: Bu veri setindeki referans yanıtlar, LLM-only modu kullanılarak doğrudan büyük dil modelinden alınmıştır. Bu yanıtlar, sistem yanıtları ile karşılaştırma için ground truth (gerçek değer) olarak kullanılmaktadır.
+
+2. **Semantic Similarity Hesaplama**: Her soru için sistem yanıtı ile referans yanıt arasındaki semantic similarity skoru, Alibaba text-embedding-v4 modeli kullanılarak hesaplanmıştır. Hesaplama detayları için Bölüm 2'ye bakınız.
+
+3. **Test Süreci**: Bu sorular, EBARS sisteminin RAG modu ve LLM-only modu ile test edilmiş, her mod için semantic similarity skorları hesaplanmış ve karşılaştırılmıştır.
+
+4. **Veri Seti Özellikleri**: Sorular, Türk tarihi konularında çeşitli zorluk seviyelerinde hazırlanmıştır. Yanıtlar genellikle kısa ve özdür (tek kelime, kısa ifade veya özel isim).
+
+5. **Değerlendirme Metrikleri**: Bu veri seti kullanılarak hesaplanan semantic similarity skorları, BLEU, ROUGE ve F1 Score gibi diğer metriklerle birlikte değerlendirilmiştir.
+
 ---
 
 **Rapor Tarihi**: 2025-01-XX  

@@ -60,3 +60,5 @@ diagram.render('deneysel_tasarim_sema', view=False)
 print("Şema 'deneysel_tasarim_sema.png' olarak kaydedildi.")
 
 
+
+

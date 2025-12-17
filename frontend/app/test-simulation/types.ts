@@ -13,8 +13,6 @@ export interface TestConfig {
 // Question Detail Interface
 export interface SimilarityMetrics {
   semanticSimilarity?: number;
-  bleuScore?: number;
-  rougeL?: number;
   rouge1?: number;
   rouge2?: number;
   f1Score?: number;
@@ -31,8 +29,6 @@ export interface QuestionDetail {
       response_time_ms: number;
       cosine_similarity: number;
       max_similarity: number;
-      precision_at_5: number;
-      precision_at_10: number;
       retrieval_count: number;
       accuracy: number;
       similarity?: SimilarityMetrics; // New similarity metrics (LLM vs reference)
@@ -59,8 +55,6 @@ export interface TestResult {
   };
   metrics: {
     cosineSimilarity: number;
-    precisionAt5: number;
-    precisionAt10: number;
     avgResponseTime: number;
     totalQuestions: number;
     correctAnswers: number;

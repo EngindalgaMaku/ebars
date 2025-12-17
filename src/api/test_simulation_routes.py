@@ -4,7 +4,7 @@ Test Simulation Routes for Methodology-Compliant Testing System.
 Provides endpoints for:
 - Test execution with multiple methodologies
 - Real-time monitoring and progress tracking
-- Metrics calculation (Cosine Similarity, Precision@k)
+- Metrics calculation (Cosine Similarity, Semantic Similarity)
 - Benchmark comparison against EkoBot reference values
 - CSV/JSON export functionality
 """
@@ -21,8 +21,10 @@ import io
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 import requests
 import httpx
@@ -139,7 +141,6 @@ _init_test_db()
 # EkoBot Benchmark Reference Values
 EKOBOT_BENCHMARKS = {
     "cosine_similarity": 0.82,
-    "precision_at_5": 1.00,  # 100%
     "average_response_time": 1500,  # ms
     "retrieval_accuracy": 0.95,
     "context_relevance": 0.88
@@ -154,7 +155,7 @@ DEFAULT_TEST_QUESTIONS = [
     {"id": 4, "question": "Reranking algoritmasının etkisi nedir?", "category": "methodology", "expected_method": "two_stage"},
     {"id": 5, "question": "Cosine similarity ölçümünde dikkat edilmesi gereken faktörler?", "category": "metrics", "expected_method": "edubars"},
     {"id": 6, "question": "Çok dilli destekte hangi stratejiler kullanılır?", "category": "technical", "expected_method": "edubars"},
-    {"id": 7, "question": "Precision@k metriğinin hesaplanması nasıl yapılır?", "category": "metrics", "expected_method": "two_stage"},
+    {"id": 7, "question": "Semantic similarity metriğinin hesaplanması nasıl yapılır?", "category": "metrics", "expected_method": "two_stage"},
     {"id": 8, "question": "Context window optimizasyonu nasıl yapılır?", "category": "technical", "expected_method": "edubars"},
     {"id": 9, "question": "Semantic chunking stratejilerinin karşılaştırması", "category": "methodology", "expected_method": "edubars"},
     {"id": 10, "question": "Vector store performans optimizasyonu", "category": "technical", "expected_method": "two_stage"},
@@ -226,7 +227,6 @@ class TestResult(BaseModel):
     response: str
     response_time_ms: float
     cosine_similarity: float
-    precision_at_5: float
     retrieval_docs_count: int
     context_relevance: float
     
@@ -314,73 +314,8 @@ def calculate_cosine_similarity(query: str, response: str, retrieved_docs: List[
         logger.debug(f"Traceback: {traceback.format_exc()}")
         return 0.0
 
-def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k: int = 5) -> float:
-    """
-    Calculate Precision@k using system's cosine similarity scores only.
-    Uses the system's "score" field (cosine similarity from embedding search).
-    
-    FIXED (2024-12): Strict Precision@k calculation
-    - Always divides by k (not actual retrieved count)
-    - This ensures retrieval failures (fewer than k docs) are properly penalized
-    - Example: If only 3 docs retrieved and all 3 are relevant: 3/5 = 0.6 (not 3/3 = 1.0)
-    - This prevents misleading 100% precision when system fails to retrieve k documents
-    
-    LITERATURE BENCHMARKS (Information Retrieval Research):
-    - Web Search (TREC): P@10 typically 0.1-0.3 (10-30%) - very challenging
-    - Academic Search: P@5 typically 0.3-0.7 (30-70%) - domain-specific
-    - Enterprise RAG: P@5 typically 0.4-0.8 (40-80%) - curated content
-    - Educational RAG: P@5 > 0.4 (40%) = Acceptable, > 0.6 (60%) = Good, > 0.8 (80%) = Excellent
-    
-    OUR EVALUATION:
-    - Cosine similarity > 0.4 (40%) threshold = relevant document
-    - This is conservative - stricter than many IR systems (often use 0.2-0.3)
-    - Strict precision: always divides by k to penalize retrieval failures
-    """
-    if not retrieved_docs or k <= 0:
-        return 0.0
-    
-    try:
-        # Take top k documents (already sorted by system)
-        # IMPORTANT: If fewer than k documents exist, we can only evaluate what we have
-        # But we still divide by k to penalize retrieval failures
-        top_k_docs = retrieved_docs[:k]
-        actual_count = len(top_k_docs)
-        
-        # If no documents retrieved, precision is 0
-        if actual_count == 0:
-            return 0.0
-        
-        # Use ONLY system's cosine similarity scores (score field)
-        relevant_count = 0
-        for doc in top_k_docs:
-            # Get cosine similarity score (from embedding search)
-            score = doc.get('score', 0.0)
-            
-            # Normalize if score is in percentage format (0-100) to 0-1 range
-            if score > 1.0:
-                if score <= 100.0:
-                    score = score / 100.0  # Percentage format
-                elif score <= 10.0:
-                    score = score / 10.0  # ms-marco format (0-10)
-            
-            # Consider relevant if cosine similarity score > 0.4 (system's typical threshold)
-            # This matches the system's min_score_threshold for cosine similarity
-            if score > 0.4:
-                relevant_count += 1
-        
-        # FIXED: Strict Precision@k = relevant_count / k (always k, not actual count)
-        # This ensures that retrieval failures (fewer than k docs) are properly penalized
-        # Example: 3 relevant docs out of 3 retrieved = 3/5 = 0.6 (not 1.0)
-        # This prevents misleading 100% precision when system fails to retrieve k documents
-        # 
-        # NOTE: If actual_count < k, we still divide by k to penalize the system
-        # for not retrieving enough documents. This is the standard approach in IR evaluation.
-        precision = relevant_count / k
-        return float(precision)
-        
-    except Exception as e:
-        logger.warning(f"Precision@k calculation failed: {e}")
-        return 0.0
+# Precision@k calculation removed - requires ground truth relevance judgments
+# We focus on semantic similarity and cosine similarity metrics instead
 
 def calculate_context_relevance(query: str, context_docs: List[str]) -> float:
     """Calculate context relevance score"""
@@ -1423,7 +1358,6 @@ async def execute_semantic_similarity_test(
                                 "rouge_1": res.get("rouge_1"),
                                 "rouge_2": res.get("rouge_2"),
                                 "f1_score": res.get("f1_score"),
-                                "exact_match": res.get("exact_match", False),
                                 # Also include in similarity object for frontend compatibility
                                 "similarity": {
                                     "semanticSimilarity": res.get("semantic_similarity"),
@@ -1432,7 +1366,6 @@ async def execute_semantic_similarity_test(
                                     "rouge1": res.get("rouge_1"),
                                     "rouge2": res.get("rouge_2"),
                                     "f1Score": res.get("f1_score"),
-                                    "exactMatchRate": 1.0 if res.get("exact_match") else 0.0
                                 }
                             },
                             "response": res.get("system_answer", ""),
@@ -1507,8 +1440,6 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     method_comparison = {}
     metrics = {
         "cosineSimilarity": 0,
-        "precisionAt5": 0,
-        "precisionAt10": 0,
         "avgResponseTime": 0,
         "totalQuestions": test_data["total_questions"],
         "correctAnswers": 0
@@ -1580,10 +1511,8 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                     f1_scores = [m.get("f1_score") for m in filtered_metrics if m.get("f1_score") is not None]
                     semantic_similarity_scores = [m.get("semantic_similarity") for m in filtered_metrics if m.get("semantic_similarity") is not None]
                     
-                    # Extract retrieval metrics (cosine similarity, precision) - only for RAG tests
+                    # Extract retrieval metrics (cosine similarity) - only for RAG tests
                     cosine_similarity_values = [m.get("max_similarity") for m in filtered_metrics if m.get("max_similarity") is not None]
-                    precision_at_5_values = [m.get("precision_at_5") for m in filtered_metrics if m.get("precision_at_5") is not None]
-                    precision_at_10_values = [m.get("precision_at_10") for m in filtered_metrics if m.get("precision_at_10") is not None]
                     response_time_values = [m.get("response_time_ms") for m in filtered_metrics if m.get("response_time_ms") is not None]
                     
                     # Check if this is a semantic similarity test (has semantic_similarity but no cosine_similarity/retrieval)
@@ -1601,8 +1530,6 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                         # For semantic similarity tests, cosineSimilarity should be None (no retrieval)
                         # For RAG tests, use actual cosine similarity from retrieval
                         "cosineSimilarity": sum(cosine_similarity_values) / len(cosine_similarity_values) if cosine_similarity_values else (None if is_semantic_similarity_test else 0.0),
-                        "precisionAt5": sum(precision_at_5_values) / len(precision_at_5_values) * 100 if precision_at_5_values else (None if is_semantic_similarity_test else 0.0),
-                        "precisionAt10": sum(precision_at_10_values) / len(precision_at_10_values) * 100 if precision_at_10_values else (None if is_semantic_similarity_test else 0.0),
                         "avgResponseTime": sum(response_time_values) / len(response_time_values) if response_time_values else 0.0,
                         # Accuracy: For semantic similarity tests, use semantic similarity. For RAG tests, use cosine similarity.
                         "accuracy": (avg_semantic * 100 if is_semantic_similarity_test and avg_semantic is not None else 
@@ -1632,8 +1559,6 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                     # All queries failed
                     method_comparison[method] = {
                         "cosineSimilarity": 0.0,
-                        "precisionAt5": 0.0,
-                        "precisionAt10": 0.0,
                         "avgResponseTime": 0.0,
                         "accuracy": 0.0,
                         "answerQualitySimilarity": None,
@@ -1713,8 +1638,6 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                 answer_quality_values = [m.get("answer_quality_similarity") for m in filtered_all_metrics if m.get("answer_quality_similarity") is not None]
                 metrics = {
                     "cosineSimilarity": sum(m["max_similarity"] for m in filtered_all_metrics) / len(filtered_all_metrics),  # Use max_similarity
-                    "precisionAt5": sum(m["precision_at_5"] for m in filtered_all_metrics) / len(filtered_all_metrics) * 100,
-                    "precisionAt10": sum(m["precision_at_10"] for m in filtered_all_metrics) / len(filtered_all_metrics) * 100,
                     "avgResponseTime": sum(m["response_time_ms"] for m in filtered_all_metrics) / len(filtered_all_metrics),
                     "answerQualitySimilarity": sum(answer_quality_values) / len(answer_quality_values) if answer_quality_values else None,  # Answer quality (LLM response vs ground truth)
                     "answerQualityAvailable": len(answer_quality_values),  # Number of questions with ground truth
@@ -1727,8 +1650,6 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                 # All queries failed
                 metrics = {
                     "cosineSimilarity": 0.0,
-                    "precisionAt5": 0.0,
-                    "precisionAt10": 0.0,
                     "avgResponseTime": 0.0,
                     "answerQualitySimilarity": None,
                     "answerQualityAvailable": 0,
@@ -1742,12 +1663,10 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     benchmark_comparison = {
         "ekoBot": {
             "cosineSimilarity": EKOBOT_BENCHMARKS["cosine_similarity"],
-            "precisionAt5": EKOBOT_BENCHMARKS["precision_at_5"] * 100,
             "label": "EkoBot Referans"
         },
         "current": {
             "cosineSimilarity": metrics["cosineSimilarity"],  # Already filtered (similarity > 0)
-            "precisionAt5": metrics["precisionAt5"],  # Already filtered
             "label": "Mevcut Test (Başarılı Sorgular)"
         },
         "note": "Grafiklerde similarity > 0 olan başarılı sorgular gösterilmektedir"
@@ -1794,8 +1713,6 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
             "response_time_ms": metrics.get("response_time_ms", 0),
             "cosine_similarity": metrics.get("cosine_similarity", 0.0),
             "max_similarity": metrics.get("max_similarity", 0.0),
-            "precision_at_5": metrics.get("precision_at_5", 0.0),
-            "precision_at_10": metrics.get("precision_at_10", 0.0),
             "retrieval_count": metrics.get("retrieval_count", 0),
             "accuracy": metrics.get("accuracy", 0.0),
             # Semantic similarity metrics
@@ -1973,6 +1890,15 @@ async def get_test_results(test_id: str, format: str = "json", request: Request 
                 "total_results": len(all_results),
                 "status": test_data.get("status", "unknown")
             }
+        elif format.lower() == "excel" or format.lower() == "xlsx":
+            # Generate Excel export
+            excel_file = generate_excel_export(test_data)
+            filename = f"test_results_{test_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            return StreamingResponse(
+                io.BytesIO(excel_file.read()),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
         else:
             # Return JSON format with COMPREHENSIVE details for thesis
             execution_time_info = calculate_execution_time(test_data)
@@ -2012,8 +1938,6 @@ async def get_test_results(test_id: str, format: str = "json", request: Request 
                     "response_time_ms": metrics.get("response_time_ms", 0),
                     "cosine_similarity": metrics.get("cosine_similarity", 0.0),
                     "max_similarity": metrics.get("max_similarity", 0.0),
-                    "precision_at_5": metrics.get("precision_at_5", 0.0),
-                    "precision_at_10": metrics.get("precision_at_10", 0.0),
                     "context_relevance": metrics.get("context_relevance", 0.0),
                     "retrieval_count": metrics.get("retrieval_count", 0),
                     "accuracy": metrics.get("accuracy", 0.0),
@@ -2101,8 +2025,6 @@ async def get_detailed_test_results(test_id: str, request: Request = None) -> Di
                 "metrics": {
                     "cosine_similarity": metrics.get("cosine_similarity", 0.0),
                     "max_similarity": metrics.get("max_similarity", 0.0),
-                    "precision_at_5": metrics.get("precision_at_5", 0.0),
-                    "precision_at_10": metrics.get("precision_at_10", 0.0),
                     "context_relevance": metrics.get("context_relevance", 0.0),
                     "retrieval_count": metrics.get("retrieval_count", 0),
                     "accuracy": metrics.get("accuracy", 0.0)
@@ -2127,7 +2049,6 @@ async def get_detailed_test_results(test_id: str, request: Request = None) -> Di
                     "question_count": 0,
                     "avg_cosine_similarity": [],
                     "avg_response_time": [],
-                    "avg_precision_at_5": [],
                     "total_responses": 0,
                     "total_chars": 0
                 }
@@ -2137,7 +2058,6 @@ async def get_detailed_test_results(test_id: str, request: Request = None) -> Di
             metrics = result.get("metrics", {})
             summary["avg_cosine_similarity"].append(metrics.get("cosine_similarity", 0.0))
             summary["avg_response_time"].append(metrics.get("response_time_ms", 0))
-            summary["avg_precision_at_5"].append(metrics.get("precision_at_5", 0.0))
             summary["total_responses"] += 1
             summary["total_chars"] += len(result.get("response", ""))
         
@@ -2146,11 +2066,9 @@ async def get_detailed_test_results(test_id: str, request: Request = None) -> Di
             if summary["avg_cosine_similarity"]:
                 summary["avg_cosine_similarity"] = sum(summary["avg_cosine_similarity"]) / len(summary["avg_cosine_similarity"])
                 summary["avg_response_time"] = sum(summary["avg_response_time"]) / len(summary["avg_response_time"])
-                summary["avg_precision_at_5"] = sum(summary["avg_precision_at_5"]) / len(summary["avg_precision_at_5"])
             else:
                 summary["avg_cosine_similarity"] = 0.0
                 summary["avg_response_time"] = 0.0
-                summary["avg_precision_at_5"] = 0.0
         
         return {
             "success": True,
@@ -2205,19 +2123,35 @@ async def get_benchmark_comparison(test_id: str, request: Request) -> Dict[str, 
         raise HTTPException(status_code=500, detail=f"Failed to generate benchmark comparison: {str(e)}")
 
 @router.get("/export/{test_id}", summary="Export Test Results")
-async def export_test_results(test_id: str, format: str = "json", request: Request = None) -> Dict[str, Any]:
-    """Export test results in specified format (alias for /results endpoint)"""
+async def export_test_results(test_id: str, format: str = "json", request: Request = None):
+    """Export test results in specified format (JSON, CSV, or Excel)"""
     from src.api.main import _require_owner_or_admin
     
-    if test_id not in TEST_RESULTS_STORAGE:
+    # Try memory first, then database
+    test_data = TEST_RESULTS_STORAGE.get(test_id)
+    if not test_data:
+        test_data = _load_test_from_db(test_id)
+        if test_data:
+            TEST_RESULTS_STORAGE[test_id] = test_data
+    
+    if not test_data:
         raise HTTPException(status_code=404, detail="Test not found")
     
-    test_data = TEST_RESULTS_STORAGE[test_id]
     # Require authentication to export test results
     if request:
         _require_owner_or_admin(request, test_data.get("session_id", ""))
     
-    # Delegate to existing results endpoint
+    # For Excel format, return StreamingResponse directly
+    if format.lower() == "excel" or format.lower() == "xlsx":
+        excel_file = generate_excel_export(test_data)
+        filename = f"test_results_{test_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        return StreamingResponse(
+            io.BytesIO(excel_file.read()),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    
+    # For other formats, delegate to existing results endpoint
     return await get_test_results(test_id, format, request)
 
 # ===== BACKGROUND TASK FUNCTIONS =====
@@ -2306,9 +2240,8 @@ async def execute_full_test_simulation(
                             # Top score (best match)
                             max_similarity = max(similarity_scores) if similarity_scores else 0.0
                             
-                            # Use system's cosine similarity scores for precision calculation
-                            precision_at_5 = calculate_precision_at_k(sources, question, 5)
-                            precision_at_10 = calculate_precision_at_k(sources, question, 10)
+                            # Use system's cosine similarity scores for retrieval quality assessment
+                            # Using semantic similarity and cosine similarity instead
                             # Context relevance: average cosine similarity of retrieved docs
                             context_relevance = avg_similarity if sources else 0.0
                             
@@ -2340,9 +2273,7 @@ async def execute_full_test_simulation(
                                 avg_similarity = query_response_similarity  # Use query-response similarity as main metric
                                 max_similarity = query_response_similarity
                                 
-                                # Precision metrics are N/A for llmOnly (no retrieval)
-                                precision_at_5 = 0.0  # N/A, but store as 0.0 for compatibility
-                                precision_at_10 = 0.0  # N/A
+                                # Retrieval metrics are N/A for llmOnly (no retrieval)
                                 context_relevance = query_response_similarity  # Use query-response similarity as relevance measure
                                 
                                 logger.info(f"LLM-only final metrics - similarity: {max_similarity:.4f}, context_relevance: {context_relevance:.4f}")
@@ -2351,8 +2282,6 @@ async def execute_full_test_simulation(
                                 logger.warning(f"Failed retrieval for question {question_id} - no sources returned")
                                 avg_similarity = 0.0
                                 max_similarity = 0.0
-                                precision_at_5 = 0.0
-                                precision_at_10 = 0.0
                                 context_relevance = 0.0
                                 query_response_similarity = 0.0
                             similarity_scores = []
@@ -2365,7 +2294,6 @@ async def execute_full_test_simulation(
                             "rouge1": None,
                             "rouge2": None,
                             "f1Score": None,
-                            "exactMatchRate": None
                         }
                         
                         # Calculate answer quality similarity (LLM response vs ground truth) - legacy
@@ -2411,7 +2339,6 @@ async def execute_full_test_simulation(
                                             "rouge1": float(all_metrics.rouge_1),
                                             "rouge2": float(all_metrics.rouge_2),
                                             "f1Score": float(all_metrics.f1_score),
-                                            "exactMatchRate": 1.0 if all_metrics.exact_match else 0.0
                                         }
                                         
                                         # Use semantic similarity as primary answer quality measure if legacy failed
@@ -2438,7 +2365,7 @@ async def execute_full_test_simulation(
                                                 "rouge1": None,     # Not available in fallback
                                                 "rouge2": None,     # Not available in fallback
                                                 "f1Score": None,    # Not available in fallback
-                                                "exactMatchRate": None  # Not available in fallback
+  # Not available in fallback
                                             }
                                             logger.warning(f"   🔄 Using legacy fallback semantic similarity: {answer_quality_similarity}")
                                         else:
@@ -2455,7 +2382,7 @@ async def execute_full_test_simulation(
                                             "rouge1": None,         # Not available without AnswerSimilarityEvaluator
                                             "rouge2": None,         # Not available without AnswerSimilarityEvaluator
                                             "f1Score": None,        # Not available without AnswerSimilarityEvaluator
-                                            "exactMatchRate": None  # Not available without AnswerSimilarityEvaluator
+  # Not available without AnswerSimilarityEvaluator
                                         }
                                         logger.info(f"   🔄 Using legacy semantic similarity: {answer_quality_similarity}")
                                     else:
@@ -2468,7 +2395,6 @@ async def execute_full_test_simulation(
                                             "rouge1": None,
                                             "rouge2": None,
                                             "f1Score": None,
-                                            "exactMatchRate": None
                                         }
                                     
                             except Exception as sim_error:
@@ -2494,8 +2420,6 @@ async def execute_full_test_simulation(
                         metrics = {
                             "cosine_similarity": avg_similarity,  # Keep for backward compatibility, but use max_similarity for calculations
                             "max_similarity": max_similarity,  # PRIMARY METRIC: Use this for all comparisons and accuracy
-                            "precision_at_5": precision_at_5,
-                            "precision_at_10": precision_at_10,
                             "context_relevance": context_relevance,
                             "response_time_ms": result["execution_time_ms"],
                             "retrieval_count": len(sources),
@@ -2504,7 +2428,7 @@ async def execute_full_test_simulation(
                             "query_response_similarity": query_response_similarity if is_llm_only else None,  # Only for llmOnly
                             "answer_quality_similarity": answer_quality_similarity,  # LLM response vs ground truth (if available)
                             # COMPREHENSIVE SIMILARITY METRICS - All calculations from AnswerSimilarityEvaluator
-                            "similarity": similarity_metrics  # Nested object with all metrics: semanticSimilarity, bleuScore, rougeL, rouge1, rouge2, f1Score, exactMatchRate
+                            "similarity": similarity_metrics  # Nested object with all metrics: semanticSimilarity, rouge1, rouge2, f1Score
                         }
                         
                         # Store result
@@ -2593,7 +2517,6 @@ def process_test_results(test_data: Dict[str, Any]) -> Dict[str, Any]:
                 answer_quality_values = [m.get("answer_quality_similarity") for m in filtered_metrics if m.get("answer_quality_similarity") is not None]
                 avg_metrics = {
                     "avg_cosine_similarity": sum(m["max_similarity"] for m in filtered_metrics) / len(filtered_metrics),  # Use max_similarity
-                    "avg_precision_at_5": sum(m["precision_at_5"] for m in filtered_metrics) / len(filtered_metrics),
                     "avg_context_relevance": sum(m["context_relevance"] for m in filtered_metrics) / len(filtered_metrics),
                     "avg_response_time": sum(m["response_time_ms"] for m in filtered_metrics) / len(filtered_metrics),
                     "avg_answer_quality_similarity": sum(answer_quality_values) / len(answer_quality_values) if answer_quality_values else None,  # Answer quality (LLM response vs ground truth)
@@ -2607,7 +2530,6 @@ def process_test_results(test_data: Dict[str, Any]) -> Dict[str, Any]:
                 # All queries failed
                 avg_metrics = {
                     "avg_cosine_similarity": 0.0,
-                    "avg_precision_at_5": 0.0,
                     "avg_context_relevance": 0.0,
                     "avg_response_time": 0.0,
                     "avg_answer_quality_similarity": None,
@@ -2626,7 +2548,6 @@ def process_test_results(test_data: Dict[str, Any]) -> Dict[str, Any]:
         # Composite score based on key metrics
         score = (
             metrics["avg_cosine_similarity"] * 0.3 +
-            metrics["avg_precision_at_5"] * 0.3 +
             metrics["avg_context_relevance"] * 0.2 +
             (1 - min(metrics["avg_response_time"] / 5000, 1)) * 0.2  # Faster is better
         )
@@ -2670,7 +2591,6 @@ def generate_benchmark_comparison(test_data: Dict[str, Any]) -> Dict[str, Any]:
     
     system_averages = {
         "cosine_similarity": sum(m["cosine_similarity"] for m in filtered_metrics) / len(filtered_metrics),
-        "precision_at_5": sum(m["precision_at_5"] for m in filtered_metrics) / len(filtered_metrics),
         "avg_response_time": sum(m["response_time_ms"] for m in filtered_metrics) / len(filtered_metrics),
         "context_relevance": sum(m["context_relevance"] for m in filtered_metrics) / len(filtered_metrics),
         "successful_queries": len(filtered_metrics),
@@ -2682,8 +2602,6 @@ def generate_benchmark_comparison(test_data: Dict[str, Any]) -> Dict[str, Any]:
     for metric, system_value in system_averages.items():
         if metric in ["avg_response_time", "response_time_ms"]:
             benchmark_key = "average_response_time"
-        elif metric == "precision_at_5":
-            benchmark_key = "precision_at_5"
         else:
             benchmark_key = metric
             
@@ -2709,6 +2627,100 @@ def generate_benchmark_comparison(test_data: Dict[str, Any]) -> Dict[str, Any]:
     
     return comparison
 
+def generate_excel_export(test_data: Dict[str, Any]) -> BytesIO:
+    """Generate Excel export with 3 columns: Standart RAG, RAG+Ranking, LLM-only"""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        logger.error("openpyxl not installed. Please install it: pip install openpyxl")
+        raise HTTPException(status_code=500, detail="Excel export requires openpyxl library")
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Test Results"
+    
+    # Header row with styling
+    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    
+    # Write headers
+    headers = ["Soru ID", "Soru", "Standart RAG", "RAG+Ranking", "LLM-only"]
+    for col_idx, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+    
+    # Group results by question
+    questions_dict = {}
+    for result in test_data.get("results", []):
+        question_id = result.get("question_id")
+        question_text = result.get("question", "")
+        methodology = result.get("methodology", "")
+        response = result.get("response", "")
+        
+        if question_id not in questions_dict:
+            questions_dict[question_id] = {
+                "question_id": question_id,
+                "question": question_text,
+                "basicRag": "",
+                "eduBars": "",
+                "llmOnly": ""
+            }
+        
+        # Map methodology to column
+        if methodology == "basicRag":
+            questions_dict[question_id]["basicRag"] = response
+        elif methodology == "eduBars":
+            questions_dict[question_id]["eduBars"] = response
+        elif methodology == "llmOnly":
+            questions_dict[question_id]["llmOnly"] = response
+    
+    # Sort by question_id
+    sorted_questions = sorted(questions_dict.values(), key=lambda x: x["question_id"])
+    
+    # Write data rows
+    row_alignment = Alignment(vertical="top", wrap_text=True)
+    for row_idx, q_data in enumerate(sorted_questions, start=2):
+        # Question ID
+        ws.cell(row=row_idx, column=1, value=q_data["question_id"]).alignment = row_alignment
+        
+        # Question text
+        ws.cell(row=row_idx, column=2, value=q_data["question"]).alignment = row_alignment
+        
+        # Standart RAG (basicRag)
+        ws.cell(row=row_idx, column=3, value=q_data["basicRag"]).alignment = row_alignment
+        
+        # RAG+Ranking (eduBars)
+        ws.cell(row=row_idx, column=4, value=q_data["eduBars"]).alignment = row_alignment
+        
+        # LLM-only
+        ws.cell(row=row_idx, column=5, value=q_data["llmOnly"]).alignment = row_alignment
+    
+    # Set column widths
+    ws.column_dimensions['A'].width = 10  # Soru ID
+    ws.column_dimensions['B'].width = 50  # Soru
+    ws.column_dimensions['C'].width = 60  # Standart RAG
+    ws.column_dimensions['D'].width = 60  # RAG+Ranking
+    ws.column_dimensions['E'].width = 60  # LLM-only
+    
+    # Set row heights for better readability
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+        ws.row_dimensions[row[0].row].height = 100
+    
+    # Freeze header row
+    ws.freeze_panes = "A2"
+    
+    # Save to BytesIO
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    return output
+
 def generate_csv_export(test_data: Dict[str, Any]) -> str:
     """Generate comprehensive CSV export with ALL details for thesis analysis"""
     
@@ -2719,10 +2731,10 @@ def generate_csv_export(test_data: Dict[str, Any]) -> str:
     writer.writerow([
         "Test ID", "Test Name", "Session ID", "Question ID", "Question", "Expected Answer (Ground Truth)", "Methodology",
         "LLM Response", "Response Length (chars)",
-        "Cosine Similarity", "Max Similarity", "Precision@5", "Precision@10",
+        "Cosine Similarity", "Max Similarity",
         "Context Relevance", "Answer Quality Similarity (Response vs Ground Truth)", "Response Time (ms)", "Retrieval Count", "Accuracy (%)",
         # COMPREHENSIVE SIMILARITY METRICS
-        "Semantic Similarity", "BLEU Score", "ROUGE-L", "ROUGE-1", "ROUGE-2", "F1 Score", "Exact Match Rate",
+        "Semantic Similarity", "ROUGE-1", "ROUGE-2", "F1 Score",
         "Source Count",
         "Source 1 Content", "Source 1 Similarity",
         "Source 2 Content", "Source 2 Similarity",
@@ -2771,8 +2783,6 @@ def generate_csv_export(test_data: Dict[str, Any]) -> str:
             len(response),
             round(metrics.get("cosine_similarity", 0), 4),
             round(metrics.get("max_similarity", 0), 4),
-            round(metrics.get("precision_at_5", 0) * 100, 2),
-            round(metrics.get("precision_at_10", 0) * 100, 2),
             round(metrics.get("context_relevance", 0), 4),
             round(metrics.get("answer_quality_similarity", 0) if metrics.get("answer_quality_similarity") is not None else 0, 4),  # Answer quality similarity
             round(metrics.get("response_time_ms", 0), 2),
@@ -2780,12 +2790,10 @@ def generate_csv_export(test_data: Dict[str, Any]) -> str:
             round(metrics.get("accuracy", 0), 2),
             # COMPREHENSIVE SIMILARITY METRICS - from AnswerSimilarityEvaluator
             round(similarity_data.get("semanticSimilarity", 0) if similarity_data.get("semanticSimilarity") is not None else 0, 4),
-            round(similarity_data.get("bleuScore", 0) if similarity_data.get("bleuScore") is not None else 0, 4),
-            round(similarity_data.get("rougeL", 0) if similarity_data.get("rougeL") is not None else 0, 4),
+            # BLEU and ROUGE-L removed - not calculated and misleading
             round(similarity_data.get("rouge1", 0) if similarity_data.get("rouge1") is not None else 0, 4),
             round(similarity_data.get("rouge2", 0) if similarity_data.get("rouge2") is not None else 0, 4),
             round(similarity_data.get("f1Score", 0) if similarity_data.get("f1Score") is not None else 0, 4),
-            round(similarity_data.get("exactMatchRate", 0) if similarity_data.get("exactMatchRate") is not None else 0, 4),
             len(sources),
             # Source 1
             source_data[0]["content"],
@@ -2829,7 +2837,7 @@ def generate_comparative_analysis(methodology_metrics: Dict[str, Dict[str, float
             
             # Calculate improvements/degradations
             comparison = {}
-            for metric in ["avg_cosine_similarity", "avg_precision_at_5", "avg_context_relevance"]:
+            for metric in ["avg_cosine_similarity", "avg_context_relevance"]:
                 if metric in metrics1 and metric in metrics2:
                     improvement = ((metrics2[metric] - metrics1[metric]) / metrics1[metric]) * 100 if metrics1[metric] > 0 else 0
                     comparison[metric] = {
@@ -2863,7 +2871,6 @@ def generate_recommendations(benchmark_comparison: Dict[str, Any]) -> List[str]:
             if comparison["performance"] == "worse":
                 if metric == "cosine_similarity":
                     recommendations.append("Consider improving query-context matching through better embedding models")
-                elif metric == "precision_at_5":
                     recommendations.append("Optimize retrieval algorithm and document ranking")
                 elif metric == "context_relevance":
                     recommendations.append("Improve document chunking and preprocessing")

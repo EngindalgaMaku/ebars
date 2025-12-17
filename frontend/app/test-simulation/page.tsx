@@ -86,8 +86,6 @@ interface TestConfig {
 // Question Detail Interface
 interface SimilarityMetrics {
   semanticSimilarity?: number;
-  bleuScore?: number;
-  rougeL?: number;
   rouge1?: number;
   rouge2?: number;
   f1Score?: number;
@@ -133,8 +131,6 @@ interface TestResult {
   testType?: string; // "semantic_similarity_only" or "standard"
   metrics: {
     cosineSimilarity: number;
-    precisionAt5: number;
-    precisionAt10: number;
     avgResponseTime: number;
     totalQuestions: number;
     correctAnswers: number;
@@ -158,8 +154,6 @@ interface TestResult {
 
 interface MethodResults {
   cosineSimilarity: number;
-  precisionAt5: number;
-  precisionAt10: number;
   avgResponseTime: number;
   accuracy: number;
   similarity?: SimilarityMetrics; // New similarity metrics
@@ -169,7 +163,6 @@ interface MethodResults {
 
 interface BenchmarkResults {
   cosineSimilarity: number;
-  precisionAt5: number;
   label: string;
 }
 
@@ -285,8 +278,6 @@ export default function TestSimulationPage() {
     const label =
       name === "cosine"
         ? "Cosine Similarity"
-        : name === "precision5"
-        ? "Precision@5"
         : "Accuracy";
     return [formatted, label];
   };
@@ -324,7 +315,6 @@ export default function TestSimulationPage() {
       numericValue = Number.isFinite(parsed) ? parsed : null;
     }
     if (numericValue === null) return ["", ""];
-    const label = name === "precision5" ? "Precision@5" : "Precision@10";
     return [`${numericValue.toFixed(1)}%`, label];
   };
 
@@ -453,8 +443,6 @@ export default function TestSimulationPage() {
         executionTime: status.executionTime,
         metrics: status.metrics || {
           cosineSimilarity: 0,
-          precisionAt5: 0,
-          precisionAt10: 0,
           avgResponseTime: 0,
           totalQuestions: status.total_questions_in_results || 0,
           correctAnswers: 0,
@@ -584,8 +572,6 @@ export default function TestSimulationPage() {
         startTime: new Date().toISOString(),
         metrics: {
           cosineSimilarity: 0,
-          precisionAt5: 0,
-          precisionAt10: 0,
           avgResponseTime: 0,
           totalQuestions: testQuestions.length,
           correctAnswers: 0,
@@ -593,22 +579,16 @@ export default function TestSimulationPage() {
         methodComparison: {
           eduBars: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
           basicRag: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
           llmOnly: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
@@ -616,12 +596,10 @@ export default function TestSimulationPage() {
         benchmarkComparison: {
           ekoBot: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
             label: "EkoBot",
           },
           current: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
             label: "Current",
           },
         },
@@ -779,8 +757,6 @@ export default function TestSimulationPage() {
         startTime: new Date().toISOString(),
         metrics: {
           cosineSimilarity: 0,
-          precisionAt5: 0,
-          precisionAt10: 0,
           avgResponseTime: 0,
           totalQuestions: testQuestions.length,
           correctAnswers: 0,
@@ -788,22 +764,16 @@ export default function TestSimulationPage() {
         methodComparison: {
           eduBars: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
           basicRag: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
           llmOnly: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
@@ -811,12 +781,10 @@ export default function TestSimulationPage() {
         benchmarkComparison: {
           ekoBot: {
             cosineSimilarity: 0.82,
-            precisionAt5: 100,
             label: "EkoBot Referans",
           },
           current: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
             label: "Mevcut Test",
           },
         },
@@ -962,7 +930,7 @@ export default function TestSimulationPage() {
     setActiveTab("configuration");
   };
 
-  const exportResults = async (format: "json" | "csv") => {
+  const exportResults = async (format: "json" | "csv" | "excel") => {
     if (!currentTest) return;
 
     try {
@@ -975,7 +943,8 @@ export default function TestSimulationPage() {
       }
 
       const timestamp = new Date().toISOString().split("T")[0];
-      const filename = `test_simulation_${currentTest.testId}_${timestamp}.${format}`;
+      const fileExtension = format === "excel" ? "xlsx" : format;
+      const filename = `test_simulation_${currentTest.testId}_${timestamp}.${fileExtension}`;
 
       if (format === "json") {
         const data = await response.json();
@@ -993,6 +962,14 @@ export default function TestSimulationPage() {
         const blob = new Blob([csvContent], {
           type: "text/csv;charset=utf-8;",
         });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+      } else if (format === "excel") {
+        const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
@@ -1062,50 +1039,6 @@ export default function TestSimulationPage() {
             "N/A",
           ],
           [
-            "BLEU",
-            (
-              getSimilarityValue(
-                currentTest.methodComparison.eduBars,
-                "bleuScore"
-              ) ?? 0
-            ).toFixed(3),
-            (
-              getSimilarityValue(
-                currentTest.methodComparison.basicRag,
-                "bleuScore"
-              ) ?? 0
-            ).toFixed(3),
-            (
-              getSimilarityValue(
-                currentTest.methodComparison.llmOnly,
-                "bleuScore"
-              ) ?? 0
-            ).toFixed(3),
-            "N/A",
-          ],
-          [
-            "ROUGE-L",
-            (
-              getSimilarityValue(
-                currentTest.methodComparison.eduBars,
-                "rougeL"
-              ) ?? 0
-            ).toFixed(3),
-            (
-              getSimilarityValue(
-                currentTest.methodComparison.basicRag,
-                "rougeL"
-              ) ?? 0
-            ).toFixed(3),
-            (
-              getSimilarityValue(
-                currentTest.methodComparison.llmOnly,
-                "rougeL"
-              ) ?? 0
-            ).toFixed(3),
-            "N/A",
-          ],
-          [
             "F1 (Token)",
             (
               getSimilarityValue(
@@ -1125,34 +1058,6 @@ export default function TestSimulationPage() {
                 "f1Score"
               ) ?? 0
             ).toFixed(3),
-            "N/A",
-          ],
-          [
-            "Precision@5 (%)",
-            (currentTest.methodComparison.eduBars?.precisionAt5 ?? 0).toFixed(
-              1
-            ),
-            (currentTest.methodComparison.basicRag?.precisionAt5 ?? 0).toFixed(
-              1
-            ),
-            (currentTest.methodComparison.llmOnly?.precisionAt5 ?? 0).toFixed(
-              1
-            ),
-            (
-              currentTest.benchmarkComparison?.ekoBot?.precisionAt5 ?? 0
-            ).toFixed(1),
-          ],
-          [
-            "Precision@10 (%)",
-            (currentTest.methodComparison.eduBars?.precisionAt10 ?? 0).toFixed(
-              1
-            ),
-            (currentTest.methodComparison.basicRag?.precisionAt10 ?? 0).toFixed(
-              1
-            ),
-            (currentTest.methodComparison.llmOnly?.precisionAt10 ?? 0).toFixed(
-              1
-            ),
             "N/A",
           ],
           [
@@ -2232,25 +2137,24 @@ export default function TestSimulationPage() {
                             Cosine Similarity
                           </div>
                         </div>
-                        <div className="text-center p-4 bg-green-50 rounded-lg">
-                          <div className="text-lg font-bold text-green-600">
-                            {(currentTest.metrics.precisionAt5 || 0).toFixed(1)}
-                            %
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            Precision@5
-                          </div>
-                        </div>
                         <div className="text-center p-4 bg-purple-50 rounded-lg">
                           <div className="text-lg font-bold text-purple-600">
-                            {(currentTest.metrics.precisionAt10 || 0).toFixed(
-                              1
-                            )}
-                            %
+                            {(
+                              currentTest.metrics.answerQualitySimilarity || 0
+                            ).toFixed(3)}
                           </div>
                           <div className="text-sm text-gray-600">
-                            Precision@10
+                            Semantic Similarity
                           </div>
+                        </div>
+                        <div className="text-center p-4 bg-orange-50 rounded-lg">
+                          <div className="text-lg font-bold text-orange-600">
+                            {(
+                              currentTest.metrics.avgResponseTime || 0
+                            ).toFixed(0)}
+                            ms
+                          </div>
+                          <div className="text-sm text-gray-600">
                         </div>
                         <div className="text-center p-4 bg-orange-50 rounded-lg">
                           <div className="text-lg font-bold text-orange-600">
@@ -2388,10 +2292,6 @@ export default function TestSimulationPage() {
                             <th className="text-left p-2">Metod</th>
                             <th className="text-center p-2">
                               Cosine Similarity
-                            </th>
-                            <th className="text-center p-2">Precision@5 (%)</th>
-                            <th className="text-center p-2">
-                              Precision@10 (%)
                             </th>
                             <th className="text-center p-2">
                               Avg Response (ms)
