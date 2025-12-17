@@ -24,11 +24,11 @@ from pathlib import Path
 # Docker container içinde çalışıyorsa, container network'ünde API Gateway'e erişim
 # Host'ta çalışıyorsa localhost kullan
 if os.path.exists("/.dockerenv"):
-    # Docker container içindeyiz
-    API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://api-gateway:8007")
+    # Docker container içindeyiz - aynı container içinde çalışıyoruz, localhost kullan
+    API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://localhost:8000")
 else:
     # Host'ta çalışıyoruz
-    API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://localhost:8007")
+    API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "http://localhost:8000")
 
 # Test sorgusu
 TEST_QUESTION = "Selçuklularda meliklerin (şehzadelerin) eğitiminden sorumlu olan tecrübeli devlet adamına ne ad verilir?"

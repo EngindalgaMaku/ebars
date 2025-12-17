@@ -6,11 +6,13 @@ echo "🧪 Reranker Karşılaştırma Testi Başlatılıyor..."
 echo ""
 
 # API Gateway container adını bul
-GATEWAY_CONTAINER=$(docker ps --format "{{.Names}}" | grep -E "gateway|api" | head -1)
+# Önce production container adını kontrol et
+GATEWAY_CONTAINER=$(docker ps --format "{{.Names}}" | grep -E "api-gateway-prod|api-gateway|gateway" | head -1)
 
 if [ -z "$GATEWAY_CONTAINER" ]; then
     echo "❌ API Gateway container bulunamadı!"
-    echo "   Çalışan container'ları kontrol edin: docker ps"
+    echo "   Çalışan container'lar:"
+    docker ps --format "{{.Names}}"
     exit 1
 fi
 
@@ -19,6 +21,10 @@ echo ""
 
 # Session ID (opsiyonel)
 SESSION_ID=${SESSION_ID:-"test_reranker_comparison"}
+
+# Test dosyasını container'a kopyala (eğer yoksa)
+echo "📋 Test dosyası container'a kopyalanıyor..."
+docker cp ./test_single_query_reranker_comparison.py "$GATEWAY_CONTAINER:/app/test_single_query_reranker_comparison.py"
 
 # Test dosyasını container içinde çalıştır
 echo "🔄 Test dosyası container içinde çalıştırılıyor..."
