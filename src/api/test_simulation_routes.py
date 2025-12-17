@@ -341,6 +341,8 @@ def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k
     
     try:
         # Take top k documents (already sorted by system)
+        # IMPORTANT: If fewer than k documents exist, we can only evaluate what we have
+        # But we still divide by k to penalize retrieval failures
         top_k_docs = retrieved_docs[:k]
         actual_count = len(top_k_docs)
         
@@ -370,6 +372,9 @@ def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k
         # This ensures that retrieval failures (fewer than k docs) are properly penalized
         # Example: 3 relevant docs out of 3 retrieved = 3/5 = 0.6 (not 1.0)
         # This prevents misleading 100% precision when system fails to retrieve k documents
+        # 
+        # NOTE: If actual_count < k, we still divide by k to penalize the system
+        # for not retrieving enough documents. This is the standard approach in IR evaluation.
         precision = relevant_count / k
         return float(precision)
         
