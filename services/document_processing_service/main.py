@@ -16,6 +16,14 @@ import chromadb
 from core.http_client import HybridHTTPClient
 from core.embedding_client import get_embeddings_direct_sync, EmbeddingClient
 
+# PHASE 1: Import centralized response message handler and reranker controller
+import sys
+from pathlib import Path
+src_path = Path(__file__).parent.parent.parent / "src"
+sys.path.append(str(src_path))
+from utils.response_message_handler import ResponseMessageHandler
+from utils.reranker_controller import should_prevent_aprag_reranking
+
 # Initialize global HTTP client for connection pooling (ZERO RISK IMPROVEMENT)
 http_client = HybridHTTPClient()
 logger.info("🚀 PERFORMANCE: Connection pooling enabled with HybridHTTPClient")
@@ -1039,11 +1047,10 @@ async def rag_query(request: RAGQueryRequest):
                         f"Collection was created with model: {collection_embedding_model or 'unknown'}"
                     )
                 
-                # Check if reranker will be used (via CRAG evaluator)
-                # CRAG evaluator always uses reranker, so we need to check session settings
-                use_reranker = True  # Default: CRAG evaluator uses reranker
+                # PHASE 1: Check if reranker will be used (prioritize external rerankers)
+                use_reranker = False  # Default: Disable CRAG evaluator when external rerankers are available
                 try:
-                    # Try to get session rag_settings to check if reranker is explicitly enabled
+                    # Try to get session rag_settings to check reranker configuration
                     # 🚀 PERFORMANCE UPGRADE: Use connection pooling for API Gateway calls
                     session_response = http_client.get_sync(
                         f"{os.getenv('API_GATEWAY_URL', 'http://api-gateway:8000')}/sessions/{request.session_id}",
@@ -1052,16 +1059,24 @@ async def rag_query(request: RAGQueryRequest):
                     if session_response.status_code == 200:
                         session_data = session_response.json()
                         rag_settings = session_data.get('rag_settings', {})
-                        # If use_reranker_service is explicitly False, don't use reranker
-                        if rag_settings.get('use_reranker_service') is False:
+                        
+                        # PHASE 1: Only enable CRAG evaluator if explicitly requested AND no external reranker
+                        force_crag = rag_settings.get('force_crag_evaluator', False)
+                        use_external_reranker = rag_settings.get('use_reranker_service', True)  # Default to external
+                        
+                        if force_crag and not use_external_reranker:
+                            use_reranker = True
+                            logger.info("✅ CRAG evaluator enabled (forced in settings, no external reranker)")
+                        elif use_external_reranker:
                             use_reranker = False
-                            logger.info("Reranker disabled in session settings")
+                            logger.info("🚫 CRAG evaluator disabled - using external reranker (Alibaba API)")
                         else:
-                            logger.info("Reranker will be used (CRAG evaluator)")
+                            use_reranker = False
+                            logger.info("🚫 CRAG evaluator disabled - no reranking requested")
                     else:
-                        logger.info(f"Could not fetch session settings (status: {session_response.status_code}), assuming reranker will be used")
+                        logger.info(f"Could not fetch session settings (status: {session_response.status_code}), disabling CRAG evaluator")
                 except Exception as e:
-                    logger.warning(f"Could not check session settings for reranker: {e}, assuming reranker will be used")
+                    logger.warning(f"Could not check session settings for reranker: {e}, disabling CRAG evaluator")
                 
                 # Query the collection using embeddings (not query_texts)
                 # Determine how many documents to fetch initially
@@ -1153,31 +1168,42 @@ async def rag_query(request: RAGQueryRequest):
                 else:
                     logger.info("Reranker disabled, skipping CRAG evaluation")
                 
-                # CRAG Evaluation (only if reranker is enabled)
+                # CRAG Evaluation (only if reranker is enabled) - PHASE 1: Check unified reranker controller
                 if use_reranker:
-                    # Import new CRAGEvaluator from services
-                    from services.crag_evaluator import CRAGEvaluator as NewCRAGEvaluator
-                    crag_evaluator = NewCRAGEvaluator(model_inference_url=MODEL_INFERENCER_URL, reranker_type=reranker_type)
-                    crag_evaluation_result = crag_evaluator.evaluate_retrieved_docs(
-                        query=request.query,
-                        retrieved_docs=context_docs
+                    # PHASE 1: Check if Document Processing Service reranking should be prevented due to external reranker usage
+                    should_prevent_doc_processing_rerank = should_prevent_aprag_reranking(
+                        session_id=request.session_id,
+                        session_rag_settings={}  # Empty dict as we don't have session settings here
                     )
                     
-                    logger.info(f"🔍 CRAG EVALUATION: {crag_evaluation_result}")
-                    
-                    # Apply CRAG decision
-                    if crag_evaluation_result["action"] == "reject":
-                        logger.info("❌ CRAG: Query rejected - low relevance to documents")
-                        return RAGQueryResponse(
-                            answer="⚠️ **DERS KAPSAMINDA DEĞİL**\n\nSorduğunuz soru ders dökümanlarıyla ilgili görünmüyor. Lütfen ders materyalleri kapsamında sorular sorunuz.",
-                            sources=[],
-                            chain_type=chain_type
-                        )
-                    elif crag_evaluation_result["action"] == "filter":
-                        logger.info(f"🔍 CRAG: Filtering documents - keeping {len(crag_evaluation_result['filtered_docs'])} docs")
-                        context_docs = crag_evaluation_result["filtered_docs"]
+                    if should_prevent_doc_processing_rerank:
+                        logger.info(f"🚫 [UNIFIED RERANKER] Preventing Document Processing Service CRAG evaluation due to external reranker usage")
+                        # Skip CRAG evaluation - external reranker (API Gateway or dedicated service) will handle it
+                        logger.info("✅ External reranker active: using all retrieved documents without CRAG evaluation")
                     else:
-                        logger.info("✅ CRAG: Good relevance - using all documents")
+                        # Import new CRAGEvaluator from services
+                        from services.crag_evaluator import CRAGEvaluator as NewCRAGEvaluator
+                        crag_evaluator = NewCRAGEvaluator(model_inference_url=MODEL_INFERENCER_URL, reranker_type=reranker_type)
+                        crag_evaluation_result = crag_evaluator.evaluate_retrieved_docs(
+                            query=request.query,
+                            retrieved_docs=context_docs
+                        )
+                        
+                        logger.info(f"🔍 [DOC PROCESSING CRAG] CRAG evaluation result: {crag_evaluation_result}")
+                        
+                        # Apply CRAG decision
+                        if crag_evaluation_result["action"] == "reject":
+                            logger.info("❌ [DOC PROCESSING CRAG] Query rejected - low relevance to documents")
+                            return RAGQueryResponse(
+                                answer="⚠️ **DERS KAPSAMINDA DEĞİL**\n\nSorduğunuz soru ders dökümanlarıyla ilgili görünmüyor. Lütfen ders materyalleri kapsamında sorular sorunuz.",
+                                sources=[],
+                                chain_type=chain_type
+                            )
+                        elif crag_evaluation_result["action"] == "filter":
+                            logger.info(f"🔍 [DOC PROCESSING CRAG] Filtering documents - keeping {len(crag_evaluation_result['filtered_docs'])} docs")
+                            context_docs = crag_evaluation_result["filtered_docs"]
+                        else:
+                            logger.info("✅ [DOC PROCESSING CRAG] Good relevance - using all documents")
                 else:
                     # No reranker: use all retrieved documents (already limited to top_k)
                     logger.info("✅ No reranker: using all retrieved documents")
@@ -1253,19 +1279,23 @@ async def rag_query(request: RAGQueryRequest):
                     # Add course scope validation if session_name is provided
                     course_scope_section = ""
                     if request.session_name and request.session_name.strip():
+                        # PHASE 1: Use centralized response message handler
+                        response_handler = ResponseMessageHandler()
+                        course_scope_msg = response_handler.get_course_scope_message("tr", request.session_name.strip())
+                        
                         course_scope_section = (
                             f"⚠️ ÇOK ÖNEMLİ - İLK KONTROL (DERS KAPSAMI):\n"
                             f"ŞU ANDA '{request.session_name.strip()}' DERSİ İÇİN CEVAP VERİYORSUN.\n\n"
                             f"🔴 KRİTİK KURAL - MUTLAKA UYGULA:\n"
                             f"- Öğrencinin sorusu '{request.session_name.strip()}' dersi kapsamında olmalıdır.\n"
                             f"- Eğer soru ders kapsamı dışındaysa (örneğin: tarih, matematik, coğrafya, farklı bir ders konusu), HEMEN şu cevabı ver:\n"
-                            f"  'Bu soru '{request.session_name.strip()}' dersi kapsamı dışındadır. Lütfen ders konularıyla ilgili sorular sorun.'\n"
+                            f"  '{course_scope_msg}'\n"
                             f"- Bu kontrol, RAG'ın bulduğu chunk'lara BAKMADAN ÖNCE yapılır.\n"
                             f"- Chunk'lar olsa bile, eğer soru ders kapsamı dışındaysa MUTLAKA yukarıdaki cevabı ver.\n"
                             f"- SADECE '{request.session_name.strip()}' dersi konularıyla ilgili sorulara normal cevap ver.\n"
-                            f"- ÖRNEK: Eğer soru 'Roma'yı kim yaktı?' gibi bir tarih sorusuysa ve ders 'Bilişim Teknolojilerinin Temelleri' ise, MUTLAKA 'Bu soru Bilişim Teknolojilerinin Temelleri dersi kapsamı dışındadır' cevabını ver.\n\n"
+                            f"- ÖRNEK: Eğer soru 'Roma'yı kim yaktı?' gibi bir tarih sorusuysa ve ders 'Bilişim Teknolojilerinin Temelleri' ise, MUTLAKA '{course_scope_msg}' cevabını ver.\n\n"
                         )
-                        logger.info(f"📚 Course scope validation enabled for session: '{request.session_name.strip()}'")
+                        logger.info(f"📚 Course scope validation enabled for session: '{request.session_name.strip()}' - using centralized handler")
                     else:
                         logger.warning("⚠️ Session name not provided - course scope validation disabled")
                     
@@ -1330,7 +1360,10 @@ async def rag_query(request: RAGQueryRequest):
                     # Add course scope reminder in user prompt if session_name is provided
                     course_reminder = ""
                     if request.session_name and request.session_name.strip():
-                        course_reminder = f"⚠️ HATIRLATMA: Bu soru '{request.session_name.strip()}' dersi kapsamında mı? Değilse, 'Bu soru '{request.session_name.strip()}' dersi kapsamı dışındadır. Lütfen ders konularıyla ilgili sorular sorun.' cevabını ver.\n\n"
+                        # PHASE 1: Use centralized message handler for reminder
+                        response_handler = ResponseMessageHandler()
+                        course_scope_msg = response_handler.get_course_scope_message("tr", request.session_name.strip())
+                        course_reminder = f"⚠️ HATIRLATMA: Bu soru '{request.session_name.strip()}' dersi kapsamında mı? Değilse, '{course_scope_msg}' cevabını ver.\n\n"
                     
                     context_parts.append(f"User: {course_reminder}Bağlam Metni:\n{context_text}\n\n")
                     context_parts.append(f"Soru: {request.query}\n\n")

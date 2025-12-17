@@ -12,6 +12,14 @@ from datetime import datetime
 import requests
 import os
 
+# PHASE 1: Import centralized response message handler and reranker controller
+import sys
+from pathlib import Path
+src_path = Path(__file__).parent.parent.parent.parent / "src"
+sys.path.append(str(src_path))
+from utils.response_message_handler import ResponseMessageHandler
+from utils.reranker_controller import should_prevent_aprag_reranking
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -249,17 +257,21 @@ async def generate_answer_with_llm(
     # Add course scope validation if session_name is provided
     course_scope_section = ""
     if session_name and session_name.strip():
+        # PHASE 1: Use centralized response message handler
+        response_handler = ResponseMessageHandler()
+        course_scope_msg = response_handler.get_course_scope_message("tr", session_name.strip())
+        
         course_scope_section = (
             f"⚠️ ÇOK ÖNEMLİ - İLK KONTROL (DERS KAPSAMI):\n"
             f"ŞU ANDA '{session_name.strip()}' DERSİ İÇİN CEVAP VERİYORSUN.\n\n"
             f"🔴 KRİTİK KURAL - MUTLAKA UYGULA:\n"
             f"- Öğrencinin sorusu '{session_name.strip()}' dersi kapsamında olmalıdır.\n"
             f"- Eğer soru ders kapsamı dışındaysa (örneğin: tarih, matematik, coğrafya, farklı bir ders konusu), HEMEN şu cevabı ver:\n"
-            f"  'Bu soru '{session_name.strip()}' dersi kapsamı dışındadır. Lütfen ders konularıyla ilgili sorular sorun.'\n"
+            f"  '{course_scope_msg}'\n"
             f"- Bu kontrol, ders materyallerine BAKMADAN ÖNCE yapılır.\n"
             f"- Materyaller olsa bile, eğer soru ders kapsamı dışındaysa MUTLAKA yukarıdaki cevabı ver.\n"
             f"- SADECE '{session_name.strip()}' dersi konularıyla ilgili sorulara normal cevap ver.\n"
-            f"- ÖRNEK: Eğer soru 'Roma'yı kim yaktı?' gibi bir tarih sorusuysa ve ders 'Bilişim Teknolojilerinin Temelleri' ise, MUTLAKA 'Bu soru Bilişim Teknolojilerinin Temelleri dersi kapsamı dışındadır' cevabını ver.\n\n"
+            f"- ÖRNEK: Eğer soru 'Roma'yı kim yaktı?' gibi bir tarih sorusuysa ve ders 'Bilişim Teknolojilerinin Temelleri' ise, MUTLAKA '{course_scope_msg}' cevabını ver.\n\n"
         )
     
     # Focused, Turkish-only prompt with topic context
@@ -724,19 +736,30 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
         
         # NORMAL PATH: Use chunks + KB + QA
         
-        # RERANK chunks (if enabled)
+        # RERANK chunks (if enabled) - PHASE 1: Check unified reranker controller
         rerank_result = None
         if request.use_crag and chunk_results:
-            logger.info(f"🔍 Reranking {len(chunk_results)} chunks...")
-            rerank_result = await rerank_documents(request.query, chunk_results)
+            # PHASE 1: Check if APRAG reranking should be prevented due to external reranker usage
+            should_prevent = should_prevent_aprag_reranking(
+                session_id=request.session_id,
+                session_rag_settings=session_rag_settings
+            )
             
-            # Use reranked chunks instead of original chunks
-            # IMPORTANT: Take only top_k chunks after reranking
-            if rerank_result.get("reranked_docs"):
-                reranked_chunks = rerank_result["reranked_docs"]
-                # Take top_k chunks after reranking
-                chunk_results = reranked_chunks[:request.top_k]
-                logger.info(f"✅ Rerank completed: {len(reranked_chunks)} chunks reranked, using top {len(chunk_results)} chunks, max_score={rerank_result.get('max_score', 0.0):.4f}")
+            if should_prevent:
+                logger.info(f"🚫 [UNIFIED RERANKER] Preventing APRAG internal reranking due to external reranker usage")
+                # Skip APRAG reranking - external reranker (API Gateway or dedicated service) will handle it
+                rerank_result = None
+            else:
+                logger.info(f"🔍 [APRAG RERANK] Reranking {len(chunk_results)} chunks with internal APRAG reranker...")
+                rerank_result = await rerank_documents(request.query, chunk_results)
+                
+                # Use reranked chunks instead of original chunks
+                # IMPORTANT: Take only top_k chunks after reranking
+                if rerank_result.get("reranked_docs"):
+                    reranked_chunks = rerank_result["reranked_docs"]
+                    # Take top_k chunks after reranking
+                    chunk_results = reranked_chunks[:request.top_k]
+                    logger.info(f"✅ [APRAG RERANK] Rerank completed: {len(reranked_chunks)} chunks reranked, using top {len(chunk_results)} chunks, max_score={rerank_result.get('max_score', 0.0):.4f}")
         
         # REMOVED: CRAG reject check - we always use reranked chunks now
         # No more reject logic - reranker just sorts documents by relevance

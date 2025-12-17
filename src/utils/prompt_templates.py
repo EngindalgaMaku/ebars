@@ -5,6 +5,7 @@ Provides context-aware prompts in both Turkish and English.
 
 from typing import Literal, Dict, Any
 from dataclasses import dataclass
+from src.utils.response_message_handler import get_response_handler
 
 LanguageCode = Literal['tr', 'en']
 
@@ -182,26 +183,18 @@ class BilingualPromptManager:
             
             # Add session context if session name is provided
             if session_name and session_name.strip():
+                # Use centralized response message handler
+                response_handler = get_response_handler()
+                
                 if language == 'tr':
                     session_context = f"ŞU ANDA '{session_name.strip()}' DERSİ İÇİN CEVAP VERİYORSUN.\n\n"
-                    course_scope_instruction = (
-                        "DERS KAPSAMI KONTROLÜ (EK GÜVENLİK KATMANI):\n"
-                        f"- Öğrencinin sorusu '{session_name.strip()}' dersi kapsamında olmalıdır.\n"
-                        "- Eğer soru ders kapsamı dışındaysa (örneğin farklı bir ders konusu), şu şekilde cevap ver:\n"
-                        f"  'Bu soru '{session_name.strip()}' dersi kapsamı dışındadır. Lütfen ders konularıyla ilgili sorular sorun.'\n"
-                        "- Bu kontrol, RAG'ın bulduğu chunk'lara ek olarak yapılır. Chunk'lar olsa bile ders kapsamı dışındaysa bu cevabı ver.\n"
-                        "- SADECE ders kapsamındaki sorulara normal cevap ver.\n"
-                    )
                 else:  # English
                     session_context = f"You are currently answering for the course: '{session_name.strip()}'.\n\n"
-                    course_scope_instruction = (
-                        "COURSE SCOPE VALIDATION (ADDITIONAL SECURITY LAYER):\n"
-                        f"- The student's question must be within the scope of '{session_name.strip()}' course.\n"
-                        "- If the question is outside the course scope (e.g., a different subject), respond as follows:\n"
-                        f"  'This question is outside the scope of '{session_name.strip()}' course. Please ask questions related to the course topics.'\n"
-                        "- This check is performed in addition to the chunks found by RAG. Even if chunks exist, respond with this message if outside course scope.\n"
-                        "- ONLY answer normally to questions within the course scope.\n"
-                    )
+                
+                # Get standardized course scope instruction
+                course_scope_instruction = response_handler.get_course_scope_message(
+                    language, session_name, 'validation_instruction'
+                )
             else:
                 session_context = ""
                 course_scope_instruction = ""

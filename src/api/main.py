@@ -47,6 +47,9 @@ from src.utils.cloud_storage_manager import cloud_storage_manager
 # SQLite database manager for markdown categories
 from src.database.database import get_db_manager
 
+# Unified Reranker Controller - Phase 1 Solution
+from src.utils.reranker_controller import reranker_controller, get_reranker_strategy
+
 db_manager = get_db_manager()
 
 app = FastAPI(title="RAG3 API Gateway", version="1.0.0",
@@ -200,6 +203,18 @@ if not APRAG_SERVICE_URL:
     else:
         APRAG_SERVICE_URL = f'http://{APRAG_SERVICE_HOST}:{APRAG_SERVICE_PORT}'
 
+# Reranker Service - Google Cloud Run compatible
+# If RERANKER_SERVICE_URL is set (Cloud Run), use it directly
+# Otherwise, construct from host and port (Docker)
+RERANKER_SERVICE_URL = os.getenv('RERANKER_SERVICE_URL', None)
+if not RERANKER_SERVICE_URL:
+    RERANKER_SERVICE_PORT = int(os.getenv('RERANKER_SERVICE_PORT', '8008'))
+    RERANKER_SERVICE_HOST = os.getenv('RERANKER_SERVICE_HOST', 'reranker-service')
+    if RERANKER_SERVICE_HOST.startswith('http://') or RERANKER_SERVICE_HOST.startswith('https://'):
+        RERANKER_SERVICE_URL = RERANKER_SERVICE_HOST
+    else:
+        RERANKER_SERVICE_URL = f'http://{RERANKER_SERVICE_HOST}:{RERANKER_SERVICE_PORT}'
+
 # Add Main API Server URL for RAG queries - Google Cloud Run için PORT environment variable desteği
 MAIN_API_URL = os.getenv('MAIN_API_URL', API_GATEWAY_URL)
 
@@ -308,7 +323,7 @@ class MarkdownFileWithCategory(BaseModel):
 @app.get("/")
 def root():
     return {
-        "service": "RAG3 API Gateway", 
+        "service": "RAG3 API Gateway",
         "status": "ok",
         "version": "1.0.0",
         "microservices": {
@@ -316,7 +331,8 @@ def root():
             "document_processor": DOCUMENT_PROCESSOR_URL,
             "model_inference": MODEL_INFERENCE_URL,
             "auth_service": AUTH_SERVICE_URL,
-            "aprag_service": APRAG_SERVICE_URL
+            "aprag_service": APRAG_SERVICE_URL,
+            "reranker_service": RERANKER_SERVICE_URL
         }
     }
 
@@ -333,7 +349,8 @@ async def check_microservices():
         "document_processor": DOCUMENT_PROCESSOR_URL,
         "model_inference": MODEL_INFERENCE_URL,
         "auth_service": AUTH_SERVICE_URL,
-        "aprag_service": APRAG_SERVICE_URL
+        "aprag_service": APRAG_SERVICE_URL,
+        "reranker_service": RERANKER_SERVICE_URL
     }
     
     results = {}
@@ -1874,22 +1891,39 @@ async def generate_suggestions(req: SuggestionRequest) -> Dict[str, Any]:
         logger.warning(f"/rag/suggestions failed: {e}")
         return {"suggestions": []}
 
-# RAG Query with Reranking
+# RAG Query with Unified Reranker Control
 @app.post("/rag/query", response_model=RAGQueryResponse)
 async def rag_query(req: RAGQueryRequest, request: Request):
     """
-    RAG Query with reranking to improve document relevance ordering.
-    Uses reranker service to sort retrieved documents by relevance.
+    RAG Query with unified reranker control to prevent double reranking conflicts.
+    Automatically determines optimal reranker strategy and routing.
     """
     # Start timing from the very beginning of the request
     request_start_time = time.time()
     try:
         # Load saved RAG settings for this session (teacher-defined)
         saved_settings: Dict[str, Any] = professional_session_manager.get_session_rag_settings(req.session_id) or {}
-        # Compute effective params (frontend can override; students will omit)
+        
+        # PHASE 1 SOLUTION: Unified Reranker Control
+        # Determine optimal reranker strategy and prevent conflicts
+        request_params = {
+            "top_k": req.top_k,
+            "use_rerank": req.use_rerank,
+            "min_score": req.min_score,
+            "use_reranker_service": getattr(req, 'use_reranker_service', saved_settings.get("use_reranker_service")),
+            "reranker_type": getattr(req, 'reranker_type', saved_settings.get("reranker_type")),
+            "use_crag": req.use_crag,
+            "disable_aprag": req.disable_aprag,
+            "use_ebars_personalization": getattr(req, 'use_ebars_personalization', True)
+        }
+        
+        reranker_strategy = get_reranker_strategy(req.session_id, request_params, saved_settings)
+        logger.info(f"🎯 [UNIFIED RERANKER] Strategy for session {req.session_id}: {reranker_strategy['routing_decision']}")
+        
+        # Compute effective params with reranker strategy applied
         effective = {
             "top_k": req.top_k or saved_settings.get("top_k", 5),
-            "use_rerank": req.use_rerank if req.use_rerank is not None else saved_settings.get("use_rerank", True),
+            "use_rerank": reranker_strategy["use_reranker"],
             "min_score": req.min_score or saved_settings.get("min_score", 0.1),
             "max_context_chars": req.max_context_chars or saved_settings.get("max_context_chars", 8000),
             "model": req.model or saved_settings.get("model"),
@@ -1900,7 +1934,24 @@ async def rag_query(req: RAGQueryRequest, request: Request):
             # CRAG and APRAG control (for test simulation)
             "use_crag": req.use_crag if req.use_crag is not None else saved_settings.get("use_crag", None),
             "disable_aprag": req.disable_aprag if req.disable_aprag is not None else saved_settings.get("disable_aprag", None),
+            # Reranker strategy configuration
+            "reranker_strategy": reranker_strategy["reranker_strategy"],
+            "reranker_service_config": reranker_strategy["reranker_service_config"],
+            "prevent_double_rerank": reranker_strategy["prevent_double_rerank"]
         }
+        
+        # Add reranker configuration to the request for downstream services
+        if reranker_strategy["reranker_strategy"] == "dedicated_service":
+            effective["use_reranker_service"] = True
+            effective["reranker_type"] = reranker_strategy["reranker_service_config"].get("reranker_type", "alibaba")
+        elif reranker_strategy["reranker_strategy"] == "aprag_internal":
+            effective["use_reranker_service"] = False
+            # Let APRAG handle internal reranking
+        elif reranker_strategy["reranker_strategy"] == "api_gateway":
+            effective["use_reranker_service"] = False
+            # Use API Gateway's built-in reranking
+        
+        logger.info(f"🛡️ [RERANKER CONTROL] Double reranking prevention: {effective['prevent_double_rerank']}")
         
         # If use_direct_llm is True, route directly to Model Inference Service
         if effective["use_direct_llm"]:
