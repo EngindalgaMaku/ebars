@@ -1227,34 +1227,44 @@ async def rag_query(request: RAGQueryRequest):
                     except Exception as e:
                         logger.warning(f"⚠️ Could not fetch RAG settings for min_score_threshold: {e}, using default: {min_score_threshold}")
                     
-                    # Check both 'score' (similarity) and 'crag_score' (rerank score) if available
-                    # Use the higher of the two scores for threshold check
+                    # Check both 'score' (similarity) and rerank scores if available
+                    # External reranker uses 'rerank_score', internal CRAG uses 'crag_score'
+                    # Use the higher of the scores for threshold check
                     max_score = 0.0
                     all_scores = []  # Debug için tüm skorları topla
                     for doc in context_docs:
                         similarity_score = doc.get("score", 0.0)
-                        crag_score = doc.get("crag_score", 0.0)
+                        
+                        # Get rerank score from either field (external reranker vs internal CRAG)
+                        rerank_score = doc.get("rerank_score") or doc.get("crag_score", 0.0)
                         
                         # Normalize scores if they're in percentage format (0-100) to 0-1 range
                         if similarity_score > 1.0:
                             similarity_score = similarity_score / 100.0  # 24.5% -> 0.245
-                        if crag_score > 1.0:
-                            # Check if it's percentage (0-100) or ms-marco (0-10)
-                            if crag_score <= 100.0:
-                                crag_score = crag_score / 100.0  # Percentage format
-                            else:
-                                crag_score = crag_score / 10.0  # ms-marco format (0-10)
                         
-                        doc_max = max(similarity_score, crag_score)
+                        # Normalize rerank score
+                        if rerank_score > 1.0:
+                            # Check if it's percentage (0-100) or ms-marco (0-10)
+                            if rerank_score <= 100.0:
+                                rerank_score = rerank_score / 100.0  # Percentage format
+                            else:
+                                rerank_score = rerank_score / 10.0  # ms-marco format (0-10)
+                        
+                        # Use the higher of similarity or rerank score
+                        doc_max = max(similarity_score, rerank_score)
                         max_score = max(max_score, doc_max)
                         all_scores.append({
                             "similarity": similarity_score,
-                            "crag": crag_score,
-                            "max": doc_max
+                            "rerank": rerank_score,
+                            "crag": doc.get("crag_score", 0.0),  # Keep for backward compatibility
+                            "max": doc_max,
+                            "has_rerank_score": "rerank_score" in doc,
+                            "has_crag_score": "crag_score" in doc
                         })
                     
                     logger.info(f"📊 Source score check: max_score={max_score:.4f}, threshold={min_score_threshold:.4f}")
-                    logger.info(f"📊 All scores: {all_scores[:5]}")  # İlk 5 skoru göster
+                    logger.info(f"📊 All scores (first 5): {all_scores[:5]}")  # İlk 5 skoru göster
+                    logger.info(f"📊 Total documents: {len(context_docs)}, Documents with rerank_score: {sum(1 for s in all_scores if s.get('has_rerank_score'))}, Documents with crag_score: {sum(1 for s in all_scores if s.get('has_crag_score'))}")
                     
                     if max_score < min_score_threshold:
                         logger.warning(f"❌ REJECTED: Max source score ({max_score:.4f}) is below threshold ({min_score_threshold:.4f})")
