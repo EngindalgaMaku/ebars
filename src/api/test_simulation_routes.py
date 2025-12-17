@@ -319,10 +319,11 @@ def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k
     Calculate Precision@k using system's cosine similarity scores only.
     Uses the system's "score" field (cosine similarity from embedding search).
     
-    FIXED (2024-12): Adjusted Precision@k calculation
-    - If fewer than k documents are retrieved, divide by actual retrieved count (not k)
-    - This prevents penalizing systems that find fewer but all relevant documents
-    - Example: If only 3 docs retrieved and all 3 are relevant: 3/3 = 1.0 (not 3/5 = 0.6)
+    FIXED (2024-12): Strict Precision@k calculation
+    - Always divides by k (not actual retrieved count)
+    - This ensures retrieval failures (fewer than k docs) are properly penalized
+    - Example: If only 3 docs retrieved and all 3 are relevant: 3/5 = 0.6 (not 3/3 = 1.0)
+    - This prevents misleading 100% precision when system fails to retrieve k documents
     
     LITERATURE BENCHMARKS (Information Retrieval Research):
     - Web Search (TREC): P@10 typically 0.1-0.3 (10-30%) - very challenging
@@ -333,7 +334,7 @@ def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k
     OUR EVALUATION:
     - Cosine similarity > 0.4 (40%) threshold = relevant document
     - This is conservative - stricter than many IR systems (often use 0.2-0.3)
-    - Adjusted precision: divides by min(k, actual_retrieved_count) for fairness
+    - Strict precision: always divides by k to penalize retrieval failures
     """
     if not retrieved_docs or k <= 0:
         return 0.0
@@ -365,12 +366,11 @@ def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k
             if score > 0.4:
                 relevant_count += 1
         
-        # FIXED: Adjusted Precision@k = relevant_count / min(k, actual_retrieved_count)
-        # If fewer than k documents retrieved, divide by actual count (not k)
-        # This prevents unfairly penalizing systems when retrieval finds fewer docs
-        # Example: 3 relevant docs out of 3 retrieved = 1.0 (not 0.6)
-        denominator = min(k, actual_count)
-        precision = relevant_count / denominator if denominator > 0 else 0.0
+        # FIXED: Strict Precision@k = relevant_count / k (always k, not actual count)
+        # This ensures that retrieval failures (fewer than k docs) are properly penalized
+        # Example: 3 relevant docs out of 3 retrieved = 3/5 = 0.6 (not 1.0)
+        # This prevents misleading 100% precision when system fails to retrieve k documents
+        precision = relevant_count / k
         return float(precision)
         
     except Exception as e:

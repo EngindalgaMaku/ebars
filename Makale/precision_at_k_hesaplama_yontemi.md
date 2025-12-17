@@ -50,11 +50,14 @@ Precision@k = (İlgili doküman sayısı) / min(k, gerçek_döndürülen_sayı)
 
 ## Tercih Edilen Yaklaşım ve Gerekçe
 
-Bu çalışmada **Uyarlanmış Bölme Yaklaşımı** tercih edilmiştir. Gerekçeler:
+Bu çalışmada **Sabit Bölme Yaklaşımı (Strict Precision@k)** tercih edilmiştir. Gerekçeler:
 
-1. **Adil Değerlendirme**: Sistemin bulduğu dokümanların kalitesini doğru yansıtır
-2. **Ayrıştırılmış Analiz**: Retrieval başarısızlığı (az doküman bulma) ayrı bir metrik olarak izlenebilir
-3. **Literatür Desteği**: Bilgi erişimi literatüründe yaygın olarak kullanılan bir yaklaşımdır
+1. **Retrieval Başarısızlığını Cezalandırma**: Sistemin k doküman bulamaması bir başarısızlıktır ve cezalandırılmalıdır
+2. **Yanıltıcı Yüksek Değerleri Önleme**: Eğer sistem 3 doküman bulup hepsi ilgiliyse, adjusted precision ile %100 çıkar ama bu yanıltıcıdır (sistem 5 doküman bulamadı)
+3. **Literatür Standardı**: TREC ve diğer standart değerlendirme protokollerinde strict precision kullanılır
+4. **Tutarlılık**: Tüm sistemler aynı k değerine göre değerlendirilir, karşılaştırma adil olur
+
+**Not**: Adjusted precision yaklaşımı bazı durumlarda kullanılabilir, ancak bu çalışmada retrieval başarısızlığının da ölçülmesi gerektiği için strict precision tercih edilmiştir.
 
 ## Literatür Kaynakları
 
@@ -93,8 +96,8 @@ Bu çalışmada **Uyarlanmış Bölme Yaklaşımı** tercih edilmiştir. Gerekç
 ```python
 def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k: int = 5) -> float:
     """
-    Calculate Precision@k using adjusted division approach.
-    If fewer than k documents are retrieved, divide by actual retrieved count.
+    Calculate Precision@k using strict division approach.
+    Always divides by k (not actual retrieved count) to penalize retrieval failures.
     """
     if not retrieved_docs or k <= 0:
         return 0.0
@@ -109,21 +112,24 @@ def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k
     relevant_count = sum(1 for doc in top_k_docs 
                         if normalize_score(doc.get('score', 0.0)) > 0.4)
     
-    # Adjusted Precision@k: divide by min(k, actual_retrieved_count)
-    denominator = min(k, actual_count)
-    precision = relevant_count / denominator if denominator > 0 else 0.0
+    # Strict Precision@k: always divide by k (not actual count)
+    # This ensures retrieval failures (fewer than k docs) are properly penalized
+    # Example: 3 relevant docs out of 3 retrieved = 3/5 = 0.6 (not 1.0)
+    precision = relevant_count / k
     
     return float(precision)
 ```
 
 ### Örnek Hesaplamalar
 
-| Senaryo | Bulunan | İlgili | Sabit Bölme | Uyarlanmış Bölme |
-|---------|---------|--------|-------------|------------------|
+| Senaryo | Bulunan | İlgili | Sabit Bölme (Tercih Edilen) | Uyarlanmış Bölme |
+|---------|---------|--------|----------------------------|------------------|
 | Normal | 5 | 4 | 4/5 = 0.80 | 4/5 = 0.80 |
-| Az Sonuç | 3 | 3 | 3/5 = 0.60 | 3/3 = 1.00 |
-| Çok Az | 2 | 1 | 1/5 = 0.20 | 1/2 = 0.50 |
+| Az Sonuç | 3 | 3 | 3/5 = 0.60 ✅ | 3/3 = 1.00 ❌ (Yanıltıcı) |
+| Çok Az | 2 | 1 | 1/5 = 0.20 ✅ | 1/2 = 0.50 |
 | Hiç Sonuç | 0 | 0 | 0/5 = 0.00 | 0/0 = 0.00 |
+
+**Açıklama**: "Az Sonuç" senaryosunda, adjusted precision %100 gösterir ama bu yanıltıcıdır çünkü sistem 5 doküman bulamadı. Strict precision ile 0.60 (60%) çıkar ve bu, hem doküman kalitesini hem de retrieval başarısızlığını doğru yansıtır.
 
 ## Sonuç ve Öneriler
 
@@ -133,7 +139,7 @@ def calculate_precision_at_k(retrieved_docs: List[Dict[str, Any]], query: str, k
 
 ## Makale İçin Önerilen İfade
 
-> "Precision@k metriği, en üst k sonuç içinde ilgili dokümanların oranını ölçmek için kullanılmıştır. Sistemin k'dan daha az doküman döndürmesi durumunda, uyarlanmış precision yaklaşımı benimsenmiştir. Bu yaklaşımda, precision değeri min(k, gerçek_döndürülen_sayı) değerine bölünerek hesaplanmıştır. Bu yöntem, bulunan dokümanların kalitesini daha adil bir şekilde değerlendirmeyi sağlar ve bilgi erişimi literatüründe yaygın olarak kullanılan bir yaklaşımdır [Manning et al., 2008; TREC Evaluation Guidelines]."
+> "Precision@k metriği, en üst k sonuç içinde ilgili dokümanların oranını ölçmek için kullanılmıştır. Bu çalışmada, strict precision yaklaşımı benimsenmiştir. Bu yaklaşımda, precision değeri her zaman k değerine bölünerek hesaplanmıştır (Precision@k = ilgili_doküman_sayısı / k). Bu yöntem, sistemin k doküman bulamaması durumunda retrieval başarısızlığını da cezalandırarak daha gerçekçi bir değerlendirme sağlar. Örneğin, sistem 5 doküman yerine sadece 3 doküman bulup hepsi ilgili olsa bile, precision değeri 3/5 = 0.60 olarak hesaplanır (3/3 = 1.00 değil). Bu yaklaşım, TREC ve diğer standart bilgi erişimi değerlendirme protokollerinde yaygın olarak kullanılmaktadır [Manning et al., 2008; TREC Evaluation Guidelines]."
 
 ---
 
