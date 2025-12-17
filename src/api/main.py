@@ -2284,9 +2284,16 @@ async def rag_query(req: RAGQueryRequest, request: Request):
             "not available in the context"
         ]
         answer_lower = answer.lower()
-        if any(pattern in answer_lower for pattern in no_context_patterns) or len(answer.strip()) < 20:
+        # Only filter sources if answer explicitly indicates no context, not just because it's short
+        # Short answers might still be valid (e.g., "Emir-i Dad" is a valid short answer)
+        if any(pattern in answer_lower for pattern in no_context_patterns):
             result["answer"] = "⚠️ **DERS KAPSAMINDA DEĞİL**\n\nSorduğunuz soru ders dökümanlarında bulunamamıştır. Eğer sorunuzun ders içeriğiyle ilgili olduğunu düşünüyorsanız öğretmeninize bildiriniz.\n\n📚 *Lütfen ders materyalleri kapsamında sorular sorunuz.*"
             result["sources"] = []
+        # If answer is very short (< 10 chars) AND sources are empty, it might be an error
+        # But don't clear sources if they exist - threshold check already passed
+        elif len(answer.strip()) < 10 and len(result.get("sources", [])) == 0:
+            # Very short answer with no sources - might be an error, but don't modify answer
+            logger.warning(f"⚠️ Very short answer ({len(answer.strip())} chars) with no sources - might indicate LLM error")
         try:
             # Track student entry and increment query count (RAG mode)
             current_user = _get_current_user(request)

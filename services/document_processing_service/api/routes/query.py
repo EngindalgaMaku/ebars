@@ -648,7 +648,7 @@ def _generate_answer_with_llm(
         if response.status_code == 200:
             result = response.json()
             answer = result.get("response", "Cevap oluşturulamadı.")
-            logger.info(f"✅ Generated answer ({len(answer)} chars)")
+            logger.info(f"✅ Generated answer ({len(answer)} chars): '{answer[:200]}'")  # İlk 200 karakteri göster
             return answer, sources
         else:
             logger.error(f"❌ LLM generation failed: {response.status_code}")
