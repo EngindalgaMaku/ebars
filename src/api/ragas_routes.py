@@ -6,12 +6,24 @@ Provides endpoints for RAG evaluation using RAGAS metrics:
 - Answer Relevancy: Measures how relevant the answer is to the question
 - Context Precision: Measures the precision of the retrieved context
 - Context Recall: Measures the recall of the retrieved context
+
+Batch Evaluation:
+- Start batch evaluation with multiple questions
+- Track progress and status
+- Collect production data automatically
+- Compare different methodologies
 """
 
 import logging
 import os
+import uuid
+import asyncio
+import json
+import sqlite3
+from datetime import datetime
+from pathlib import Path
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 import requests
 import httpx
@@ -28,7 +40,57 @@ if not RAGAS_SERVICE_URL.startswith('http'):
     RAGAS_SERVICE_PORT = os.getenv('RAGAS_SERVICE_PORT', '8010')
     RAGAS_SERVICE_URL = f'http://{RAGAS_SERVICE_URL}:{RAGAS_SERVICE_PORT}'
 
+# API Gateway URL (for getting RAG responses)
+API_GATEWAY_URL = os.getenv('API_GATEWAY_URL', os.getenv('API_GATEWAY_INTERNAL_URL', 'http://localhost:8000'))
+if API_GATEWAY_URL.startswith('https://'):
+    API_GATEWAY_URL = API_GATEWAY_URL.replace('https://', 'http://')
+
 router = APIRouter(prefix="/rag-metrics", tags=["RAG Metrics (RAGAS)"])
+
+# Test results storage (similar to test_simulation_routes)
+RAGAS_TEST_STORAGE: Dict[str, Any] = {}
+
+# Database for RAGAS test persistence
+RAGAS_TEST_DB_PATH = Path("data/ragas_test_results.db")
+
+def _init_ragas_test_db():
+    """Initialize RAGAS test results database"""
+    RAGAS_TEST_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(RAGAS_TEST_DB_PATH) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ragas_test_results (
+                test_id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+def _save_ragas_test_to_db(test_id: str, test_data: Dict[str, Any]):
+    """Save RAGAS test data to database"""
+    try:
+        with sqlite3.connect(RAGAS_TEST_DB_PATH) as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO ragas_test_results (test_id, data, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            """, (test_id, json.dumps(test_data)))
+    except Exception as e:
+        logger.warning(f"Failed to save RAGAS test to DB: {e}")
+
+def _load_ragas_test_from_db(test_id: str) -> Optional[Dict[str, Any]]:
+    """Load RAGAS test data from database"""
+    try:
+        with sqlite3.connect(RAGAS_TEST_DB_PATH) as conn:
+            cursor = conn.execute("SELECT data FROM ragas_test_results WHERE test_id = ?", (test_id,))
+            row = cursor.fetchone()
+            if row:
+                return json.loads(row[0])
+    except Exception as e:
+        logger.warning(f"Failed to load RAGAS test from DB: {e}")
+    return None
+
+# Initialize database on startup
+_init_ragas_test_db()
 
 
 class RAGASEvaluationRequest(BaseModel):
@@ -47,6 +109,30 @@ class RAGASEvaluationResponse(BaseModel):
     context_recall: Optional[float] = Field(None, description="Context recall score (0-1), requires ground_truth")
     overall_score: float = Field(..., description="Overall average score")
     metrics_available: List[str] = Field(..., description="List of metrics that were calculated")
+
+
+# Batch Evaluation Models (similar to test-simulation)
+class RAGASBatchStartRequest(BaseModel):
+    """Request model for starting RAGAS batch evaluation"""
+    testName: str = Field(..., description="Name of the test")
+    questions: List[str] = Field(..., description="List of questions to test")
+    sessionId: str = Field(..., description="Session ID for testing")
+    sessionSettings: Optional[Dict[str, Any]] = Field(default=None, description="Session RAG settings")
+    expectedAnswers: Optional[Dict[int, str]] = Field(default=None, description="Optional map of question index to expected answer (ground truth)")
+    useProductionData: bool = Field(default=False, description="Use production queries from session instead of provided questions")
+    maxQuestions: Optional[int] = Field(default=None, description="Maximum number of questions to use from production data")
+
+
+class RAGASQuestionResult(BaseModel):
+    """Result for a single question evaluation"""
+    question_id: int
+    question: str
+    answer: str
+    contexts: List[str]
+    ground_truth: Optional[str]
+    ragas_metrics: RAGASEvaluationResponse
+    response_time_ms: float
+    retrieval_count: int
 
 
 @router.get("/health")
@@ -144,6 +230,404 @@ async def evaluate_rag(request: RAGASEvaluationRequest):
             status_code=500,
             detail=f"Evaluation failed: {str(e)}"
         )
+
+
+# Helper function to execute RAG query and get response with contexts
+async def execute_rag_query(session_id: str, question: str, session_settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Execute RAG query and return answer with contexts (similar to test-simulation)"""
+    import time
+    start_time = time.time()
+    
+    try:
+        # Use API Gateway's /rag/query endpoint (same as test-simulation)
+        async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
+            response = await client.post(
+                f"{API_GATEWAY_URL}/rag/query",
+                json={
+                    "session_id": session_id,
+                    "query": question,
+                    "top_k": 5,
+                    "use_rerank": True,
+                    "min_score": 0.1,
+                    "max_context_chars": 8000,
+                    "use_direct_llm": False,
+                    "disable_aprag": True,  # Disable personalization for consistent evaluation
+                    "use_crag": False,
+                    "session_settings": session_settings
+                }
+            )
+            
+            execution_time = (time.time() - start_time) * 1000
+            
+            if response.status_code == 200:
+                result = response.json()
+                
+                # Extract answer and contexts
+                answer = result.get("answer", "")
+                sources = result.get("sources", [])
+                contexts = []
+                for source in sources:
+                    content = source.get("content") or source.get("chunk_text") or source.get("text", "")
+                    if content:
+                        contexts.append(content)
+                
+                return {
+                    "success": True,
+                    "answer": answer,
+                    "contexts": contexts,
+                    "sources": sources,
+                    "response_time_ms": execution_time
+                }
+            else:
+                error_text = await response.aread()
+                return {
+                    "success": False,
+                    "error": f"API Error: {response.status_code} - {error_text.decode()[:200]}",
+                    "answer": "",
+                    "contexts": [],
+                    "sources": [],
+                    "response_time_ms": execution_time
+                }
+    except Exception as e:
+        execution_time = (time.time() - start_time) * 1000
+        logger.error(f"Failed to execute RAG query: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "answer": "",
+            "contexts": [],
+            "sources": [],
+            "response_time_ms": execution_time
+        }
+
+
+# Background task for batch evaluation
+async def execute_ragas_batch_evaluation(
+    test_id: str,
+    questions: List[str],
+    session_id: str,
+    session_settings: Optional[Dict[str, Any]],
+    expected_answers: Optional[Dict[int, str]]
+):
+    """Execute batch RAGAS evaluation in background"""
+    try:
+        test_data = RAGAS_TEST_STORAGE.get(test_id)
+        if not test_data:
+            test_data = _load_ragas_test_from_db(test_id)
+            if not test_data:
+                logger.error(f"Test {test_id} not found")
+                return
+            RAGAS_TEST_STORAGE[test_id] = test_data
+        
+        test_data["status"] = "running"
+        test_data["current_question"] = 0
+        test_data["total_questions"] = len(questions)
+        test_data["results"] = []
+        
+        _save_ragas_test_to_db(test_id, test_data)
+        
+        results = []
+        total_questions = len(questions)
+        
+        for i, question in enumerate(questions):
+            try:
+                test_data["current_question"] = i + 1
+                progress = ((i + 1) / total_questions) * 100
+                test_data["progress"] = round(progress, 1)
+                _save_ragas_test_to_db(test_id, test_data)
+                
+                logger.info(f"Processing question {i+1}/{total_questions}: {question[:50]}...")
+                
+                # Execute RAG query
+                rag_result = await execute_rag_query(session_id, question, session_settings)
+                
+                if not rag_result["success"]:
+                    logger.error(f"RAG query failed for question {i+1}")
+                    results.append({
+                        "question_id": i + 1,
+                        "question": question,
+                        "success": False,
+                        "error": rag_result.get("error", "RAG query failed")
+                    })
+                    continue
+                
+                # Get ground truth if available
+                ground_truth = expected_answers.get(i) if expected_answers else None
+                
+                # Evaluate with RAGAS
+                ragas_request = RAGASEvaluationRequest(
+                    question=question,
+                    answer=rag_result["answer"],
+                    contexts=rag_result["contexts"],
+                    ground_truth=ground_truth
+                )
+                
+                ragas_result = await evaluate_rag(ragas_request)
+                
+                results.append({
+                    "question_id": i + 1,
+                    "question": question,
+                    "answer": rag_result["answer"],
+                    "contexts": rag_result["contexts"],
+                    "ground_truth": ground_truth,
+                    "ragas_metrics": ragas_result.dict(),
+                    "response_time_ms": rag_result["response_time_ms"],
+                    "retrieval_count": len(rag_result["contexts"]),
+                    "success": True
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to evaluate question {i+1}: {e}")
+                results.append({
+                    "question_id": i + 1,
+                    "question": question,
+                    "success": False,
+                    "error": str(e)
+                })
+        
+        # Calculate aggregate metrics
+        successful_results = [r for r in results if r.get("success")]
+        if successful_results:
+            avg_faithfulness = sum(r["ragas_metrics"]["faithfulness"] for r in successful_results) / len(successful_results)
+            avg_answer_relevancy = sum(r["ragas_metrics"]["answer_relevancy"] for r in successful_results) / len(successful_results)
+            avg_overall = sum(r["ragas_metrics"]["overall_score"] for r in successful_results) / len(successful_results)
+            
+            context_results = [r for r in successful_results if r["ragas_metrics"].get("context_precision") is not None]
+            avg_context_precision = None
+            avg_context_recall = None
+            if context_results:
+                avg_context_precision = sum(r["ragas_metrics"]["context_precision"] for r in context_results) / len(context_results)
+                avg_context_recall = sum(r["ragas_metrics"]["context_recall"] for r in context_results) / len(context_results)
+            
+            aggregate_metrics = {
+                "average_faithfulness": avg_faithfulness,
+                "average_answer_relevancy": avg_answer_relevancy,
+                "average_context_precision": avg_context_precision,
+                "average_context_recall": avg_context_recall,
+                "average_overall_score": avg_overall
+            }
+        else:
+            aggregate_metrics = {}
+        
+        # Update test data
+        test_data["status"] = "completed"
+        test_data["progress"] = 100.0
+        test_data["end_time"] = datetime.utcnow().isoformat()
+        test_data["results"] = results
+        test_data["aggregate_metrics"] = aggregate_metrics
+        test_data["total_questions"] = total_questions
+        test_data["successful_questions"] = len(successful_results)
+        test_data["failed_questions"] = total_questions - len(successful_results)
+        
+        RAGAS_TEST_STORAGE[test_id] = test_data
+        _save_ragas_test_to_db(test_id, test_data)
+        
+        logger.info(f"Batch evaluation completed for test {test_id}")
+        
+    except Exception as e:
+        logger.error(f"Batch evaluation failed: {e}", exc_info=True)
+        test_data = RAGAS_TEST_STORAGE.get(test_id)
+        if test_data:
+            test_data["status"] = "failed"
+            test_data["error"] = str(e)
+            _save_ragas_test_to_db(test_id, test_data)
+
+
+@router.post("/start", summary="Start RAGAS Batch Evaluation")
+async def start_ragas_batch_evaluation(
+    request: RAGASBatchStartRequest,
+    background_tasks: BackgroundTasks,
+    http_request: Request
+) -> Dict[str, Any]:
+    """
+    Start batch RAGAS evaluation with multiple questions
+    
+    Similar to test-simulation, but uses RAGAS metrics instead of cosine similarity.
+    Can use production data from session or provided questions.
+    """
+    from src.api.main import _require_owner_or_admin
+    
+    # Verify access to session
+    _require_owner_or_admin(http_request, request.sessionId)
+    
+    try:
+        # Generate unique test ID
+        test_id = str(uuid.uuid4())
+        
+        # Get questions (from production or provided)
+        if request.useProductionData:
+            # TODO: Fetch production queries from session
+            # For now, use provided questions
+            questions = request.questions
+            if request.maxQuestions:
+                questions = questions[:request.maxQuestions]
+        else:
+            questions = request.questions
+        
+        if not questions:
+            raise HTTPException(status_code=400, detail="No questions provided")
+        
+        # Initialize test data
+        test_data = {
+            "test_id": test_id,
+            "test_name": request.testName,
+            "session_id": request.sessionId,
+            "session_settings": request.sessionSettings,
+            "status": "running",
+            "current_question": 0,
+            "total_questions": len(questions),
+            "progress": 0.0,
+            "start_time": datetime.utcnow().isoformat(),
+            "end_time": None,
+            "questions": questions,
+            "expected_answers": request.expectedAnswers or {},
+            "results": [],
+            "aggregate_metrics": {}
+        }
+        
+        # Store test data
+        RAGAS_TEST_STORAGE[test_id] = test_data
+        _save_ragas_test_to_db(test_id, test_data)
+        
+        # Start background task
+        background_tasks.add_task(
+            execute_ragas_batch_evaluation,
+            test_id,
+            questions,
+            request.sessionId,
+            request.sessionSettings,
+            request.expectedAnswers or {}
+        )
+        
+        return {
+            "success": True,
+            "testId": test_id,
+            "message": "RAGAS batch evaluation started",
+            "total_questions": len(questions),
+            "estimated_duration_minutes": len(questions) * 0.5  # ~30 seconds per question
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to start RAGAS batch evaluation: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start evaluation: {str(e)}")
+
+
+@router.get("/status/{test_id}", summary="Get RAGAS Batch Evaluation Status")
+async def get_ragas_batch_status(test_id: str, http_request: Request) -> Dict[str, Any]:
+    """Get status and results of RAGAS batch evaluation"""
+    from src.api.main import _require_owner_or_admin
+    
+    try:
+        # Load test data
+        test_data = RAGAS_TEST_STORAGE.get(test_id)
+        if not test_data:
+            test_data = _load_ragas_test_from_db(test_id)
+            if not test_data:
+                raise HTTPException(status_code=404, detail="Test not found")
+            RAGAS_TEST_STORAGE[test_id] = test_data
+        
+        # Verify access
+        _require_owner_or_admin(http_request, test_data.get("session_id", ""))
+        
+        # Calculate progress
+        total = test_data.get("total_questions", 0)
+        current = test_data.get("current_question", 0)
+        progress = (current / total * 100) if total > 0 else 0.0
+        
+        # Calculate execution time
+        start_time = test_data.get("start_time")
+        end_time = test_data.get("end_time")
+        execution_time = None
+        if start_time:
+            start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            if end_time:
+                end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                elapsed = (end_dt - start_dt).total_seconds()
+                execution_time = {
+                    "total_seconds": elapsed,
+                    "total_minutes": elapsed / 60,
+                    "formatted": f"{int(elapsed // 60)}m {int(elapsed % 60)}s"
+                }
+            else:
+                elapsed = (datetime.utcnow() - start_dt.replace(tzinfo=None)).total_seconds()
+                execution_time = {
+                    "elapsed_seconds": elapsed,
+                    "elapsed_minutes": elapsed / 60,
+                    "status": "running"
+                }
+        
+        return {
+            "success": True,
+            "testId": test_id,
+            "testName": test_data.get("test_name", ""),
+            "status": test_data.get("status", "unknown"),
+            "progress": round(progress, 1),
+            "current_question": current,
+            "total_questions": total,
+            "startTime": start_time,
+            "endTime": end_time,
+            "executionTime": execution_time,
+            "aggregate_metrics": test_data.get("aggregate_metrics", {}),
+            "results": test_data.get("results", []),
+            "successful_questions": test_data.get("successful_questions", 0),
+            "failed_questions": test_data.get("failed_questions", 0)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get RAGAS batch status: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
+
+
+@router.get("/list", summary="List All RAGAS Tests")
+async def list_ragas_tests(http_request: Request, session_id: Optional[str] = None) -> Dict[str, Any]:
+    """List all RAGAS test results"""
+    try:
+        with sqlite3.connect(RAGAS_TEST_DB_PATH) as conn:
+            if session_id:
+                cursor = conn.execute("""
+                    SELECT test_id, data, created_at, updated_at 
+                    FROM ragas_test_results 
+                    WHERE json_extract(data, '$.session_id') = ?
+                    ORDER BY updated_at DESC
+                """, (session_id,))
+            else:
+                cursor = conn.execute("""
+                    SELECT test_id, data, created_at, updated_at 
+                    FROM ragas_test_results 
+                    ORDER BY updated_at DESC
+                """)
+            
+            rows = cursor.fetchall()
+            tests = []
+            for row in rows:
+                test_id, data_json, created_at, updated_at = row
+                try:
+                    test_data = json.loads(data_json)
+                    tests.append({
+                        "testId": test_id,
+                        "testName": test_data.get("test_name", f"Test {test_id[:8]}"),
+                        "status": test_data.get("status", "unknown"),
+                        "sessionId": test_data.get("session_id", ""),
+                        "startTime": test_data.get("start_time"),
+                        "endTime": test_data.get("end_time"),
+                        "createdAt": created_at,
+                        "updatedAt": updated_at,
+                        "totalQuestions": test_data.get("total_questions", 0),
+                        "progress": test_data.get("progress", 0)
+                    })
+                except json.JSONDecodeError:
+                    continue
+            
+            return {
+                "success": True,
+                "tests": tests,
+                "total": len(tests)
+            }
+    except Exception as e:
+        logger.error(f"Failed to list RAGAS tests: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list tests: {str(e)}")
 
 
 @router.post("/evaluate-batch")
