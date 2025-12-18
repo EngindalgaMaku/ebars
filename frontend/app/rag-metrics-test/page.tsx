@@ -513,8 +513,8 @@ export default function RAGMetricsTestPage() {
                               }
                             />
                             <Tooltip
-                              formatter={(value: number) => [
-                                (value * 100).toFixed(2) + "%",
+                              formatter={(value: number | undefined) => [
+                                value !== undefined ? (value * 100).toFixed(2) + "%" : "N/A",
                                 "Score",
                               ]}
                             />
