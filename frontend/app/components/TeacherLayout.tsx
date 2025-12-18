@@ -140,6 +140,11 @@ function TeacherLayout({
   // Use activeTab prop if provided, otherwise determine from pathname
   const currentActiveTab = activeTab || getActiveTabFromPath();
 
+  // Close sidebar when pathname changes (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -274,7 +279,9 @@ function TeacherLayout({
               (item.id === "assistant" &&
                 pathname === "/education-assistant") ||
               (item.id === "test-simulation" &&
-                pathname === "/test-simulation");
+                pathname === "/test-simulation") ||
+              (item.id === "rag-metrics-test" &&
+                pathname === "/rag-metrics-test");
             // Use activeTab prop as primary source, pathname only for specific routes
             const isActive = currentActiveTab === item.id || isPathMatch;
 
