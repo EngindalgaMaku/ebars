@@ -434,13 +434,15 @@ export default function RAGMetricsTestPage() {
     }
   };
 
-  const getScoreColor = (score: number) => {
+  const getScoreColor = (score: number | undefined | null) => {
+    if (score === undefined || score === null || isNaN(score)) return "text-muted-foreground";
     if (score >= 0.8) return "text-green-600";
     if (score >= 0.6) return "text-yellow-600";
     return "text-red-600";
   };
 
-  const getScoreBadgeColor = (score: number) => {
+  const getScoreBadgeColor = (score: number | undefined | null) => {
+    if (score === undefined || score === null || isNaN(score)) return "bg-gray-100 text-gray-800";
     if (score >= 0.8) return "bg-green-100 text-green-800";
     if (score >= 0.6) return "bg-yellow-100 text-yellow-800";
     return "bg-red-100 text-red-800";
@@ -733,43 +735,68 @@ export default function RAGMetricsTestPage() {
                   <Card>
                     <CardHeader>
                       <CardTitle>Ortalama Metrikler</CardTitle>
+                      <CardDescription>
+                        RAGAS değerlendirme metrikleri (4 metrik)
+                      </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="p-3 border rounded-lg">
                           <p className="text-sm text-muted-foreground mb-1">Faithfulness</p>
                           <p className={`text-2xl font-bold ${getScoreColor(currentTest.aggregate_metrics.average_faithfulness)}`}>
-                            {(currentTest.aggregate_metrics.average_faithfulness * 100).toFixed(1)}%
+                            {isNaN(currentTest.aggregate_metrics.average_faithfulness) 
+                              ? "N/A" 
+                              : (currentTest.aggregate_metrics.average_faithfulness * 100).toFixed(1) + "%"}
                           </p>
                         </div>
                         <div className="p-3 border rounded-lg">
                           <p className="text-sm text-muted-foreground mb-1">Answer Relevancy</p>
                           <p className={`text-2xl font-bold ${getScoreColor(currentTest.aggregate_metrics.average_answer_relevancy)}`}>
-                            {(currentTest.aggregate_metrics.average_answer_relevancy * 100).toFixed(1)}%
+                            {isNaN(currentTest.aggregate_metrics.average_answer_relevancy) 
+                              ? "N/A" 
+                              : (currentTest.aggregate_metrics.average_answer_relevancy * 100).toFixed(1) + "%"}
                           </p>
                         </div>
-                        {currentTest.aggregate_metrics.average_context_precision !== undefined && (
+                        {currentTest.aggregate_metrics.average_context_precision !== undefined ? (
                           <div className="p-3 border rounded-lg">
                             <p className="text-sm text-muted-foreground mb-1">Context Precision</p>
                             <p className={`text-2xl font-bold ${getScoreColor(currentTest.aggregate_metrics.average_context_precision)}`}>
-                              {(currentTest.aggregate_metrics.average_context_precision * 100).toFixed(1)}%
+                              {isNaN(currentTest.aggregate_metrics.average_context_precision) 
+                                ? "N/A" 
+                                : (currentTest.aggregate_metrics.average_context_precision * 100).toFixed(1) + "%"}
                             </p>
                           </div>
+                        ) : (
+                          <div className="p-3 border rounded-lg border-dashed opacity-50">
+                            <p className="text-sm text-muted-foreground mb-1">Context Precision</p>
+                            <p className="text-2xl font-bold text-muted-foreground">N/A</p>
+                            <p className="text-xs text-muted-foreground mt-1">Ground truth gerekli</p>
+                          </div>
                         )}
-                        {currentTest.aggregate_metrics.average_context_recall !== undefined && (
+                        {currentTest.aggregate_metrics.average_context_recall !== undefined ? (
                           <div className="p-3 border rounded-lg">
                             <p className="text-sm text-muted-foreground mb-1">Context Recall</p>
                             <p className={`text-2xl font-bold ${getScoreColor(currentTest.aggregate_metrics.average_context_recall)}`}>
-                              {(currentTest.aggregate_metrics.average_context_recall * 100).toFixed(1)}%
+                              {isNaN(currentTest.aggregate_metrics.average_context_recall) 
+                                ? "N/A" 
+                                : (currentTest.aggregate_metrics.average_context_recall * 100).toFixed(1) + "%"}
                             </p>
                           </div>
+                        ) : (
+                          <div className="p-3 border rounded-lg border-dashed opacity-50">
+                            <p className="text-sm text-muted-foreground mb-1">Context Recall</p>
+                            <p className="text-2xl font-bold text-muted-foreground">N/A</p>
+                            <p className="text-xs text-muted-foreground mt-1">Ground truth gerekli</p>
+                          </div>
                         )}
-                        <div className="p-3 border rounded-lg col-span-2">
-                          <p className="text-sm text-muted-foreground mb-1">Genel Skor</p>
-                          <p className={`text-3xl font-bold ${getScoreColor(currentTest.aggregate_metrics.average_overall_score)}`}>
-                            {(currentTest.aggregate_metrics.average_overall_score * 100).toFixed(1)}%
-                          </p>
-                        </div>
+                      </div>
+                      <div className="mt-4 p-3 border rounded-lg bg-muted">
+                        <p className="text-sm text-muted-foreground mb-1">Genel Skor (Ortalama)</p>
+                        <p className={`text-3xl font-bold ${getScoreColor(currentTest.aggregate_metrics.average_overall_score)}`}>
+                          {isNaN(currentTest.aggregate_metrics.average_overall_score) 
+                            ? "N/A" 
+                            : (currentTest.aggregate_metrics.average_overall_score * 100).toFixed(1) + "%"}
+                        </p>
                       </div>
                     </CardContent>
                   </Card>
