@@ -28,21 +28,22 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-} from "recharts";
+// Charts temporarily disabled to debug overlay issue
+// import {
+//   BarChart,
+//   Bar,
+//   XAxis,
+//   YAxis,
+//   CartesianGrid,
+//   Tooltip,
+//   Legend,
+//   ResponsiveContainer,
+//   RadarChart,
+//   PolarGrid,
+//   PolarAngleAxis,
+//   PolarRadiusAxis,
+//   Radar,
+// } from "recharts";
 
 interface RAGASEvaluationResult {
   faithfulness: number;
@@ -141,68 +142,69 @@ export default function RAGMetricsTestPage() {
     setError(null);
   };
 
+  // Charts temporarily disabled to debug overlay issue
   // Prepare chart data
-  const chartData = result
-    ? [
-        {
-          name: "Faithfulness",
-          value: result.faithfulness,
-          fullMark: 1,
-        },
-        {
-          name: "Answer Relevancy",
-          value: result.answer_relevancy,
-          fullMark: 1,
-        },
-        ...(result.context_precision !== undefined
-          ? [
-              {
-                name: "Context Precision",
-                value: result.context_precision,
-                fullMark: 1,
-              },
-            ]
-          : []),
-        ...(result.context_recall !== undefined
-          ? [
-              {
-                name: "Context Recall",
-                value: result.context_recall,
-                fullMark: 1,
-              },
-            ]
-          : []),
-      ]
-    : [];
+  // const chartData = result
+  //   ? [
+  //       {
+  //         name: "Faithfulness",
+  //         value: result.faithfulness,
+  //         fullMark: 1,
+  //       },
+  //       {
+  //         name: "Answer Relevancy",
+  //         value: result.answer_relevancy,
+  //         fullMark: 1,
+  //       },
+  //       ...(result.context_precision !== undefined
+  //         ? [
+  //             {
+  //               name: "Context Precision",
+  //               value: result.context_precision,
+  //               fullMark: 1,
+  //             }
+  //           ]
+  //         : []),
+  //       ...(result.context_recall !== undefined
+  //         ? [
+  //             {
+  //               name: "Context Recall",
+  //               value: result.context_recall,
+  //               fullMark: 1,
+  //             }
+  //           ]
+  //         : []),
+  //     ]
+  //   : [];
 
-  const barChartData = result
-    ? [
-        {
-          metric: "Faithfulness",
-          score: result.faithfulness,
-        },
-        {
-          metric: "Answer Relevancy",
-          score: result.answer_relevancy,
-        },
-        ...(result.context_precision !== undefined
-          ? [
-              {
-                metric: "Context Precision",
-                score: result.context_precision,
-              },
-            ]
-          : []),
-        ...(result.context_recall !== undefined
-          ? [
-              {
-                metric: "Context Recall",
-                score: result.context_recall,
-              },
-            ]
-          : []),
-      ]
-    : [];
+  // const barChartData = result
+  //   ? [
+  //       {
+  //         metric: "Faithfulness",
+  //         score: result.faithfulness,
+  //       },
+  //       {
+  //         metric: "Answer Relevancy",
+  //         score: result.answer_relevancy,
+  //       },
+  //       ...(result.context_precision !== undefined
+  //         ? [
+  //             {
+  //               metric: "Context Precision",
+  //               score: result.context_precision,
+  //             }
+  //           ]
+  //         : []),
+  //       ...(result.context_recall !== undefined
+  //         ? [
+  //             {
+  //               metric: "Context Recall",
+  //               score: result.context_recall,
+  //             }
+  //           ]
+  //         : []),
+  //     ]
+  //   : [];
 
   const getScoreColor = (score: number) => {
     if (score >= 0.8) return "text-green-600";
@@ -216,6 +218,9 @@ export default function RAGMetricsTestPage() {
     return "bg-red-100 text-red-800";
   };
 
+  // Debug: Check if component is rendering
+  console.log("RAGMetricsTestPage rendering");
+  
   return (
     <TeacherLayout activeTab="rag-metrics-test">
       <div className="container mx-auto p-6 space-y-6">
@@ -469,8 +474,8 @@ export default function RAGMetricsTestPage() {
                     )}
                   </div>
 
-                  {/* Charts */}
-                  {chartData.length > 0 && (
+                  {/* Charts temporarily disabled to debug overlay issue */}
+                  {/* {chartData.length > 0 && (
                     <>
                       <div>
                         <h3 className="text-sm font-semibold mb-3">
@@ -524,7 +529,7 @@ export default function RAGMetricsTestPage() {
                         </ResponsiveContainer>
                       </div>
                     </>
-                  )}
+                  )} */}
 
                   {/* Metrics Info */}
                   <div className="p-4 bg-muted rounded-lg space-y-2">
