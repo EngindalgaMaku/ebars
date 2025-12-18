@@ -71,7 +71,9 @@ def get_llm():
             model="gpt-3.5-turbo-0125",
             temperature=0,
             openai_api_key=openai_api_key,
-            timeout=120  # 2 minute timeout
+            timeout=120,  # 2 minute timeout
+            max_retries=3,  # Retry on connection errors
+            request_timeout=120  # Request timeout
         )
     
     # Fallback to Groq if OpenAI not available
@@ -169,11 +171,24 @@ async def evaluate_rag(request: EvaluationRequest):
                 raise_exceptions=False  # Don't crash on individual metric failures
             )
         except Exception as eval_error:
-            logger.error(f"RAGAS evaluation error: {str(eval_error)}")
-            # Return partial results if possible
+            error_str = str(eval_error)
+            error_type = type(eval_error).__name__
+            
+            # Handle connection errors specifically
+            if "Connection" in error_str or "connection" in error_str.lower():
+                logger.warning(f"OpenAI connection error during evaluation (may be transient): {error_str}")
+                logger.info("RAGAS will return NaN for failed metrics due to connection issues")
+                # Try to continue - RAGAS should handle this with raise_exceptions=False
+                # But if it still raises, we need to handle it
+                raise HTTPException(
+                    status_code=503,  # Service Unavailable
+                    detail=f"OpenAI API connection error during evaluation. This may be a temporary network issue. Error: {error_str}"
+                )
+            
+            logger.error(f"RAGAS evaluation error ({error_type}): {error_str}")
             raise HTTPException(
                 status_code=500,
-                detail=f"RAGAS evaluation failed: {str(eval_error)}"
+                detail=f"RAGAS evaluation failed: {error_str}"
             )
         
         # Extract scores (RAGAS returns a dict-like object)
