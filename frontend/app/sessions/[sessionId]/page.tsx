@@ -67,7 +67,8 @@ export default function SessionPage() {
     | "modules"
     | "assistant"
     | "query"
-    | "test-simulation";
+    | "test-simulation"
+    | "rag-metrics-test";
   const handleTabChange = (tab: TabType) => {
     // Navigate to main page, which will handle the tab change
     router.push("/");
