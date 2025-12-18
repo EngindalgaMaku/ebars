@@ -455,7 +455,7 @@ export default function RAGMetricsTestPage() {
                       <option value="">Session seçin...</option>
                       {availableSessions.map((session) => (
                         <option key={session.session_id} value={session.session_id}>
-                          {session.session_name || session.session_id}
+                          {session.name || session.session_id}
                         </option>
                       ))}
                     </select>
@@ -465,7 +465,7 @@ export default function RAGMetricsTestPage() {
                     <div className="p-3 bg-muted rounded-lg">
                       <p className="text-sm font-semibold">Session Bilgileri</p>
                       <p className="text-xs text-muted-foreground">
-                        Doküman: {selectedSession.document_count || 0} | Chunk: {selectedSession.chunk_count || 0}
+                        Doküman: {selectedSession.document_count || 0} | Chunk: {selectedSession.total_chunks || 0}
                       </p>
                     </div>
                   )}
