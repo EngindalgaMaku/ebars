@@ -178,20 +178,53 @@ export default function RAGMetricsTestPage() {
     await fetchSessionDetails(sessionId);
   };
 
-  // Import questions from text
+  // Import questions from text (supports "Question|Answer" format)
   const importQuestionsFromText = () => {
-    const questions = questionText
+    if (!questionText.trim()) {
+      toast.error("Lütfen soru girin");
+      return;
+    }
+
+    const lines = questionText
       .split("\n")
-      .map((q) => q.trim())
-      .filter((q) => q.length > 0)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
       .slice(0, 100);
+
+    const questions: string[] = [];
+    const expectedAnswers: Record<number, string> = {};
+
+    lines.forEach((line, index) => {
+      if (line.includes("|")) {
+        // Parse "Question|Answer" format
+        const parts = line.split("|");
+        if (parts.length >= 2) {
+          const question = parts[0].trim();
+          const answer = parts.slice(1).join("|").trim(); // Handle multiple | in answer
+          if (question && answer) {
+            questions.push(question);
+            expectedAnswers[index] = answer;
+          }
+        }
+      } else {
+        // Just a question without expected answer
+        questions.push(line);
+      }
+    });
 
     setConfig({
       ...config,
       customQuestions: questions,
+      customExpectedAnswers: expectedAnswers,
       numQuestions: Math.min(questions.length, 100),
     });
-    toast.success(`${questions.length} soru eklendi`);
+    
+    const answerCount = Object.keys(expectedAnswers).length;
+    if (answerCount > 0) {
+      toast.success(`${questions.length} soru eklendi (${answerCount} tanesi ground truth ile)`);
+    } else {
+      toast.success(`${questions.length} soru eklendi`);
+    }
   };
 
   // Load test list
@@ -269,14 +302,26 @@ export default function RAGMetricsTestPage() {
         return;
       }
 
-      // Prepare expected answers map
+      // Prepare expected answers map (use final test question indices)
       const expectedAnswers: Record<number, string> = {};
       testQuestions.forEach((question, index) => {
+        // Find the original index in customQuestions to get the expected answer
         const originalIndex = config.customQuestions.findIndex((q) => q === question);
         if (originalIndex !== -1 && config.customExpectedAnswers[originalIndex]) {
           expectedAnswers[index] = config.customExpectedAnswers[originalIndex];
         }
       });
+
+      // Debug log to verify expected answers mapping
+      if (Object.keys(expectedAnswers).length > 0) {
+        console.log("✅ Expected answers mapping:", expectedAnswers);
+        console.log(
+          "💡 Questions with ground truth:",
+          Object.keys(expectedAnswers).length
+        );
+      } else {
+        console.log("⚠️ No expected answers found for any test questions");
+      }
 
       const response = await fetch("/api/rag-metrics/start", {
         method: "POST",
@@ -524,14 +569,15 @@ export default function RAGMetricsTestPage() {
               <CardHeader>
                 <CardTitle>Sorular</CardTitle>
                 <CardDescription>
-                  Test için soruları girin (her satıra bir soru)
+                  Test için soruları girin (her satıra bir soru). 
+                  Ground truth (beklenen cevap) eklemek için: <strong>Soru|Cevap</strong> formatını kullanın.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Toplu Soru Girişi</Label>
                   <Textarea
-                    placeholder="Her satıra bir soru yazın..."
+                    placeholder="Her satıra bir soru yazın...&#10;Örnek:&#10;Anadolu'ya ilk Türk akınlarını başlatan topluluk kimdir?|İskitler&#10;Malazgirt Savaşı hangi yılda yapıldı?|1071"
                     value={questionText}
                     onChange={(e) => setQuestionText(e.target.value)}
                     rows={10}
@@ -548,13 +594,37 @@ export default function RAGMetricsTestPage() {
 
                 {config.customQuestions.length > 0 && (
                   <div className="space-y-2">
-                    <Label>Yüklenen Sorular ({config.customQuestions.length})</Label>
+                    <Label>
+                      Yüklenen Sorular ({config.customQuestions.length})
+                      {Object.keys(config.customExpectedAnswers).length > 0 && (
+                        <span className="text-green-600 ml-2">
+                          ({Object.keys(config.customExpectedAnswers).length} tanesi ground truth ile)
+                        </span>
+                      )}
+                    </Label>
                     <div className="max-h-60 overflow-y-auto border rounded-md p-2 space-y-1">
-                      {config.customQuestions.slice(0, config.numQuestions).map((q, idx) => (
-                        <div key={idx} className="text-sm p-2 bg-muted rounded">
-                          {idx + 1}. {q}
-                        </div>
-                      ))}
+                      {config.customQuestions.slice(0, config.numQuestions).map((q, idx) => {
+                        const hasGroundTruth = config.customExpectedAnswers[idx] !== undefined;
+                        return (
+                          <div key={idx} className={`text-sm p-2 rounded ${hasGroundTruth ? 'bg-green-50 border border-green-200' : 'bg-muted'}`}>
+                            <div className="flex items-start justify-between">
+                              <span>
+                                {idx + 1}. {q}
+                              </span>
+                              {hasGroundTruth && (
+                                <Badge variant="outline" className="ml-2 bg-green-100 text-green-800 border-green-300">
+                                  ✓ GT
+                                </Badge>
+                              )}
+                            </div>
+                            {hasGroundTruth && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                Beklenen: {config.customExpectedAnswers[idx]}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
