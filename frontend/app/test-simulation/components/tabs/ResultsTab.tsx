@@ -54,8 +54,6 @@ interface TestResult {
   testType?: string; // "semantic_similarity_only" or standard test
   metrics: {
     cosineSimilarity: number;
-    precisionAt5: number;
-    precisionAt10: number;
     avgResponseTime: number;
     totalQuestions: number;
     correctAnswers: number;
@@ -74,8 +72,6 @@ interface TestResult {
 
 interface MethodResults {
   cosineSimilarity?: number | null;
-  precisionAt5?: number | null;
-  precisionAt10?: number | null;
   avgResponseTime?: number | null;
   accuracy?: number | null;
   similarity?: any;
@@ -90,7 +86,6 @@ interface MethodResults {
 
 interface BenchmarkResults {
   cosineSimilarity: number;
-  precisionAt5: number;
   label: string;
 }
 
@@ -259,8 +254,6 @@ export default function ResultsTab({
                   {currentTest.testType !== "semantic_similarity_only" && (
                     <>
                       <th className="text-center p-2">Cosine Similarity</th>
-                      <th className="text-center p-2">Precision@5 (%)</th>
-                      <th className="text-center p-2">Precision@10 (%)</th>
                       <th className="text-center p-2">Avg Response (ms)</th>
                       <th className="text-center p-2">Accuracy (%)</th>
                     </>
@@ -295,46 +288,6 @@ export default function ResultsTab({
                               {results.cosineSimilarity !== null &&
                               results.cosineSimilarity !== undefined
                                 ? results.cosineSimilarity.toFixed(3)
-                                : "N/A"}
-                            </span>
-                          </td>
-                          <td className="p-2 text-center">
-                            <span
-                              className={`font-medium ${
-                                method === "llmOnly"
-                                  ? "text-gray-500"
-                                  : (results.precisionAt5 ?? 0) >= 90
-                                  ? "text-green-600"
-                                  : (results.precisionAt5 ?? 0) >= 80
-                                  ? "text-yellow-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {method === "llmOnly"
-                                ? "Ölçülmedi"
-                                : results.precisionAt5 !== null &&
-                                  results.precisionAt5 !== undefined
-                                ? `${results.precisionAt5.toFixed(1)}%`
-                                : "N/A"}
-                            </span>
-                          </td>
-                          <td className="p-2 text-center">
-                            <span
-                              className={`font-medium ${
-                                method === "llmOnly"
-                                  ? "text-gray-500"
-                                  : (results.precisionAt10 ?? 0) >= 85
-                                  ? "text-green-600"
-                                  : (results.precisionAt10 ?? 0) >= 75
-                                  ? "text-yellow-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {method === "llmOnly"
-                                ? "Ölçülmedi"
-                                : results.precisionAt10 !== null &&
-                                  results.precisionAt10 !== undefined
-                                ? `${results.precisionAt10.toFixed(1)}%`
                                 : "N/A"}
                             </span>
                           </td>
@@ -730,7 +683,6 @@ export default function ResultsTab({
                     .map(([method, results]) => ({
                       name: methodNames[method] || method,
                       cosine: results.cosineSimilarity ?? 0,
-                      precision5: results.precisionAt5 ?? 0,
                       accuracy: results.accuracy ?? 0,
                     }))}
                   margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
@@ -761,8 +713,6 @@ export default function ResultsTab({
                       const label =
                         name === "cosine"
                           ? "Cosine Similarity"
-                          : name === "precision5"
-                          ? "Precision@5"
                           : "Accuracy";
                       return [formatted, label];
                     }}
@@ -772,12 +722,6 @@ export default function ResultsTab({
                     dataKey="cosine"
                     fill="#3b82f6"
                     name="Cosine Similarity"
-                    radius={[2, 2, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="precision5"
-                    fill="#10b981"
-                    name="Precision@5 (%)"
                     radius={[2, 2, 0, 0]}
                   />
                   <Bar
@@ -873,10 +817,6 @@ export default function ResultsTab({
                     <div className="text-sm text-gray-600 mb-1">
                       EkoBot Referans
                     </div>
-                    <div className="text-lg font-semibold text-blue-600">
-                      Precision@5:{" "}
-                      {currentTest.benchmarkComparison.ekoBot.precisionAt5}%
-                    </div>
                   </div>
                   <div className="text-center p-6 bg-green-50 rounded-lg">
                     <div className="text-3xl font-bold text-green-600 mb-2">
@@ -886,13 +826,6 @@ export default function ResultsTab({
                     </div>
                     <div className="text-sm text-gray-600 mb-1">
                       Mevcut Test
-                    </div>
-                    <div className="text-lg font-semibold text-green-600">
-                      Precision@5:{" "}
-                      {currentTest.benchmarkComparison.current.precisionAt5.toFixed(
-                        1
-                      )}
-                      %
                     </div>
                   </div>
                 </div>

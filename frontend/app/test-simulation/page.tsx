@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from "react";
 import TeacherLayout from "../components/TeacherLayout";
@@ -133,8 +133,6 @@ interface TestResult {
   testType?: string; // "semantic_similarity_only" or "standard"
   metrics: {
     cosineSimilarity: number;
-    precisionAt5: number;
-    precisionAt10: number;
     avgResponseTime: number;
     totalQuestions: number;
     correctAnswers: number;
@@ -158,8 +156,6 @@ interface TestResult {
 
 interface MethodResults {
   cosineSimilarity: number;
-  precisionAt5: number;
-  precisionAt10: number;
   avgResponseTime: number;
   accuracy: number;
   similarity?: SimilarityMetrics; // New similarity metrics
@@ -169,7 +165,6 @@ interface MethodResults {
 
 interface BenchmarkResults {
   cosineSimilarity: number;
-  precisionAt5: number;
   label: string;
 }
 
@@ -285,8 +280,6 @@ export default function TestSimulationPage() {
     const label =
       name === "cosine"
         ? "Cosine Similarity"
-        : name === "precision5"
-        ? "Precision@5"
         : "Accuracy";
     return [formatted, label];
   };
@@ -309,24 +302,6 @@ export default function TestSimulationPage() {
     return [`${Math.round(numericValue)}ms`, "Yan─▒t S├╝resi"];
   };
 
-  const tooltipFormatterPrecision: Formatter<string | number, string> = (
-    value,
-    name,
-    props,
-    payload,
-    index
-  ) => {
-    if (Array.isArray(value) || typeof name !== "string") return ["", ""];
-    let numericValue: number | null = null;
-    if (typeof value === "number") numericValue = value;
-    else if (typeof value === "string") {
-      const parsed = parseFloat(value);
-      numericValue = Number.isFinite(parsed) ? parsed : null;
-    }
-    if (numericValue === null) return ["", ""];
-    const label = name === "precision5" ? "Precision@5" : "Precision@10";
-    return [`${numericValue.toFixed(1)}%`, label];
-  };
 
   const tooltipFormatterPercent: Formatter<string | number, string> = (
     value,
@@ -453,8 +428,6 @@ export default function TestSimulationPage() {
         executionTime: status.executionTime,
         metrics: status.metrics || {
           cosineSimilarity: 0,
-          precisionAt5: 0,
-          precisionAt10: 0,
           avgResponseTime: 0,
           totalQuestions: status.total_questions_in_results || 0,
           correctAnswers: 0,
@@ -584,8 +557,6 @@ export default function TestSimulationPage() {
         startTime: new Date().toISOString(),
         metrics: {
           cosineSimilarity: 0,
-          precisionAt5: 0,
-          precisionAt10: 0,
           avgResponseTime: 0,
           totalQuestions: testQuestions.length,
           correctAnswers: 0,
@@ -593,22 +564,16 @@ export default function TestSimulationPage() {
         methodComparison: {
           eduBars: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
           basicRag: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
           llmOnly: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
@@ -616,12 +581,10 @@ export default function TestSimulationPage() {
         benchmarkComparison: {
           ekoBot: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
             label: "EkoBot",
           },
           current: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
             label: "Current",
           },
         },
@@ -779,8 +742,6 @@ export default function TestSimulationPage() {
         startTime: new Date().toISOString(),
         metrics: {
           cosineSimilarity: 0,
-          precisionAt5: 0,
-          precisionAt10: 0,
           avgResponseTime: 0,
           totalQuestions: testQuestions.length,
           correctAnswers: 0,
@@ -788,22 +749,16 @@ export default function TestSimulationPage() {
         methodComparison: {
           eduBars: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
           basicRag: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
           llmOnly: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
-            precisionAt10: 0,
             avgResponseTime: 0,
             accuracy: 0,
           },
@@ -811,12 +766,10 @@ export default function TestSimulationPage() {
         benchmarkComparison: {
           ekoBot: {
             cosineSimilarity: 0.82,
-            precisionAt5: 100,
             label: "EkoBot Referans",
           },
           current: {
             cosineSimilarity: 0,
-            precisionAt5: 0,
             label: "Mevcut Test",
           },
         },
@@ -1125,34 +1078,6 @@ export default function TestSimulationPage() {
                 "f1Score"
               ) ?? 0
             ).toFixed(3),
-            "N/A",
-          ],
-          [
-            "Precision@5 (%)",
-            (currentTest.methodComparison.eduBars?.precisionAt5 ?? 0).toFixed(
-              1
-            ),
-            (currentTest.methodComparison.basicRag?.precisionAt5 ?? 0).toFixed(
-              1
-            ),
-            (currentTest.methodComparison.llmOnly?.precisionAt5 ?? 0).toFixed(
-              1
-            ),
-            (
-              currentTest.benchmarkComparison?.ekoBot?.precisionAt5 ?? 0
-            ).toFixed(1),
-          ],
-          [
-            "Precision@10 (%)",
-            (currentTest.methodComparison.eduBars?.precisionAt10 ?? 0).toFixed(
-              1
-            ),
-            (currentTest.methodComparison.basicRag?.precisionAt10 ?? 0).toFixed(
-              1
-            ),
-            (currentTest.methodComparison.llmOnly?.precisionAt10 ?? 0).toFixed(
-              1
-            ),
             "N/A",
           ],
           [
@@ -2232,26 +2157,6 @@ export default function TestSimulationPage() {
                             Cosine Similarity
                           </div>
                         </div>
-                        <div className="text-center p-4 bg-green-50 rounded-lg">
-                          <div className="text-lg font-bold text-green-600">
-                            {(currentTest.metrics.precisionAt5 || 0).toFixed(1)}
-                            %
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            Precision@5
-                          </div>
-                        </div>
-                        <div className="text-center p-4 bg-purple-50 rounded-lg">
-                          <div className="text-lg font-bold text-purple-600">
-                            {(currentTest.metrics.precisionAt10 || 0).toFixed(
-                              1
-                            )}
-                            %
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            Precision@10
-                          </div>
-                        </div>
                         <div className="text-center p-4 bg-orange-50 rounded-lg">
                           <div className="text-lg font-bold text-orange-600">
                             {Math.round(
@@ -2309,7 +2214,6 @@ export default function TestSimulationPage() {
                           "response-time-chart",
                           "performance-radar-chart",
                           "cosine-similarity-chart",
-                          "precision-comparison-chart",
                           "response-time-detailed-chart",
                           "accuracy-comparison-chart",
                           "question-performance-chart",
@@ -2389,10 +2293,6 @@ export default function TestSimulationPage() {
                             <th className="text-center p-2">
                               Cosine Similarity
                             </th>
-                            <th className="text-center p-2">Precision@5 (%)</th>
-                            <th className="text-center p-2">
-                              Precision@10 (%)
-                            </th>
                             <th className="text-center p-2">
                               Avg Response (ms)
                             </th>
@@ -2433,46 +2333,6 @@ export default function TestSimulationPage() {
                                       {results.cosineSimilarity !== null &&
                                       results.cosineSimilarity !== undefined
                                         ? results.cosineSimilarity.toFixed(3)
-                                        : "N/A"}
-                                    </span>
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    <span
-                                      className={`font-medium ${
-                                        method === "llmOnly"
-                                          ? "text-gray-500"
-                                          : results.precisionAt5 >= 90
-                                          ? "text-green-600"
-                                          : results.precisionAt5 >= 80
-                                          ? "text-yellow-600"
-                                          : "text-red-600"
-                                      }`}
-                                    >
-                                      {method === "llmOnly"
-                                        ? "├ûl├ğ├╝lmedi"
-                                        : results.precisionAt5 !== null &&
-                                          results.precisionAt5 !== undefined
-                                        ? `${results.precisionAt5.toFixed(1)}%`
-                                        : "N/A"}
-                                    </span>
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    <span
-                                      className={`font-medium ${
-                                        method === "llmOnly"
-                                          ? "text-gray-500"
-                                          : results.precisionAt10 >= 85
-                                          ? "text-green-600"
-                                          : results.precisionAt10 >= 75
-                                          ? "text-yellow-600"
-                                          : "text-red-600"
-                                      }`}
-                                    >
-                                      {method === "llmOnly"
-                                        ? "├ûl├ğ├╝lmedi"
-                                        : results.precisionAt10 !== null &&
-                                          results.precisionAt10 !== undefined
-                                        ? `${results.precisionAt10.toFixed(1)}%`
                                         : "N/A"}
                                     </span>
                                   </td>
@@ -2759,7 +2619,6 @@ export default function TestSimulationPage() {
                                     llmOnly: "Sadece LLM",
                                   }[method] || method,
                                 cosine: results.cosineSimilarity, // Backend already uses max_similarity
-                                precision5: results.precisionAt5,
                                 accuracy: results.accuracy,
                               }))}
                             margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
@@ -2779,12 +2638,6 @@ export default function TestSimulationPage() {
                               dataKey="cosine"
                               fill="#3b82f6"
                               name="Cosine Similarity"
-                              radius={[2, 2, 0, 0]}
-                            />
-                            <Bar
-                              dataKey="precision5"
-                              fill="#10b981"
-                              name="Precision@5 (%)"
                               radius={[2, 2, 0, 0]}
                             />
                             <Bar
@@ -2883,15 +2736,11 @@ export default function TestSimulationPage() {
                         <RadarChart
                           data={[
                             "cosine",
-                            "precision5",
-                            "precision10",
                             "accuracy",
                             "speed",
                           ].map((metric) => ({
                             metric: {
                               cosine: "Cosine Similarity",
-                              precision5: "Precision@5",
-                              precision10: "Precision@10",
                               accuracy: "Accuracy",
                               speed: "Speed (Inverted)",
                             }[metric],
@@ -2903,10 +2752,6 @@ export default function TestSimulationPage() {
                                 let value = 0;
                                 if (metric === "cosine")
                                   value = results.cosineSimilarity * 100;
-                                else if (metric === "precision5")
-                                  value = results.precisionAt5;
-                                else if (metric === "precision10")
-                                  value = results.precisionAt10;
                                 else if (metric === "accuracy")
                                   value = results.accuracy;
                                 else if (metric === "speed")
@@ -3013,14 +2858,6 @@ export default function TestSimulationPage() {
                             <div className="text-sm text-gray-600 mb-1">
                               EkoBot Referans
                             </div>
-                            <div className="text-lg font-semibold text-blue-600">
-                              Precision@5:{" "}
-                              {
-                                currentTest.benchmarkComparison.ekoBot
-                                  .precisionAt5
-                              }
-                              %
-                            </div>
                           </div>
                           <div className="text-center p-6 bg-green-50 rounded-lg">
                             <div className="text-3xl font-bold text-green-600 mb-2">
@@ -3030,13 +2867,6 @@ export default function TestSimulationPage() {
                             </div>
                             <div className="text-sm text-gray-600 mb-1">
                               Mevcut Test
-                            </div>
-                            <div className="text-lg font-semibold text-green-600">
-                              Precision@5:{" "}
-                              {currentTest.benchmarkComparison.current.precisionAt5.toFixed(
-                                1
-                              )}
-                              %
                             </div>
                           </div>
                         </div>
@@ -3559,82 +3389,6 @@ export default function TestSimulationPage() {
                       </CardContent>
                     </Card>
 
-                    {/* Precision@5 and Precision@10 Comparison */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <Target className="h-5 w-5" />
-                              Precision@k Kar┼ş─▒la┼şt─▒rmas─▒
-                            </div>
-                            <CardDescription>
-                              Her metodoloji i├ğin Precision@5 ve Precision@10
-                              de─şerlerinin kar┼ş─▒la┼şt─▒rmas─▒
-                            </CardDescription>
-                          </div>
-                          <ChartExportControls
-                            chartId="precision-comparison-chart"
-                            chartTitle="Precision@k Kar┼ş─▒la┼şt─▒rmas─▒"
-                            variant="compact"
-                            showLabels={false}
-                          />
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div id="precision-comparison-chart">
-                          <ResponsiveContainer width="100%" height={300}>
-                            <BarChart
-                              data={Object.entries(currentTest.methodComparison)
-                                .filter(([method]) =>
-                                  config.testMethods.includes(method)
-                                )
-                                .filter(
-                                  ([, results]) => results.cosineSimilarity > 0
-                                )
-                                .map(([method, results]) => ({
-                                  name:
-                                    {
-                                      eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                      basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
-                                      llmOnly: "Sadece LLM",
-                                    }[method] || method,
-                                  precision5: results.precisionAt5,
-                                  precision10: results.precisionAt10,
-                                }))}
-                              margin={{
-                                top: 20,
-                                right: 30,
-                                left: 20,
-                                bottom: 5,
-                              }}
-                            >
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                              <YAxis
-                                domain={[0, 100]}
-                                tick={{ fontSize: 12 }}
-                              />
-                              <Tooltip formatter={tooltipFormatterPrecision} />
-                              <Legend />
-                              <Bar
-                                dataKey="precision5"
-                                fill="#10b981"
-                                name="Precision@5 (%)"
-                                radius={[2, 2, 0, 0]}
-                              />
-                              <Bar
-                                dataKey="precision10"
-                                fill="#059669"
-                                name="Precision@10 (%)"
-                                radius={[2, 2, 0, 0]}
-                              />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </CardContent>
-                    </Card>
-
                     {/* Response Time Comparison */}
                     <Card>
                       <CardHeader>
@@ -3887,15 +3641,11 @@ export default function TestSimulationPage() {
                         <RadarChart
                           data={[
                             "cosine",
-                            "precision5",
-                            "precision10",
                             "accuracy",
                             "speed",
                           ].map((metric) => ({
                             metric: {
                               cosine: "Cosine Similarity",
-                              precision5: "Precision@5",
-                              precision10: "Precision@10",
                               accuracy: "Accuracy",
                               speed: "H─▒z (Ters)",
                             }[metric],
@@ -3910,10 +3660,6 @@ export default function TestSimulationPage() {
                                 let value = 0;
                                 if (metric === "cosine")
                                   value = results.cosineSimilarity * 100;
-                                else if (metric === "precision5")
-                                  value = results.precisionAt5;
-                                else if (metric === "precision10")
-                                  value = results.precisionAt10;
                                 else if (metric === "accuracy")
                                   value = results.accuracy;
                                 else if (metric === "speed")

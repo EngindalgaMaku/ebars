@@ -229,14 +229,6 @@ export class DataExporter {
           testResult.metrics?.cosineSimilarity?.toFixed(4) || "N/A",
         ],
         [
-          "Average Precision@5 (%)",
-          testResult.metrics?.precisionAt5?.toFixed(2) || "N/A",
-        ],
-        [
-          "Average Precision@10 (%)",
-          testResult.metrics?.precisionAt10?.toFixed(2) || "N/A",
-        ],
-        [
           "Average Response Time (ms)",
           testResult.metrics?.avgResponseTime?.toFixed(0) || "N/A",
         ],
@@ -252,8 +244,6 @@ export class DataExporter {
           [
             "Method",
             "Cosine Similarity",
-            "Precision@5 (%)",
-            "Precision@10 (%)",
             "Avg Response Time (ms)",
             "Accuracy (%)",
             "Semantic Similarity",
@@ -283,8 +273,6 @@ export class DataExporter {
             methodData.push([
               methodNames[method as keyof typeof methodNames] || method,
               results.cosineSimilarity?.toFixed(4) || "N/A",
-              results.precisionAt5?.toFixed(2) || "N/A",
-              results.precisionAt10?.toFixed(2) || "N/A",
               results.avgResponseTime?.toFixed(0) || "N/A",
               results.accuracy?.toFixed(2) || "N/A",
               getSimilarityMetric(results, "semanticSimilarity"),
@@ -314,7 +302,6 @@ export class DataExporter {
             "Response",
             "Max Similarity",
             "Cosine Similarity",
-            "Precision@5",
             "Response Time (ms)",
             "Semantic Similarity",
             "BLEU",
@@ -376,23 +363,19 @@ export class DataExporter {
       // Benchmark Comparison Sheet (if available)
       if (testResult.benchmarkComparison) {
         const benchmarkData = [
-          ["Benchmark Comparison", "", ""],
-          ["System", "Cosine Similarity", "Precision@5 (%)"],
+          ["Benchmark Comparison", ""],
+          ["System", "Cosine Similarity"],
           [
             "EkoBot Reference",
             testResult.benchmarkComparison.ekoBot?.cosineSimilarity?.toFixed(
               4
             ) || "N/A",
-            testResult.benchmarkComparison.ekoBot?.precisionAt5?.toFixed(2) ||
-              "N/A",
           ],
           [
             "Current Test",
             testResult.benchmarkComparison.current?.cosineSimilarity?.toFixed(
               4
             ) || "N/A",
-            testResult.benchmarkComparison.current?.precisionAt5?.toFixed(2) ||
-              "N/A",
           ],
           [""],
           ["Performance vs Benchmark", ""],
@@ -486,14 +469,6 @@ export class DataExporter {
         testResult.metrics?.cosineSimilarity?.toFixed(4) || "N/A",
       ]);
       csvData.push([
-        "Average Precision@5 (%)",
-        testResult.metrics?.precisionAt5?.toFixed(2) || "N/A",
-      ]);
-      csvData.push([
-        "Average Precision@10 (%)",
-        testResult.metrics?.precisionAt10?.toFixed(2) || "N/A",
-      ]);
-      csvData.push([
         "Average Response Time (ms)",
         testResult.metrics?.avgResponseTime?.toFixed(0) || "N/A",
       ]);
@@ -505,8 +480,6 @@ export class DataExporter {
         csvData.push([
           "Method",
           "Cosine Similarity",
-          "Precision@5 (%)",
-          "Precision@10 (%)",
           "Avg Response Time (ms)",
           "Accuracy (%)",
           "Semantic Similarity",
@@ -535,8 +508,6 @@ export class DataExporter {
             csvData.push([
               methodNames[method as keyof typeof methodNames] || method,
               results.cosineSimilarity?.toFixed(4) || "N/A",
-              results.precisionAt5?.toFixed(2) || "N/A",
-              results.precisionAt10?.toFixed(2) || "N/A",
               results.avgResponseTime?.toFixed(0) || "N/A",
               results.accuracy?.toFixed(2) || "N/A",
               getSimilarityMetric(results, "semanticSimilarity"),
@@ -781,8 +752,6 @@ export class AcademicReportGenerator {
               "Cosine Similarity:",
               results.cosineSimilarity?.toFixed(4) || "N/A",
             ],
-            ["Precision@5:", `${results.precisionAt5?.toFixed(2) || "N/A"}%`],
-            ["Precision@10:", `${results.precisionAt10?.toFixed(2) || "N/A"}%`],
             [
               "Ortalama Yanıt Süresi:",
               `${results.avgResponseTime?.toFixed(0) || "N/A"} ms`,

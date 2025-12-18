@@ -2,6 +2,7 @@ import os
 import logging
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -24,9 +25,23 @@ logger = logging.getLogger("evaluation-service")
 load_dotenv()
 
 app = FastAPI(
-    title="RAG Evaluation Service",
+    title="RAG Evaluation Service (RAGAS)",
     description="Microservice for evaluating RAG performance using RAGAS metrics",
     version="1.0.0"
+)
+
+# CORS configuration
+cors_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3000,http://localhost:8000,http://localhost:8010"
+).split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[origin.strip() for origin in cors_origins],
+    allow_credentials=os.getenv("CORS_CREDENTIALS", "true").lower() == "true",
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 class EvaluationRequest(BaseModel):
@@ -121,5 +136,7 @@ async def evaluate_rag(request: EvaluationRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8010)
+    port = int(os.getenv("PORT", os.getenv("RAGAS_SERVICE_PORT", "8010")))
+    host = os.getenv("HOST", "0.0.0.0")
+    uvicorn.run(app, host=host, port=port)
 

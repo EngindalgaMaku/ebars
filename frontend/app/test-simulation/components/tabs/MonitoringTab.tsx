@@ -24,8 +24,6 @@ interface TestResult {
   endTime?: string;
   metrics: {
     cosineSimilarity: number;
-    precisionAt5: number;
-    precisionAt10: number;
     avgResponseTime: number;
     totalQuestions: number;
     correctAnswers: number;
@@ -183,18 +181,6 @@ export default function MonitoringTab({
                   {(currentTest.metrics.cosineSimilarity || 0).toFixed(3)}
                 </div>
                 <div className="text-sm text-gray-600">Cosine Similarity</div>
-              </div>
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-lg font-bold text-green-600">
-                  {(currentTest.metrics.precisionAt5 || 0).toFixed(1)}%
-                </div>
-                <div className="text-sm text-gray-600">Precision@5</div>
-              </div>
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-lg font-bold text-purple-600">
-                  {(currentTest.metrics.precisionAt10 || 0).toFixed(1)}%
-                </div>
-                <div className="text-sm text-gray-600">Precision@10</div>
               </div>
               <div className="text-center p-4 bg-orange-50 rounded-lg">
                 <div className="text-lg font-bold text-orange-600">

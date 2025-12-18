@@ -29,7 +29,8 @@ type TabType =
   | "modules"
   | "assistant"
   | "query"
-  | "test-simulation";
+  | "test-simulation"
+  | "rag-metrics-test";
 
 interface TeacherLayoutProps {
   children: React.ReactNode;
@@ -93,6 +94,13 @@ const navigationItems: Array<{
     desc: "Metodoloji Test Sistemi",
     path: "/test-simulation",
   },
+  {
+    id: "rag-metrics-test",
+    name: "RAG Metrikleri",
+    icon: BarChart3,
+    desc: "RAGAS Değerlendirme",
+    path: "/rag-metrics-test",
+  },
 ];
 
 function TeacherLayout({
@@ -121,6 +129,9 @@ function TeacherLayout({
     }
     if (pathname === "/test-simulation") {
       return "test-simulation";
+    }
+    if (pathname === "/rag-metrics-test") {
+      return "rag-metrics-test";
     }
     // Default to dashboard for home page
     return "dashboard";
@@ -161,6 +172,14 @@ function TeacherLayout({
     if (tabId === "test-simulation") {
       if (pathname !== "/test-simulation") {
         router.push("/test-simulation");
+      }
+      return;
+    }
+
+    // Special handling for rag-metrics-test tab - redirect to rag-metrics-test page
+    if (tabId === "rag-metrics-test") {
+      if (pathname !== "/rag-metrics-test") {
+        router.push("/rag-metrics-test");
       }
       return;
     }

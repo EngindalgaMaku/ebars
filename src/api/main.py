@@ -57,6 +57,8 @@ app = FastAPI(title="RAG3 API Gateway", version="1.0.0",
 
 # Import test simulation routes
 from src.api.test_simulation_routes import router as test_simulation_router
+# Import RAGAS evaluation routes
+from src.api.ragas_routes import router as ragas_router
 
 # CREDENTIALS-COMPATIBLE CORS configuration (no wildcard allowed with credentials)
 logger.info("[API GATEWAY] Setting up CORS with credentials support (no wildcard)")
@@ -99,6 +101,8 @@ app.add_middleware(
 
 # Include test simulation router
 app.include_router(test_simulation_router, prefix="/api")
+# Include RAGAS evaluation router
+app.include_router(ragas_router, prefix="/api")
 
 # Microservice URLs from environment variables - Google Cloud Run compatible
 # For Docker: use service names (e.g., http://document-processing-service:8080)

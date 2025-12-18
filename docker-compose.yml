@@ -35,6 +35,9 @@ services:
       - APRAG_SERVICE_HOST=${APRAG_SERVICE_HOST:-aprag-service}
       - APRAG_SERVICE_PORT=${APRAG_SERVICE_PORT:-8007}
       - APRAG_SERVICE_URL=${APRAG_SERVICE_URL:-http://${APRAG_SERVICE_HOST:-aprag-service}:${APRAG_SERVICE_PORT:-8007}}
+      - RAGAS_SERVICE_HOST=${RAGAS_SERVICE_HOST:-ragas-service}
+      - RAGAS_SERVICE_PORT=${RAGAS_SERVICE_PORT:-8010}
+      - RAGAS_SERVICE_URL=${RAGAS_SERVICE_URL:-http://${RAGAS_SERVICE_HOST:-ragas-service}:${RAGAS_SERVICE_PORT:-8010}}
       # Database configuration
       - DATABASE_PATH=/app/data/rag_assistant.db
       # JWT configuration for API Gateway
@@ -64,6 +67,8 @@ services:
       chromadb-service:
         condition: service_started
       aprag-service:
+        condition: service_healthy
+      ragas-service:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -391,6 +396,40 @@ services:
     container_name: marker-api
     ports:
       - "${MARKER_API_PORT:-8090}:8080"
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  ragas-service:
+    build:
+      context: ./services/evaluation_service
+      dockerfile: Dockerfile
+    container_name: ragas-service
+    ports:
+      - "${RAGAS_SERVICE_PORT:-8010}:8010"
+    environment:
+      # Server configuration
+      - HOST=0.0.0.0
+      - PORT=${RAGAS_SERVICE_PORT:-8010}
+      - RAGAS_SERVICE_PORT=${RAGAS_SERVICE_PORT:-8010}
+      # LLM configuration for RAGAS evaluation
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # CORS configuration
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000,http://host.docker.internal:3000,http://frontend:3000,http://api-gateway:8000,http://46.62.254.131:3000,http://46.62.254.131:8000,http://ebars.kodleon.com,https://ebars.kodleon.com}
+      - CORS_CREDENTIALS=true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8010/health').read()",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     restart: unless-stopped
     networks:
       - rag-network

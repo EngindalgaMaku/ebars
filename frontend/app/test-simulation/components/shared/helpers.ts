@@ -11,8 +11,6 @@ interface SimilarityMetrics {
 
 interface MethodResults {
   cosineSimilarity?: number | null;
-  precisionAt5?: number | null;
-  precisionAt10?: number | null;
   avgResponseTime?: number | null;
   accuracy?: number | null;
   similarity?: SimilarityMetrics;
@@ -28,8 +26,6 @@ interface MethodResults {
 
 interface TestMetrics {
   cosineSimilarity: number;
-  precisionAt5: number;
-  precisionAt10: number;
   avgResponseTime: number;
   totalQuestions: number;
   correctAnswers: number;
@@ -140,8 +136,6 @@ export const tooltipFormatterCosine = (
   const label =
     name === "cosine"
       ? "Cosine Similarity"
-      : name === "precision5"
-      ? "Precision@5"
       : "Accuracy";
   return [formatted, label];
 };
@@ -161,21 +155,6 @@ export const tooltipFormatterResponseTime = (
   return [`${Math.round(numericValue)}ms`, "Yanıt Süresi"];
 };
 
-export const tooltipFormatterPrecision = (
-  value: string | number,
-  name?: string
-): [string, string] => {
-  if (Array.isArray(value) || typeof name !== "string") return ["", ""];
-  let numericValue: number | null = null;
-  if (typeof value === "number") numericValue = value;
-  else if (typeof value === "string") {
-    const parsed = parseFloat(value);
-    numericValue = Number.isFinite(parsed) ? parsed : null;
-  }
-  if (numericValue === null) return ["", ""];
-  const label = name === "precision5" ? "Precision@5" : "Precision@10";
-  return [`${numericValue.toFixed(1)}%`, label];
-};
 
 export const tooltipFormatterPercent = (
   value: string | number,

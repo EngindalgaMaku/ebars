@@ -78,8 +78,6 @@ export interface TestResult {
 
 export interface MethodResults {
   cosineSimilarity: number;
-  precisionAt5: number;
-  precisionAt10: number;
   avgResponseTime: number;
   accuracy: number;
   similarity?: SimilarityMetrics; // New similarity metrics
@@ -89,6 +87,5 @@ export interface MethodResults {
 
 export interface BenchmarkResults {
   cosineSimilarity: number;
-  precisionAt5: number;
   label: string;
 }
