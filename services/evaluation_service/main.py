@@ -64,20 +64,36 @@ def get_llm():
         logger.info("Using Groq LLM for evaluation")
         return ChatGroq(
             model_name="llama-3.1-8b-instant",
-            temperature=0
+            temperature=0,
+            groq_api_key=groq_api_key
         )
     else:
         # Fallback to OpenAI if available
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            raise ValueError(
+                "Either GROQ_API_KEY or OPENAI_API_KEY must be set for RAGAS evaluation. "
+                "Please set at least one of these environment variables."
+            )
         logger.info("Using OpenAI LLM for evaluation")
-        return ChatOpenAI(model="gpt-3.5-turbo-0125")
+        return ChatOpenAI(
+            model="gpt-3.5-turbo-0125",
+            openai_api_key=openai_api_key
+        )
 
 def get_embeddings():
     """Configure Embeddings"""
     # RAGAS needs embeddings for some metrics. 
-    # We can use OpenAI or a local HuggingFace model wrapper.
-    # For simplicity in this setup, we assume OpenAI or similar is available.
-    # If not, we'll need to add HuggingFaceEmbeddings to requirements.
-    return OpenAIEmbeddings()
+    # Check if OPENAI_API_KEY is available
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        raise ValueError(
+            "OPENAI_API_KEY environment variable is required for RAGAS evaluation. "
+            "Please set OPENAI_API_KEY in your environment or .env file."
+        )
+    
+    logger.info("Using OpenAI embeddings for RAGAS evaluation")
+    return OpenAIEmbeddings(openai_api_key=openai_api_key)
 
 @app.get("/health")
 async def health_check():
