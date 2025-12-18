@@ -1,4 +1,5 @@
 import os
+import math
 import logging
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Depends
@@ -58,28 +59,37 @@ class EvaluationResponse(BaseModel):
     overall_score: float
 
 def get_llm():
-    """Configure LLM based on environment variables"""
+    """Configure LLM based on environment variables
+    
+    Prefers OpenAI over Groq due to better stability and compatibility with RAGAS.
+    Groq has known issues with token usage tracking in langchain_groq.
+    """
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if openai_api_key:
+        logger.info("Using OpenAI LLM for evaluation (preferred for stability)")
+        return ChatOpenAI(
+            model="gpt-3.5-turbo-0125",
+            temperature=0,
+            openai_api_key=openai_api_key,
+            timeout=120  # 2 minute timeout
+        )
+    
+    # Fallback to Groq if OpenAI not available
     groq_api_key = os.getenv("GROQ_API_KEY")
     if groq_api_key:
-        logger.info("Using Groq LLM for evaluation")
+        logger.warning("Using Groq LLM for evaluation (OpenAI preferred but not available)")
+        logger.warning("Note: Groq may have token usage tracking issues")
         return ChatGroq(
             model_name="llama-3.1-8b-instant",
             temperature=0,
-            groq_api_key=groq_api_key
+            groq_api_key=groq_api_key,
+            timeout=120  # 2 minute timeout
         )
-    else:
-        # Fallback to OpenAI if available
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        if not openai_api_key:
-            raise ValueError(
-                "Either GROQ_API_KEY or OPENAI_API_KEY must be set for RAGAS evaluation. "
-                "Please set at least one of these environment variables."
-            )
-        logger.info("Using OpenAI LLM for evaluation")
-        return ChatOpenAI(
-            model="gpt-3.5-turbo-0125",
-            openai_api_key=openai_api_key
-        )
+    
+    raise ValueError(
+        "OPENAI_API_KEY or GROQ_API_KEY must be set for RAGAS evaluation. "
+        "OPENAI_API_KEY is preferred for better stability."
+    )
 
 def get_embeddings():
     """Configure Embeddings"""
@@ -128,7 +138,7 @@ async def health_check():
 @app.post("/evaluate", response_model=EvaluationResponse)
 async def evaluate_rag(request: EvaluationRequest):
     try:
-        logger.info(f"Evaluating request for question: {request.question}")
+        logger.info(f"Evaluating request for question: {request.question[:100]}...")
         
         # Prepare data for RAGAS
         data = {
@@ -147,34 +157,77 @@ async def evaluate_rag(request: EvaluationRequest):
             
         # Configure RAGAS with our LLM
         llm = get_llm()
-        # Note: RAGAS typically handles LLM config automatically or via passing llm argument in newer versions.
-        # For v0.1.x, passing llm to evaluate is standard.
         
-        results = evaluate(
-            dataset=dataset,
-            metrics=metrics,
-            llm=llm,
-            embeddings=get_embeddings()
-        )
+        # Evaluate with exception handling disabled to prevent crashes
+        # RAGAS will return NaN for failed metrics instead of raising exceptions
+        try:
+            results = evaluate(
+                dataset=dataset,
+                metrics=metrics,
+                llm=llm,
+                embeddings=get_embeddings(),
+                raise_exceptions=False  # Don't crash on individual metric failures
+            )
+        except Exception as eval_error:
+            logger.error(f"RAGAS evaluation error: {str(eval_error)}")
+            # Return partial results if possible
+            raise HTTPException(
+                status_code=500,
+                detail=f"RAGAS evaluation failed: {str(eval_error)}"
+            )
         
         # Extract scores (RAGAS returns a dict-like object)
-        scores = results.to_pandas().iloc[0].to_dict()
+        try:
+            scores_df = results.to_pandas()
+            if scores_df.empty:
+                raise ValueError("RAGAS returned empty results")
+            scores = scores_df.iloc[0].to_dict()
+        except Exception as parse_error:
+            logger.error(f"Failed to parse RAGAS results: {str(parse_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to parse evaluation results: {str(parse_error)}"
+            )
         
         # Calculate overall score (simple average of available metrics)
-        valid_scores = [v for k, v in scores.items() if isinstance(v, (int, float)) and k != "question"]
+        # Filter out NaN values
+        valid_scores = [
+            v for k, v in scores.items() 
+            if isinstance(v, (int, float)) 
+            and k != "question" 
+            and not (isinstance(v, float) and math.isnan(v))  # Check for NaN
+        ]
+        
         overall = sum(valid_scores) / len(valid_scores) if valid_scores else 0.0
         
+        # Handle NaN values in individual metrics
+        def safe_float(value):
+            """Convert value to float, return None if NaN"""
+            if value is None:
+                return None
+            try:
+                fval = float(value)
+                # Check for NaN
+                return None if math.isnan(fval) else fval
+            except (ValueError, TypeError):
+                return None
+        
         return EvaluationResponse(
-            faithfulness=scores.get("faithfulness", 0.0),
-            answer_relevancy=scores.get("answer_relevancy", 0.0),
-            context_precision=scores.get("context_precision"),
-            context_recall=scores.get("context_recall"),
+            faithfulness=safe_float(scores.get("faithfulness", 0.0)) or 0.0,
+            answer_relevancy=safe_float(scores.get("answer_relevancy", 0.0)) or 0.0,
+            context_precision=safe_float(scores.get("context_precision")),
+            context_recall=safe_float(scores.get("context_recall")),
             overall_score=overall
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Evaluation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Evaluation failed: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Evaluation error: {str(e)}"
+        )
 
 if __name__ == "__main__":
     import uvicorn
