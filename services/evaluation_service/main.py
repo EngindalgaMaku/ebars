@@ -86,18 +86,44 @@ def get_embeddings():
     # RAGAS needs embeddings for some metrics. 
     # Check if OPENAI_API_KEY is available
     openai_api_key = os.getenv("OPENAI_API_KEY")
+    
+    # Debug: Log all environment variables (without exposing values)
+    env_vars = ["OPENAI_API_KEY", "GROQ_API_KEY", "PORT", "HOST"]
+    logger.info(f"Environment check - OPENAI_API_KEY present: {bool(openai_api_key)}")
+    logger.info(f"Environment check - GROQ_API_KEY present: {bool(os.getenv('GROQ_API_KEY'))}")
+    
     if not openai_api_key:
-        raise ValueError(
-            "OPENAI_API_KEY environment variable is required for RAGAS evaluation. "
-            "Please set OPENAI_API_KEY in your environment or .env file."
-        )
+        # Try to get from alternative sources
+        openai_api_key = os.environ.get("OPENAI_API_KEY")  # Try direct access
+        
+        if not openai_api_key:
+            error_msg = (
+                "OPENAI_API_KEY environment variable is required for RAGAS evaluation. "
+                "Please ensure OPENAI_API_KEY is set in .env.production file and "
+                "container is restarted with: docker-compose -f docker-compose.prod.yml up -d --build ragas-service"
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
     
     logger.info("Using OpenAI embeddings for RAGAS evaluation")
     return OpenAIEmbeddings(openai_api_key=openai_api_key)
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "evaluation-service"}
+    """Health check endpoint with environment variable status"""
+    openai_key_present = bool(os.getenv("OPENAI_API_KEY"))
+    groq_key_present = bool(os.getenv("GROQ_API_KEY"))
+    
+    return {
+        "status": "healthy",
+        "service": "evaluation-service",
+        "environment": {
+            "OPENAI_API_KEY_set": openai_key_present,
+            "GROQ_API_KEY_set": groq_key_present,
+            "has_llm_key": openai_key_present or groq_key_present,
+            "has_embedding_key": openai_key_present
+        }
+    }
 
 @app.post("/evaluate", response_model=EvaluationResponse)
 async def evaluate_rag(request: EvaluationRequest):
