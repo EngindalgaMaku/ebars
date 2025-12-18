@@ -3,7 +3,7 @@ uvicorn==0.27.1
 ragas==0.1.5
 langchain==0.1.12
 langchain-groq==0.0.1
-langchain-openai==0.1.25  # Updated from 0.0.8, compatible with langchain 0.1.12 (langchain-core 0.1.x)
+langchain-openai==0.0.8  # Keep at 0.0.8 - newer versions incompatible with langchain 0.1.12
 python-dotenv==1.0.1
 pydantic==2.6.3
 numpy<2.0.0
