@@ -39,6 +39,13 @@ interface AvailableEmbeddingModels {
     dimensions?: number;
     language?: string;
   }>;
+  openrouter?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    dimensions?: number;
+    language?: string;
+  }>;
 }
 
 interface RagSettings {
@@ -65,6 +72,7 @@ export const useRagSettings = (sessionId: string) => {
       ollama: [],
       huggingface: [],
       alibaba: [],
+      openrouter: [],
     });
 
   // Settings states
@@ -101,8 +109,8 @@ export const useRagSettings = (sessionId: string) => {
 
   const EMBEDDING_PROVIDER_OPTIONS = [
     { value: "alibaba", label: "🛒 Alibaba (Cloud - Qwen)" },
+    { value: "openrouter", label: "🚀 OpenRouter (Cloud - OpenAI)" },
     { value: "huggingface", label: "🤗 HuggingFace (Ücretsiz)" },
-    { value: "ollama", label: "🏠 Ollama (Yerel)" },
   ];
 
   const RERANKER_TYPE_OPTIONS = [
@@ -217,6 +225,7 @@ export const useRagSettings = (sessionId: string) => {
         ollama: embeddingData.ollama || [],
         huggingface: embeddingData.huggingface || [],
         alibaba: embeddingData.alibaba || [],
+        openrouter: embeddingData.openrouter || [],
       });
 
       // Set default embedding model if not set
@@ -227,6 +236,12 @@ export const useRagSettings = (sessionId: string) => {
           embeddingData.alibaba.length > 0
         ) {
           setSelectedEmbeddingModel(embeddingData.alibaba[0].id);
+        } else if (
+          selectedEmbeddingProvider === "openrouter" &&
+          embeddingData.openrouter &&
+          embeddingData.openrouter.length > 0
+        ) {
+          setSelectedEmbeddingModel(embeddingData.openrouter[0].id);
         } else if (
           selectedEmbeddingProvider === "ollama" &&
           embeddingData.ollama &&

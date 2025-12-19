@@ -47,6 +47,11 @@ export const EmbeddingSelector: React.FC<EmbeddingSelectorProps> = ({
     if (provider === "alibaba" && availableEmbeddingModels.alibaba?.length) {
       setSelectedEmbeddingModel(availableEmbeddingModels.alibaba[0].id);
     } else if (
+      provider === "openrouter" &&
+      availableEmbeddingModels.openrouter?.length
+    ) {
+      setSelectedEmbeddingModel(availableEmbeddingModels.openrouter[0].id);
+    } else if (
       provider === "ollama" &&
       availableEmbeddingModels.ollama.length
     ) {
@@ -65,6 +70,8 @@ export const EmbeddingSelector: React.FC<EmbeddingSelectorProps> = ({
     switch (provider) {
       case "alibaba":
         return "🛒";
+      case "openrouter":
+        return "🚀";
       case "huggingface":
         return "🤗";
       case "ollama":
@@ -82,6 +89,13 @@ export const EmbeddingSelector: React.FC<EmbeddingSelectorProps> = ({
           label: "Premium",
           color: "bg-yellow-100 text-yellow-700",
           description: "Yüksek kaliteli, çok boyutlu embeddings",
+        };
+      case "openrouter":
+        return {
+          status: "premium",
+          label: "Cloud",
+          color: "bg-green-100 text-green-700",
+          description: "OpenAI embeddings via OpenRouter",
         };
       case "huggingface":
         return {
@@ -111,6 +125,8 @@ export const EmbeddingSelector: React.FC<EmbeddingSelectorProps> = ({
     switch (selectedEmbeddingProvider) {
       case "alibaba":
         return availableEmbeddingModels.alibaba || [];
+      case "openrouter":
+        return availableEmbeddingModels.openrouter || [];
       case "ollama":
         return availableEmbeddingModels.ollama.map((model) => ({
           id: model,
@@ -202,6 +218,18 @@ export const EmbeddingSelector: React.FC<EmbeddingSelectorProps> = ({
                     <Badge variant="outline" className="text-xs">
                       <Globe className="w-3 h-3 mr-1" />
                       Çok Dilli
+                    </Badge>
+                  </>
+                )}
+                {selectedEmbeddingProvider === "openrouter" && (
+                  <>
+                    <Badge variant="outline" className="text-xs">
+                      <Zap className="w-3 h-3 mr-1" />
+                      OpenAI Kalitesi
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      <Globe className="w-3 h-3 mr-1" />
+                      1536D
                     </Badge>
                   </>
                 )}
@@ -359,6 +387,16 @@ export const EmbeddingSelector: React.FC<EmbeddingSelectorProps> = ({
                           <div
                             key={i}
                             className="w-2 h-2 bg-yellow-400 rounded-full"
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {selectedEmbeddingProvider === "openrouter" && (
+                      <div className="flex gap-0.5">
+                        {[...Array(5)].map((_, i) => (
+                          <div
+                            key={i}
+                            className="w-2 h-2 bg-green-400 rounded-full"
                           />
                         ))}
                       </div>
