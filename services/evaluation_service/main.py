@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+import httpx
 
 # LangChain & RAGAS
 from langchain_groq import ChatGroq
@@ -63,33 +64,26 @@ def get_llm():
     """Configure LLM based on environment variables
     
     Priority:
-    1. OpenRouter (if available) - OpenAI uyumlu, çalışıyor
+    1. Groq (çalışıyor, hızlı, ücretsiz) - ÖNCELİK
     2. OpenAI (direct)
-    3. Groq (fallback)
+    3. OpenRouter (fallback - authentication sorunları var)
     """
-    # Önce OpenRouter'ı dene - çalışıyor ve OpenAI uyumlu
-    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-    if openrouter_api_key:
-        logger.info(f"✅ Using OpenRouter LLM for evaluation (API key present: {bool(openrouter_api_key)})")
-        # OpenRouter için özel yapılandırma
-        # ChatOpenAI, base_url değiştiğinde API key'i Authorization header'ına doğru ekliyor
-        # Ama OpenRouter'ın endpoint formatı farklı olabilir, kontrol ediyoruz
-        llm = ChatOpenAI(
-            model="openai/gpt-3.5-turbo",  # OpenRouter model formatı: provider/model
-            temperature=0,
-            openai_api_key=openrouter_api_key,  # Bu otomatik olarak Authorization: Bearer {key} header'ına dönüşür
-            base_url="https://openrouter.ai/api/v1",  # OpenRouter endpoint (chat/completions otomatik eklenir)
+    # Önce Groq'u dene - çalışıyor ve hızlı
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if groq_api_key:
+        # RAGAS evaluation için model seçimi
+        # Environment variable ile override edilebilir, yoksa default kullan
+        groq_model = os.getenv("RAGAS_GROQ_MODEL", "llama-3.1-8b-instant")
+        # Alternatifler: "llama-3.3-70b-versatile" (daha güçlü), "groq/compound" (Groq'un modeli)
+        
+        logger.info(f"✅ Using Groq LLM for evaluation (model: {groq_model})")
+        return ChatGroq(
+            model_name=groq_model,
+            temperature=0,  # RAGAS için deterministik sonuçlar için 0
+            groq_api_key=groq_api_key,
             timeout=180,
-            max_retries=5,
-            request_timeout=180,
-            # OpenRouter için özel headers (opsiyonel analytics için)
-            default_headers={
-                "HTTP-Referer": "http://localhost:8010",
-                "X-Title": "RAGAS Evaluation Service"
-            }
+            max_retries=5
         )
-        logger.info("✅ ChatOpenAI configured for OpenRouter with base_url")
-        return llm
     
     # OpenAI direct (fallback)
     openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -104,20 +98,29 @@ def get_llm():
             request_timeout=180
         )
     
-    # Groq (son çare)
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    if groq_api_key:
-        logger.warning("Using Groq LLM for evaluation (last resort)")
-        return ChatGroq(
-            model_name="llama-3.1-8b-instant",
+    # OpenRouter (son çare - authentication sorunları var)
+    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+    if openrouter_api_key:
+        logger.warning("Using OpenRouter LLM for evaluation (fallback - may have auth issues)")
+        llm = ChatOpenAI(
+            model="openai/gpt-3.5-turbo",
             temperature=0,
-            groq_api_key=groq_api_key,
-            timeout=120
+            openai_api_key=openrouter_api_key,
+            base_url="https://openrouter.ai/api/v1",
+            timeout=180,
+            max_retries=5,
+            request_timeout=180,
+            default_headers={
+                "Authorization": f"Bearer {openrouter_api_key}",
+                "HTTP-Referer": "http://localhost:8010",
+                "X-Title": "RAGAS Evaluation Service"
+            }
         )
+        return llm
     
     raise ValueError(
-        "OPENROUTER_API_KEY, OPENAI_API_KEY, or GROQ_API_KEY must be set for RAGAS evaluation. "
-        "OPENROUTER_API_KEY is preferred (çalışıyor)."
+        "GROQ_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY must be set for RAGAS evaluation. "
+        "GROQ_API_KEY is preferred (çalışıyor, hızlı)."
     )
 
 def get_embeddings():
@@ -155,20 +158,20 @@ def get_embeddings():
 @app.get("/health")
 async def health_check():
     """Health check endpoint with environment variable status"""
-    openrouter_key_present = bool(os.getenv("OPENROUTER_API_KEY"))
-    openai_key_present = bool(os.getenv("OPENAI_API_KEY"))
     groq_key_present = bool(os.getenv("GROQ_API_KEY"))
+    openai_key_present = bool(os.getenv("OPENAI_API_KEY"))
+    openrouter_key_present = bool(os.getenv("OPENROUTER_API_KEY"))
     
     return {
         "status": "healthy",
         "service": "evaluation-service",
         "environment": {
-            "OPENROUTER_API_KEY_set": openrouter_key_present,
-            "OPENAI_API_KEY_set": openai_key_present,
             "GROQ_API_KEY_set": groq_key_present,
-            "has_llm_key": openrouter_key_present or openai_key_present or groq_key_present,
+            "OPENAI_API_KEY_set": openai_key_present,
+            "OPENROUTER_API_KEY_set": openrouter_key_present,
+            "has_llm_key": groq_key_present or openai_key_present or openrouter_key_present,
             "has_embedding_key": openai_key_present or openrouter_key_present,
-            "preferred_provider": "OpenRouter" if openrouter_key_present else ("OpenAI" if openai_key_present else "Groq")
+            "preferred_provider": "Groq" if groq_key_present else ("OpenAI" if openai_key_present else "OpenRouter")
         }
     }
 
