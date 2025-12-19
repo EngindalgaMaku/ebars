@@ -1171,8 +1171,13 @@ async def rag_query(request: RAGQueryRequest):
                 # CRAG Evaluation (only if reranker is enabled) - PHASE 1: Check unified reranker controller
                 if use_reranker:
                     # PHASE 1: Check if Document Processing Service reranking should be prevented due to external reranker usage
+                    request_params = {
+                        "use_rerank": request.use_rerank,
+                        "top_k": request.top_k,
+                    }
                     should_prevent_doc_processing_rerank = should_prevent_aprag_reranking(
                         session_id=request.session_id,
+                        request_params=request_params,
                         session_rag_settings={}  # Empty dict as we don't have session settings here
                     )
                     

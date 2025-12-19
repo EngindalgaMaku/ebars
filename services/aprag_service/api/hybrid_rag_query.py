@@ -740,8 +740,13 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
         rerank_result = None
         if request.use_crag and chunk_results:
             # PHASE 1: Check if APRAG reranking should be prevented due to external reranker usage
+            request_params = {
+                "use_crag": request.use_crag,
+                "top_k": request.top_k,
+            }
             should_prevent = should_prevent_aprag_reranking(
                 session_id=request.session_id,
+                request_params=request_params,
                 session_rag_settings=session_rag_settings
             )
             
