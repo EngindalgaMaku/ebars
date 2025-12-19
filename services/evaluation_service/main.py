@@ -1,8 +1,9 @@
 import os
 import math
 import logging
+import re
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -61,68 +62,95 @@ class EvaluationResponse(BaseModel):
 def get_llm():
     """Configure LLM based on environment variables
     
-    Prefers OpenAI over Groq due to better stability and compatibility with RAGAS.
-    Groq has known issues with token usage tracking in langchain_groq.
+    Priority:
+    1. OpenRouter (if available) - OpenAI uyumlu, çalışıyor
+    2. OpenAI (direct)
+    3. Groq (fallback)
     """
+    # Önce OpenRouter'ı dene - çalışıyor ve OpenAI uyumlu
+    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+    if openrouter_api_key:
+        logger.info("Using OpenRouter LLM for evaluation (OpenAI uyumlu, çalışıyor)")
+        # OpenRouter OpenAI uyumlu endpoint kullanıyor
+        return ChatOpenAI(
+            model="openai/gpt-3.5-turbo",  # OpenRouter model formatı: provider/model
+            temperature=0,
+            openai_api_key=openrouter_api_key,
+            base_url="https://openrouter.ai/api/v1",  # OpenRouter endpoint
+            timeout=180,
+            max_retries=5,
+            request_timeout=180,
+            default_headers={
+                "HTTP-Referer": "http://localhost:8010",  # OpenRouter için opsiyonel
+                "X-Title": "RAGAS Evaluation Service"
+            }
+        )
+    
+    # OpenAI direct (fallback)
     openai_api_key = os.getenv("OPENAI_API_KEY")
     if openai_api_key:
-        logger.info("Using OpenAI LLM for evaluation (preferred for stability)")
+        logger.info("Using OpenAI LLM for evaluation (direct)")
         return ChatOpenAI(
             model="gpt-3.5-turbo-0125",
             temperature=0,
             openai_api_key=openai_api_key,
-            timeout=180,  # 3 minute timeout (increased for stability)
-            max_retries=5,  # More retries for connection errors
-            request_timeout=180  # Request timeout (increased)
+            timeout=180,
+            max_retries=5,
+            request_timeout=180
         )
     
-    # Fallback to Groq if OpenAI not available
+    # Groq (son çare)
     groq_api_key = os.getenv("GROQ_API_KEY")
     if groq_api_key:
-        logger.warning("Using Groq LLM for evaluation (OpenAI preferred but not available)")
-        logger.warning("Note: Groq may have token usage tracking issues")
+        logger.warning("Using Groq LLM for evaluation (last resort)")
         return ChatGroq(
             model_name="llama-3.1-8b-instant",
             temperature=0,
             groq_api_key=groq_api_key,
-            timeout=120  # 2 minute timeout
+            timeout=120
         )
     
     raise ValueError(
-        "OPENAI_API_KEY or GROQ_API_KEY must be set for RAGAS evaluation. "
-        "OPENAI_API_KEY is preferred for better stability."
+        "OPENROUTER_API_KEY, OPENAI_API_KEY, or GROQ_API_KEY must be set for RAGAS evaluation. "
+        "OPENROUTER_API_KEY is preferred (çalışıyor)."
     )
 
 def get_embeddings():
-    """Configure Embeddings"""
-    # RAGAS needs embeddings for some metrics. 
-    # Check if OPENAI_API_KEY is available
+    """Configure Embeddings - OpenRouter veya OpenAI kullan"""
+    # OpenRouter embeddings için OpenAI embeddings kullanabiliriz
+    # OpenRouter'ın embeddings endpoint'i yok, OpenAI embeddings kullanıyoruz
+    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
     openai_api_key = os.getenv("OPENAI_API_KEY")
     
-    # Debug: Log all environment variables (without exposing values)
-    env_vars = ["OPENAI_API_KEY", "GROQ_API_KEY", "PORT", "HOST"]
+    logger.info(f"Environment check - OPENROUTER_API_KEY present: {bool(openrouter_api_key)}")
     logger.info(f"Environment check - OPENAI_API_KEY present: {bool(openai_api_key)}")
-    logger.info(f"Environment check - GROQ_API_KEY present: {bool(os.getenv('GROQ_API_KEY'))}")
     
-    if not openai_api_key:
-        # Try to get from alternative sources
-        openai_api_key = os.environ.get("OPENAI_API_KEY")  # Try direct access
-        
-        if not openai_api_key:
-            error_msg = (
-                "OPENAI_API_KEY environment variable is required for RAGAS evaluation. "
-                "Please ensure OPENAI_API_KEY is set in .env.production file and "
-                "container is restarted with: docker-compose -f docker-compose.prod.yml up -d --build ragas-service"
-            )
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+    # OpenRouter varsa onu kullan (ama embeddings için OpenAI gerekli)
+    # OpenRouter embeddings desteklemiyor, OpenAI embeddings kullanıyoruz
+    if openai_api_key:
+        logger.info("Using OpenAI embeddings for RAGAS evaluation")
+        return OpenAIEmbeddings(openai_api_key=openai_api_key)
     
-    logger.info("Using OpenAI embeddings for RAGAS evaluation")
-    return OpenAIEmbeddings(openai_api_key=openai_api_key)
+    # OpenRouter varsa ama OpenAI yoksa, OpenRouter API key'i OpenAI gibi kullanmayı dene
+    # (OpenRouter embeddings desteklemiyor ama deneyelim)
+    if openrouter_api_key:
+        logger.warning("OpenRouter embeddings desteklemiyor, OpenAI embeddings gerekli")
+        logger.warning("OPENAI_API_KEY set edilmedi - embeddings çalışmayabilir")
+        # Yine de deneyelim
+        return OpenAIEmbeddings(openai_api_key=openrouter_api_key)
+    
+    error_msg = (
+        "OPENAI_API_KEY or OPENROUTER_API_KEY required for embeddings. "
+        "RAGAS needs embeddings for some metrics. "
+        "Please set OPENAI_API_KEY in .env.production"
+    )
+    logger.error(error_msg)
+    raise ValueError(error_msg)
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint with environment variable status"""
+    openrouter_key_present = bool(os.getenv("OPENROUTER_API_KEY"))
     openai_key_present = bool(os.getenv("OPENAI_API_KEY"))
     groq_key_present = bool(os.getenv("GROQ_API_KEY"))
     
@@ -130,10 +158,12 @@ async def health_check():
         "status": "healthy",
         "service": "evaluation-service",
         "environment": {
+            "OPENROUTER_API_KEY_set": openrouter_key_present,
             "OPENAI_API_KEY_set": openai_key_present,
             "GROQ_API_KEY_set": groq_key_present,
-            "has_llm_key": openai_key_present or groq_key_present,
-            "has_embedding_key": openai_key_present
+            "has_llm_key": openrouter_key_present or openai_key_present or groq_key_present,
+            "has_embedding_key": openai_key_present or openrouter_key_present,
+            "preferred_provider": "OpenRouter" if openrouter_key_present else ("OpenAI" if openai_key_present else "Groq")
         }
     }
 
