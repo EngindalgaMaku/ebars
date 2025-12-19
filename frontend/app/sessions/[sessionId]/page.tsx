@@ -104,7 +104,14 @@ export default function SessionPage() {
       dimensions?: number;
       language?: string;
     }>;
-  }>({ ollama: [], huggingface: [], alibaba: [] });
+    openrouter?: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      dimensions?: number;
+      language?: string;
+    }>;
+  }>({ ollama: [], huggingface: [], alibaba: [], openrouter: [] });
   const [embeddingModelsLoading, setEmbeddingModelsLoading] = useState(false);
 
   // Note: Embedding model loading is now handled in the main RAG settings useEffect above
@@ -464,6 +471,7 @@ export default function SessionPage() {
           },
         ],
         alibaba: [],
+        openrouter: [],
       };
       setAvailableEmbeddingModels(fallbackModels);
       // Set default from fallback
@@ -1069,6 +1077,10 @@ export default function SessionPage() {
                                 ? (availableEmbeddingModels.alibaba || []).map(
                                     (m) => m.id
                                   )
+                                : e.target.value === "openrouter"
+                                ? (availableEmbeddingModels.openrouter || []).map(
+                                    (m) => m.id
+                                  )
                                 : availableEmbeddingModels.huggingface.map(
                                     (m) => m.id
                                   );
@@ -1083,13 +1095,16 @@ export default function SessionPage() {
                           }}
                           className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-background shadow-sm"
                         >
-                          <option value="ollama">🏠 Ollama (Yerel)</option>
-                          <option value="huggingface">
-                            🤗 HuggingFace (Ücretsiz)
-                          </option>
                           <option value="alibaba">
                             🛒 Alibaba (Cloud - Qwen)
                           </option>
+                          <option value="openrouter">
+                            🚀 OpenRouter (Cloud - OpenAI)
+                          </option>
+                          <option value="huggingface">
+                            🤗 HuggingFace (Ücretsiz)
+                          </option>
+                          <option value="ollama">🏠 Ollama (Yerel)</option>
                         </select>
                       </div>
 
@@ -1196,7 +1211,53 @@ export default function SessionPage() {
                                   </option>
                                 )}
                                 <option value="">
-                                  Bu provider için model bulunamadı
+                                  Alibaba model bulunamadı
+                                </option>
+                              </>
+                            )
+                          ) : selectedEmbeddingProvider === "openrouter" ? (
+                            (availableEmbeddingModels.openrouter || []).length >
+                            0 ? (
+                              <>
+                                {selectedEmbeddingModel &&
+                                  !(
+                                    availableEmbeddingModels.openrouter || []
+                                  ).some(
+                                    (m) => m.id === selectedEmbeddingModel
+                                  ) && (
+                                    <option
+                                      key={selectedEmbeddingModel}
+                                      value={selectedEmbeddingModel}
+                                    >
+                                      {selectedEmbeddingModel} (Kayıtlı)
+                                    </option>
+                                  )}
+                                {(availableEmbeddingModels.openrouter || []).map(
+                                  (model) => (
+                                    <option key={model.id} value={model.id}>
+                                      {model.name}{" "}
+                                      {model.description
+                                        ? `- ${model.description}`
+                                        : ""}{" "}
+                                      {model.dimensions
+                                        ? `(${model.dimensions}D)`
+                                        : ""}
+                                    </option>
+                                  )
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {selectedEmbeddingModel && (
+                                  <option
+                                    key={selectedEmbeddingModel}
+                                    value={selectedEmbeddingModel}
+                                  >
+                                    {selectedEmbeddingModel} (Kayıtlı)
+                                  </option>
+                                )}
+                                <option value="">
+                                  OpenRouter model bulunamadı
                                 </option>
                               </>
                             )
