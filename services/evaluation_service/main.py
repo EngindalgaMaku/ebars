@@ -71,9 +71,9 @@ def get_llm():
             model="gpt-3.5-turbo-0125",
             temperature=0,
             openai_api_key=openai_api_key,
-            timeout=120,  # 2 minute timeout
-            max_retries=3,  # Retry on connection errors
-            request_timeout=120  # Request timeout
+            timeout=180,  # 3 minute timeout (increased for stability)
+            max_retries=5,  # More retries for connection errors
+            request_timeout=180  # Request timeout (increased)
         )
     
     # Fallback to Groq if OpenAI not available
@@ -175,20 +175,18 @@ async def evaluate_rag(request: EvaluationRequest):
             error_type = type(eval_error).__name__
             
             # Handle connection errors specifically
-            if "Connection" in error_str or "connection" in error_str.lower():
-                logger.warning(f"OpenAI connection error during evaluation (may be transient): {error_str}")
-                logger.info("RAGAS will return NaN for failed metrics due to connection issues")
-                # Try to continue - RAGAS should handle this with raise_exceptions=False
-                # But if it still raises, we need to handle it
+            if "Connection" in error_str or "connection" in error_str.lower() or "APIConnectionError" in error_type:
+                logger.error(f"OpenAI API connection error during evaluation: {error_str}")
+                logger.error("This indicates a network issue or OpenAI API is unavailable")
                 raise HTTPException(
                     status_code=503,  # Service Unavailable
-                    detail=f"OpenAI API connection error during evaluation. This may be a temporary network issue. Error: {error_str}"
+                    detail=f"OpenAI API connection error. Please check network connectivity and OpenAI API status. Error: {error_str[:200]}"
                 )
             
             logger.error(f"RAGAS evaluation error ({error_type}): {error_str}")
             raise HTTPException(
                 status_code=500,
-                detail=f"RAGAS evaluation failed: {error_str}"
+                detail=f"RAGAS evaluation failed: {error_str[:200]}"
             )
         
         # Extract scores (RAGAS returns a dict-like object)
@@ -213,25 +211,50 @@ async def evaluate_rag(request: EvaluationRequest):
             and not (isinstance(v, float) and math.isnan(v))  # Check for NaN
         ]
         
+        # Check if we have any valid scores
+        if not valid_scores:
+            logger.error("All RAGAS metrics returned NaN - evaluation failed completely")
+            raise HTTPException(
+                status_code=503,
+                detail="All evaluation metrics failed (returned NaN). This usually indicates an OpenAI API connection issue. Please check API connectivity and try again."
+            )
+        
         overall = sum(valid_scores) / len(valid_scores) if valid_scores else 0.0
         
         # Handle NaN values in individual metrics
-        def safe_float(value):
-            """Convert value to float, return None if NaN"""
+        def safe_float(value, default=None):
+            """Convert value to float, return default if NaN or None"""
             if value is None:
-                return None
+                return default
             try:
                 fval = float(value)
                 # Check for NaN
-                return None if math.isnan(fval) else fval
+                if math.isnan(fval):
+                    return default
+                return fval
             except (ValueError, TypeError):
-                return None
+                return default
+        
+        # Get individual metric scores, but don't default to 0.0 if they're NaN
+        # Instead, check if we have at least one valid metric
+        faithfulness_score = safe_float(scores.get("faithfulness"))
+        answer_relevancy_score = safe_float(scores.get("answer_relevancy"))
+        context_precision_score = safe_float(scores.get("context_precision"))
+        context_recall_score = safe_float(scores.get("context_recall"))
+        
+        # If critical metrics are all NaN, return error
+        if faithfulness_score is None and answer_relevancy_score is None:
+            logger.error("Both faithfulness and answer_relevancy returned NaN")
+            raise HTTPException(
+                status_code=503,
+                detail="Critical evaluation metrics failed. OpenAI API connection issue detected."
+            )
         
         return EvaluationResponse(
-            faithfulness=safe_float(scores.get("faithfulness", 0.0)) or 0.0,
-            answer_relevancy=safe_float(scores.get("answer_relevancy", 0.0)) or 0.0,
-            context_precision=safe_float(scores.get("context_precision")),
-            context_recall=safe_float(scores.get("context_recall")),
+            faithfulness=faithfulness_score if faithfulness_score is not None else 0.0,
+            answer_relevancy=answer_relevancy_score if answer_relevancy_score is not None else 0.0,
+            context_precision=context_precision_score,
+            context_recall=context_recall_score,
             overall_score=overall
         )
         
