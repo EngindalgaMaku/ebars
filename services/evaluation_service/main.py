@@ -70,21 +70,26 @@ def get_llm():
     # Önce OpenRouter'ı dene - çalışıyor ve OpenAI uyumlu
     openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
     if openrouter_api_key:
-        logger.info("Using OpenRouter LLM for evaluation (OpenAI uyumlu, çalışıyor)")
-        # OpenRouter OpenAI uyumlu endpoint kullanıyor
-        return ChatOpenAI(
+        logger.info(f"✅ Using OpenRouter LLM for evaluation (API key present: {bool(openrouter_api_key)})")
+        # OpenRouter için özel yapılandırma
+        # ChatOpenAI, base_url değiştiğinde API key'i Authorization header'ına doğru ekliyor
+        # Ama OpenRouter'ın endpoint formatı farklı olabilir, kontrol ediyoruz
+        llm = ChatOpenAI(
             model="openai/gpt-3.5-turbo",  # OpenRouter model formatı: provider/model
             temperature=0,
-            openai_api_key=openrouter_api_key,
-            base_url="https://openrouter.ai/api/v1",  # OpenRouter endpoint
+            openai_api_key=openrouter_api_key,  # Bu otomatik olarak Authorization: Bearer {key} header'ına dönüşür
+            base_url="https://openrouter.ai/api/v1",  # OpenRouter endpoint (chat/completions otomatik eklenir)
             timeout=180,
             max_retries=5,
             request_timeout=180,
+            # OpenRouter için özel headers (opsiyonel analytics için)
             default_headers={
-                "HTTP-Referer": "http://localhost:8010",  # OpenRouter için opsiyonel
+                "HTTP-Referer": "http://localhost:8010",
                 "X-Title": "RAGAS Evaluation Service"
             }
         )
+        logger.info("✅ ChatOpenAI configured for OpenRouter with base_url")
+        return llm
     
     # OpenAI direct (fallback)
     openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -188,19 +193,23 @@ async def evaluate_rag(request: EvaluationRequest):
             metrics.extend([context_precision, context_recall])
             
         # Configure RAGAS with our LLM
+        logger.info("🔧 Getting LLM configuration...")
         llm = get_llm()
+        logger.info(f"✅ LLM configured: {type(llm).__name__}")
         
         # Evaluate with exception handling disabled to prevent crashes
         # RAGAS will return NaN for failed metrics instead of raising exceptions
         try:
             # Get embeddings
+            logger.info("🔧 Getting embeddings configuration...")
             embeddings = get_embeddings()
+            logger.info(f"✅ Embeddings configured: {type(embeddings).__name__}")
             
             # Log configuration for debugging
-            logger.info(f"Starting RAGAS evaluation with {len(metrics)} metrics")
-            logger.info(f"Dataset size: {len(dataset)}")
-            logger.info(f"LLM type: {type(llm).__name__}")
-            logger.info(f"Embeddings type: {type(embeddings).__name__}")
+            logger.info(f"🚀 Starting RAGAS evaluation with {len(metrics)} metrics")
+            logger.info(f"📊 Dataset size: {len(dataset)}")
+            logger.info(f"🤖 LLM type: {type(llm).__name__}")
+            logger.info(f"🔤 Embeddings type: {type(embeddings).__name__}")
             
             results = evaluate(
                 dataset=dataset,
