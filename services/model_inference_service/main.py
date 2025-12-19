@@ -923,11 +923,12 @@ def get_available_models():
 
 @app.get("/models/embedding", summary="List Available Embedding Models")
 def get_available_embedding_models():
-    """Returns a list of available embedding models from Ollama, HuggingFace, and Alibaba."""
+    """Returns a list of available embedding models from Ollama, HuggingFace, Alibaba, and OpenRouter."""
     embedding_models = {
         "ollama": [],
         "huggingface": [],
-        "alibaba": []
+        "alibaba": [],
+        "openrouter": []
     }
     
     # Get Ollama embedding models (DISABLED - causes unnecessary connection attempts)
@@ -1066,6 +1067,20 @@ def get_available_embedding_models():
         }
     ]
     
+    # OpenRouter embedding models (OpenAI-compatible)
+    if openrouter_client and OPENROUTER_API_KEY:
+        embedding_models["openrouter"] = [
+            {
+                "id": "openai/text-embedding-3-small",
+                "name": "text-embedding-3-small",
+                "description": "OpenAI Text Embedding 3 Small via OpenRouter (1536 boyut, yüksek kalite)",
+                "dimensions": 1536,
+                "language": "multilingual"
+            }
+        ]
+    else:
+        embedding_models["openrouter"] = []
+    
     return embedding_models
 
 @app.get("/debug/models", summary="Debug: List All Models with Details")
@@ -1181,6 +1196,13 @@ def is_alibaba_embedding_model(model_name: str) -> bool:
     ]
     return model_name in alibaba_embedding_models or model_name.startswith("text-embedding-")
 
+def is_openrouter_embedding_model(model_name: str) -> bool:
+    """Check if the model is an OpenRouter embedding model."""
+    if not model_name:
+        return False
+    # OpenRouter embedding models typically start with "openai/" for OpenAI models
+    return model_name.startswith("openai/") and "embedding" in model_name.lower()
+
 @app.post("/embeddings", response_model=EmbedResponse, summary="Generate Embeddings for Texts (OpenAI-compatible endpoint)")
 async def generate_embeddings_openai_compatible(request: EmbedRequest):
     """
@@ -1275,6 +1297,78 @@ async def generate_embeddings(request: EmbedRequest):
                 except Exception as alibaba_error:
                     print(f"⚠️ Alibaba embedding failed: {alibaba_error}. Trying HuggingFace fallback...")
                     alibaba_failed = True
+        
+        # Check for OpenRouter embedding model (PRIORITY 2)
+        is_openrouter_embedding = is_openrouter_embedding_model(model_name)
+        openrouter_failed = False
+        if is_openrouter_embedding:
+            print(f"🔵 [EMBEDDING] Detected OpenRouter embedding model: {model_name}")
+            if not openrouter_client or not OPENROUTER_API_KEY:
+                error_msg = f"❌ [CRITICAL] OpenRouter client not available for embedding model '{model_name}'. "
+                if not OPENROUTER_API_KEY:
+                    error_msg += "OPENROUTER_API_KEY is not set. "
+                error_msg += "Falling back to HuggingFace."
+                print(error_msg)
+                openrouter_failed = True
+            else:
+                try:
+                    print(f"✅ Using OpenRouter embedding model: {model_name}")
+                    
+                    # OpenRouter uses OpenAI-compatible API
+                    # Process texts individually or in batches (OpenRouter supports batch)
+                    embeddings = []
+                    print(f"Processing {len(texts)} texts for OpenRouter embedding")
+                    
+                    # OpenRouter embeddings API endpoint
+                    openrouter_embed_url = "https://openrouter.ai/api/v1/embeddings"
+                    headers = {
+                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": "https://github.com/your-repo",  # Optional but recommended
+                        "X-Title": "EBARS RAG System"  # Optional but recommended
+                    }
+                    
+                    # Process texts individually to avoid token limits
+                    for i, text in enumerate(texts):
+                        try:
+                            print(f"Processing text {i+1}/{len(texts)} (length: {len(text)} chars)")
+                            
+                            payload = {
+                                "model": model_name,
+                                "input": text  # Single text input
+                            }
+                            
+                            # Use connection pooling for OpenRouter API
+                            response = http_client.post_sync(
+                                openrouter_embed_url,
+                                json=payload,
+                                headers=headers,
+                                timeout=120
+                            )
+                            
+                            if response.status_code == 200:
+                                embedding_data = response.json()
+                                if 'data' in embedding_data and len(embedding_data['data']) > 0:
+                                    embedding = embedding_data['data'][0]['embedding']
+                                    embeddings.append(embedding)
+                                else:
+                                    raise Exception(f"Unexpected OpenRouter embedding response format for text {i+1}")
+                            else:
+                                error_detail = response.text if hasattr(response, 'text') else str(response.status_code)
+                                raise Exception(f"OpenRouter API error: {response.status_code} - {error_detail}")
+                                
+                        except Exception as individual_error:
+                            print(f"⚠️ Individual OpenRouter embedding failed for text {i+1}: {str(individual_error)}")
+                            # Add a zero vector as fallback (OpenAI text-embedding-3-small is 1536D)
+                            embeddings.append([0.0] * 1536)
+                    
+                    end_time = time.time()
+                    processing_time = end_time - start_time
+                    print(f"✅ Successfully generated {len(embeddings)} embeddings using OpenRouter in {processing_time:.2f} seconds.")
+                    return EmbedResponse(embeddings=embeddings, model_used=model_name)
+                except Exception as openrouter_error:
+                    print(f"⚠️ OpenRouter embedding failed: {openrouter_error}. Trying HuggingFace fallback...")
+                    openrouter_failed = True
         
         # Check model type and skip Ollama entirely unless explicitly an Ollama model
         # This prevents unnecessary connection attempts

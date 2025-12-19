@@ -116,7 +116,9 @@ async def rag_query(request: RAGQueryRequest):
                         
                         # Map model name to dimension (FASTEST approach)
                         model_lower = collection_embedding_model.lower()
-                        if 'text-embedding-v4' in model_lower or 'text-embedding-v3' in model_lower or 'text-embedding-v2' in model_lower:
+                        if 'text-embedding-3-small' in model_lower or 'openai/text-embedding-3-small' in model_lower:
+                            collection_dimension = 1536  # OpenRouter OpenAI text-embedding-3-small
+                        elif 'text-embedding-v4' in model_lower or 'text-embedding-v3' in model_lower or 'text-embedding-v2' in model_lower:
                             collection_dimension = 1024  # FIXED: All Alibaba v2/v3/v4 are 1024D
                         elif 'nomic-embed' in model_lower:
                             collection_dimension = 768
@@ -379,6 +381,7 @@ def _get_query_embeddings_with_fallback(
     """Get query embeddings with multi-model fallback, checking dimension match"""
     # Define models by dimension
     models_by_dimension = {
+        1536: ["openai/text-embedding-3-small"],  # OpenRouter OpenAI 1536D
         1024: ["text-embedding-v4", "text-embedding-v3", "text-embedding-v2"],  # Alibaba 1024D (v4 is also 1024D)
         768: ["nomic-embed-text", "sentence-transformers/all-mpnet-base-v2"],  # 768D
         384: ["nomic-embed-text", "sentence-transformers/all-MiniLM-L6-v2", "BAAI/bge-small-en-v1.5"],  # 384D

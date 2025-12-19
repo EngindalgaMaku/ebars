@@ -64,28 +64,58 @@ def get_llm():
     """Configure LLM based on environment variables
     
     Priority:
-    1. Groq (çalışıyor, hızlı, ücretsiz) - ÖNCELİK
-    2. OpenAI (direct)
-    3. OpenRouter (fallback - authentication sorunları var)
+    1. OpenRouter (ÖNCELİK - sisteminizde çalışıyor)
+    2. Groq (fallback)
+    3. OpenAI (fallback)
     """
-    # Önce Groq'u dene - çalışıyor ve hızlı
+    # Önce OpenRouter'ı dene - sisteminizde çalışıyor
+    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+    if openrouter_api_key:
+        logger.info(f"✅ Using OpenRouter LLM for evaluation (API key present: {bool(openrouter_api_key)})")
+        # OpenRouter için model seçimi
+        openrouter_model = os.getenv("RAGAS_OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
+        
+        # ChatOpenAI ile OpenRouter kullanımı - authentication düzeltmesi
+        # Model inference service'te direkt HTTP kullanılıyor, ama RAGAS ChatOpenAI bekliyor
+        # Bu yüzden ChatOpenAI'yi OpenRouter için özel yapılandırıyoruz
+        try:
+            llm = ChatOpenAI(
+                model=openrouter_model,
+                temperature=0,
+                openai_api_key=openrouter_api_key,  # API key
+                base_url="https://openrouter.ai/api/v1",  # OpenRouter endpoint
+                timeout=180,
+                max_retries=5,
+                request_timeout=180,
+                # OpenRouter için özel headers
+                default_headers={
+                    "HTTP-Referer": "http://localhost:8010",
+                    "X-Title": "RAGAS Evaluation Service"
+                }
+            )
+            # ChatOpenAI, openai_api_key'den Authorization header'ını otomatik ekler
+            # Ama base_url değiştiğinde bazen çalışmıyor, bu yüzden test ediyoruz
+            logger.info(f"✅ ChatOpenAI configured for OpenRouter (model: {openrouter_model})")
+            return llm
+        except Exception as e:
+            logger.error(f"❌ Failed to configure ChatOpenAI for OpenRouter: {e}")
+            # Fallback to Groq
+            logger.warning("Falling back to Groq...")
+    
+    # Groq (fallback)
     groq_api_key = os.getenv("GROQ_API_KEY")
     if groq_api_key:
-        # RAGAS evaluation için model seçimi
-        # Environment variable ile override edilebilir, yoksa default kullan
         groq_model = os.getenv("RAGAS_GROQ_MODEL", "llama-3.1-8b-instant")
-        # Alternatifler: "llama-3.3-70b-versatile" (daha güçlü), "groq/compound" (Groq'un modeli)
-        
-        logger.info(f"✅ Using Groq LLM for evaluation (model: {groq_model})")
+        logger.info(f"Using Groq LLM for evaluation (model: {groq_model})")
         return ChatGroq(
             model_name=groq_model,
-            temperature=0,  # RAGAS için deterministik sonuçlar için 0
+            temperature=0,
             groq_api_key=groq_api_key,
             timeout=180,
             max_retries=5
         )
     
-    # OpenAI direct (fallback)
+    # OpenAI direct (son çare)
     openai_api_key = os.getenv("OPENAI_API_KEY")
     if openai_api_key:
         logger.info("Using OpenAI LLM for evaluation (direct)")
@@ -98,58 +128,31 @@ def get_llm():
             request_timeout=180
         )
     
-    # OpenRouter (son çare - authentication sorunları var)
-    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-    if openrouter_api_key:
-        logger.warning("Using OpenRouter LLM for evaluation (fallback - may have auth issues)")
-        llm = ChatOpenAI(
-            model="openai/gpt-3.5-turbo",
-            temperature=0,
-            openai_api_key=openrouter_api_key,
-            base_url="https://openrouter.ai/api/v1",
-            timeout=180,
-            max_retries=5,
-            request_timeout=180,
-            default_headers={
-                "Authorization": f"Bearer {openrouter_api_key}",
-                "HTTP-Referer": "http://localhost:8010",
-                "X-Title": "RAGAS Evaluation Service"
-            }
-        )
-        return llm
-    
     raise ValueError(
-        "GROQ_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY must be set for RAGAS evaluation. "
-        "GROQ_API_KEY is preferred (çalışıyor, hızlı)."
+        "OPENROUTER_API_KEY, GROQ_API_KEY, or OPENAI_API_KEY must be set for RAGAS evaluation. "
+        "OPENROUTER_API_KEY is preferred (sisteminizde çalışıyor)."
     )
 
 def get_embeddings():
-    """Configure Embeddings - OpenRouter veya OpenAI kullan"""
-    # OpenRouter embeddings için OpenAI embeddings kullanabiliriz
-    # OpenRouter'ın embeddings endpoint'i yok, OpenAI embeddings kullanıyoruz
-    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+    """Configure Embeddings - OpenAI kullan (retry ve timeout ayarları ile)"""
     openai_api_key = os.getenv("OPENAI_API_KEY")
     
-    logger.info(f"Environment check - OPENROUTER_API_KEY present: {bool(openrouter_api_key)}")
     logger.info(f"Environment check - OPENAI_API_KEY present: {bool(openai_api_key)}")
     
-    # OpenRouter varsa onu kullan (ama embeddings için OpenAI gerekli)
-    # OpenRouter embeddings desteklemiyor, OpenAI embeddings kullanıyoruz
     if openai_api_key:
         logger.info("Using OpenAI embeddings for RAGAS evaluation")
-        return OpenAIEmbeddings(openai_api_key=openai_api_key)
-    
-    # OpenRouter varsa ama OpenAI yoksa, OpenRouter API key'i OpenAI gibi kullanmayı dene
-    # (OpenRouter embeddings desteklemiyor ama deneyelim)
-    if openrouter_api_key:
-        logger.warning("OpenRouter embeddings desteklemiyor, OpenAI embeddings gerekli")
-        logger.warning("OPENAI_API_KEY set edilmedi - embeddings çalışmayabilir")
-        # Yine de deneyelim
-        return OpenAIEmbeddings(openai_api_key=openrouter_api_key)
+        # OpenAI embeddings için retry ve timeout ayarları
+        return OpenAIEmbeddings(
+            openai_api_key=openai_api_key,
+            model="text-embedding-3-small",  # Daha hızlı ve ucuz
+            timeout=60,  # Timeout artırıldı
+            max_retries=5,  # Retry sayısı artırıldı
+            request_timeout=60  # Request timeout
+        )
     
     error_msg = (
-        "OPENAI_API_KEY or OPENROUTER_API_KEY required for embeddings. "
-        "RAGAS needs embeddings for some metrics. "
+        "OPENAI_API_KEY required for embeddings. "
+        "RAGAS needs embeddings for some metrics (answer_relevancy, etc.). "
         "Please set OPENAI_API_KEY in .env.production"
     )
     logger.error(error_msg)
@@ -295,14 +298,40 @@ async def evaluate_rag(request: EvaluationRequest):
         context_precision_score = safe_float(scores.get("context_precision"))
         context_recall_score = safe_float(scores.get("context_recall"))
         
+        # Log which metrics succeeded/failed
+        successful_metrics = []
+        failed_metrics = []
+        if faithfulness_score is not None:
+            successful_metrics.append("faithfulness")
+        else:
+            failed_metrics.append("faithfulness")
+        if answer_relevancy_score is not None:
+            successful_metrics.append("answer_relevancy")
+        else:
+            failed_metrics.append("answer_relevancy")
+        if context_precision_score is not None:
+            successful_metrics.append("context_precision")
+        else:
+            failed_metrics.append("context_precision")
+        if context_recall_score is not None:
+            successful_metrics.append("context_recall")
+        else:
+            failed_metrics.append("context_recall")
+        
+        if successful_metrics:
+            logger.info(f"✅ Successful metrics: {', '.join(successful_metrics)}")
+        if failed_metrics:
+            logger.warning(f"⚠️ Failed metrics (returned NaN): {', '.join(failed_metrics)}")
+        
         # If critical metrics are all NaN, return error
         if faithfulness_score is None and answer_relevancy_score is None:
             logger.error("Both faithfulness and answer_relevancy returned NaN")
             raise HTTPException(
                 status_code=503,
-                detail="Critical evaluation metrics failed. OpenAI API connection issue detected."
+                detail="Critical evaluation metrics failed. This usually indicates an OpenAI embeddings API connection issue. Please check OPENAI_API_KEY and network connectivity."
             )
         
+        # Return results - use 0.0 for failed metrics (they'll be marked as unavailable)
         return EvaluationResponse(
             faithfulness=faithfulness_score if faithfulness_score is not None else 0.0,
             answer_relevancy=answer_relevancy_score if answer_relevancy_score is not None else 0.0,
