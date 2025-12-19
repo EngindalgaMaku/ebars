@@ -163,13 +163,24 @@ async def evaluate_rag(request: EvaluationRequest):
         # Evaluate with exception handling disabled to prevent crashes
         # RAGAS will return NaN for failed metrics instead of raising exceptions
         try:
+            # Get embeddings
+            embeddings = get_embeddings()
+            
+            # Log configuration for debugging
+            logger.info(f"Starting RAGAS evaluation with {len(metrics)} metrics")
+            logger.info(f"Dataset size: {len(dataset)}")
+            logger.info(f"LLM type: {type(llm).__name__}")
+            logger.info(f"Embeddings type: {type(embeddings).__name__}")
+            
             results = evaluate(
                 dataset=dataset,
                 metrics=metrics,
                 llm=llm,
-                embeddings=get_embeddings(),
+                embeddings=embeddings,
                 raise_exceptions=False  # Don't crash on individual metric failures
             )
+            
+            logger.info("RAGAS evaluation completed successfully")
         except Exception as eval_error:
             error_str = str(eval_error)
             error_type = type(eval_error).__name__
