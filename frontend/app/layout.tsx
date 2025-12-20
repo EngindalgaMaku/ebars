@@ -7,7 +7,6 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 export const metadata: Metadata = {
   title: "RAG Eğitim Platformu",
   description: "Yapay Zeka Destekli Kişiselleştirilmiş Eğitim Platformu",
-  charset: "utf-8",
 };
 
 export default function RootLayout({
