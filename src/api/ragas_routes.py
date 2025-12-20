@@ -862,10 +862,20 @@ async def get_ragas_batch_status(test_id: str, http_request: Request) -> Dict[st
         # Verify access
         _require_owner_or_admin(http_request, test_data.get("session_id", ""))
         
-        # Calculate progress
+        # Calculate progress - ensure it never goes backwards
         total = test_data.get("total_questions", 0)
         current = test_data.get("current_question", 0)
-        progress = (current / total * 100) if total > 0 else 0.0
+        results_count = len(test_data.get("results", []))
+        
+        # Use the maximum of current_question and results_count to prevent backwards progress
+        # This handles cases where current_question might be temporarily lower
+        actual_progress = max(current, results_count)
+        progress = (actual_progress / total * 100) if total > 0 else 0.0
+        
+        # Ensure progress is between 0 and 100
+        progress = max(0.0, min(100.0, progress))
+        
+        logger.debug(f"📊 Status for test {test_id}: current={current}, results={results_count}, progress={progress:.1f}%")
         
         # Calculate execution time
         start_time = test_data.get("start_time")

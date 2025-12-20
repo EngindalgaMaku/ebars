@@ -372,6 +372,9 @@ export default function RAGMetricsTestPage() {
 
   // Poll test status
   const pollTestStatus = (testId: string) => {
+    let lastProgress = 0;
+    let lastResultsCount = 0;
+    
     const interval = setInterval(async () => {
       try {
         const response = await fetch(`/api/rag-metrics/status/${testId}`);
@@ -382,16 +385,33 @@ export default function RAGMetricsTestPage() {
 
         const status = await response.json();
 
+        // Prevent progress from going backwards - only update if progress increased
+        const newProgress = status.progress || 0;
+        const newResultsCount = (status.results || []).length;
+        
+        // Only update if progress increased OR results count increased (forward progress)
+        // This prevents the UI from showing backwards progress
+        if (newProgress < lastProgress && newResultsCount <= lastResultsCount) {
+          // Progress went backwards and no new results - skip this update
+          console.warn(`Skipping update: progress ${newProgress} < ${lastProgress} and no new results`);
+          return;
+        }
+        
+        // Update last known values
+        lastProgress = Math.max(lastProgress, newProgress);
+        lastResultsCount = Math.max(lastResultsCount, newResultsCount);
+
         const updatedTest: RAGASTestResult = {
           testId: status.testId || testId,
           testName: status.testName || config.testName,
           status: status.status || "running",
-          progress: status.progress || 0,
+          progress: Math.max(lastProgress, newProgress), // Ensure progress never goes backwards
           startTime: status.startTime || new Date().toISOString(),
           endTime: status.endTime,
           executionTime: status.executionTime,
           aggregate_metrics: status.aggregate_metrics,
-          results: status.results || [],
+          // Only update results if we have more results than before
+          results: newResultsCount >= lastResultsCount ? (status.results || []) : (currentTest?.results || []),
           total_questions: status.total_questions,
           successful_questions: status.successful_questions,
           failed_questions: status.failed_questions,
