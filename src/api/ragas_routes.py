@@ -67,13 +67,18 @@ def _init_ragas_test_db():
         """)
 
 def _save_ragas_test_to_db(test_id: str, test_data: Dict[str, Any]):
-    """Save RAGAS test data to database"""
+    """Save RAGAS test data to database and update memory"""
     try:
         with sqlite3.connect(RAGAS_TEST_DB_PATH) as conn:
             conn.execute("""
                 INSERT OR REPLACE INTO ragas_test_results (test_id, data, updated_at)
                 VALUES (?, ?, CURRENT_TIMESTAMP)
             """, (test_id, json.dumps(test_data)))
+        
+        # CRITICAL: Always update memory after saving to DB to prevent cache issues
+        # This ensures memory and DB stay in sync
+        RAGAS_TEST_STORAGE[test_id] = test_data.copy()  # Use copy to avoid reference issues
+        logger.debug(f"💾 Saved test {test_id} to DB and updated memory")
     except Exception as e:
         logger.warning(f"Failed to save RAGAS test to DB: {e}")
 
@@ -461,11 +466,14 @@ async def execute_ragas_batch_evaluation(
                 return
             RAGAS_TEST_STORAGE[test_id] = test_data
         
+        # CRITICAL: Always work with memory reference, not DB copy
+        # This ensures all updates go to the same object
         test_data["status"] = "running"
         test_data["current_question"] = 0
         test_data["total_questions"] = len(questions)
         test_data["results"] = []
         
+        # Save to DB (which will also update memory via _save_ragas_test_to_db)
         _save_ragas_test_to_db(test_id, test_data)
         
         results = []
@@ -815,13 +823,19 @@ async def get_ragas_batch_status(test_id: str, http_request: Request) -> Dict[st
     from src.api.main import _require_owner_or_admin
     
     try:
-        # Load test data
+        # Load test data - ALWAYS prioritize memory over DB
+        # Memory is updated in real-time by background task, DB is just for persistence
+        # Loading from DB can cause stale data issues (progress going backwards)
         test_data = RAGAS_TEST_STORAGE.get(test_id)
         if not test_data:
+            # Only load from DB if not in memory (first request or server restart)
             test_data = _load_ragas_test_from_db(test_id)
             if not test_data:
                 raise HTTPException(status_code=404, detail="Test not found")
+            # Store in memory for future requests
             RAGAS_TEST_STORAGE[test_id] = test_data
+        # If memory exists, use it directly - it's always more up-to-date
+        # Background task updates memory in real-time, DB is just for persistence
         
         # Verify access
         _require_owner_or_admin(http_request, test_data.get("session_id", ""))
