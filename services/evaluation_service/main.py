@@ -235,18 +235,26 @@ async def evaluate_rag(request: EvaluationRequest):
             # RAGAS evaluation with improved error handling
             # answer_relevancy metric requires embeddings, so we need to ensure embeddings work
             logger.info("🔄 Starting RAGAS evaluation...")
-            metric_names = [m.__name__ if hasattr(m, '__name__') else str(m) for m in metrics]
-            logger.info(f"   Metrics to evaluate: {metric_names}")
+            # Log metric names (simplified - don't log full prompt examples)
+            metric_names = []
+            for m in metrics:
+                if hasattr(m, '__name__'):
+                    metric_names.append(m.__name__)
+                elif hasattr(m, 'name'):
+                    metric_names.append(m.name)
+                else:
+                    metric_names.append(str(type(m).__name__))
+            logger.info(f"   Metrics to evaluate: {', '.join(metric_names)}")
             
+            # RAGAS evaluate() function signature:
+            # evaluate(dataset, metrics, llm, embeddings, raise_exceptions=False)
+            # Note: num_workers and show_progress are NOT valid parameters in RAGAS 0.4.x
             results = evaluate(
                 dataset=dataset,
                 metrics=metrics,
                 llm=llm,
                 embeddings=embeddings,
-                raise_exceptions=False,  # Don't crash on individual metric failures
-                # Additional options for better error handling
-                num_workers=1,  # Single worker to avoid connection pool issues
-                show_progress=True  # Show progress bar
+                raise_exceptions=False  # Don't crash on individual metric failures
             )
             
             logger.info("✅ RAGAS evaluation completed successfully")
