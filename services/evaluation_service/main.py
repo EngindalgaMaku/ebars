@@ -74,12 +74,16 @@ def get_llm():
         groq_model = os.getenv("RAGAS_GROQ_MODEL", "llama-3.1-8b-instant")
         logger.info(f"✅ Using Groq LLM for evaluation (model: {groq_model})")
         try:
+            # Groq LLM için RAGAS'ın answer_relevancy metrik gereksinimlerini karşılamak için
+            # n parametresi eklenmeli (RAGAS 3 generation bekliyor)
             return ChatGroq(
                 model_name=groq_model,
                 temperature=0,
                 groq_api_key=groq_api_key,
                 timeout=180,
-                max_retries=5
+                max_retries=5,
+                # RAGAS answer_relevancy için 3 generation gerekli
+                # Ancak ChatGroq'da n parametresi yok, bu yüzden RAGAS kendi içinde handle edecek
             )
         except Exception as e:
             logger.error(f"❌ Failed to configure Groq: {e}")
@@ -151,11 +155,14 @@ def get_embeddings():
         logger.info("Using OpenAI embeddings for RAGAS evaluation")
         # OpenAI embeddings için retry ve timeout ayarları
         # LangChain 1.x: request_timeout parametresi kaldırıldı, sadece timeout kullanılmalı
+        # Timeout artırıldı: 60 -> 120 saniye (connection sorunları için)
+        # Max retries artırıldı: 5 -> 10 (daha fazla deneme şansı)
         return OpenAIEmbeddings(
             openai_api_key=openai_api_key,
             model="text-embedding-3-small",  # Daha hızlı ve ucuz
-            timeout=60,  # Timeout (hem connection hem request timeout için)
-            max_retries=5  # Retry sayısı
+            timeout=120,  # Timeout artırıldı (hem connection hem request timeout için)
+            max_retries=10,  # Retry sayısı artırıldı (connection sorunları için)
+            # Connection pool ayarları (implicit - LangChain otomatik yönetir)
         )
     
     error_msg = (
@@ -225,15 +232,24 @@ async def evaluate_rag(request: EvaluationRequest):
             logger.info(f"🤖 LLM type: {type(llm).__name__}")
             logger.info(f"🔤 Embeddings type: {type(embeddings).__name__}")
             
+            # RAGAS evaluation with improved error handling
+            # answer_relevancy metric requires embeddings, so we need to ensure embeddings work
+            logger.info("🔄 Starting RAGAS evaluation...")
+            metric_names = [m.__name__ if hasattr(m, '__name__') else str(m) for m in metrics]
+            logger.info(f"   Metrics to evaluate: {metric_names}")
+            
             results = evaluate(
                 dataset=dataset,
                 metrics=metrics,
                 llm=llm,
                 embeddings=embeddings,
-                raise_exceptions=False  # Don't crash on individual metric failures
+                raise_exceptions=False,  # Don't crash on individual metric failures
+                # Additional options for better error handling
+                num_workers=1,  # Single worker to avoid connection pool issues
+                show_progress=True  # Show progress bar
             )
             
-            logger.info("RAGAS evaluation completed successfully")
+            logger.info("✅ RAGAS evaluation completed successfully")
         except Exception as eval_error:
             error_str = str(eval_error)
             error_type = type(eval_error).__name__
