@@ -63,27 +63,45 @@ class EvaluationResponse(BaseModel):
 def get_llm():
     """Configure LLM based on environment variables
     
-    Priority:
-    1. Groq (ÖNCELİK - daha güvenilir ve hızlı)
-    2. OpenRouter (fallback - authentication sorunları olabilir)
-    3. OpenAI (fallback)
+    Priority for RAGAS evaluation (Türkçe metinler için):
+    1. OpenAI GPT-4 (EN İYİ - Türkçe için en iyi performans)
+    2. OpenAI GPT-3.5-turbo (fallback - hızlı ve ucuz)
+    3. Groq (fallback - Türkçe için daha az doğru)
+    4. OpenRouter (fallback - authentication sorunları olabilir)
+    
+    NOT: Groq LLM (llama-3.1-8b-instant) Türkçe metinleri değerlendirirken
+    yetersiz kalıyor. RAGAS'ın faithfulness ve answer_relevancy metrikleri
+    Türkçe statement/question generation gerektiriyor, bu yüzden OpenAI tercih ediliyor.
     """
-    # Önce Groq'u dene - daha güvenilir
+    # Önce OpenAI'ı dene - Türkçe için en iyi performans
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if openai_api_key:
+        openai_model = os.getenv("RAGAS_OPENAI_MODEL", "gpt-4o-mini")  # gpt-4o-mini hızlı ve ucuz, Türkçe için iyi
+        logger.info(f"✅ Using OpenAI LLM for RAGAS evaluation (model: {openai_model}) - Best for Turkish text")
+        try:
+            return ChatOpenAI(
+                model=openai_model,
+                temperature=0,
+                openai_api_key=openai_api_key,
+                timeout=180,
+                max_retries=5
+            )
+        except Exception as e:
+            logger.error(f"❌ Failed to configure OpenAI: {e}")
+            logger.warning("Falling back to Groq...")
+    
+    # Groq'u dene (fallback - Türkçe için daha az doğru)
     groq_api_key = os.getenv("GROQ_API_KEY")
     if groq_api_key:
         groq_model = os.getenv("RAGAS_GROQ_MODEL", "llama-3.1-8b-instant")
-        logger.info(f"✅ Using Groq LLM for evaluation (model: {groq_model})")
+        logger.info(f"⚠️ Using Groq LLM for evaluation (model: {groq_model}) - May have issues with Turkish text")
         try:
-            # Groq LLM için RAGAS'ın answer_relevancy metrik gereksinimlerini karşılamak için
-            # n parametresi eklenmeli (RAGAS 3 generation bekliyor)
             return ChatGroq(
                 model_name=groq_model,
                 temperature=0,
                 groq_api_key=groq_api_key,
                 timeout=180,
-                max_retries=5,
-                # RAGAS answer_relevancy için 3 generation gerekli
-                # Ancak ChatGroq'da n parametresi yok, bu yüzden RAGAS kendi içinde handle edecek
+                max_retries=5
             )
         except Exception as e:
             logger.error(f"❌ Failed to configure Groq: {e}")
@@ -271,9 +289,20 @@ async def evaluate_rag(request: EvaluationRequest):
                 # Continue anyway - RAGAS will handle the error gracefully
                 # But answer_relevancy may fail if embeddings don't work
             
+            # Log input data for debugging
+            logger.info("📥 RAGAS Input Data:")
+            logger.info(f"   Question: {request.question[:200]}...")
+            logger.info(f"   Answer: {request.answer[:200]}...")
+            logger.info(f"   Contexts count: {len(request.contexts)}")
+            if request.contexts:
+                logger.info(f"   First context: {request.contexts[0][:200]}...")
+            if request.ground_truth:
+                logger.info(f"   Ground truth: {request.ground_truth[:200]}...")
+            
             # RAGAS evaluate() function signature:
             # evaluate(dataset, metrics, llm, embeddings, raise_exceptions=False)
             # Note: num_workers and show_progress are NOT valid parameters in RAGAS 0.4.x
+            logger.info("🔄 Starting RAGAS evaluation (this may take a while for Turkish text)...")
             results = evaluate(
                 dataset=dataset,
                 metrics=metrics,
@@ -283,6 +312,18 @@ async def evaluate_rag(request: EvaluationRequest):
             )
             
             logger.info("✅ RAGAS evaluation completed successfully")
+            
+            # Log raw results for debugging
+            try:
+                scores_df = results.to_pandas()
+                if not scores_df.empty:
+                    raw_scores = scores_df.iloc[0].to_dict()
+                    logger.info("📊 RAGAS Raw Scores:")
+                    for key, value in raw_scores.items():
+                        if key != "question":  # Skip question to avoid log spam
+                            logger.info(f"   {key}: {value}")
+            except Exception as log_error:
+                logger.warning(f"Could not log raw scores: {log_error}")
         except Exception as eval_error:
             error_str = str(eval_error)
             error_type = type(eval_error).__name__
