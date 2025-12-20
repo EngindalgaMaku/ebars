@@ -594,33 +594,93 @@ async def execute_ragas_batch_evaluation(
                             result_entry["ragas_metrics"] = ragas_metrics
                     
                     results.append(result_entry)
+                    
+                    # Update test_data with current results in real-time
+                    test_data["results"] = results
+                    successful_count = len([r for r in results if r.get("success")])
+                    test_data["successful_questions"] = successful_count
+                    test_data["failed_questions"] = i + 1 - successful_count
+                    
+                    # Calculate aggregate metrics incrementally (for real-time display)
+                    successful_results = [r for r in results if r.get("success")]
+                    if successful_results:
+                        avg_faithfulness = sum(r["ragas_metrics"]["faithfulness"] for r in successful_results) / len(successful_results)
+                        avg_answer_relevancy = sum(r["ragas_metrics"]["answer_relevancy"] for r in successful_results) / len(successful_results)
+                        avg_overall = sum(r["ragas_metrics"]["overall_score"] for r in successful_results) / len(successful_results)
+                        
+                        context_results = [r for r in successful_results if r["ragas_metrics"].get("context_precision") is not None]
+                        avg_context_precision = None
+                        avg_context_recall = None
+                        if context_results:
+                            avg_context_precision = sum(r["ragas_metrics"]["context_precision"] for r in context_results) / len(context_results)
+                            avg_context_recall = sum(r["ragas_metrics"]["context_recall"] for r in context_results) / len(context_results)
+                        
+                        test_data["aggregate_metrics"] = {
+                            "average_faithfulness": avg_faithfulness,
+                            "average_answer_relevancy": avg_answer_relevancy,
+                            "average_context_precision": avg_context_precision,
+                            "average_context_recall": avg_context_recall,
+                            "average_overall_score": avg_overall
+                        }
+                    else:
+                        test_data["aggregate_metrics"] = {}
+                    
+                    # Save to DB after each question for real-time updates
+                    _save_ragas_test_to_db(test_id, test_data)
+                    logger.info(f"💾 Saved progress: {i+1}/{total_questions} questions, {successful_count} successful")
+                    
                 except HTTPException as http_e:
                     logger.error(f"HTTP error evaluating question {i+1}: {http_e.detail}")
-                    results.append({
+                    error_result = {
                         "question_id": i + 1,
                         "question": question,
                         "success": False,
                         "error": f"RAGAS evaluation HTTP error: {http_e.detail[:200]}"
-                    })
+                    }
+                    results.append(error_result)
+                    
+                    # Update test_data with current results
+                    test_data["results"] = results
+                    successful_count = len([r for r in results if r.get("success")])
+                    test_data["successful_questions"] = successful_count
+                    test_data["failed_questions"] = i + 1 - successful_count
+                    _save_ragas_test_to_db(test_id, test_data)
+                    
                 except Exception as ragas_error:
                     logger.error(f"RAGAS evaluation failed for question {i+1}: {ragas_error}")
                     import traceback
                     logger.error(f"Traceback: {traceback.format_exc()}")
-                    results.append({
+                    error_result = {
                         "question_id": i + 1,
                         "question": question,
                         "success": False,
                         "error": f"RAGAS evaluation error: {str(ragas_error)[:200]}"
-                    })
+                    }
+                    results.append(error_result)
+                    
+                    # Update test_data with current results
+                    test_data["results"] = results
+                    successful_count = len([r for r in results if r.get("success")])
+                    test_data["successful_questions"] = successful_count
+                    test_data["failed_questions"] = i + 1 - successful_count
+                    _save_ragas_test_to_db(test_id, test_data)
                 
             except Exception as e:
                 logger.error(f"Failed to evaluate question {i+1}: {e}")
-                results.append({
+                error_result = {
                     "question_id": i + 1,
                     "question": question,
                     "success": False,
                     "error": str(e)
-                })
+                }
+                results.append(error_result)
+                
+                # Update test_data with current results
+                test_data["results"] = results
+                successful_count = len([r for r in results if r.get("success")])
+                test_data["successful_questions"] = successful_count
+                test_data["failed_questions"] = i + 1 - successful_count
+                _save_ragas_test_to_db(test_id, test_data)
         
         # Calculate aggregate metrics
         successful_results = [r for r in results if r.get("success")]
