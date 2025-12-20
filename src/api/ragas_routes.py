@@ -533,12 +533,41 @@ async def execute_ragas_batch_evaluation(
                         })
                         continue
                     
-                    # Convert to dict safely
-                    ragas_metrics = ragas_result.dict() if hasattr(ragas_result, 'dict') else ragas_result
+                    # Convert to dict safely - Pydantic v2 uses model_dump() instead of dict()
+                    if hasattr(ragas_result, 'model_dump'):
+                        # Pydantic v2
+                        ragas_metrics = ragas_result.model_dump()
+                    elif hasattr(ragas_result, 'dict'):
+                        # Pydantic v1 fallback
+                        ragas_metrics = ragas_result.dict()
+                    elif isinstance(ragas_result, dict):
+                        # Already a dict
+                        ragas_metrics = ragas_result
+                    else:
+                        # Last resort: try to convert to dict via JSON
+                        try:
+                            import json
+                            # Use model_dump_json if available, otherwise try dict()
+                            if hasattr(ragas_result, 'model_dump_json'):
+                                ragas_metrics = json.loads(ragas_result.model_dump_json())
+                            else:
+                                ragas_metrics = json.loads(json.dumps(ragas_result, default=str))
+                        except Exception as e:
+                            logger.error(f"Failed to convert RAGAS result to dict: {e}")
+                            # Fallback to empty metrics
+                            ragas_metrics = {
+                                "faithfulness": 0.0,
+                                "answer_relevancy": 0.0,
+                                "context_precision": None,
+                                "context_recall": None,
+                                "overall_score": 0.0,
+                                "metrics_available": []
+                            }
                     
                     logger.info(f"✅ Question {i+1} evaluated successfully: faithfulness={ragas_metrics.get('faithfulness')}, answer_relevancy={ragas_metrics.get('answer_relevancy')}")
+                    logger.debug(f"   RAGAS metrics type: {type(ragas_metrics)}, keys: {list(ragas_metrics.keys()) if isinstance(ragas_metrics, dict) else 'N/A'}")
                     
-                    results.append({
+                    result_entry = {
                         "question_id": i + 1,
                         "question": question,
                         "answer": rag_result["answer"],
@@ -548,7 +577,23 @@ async def execute_ragas_batch_evaluation(
                         "response_time_ms": rag_result["response_time_ms"],
                         "retrieval_count": len(rag_result["contexts"]),
                         "success": True
-                    })
+                    }
+                    
+                    # Validate ragas_metrics is serializable
+                    try:
+                        import json
+                        json.dumps(result_entry)  # Test serialization
+                        logger.debug(f"   Result entry is JSON serializable")
+                    except Exception as ser_error:
+                        logger.error(f"   ⚠️ Result entry is NOT JSON serializable: {ser_error}")
+                        logger.error(f"   ragas_metrics type: {type(ragas_metrics)}")
+                        # Try to fix it
+                        if not isinstance(ragas_metrics, dict):
+                            logger.warning(f"   Converting ragas_metrics to dict...")
+                            ragas_metrics = {"error": "Failed to serialize metrics"}
+                            result_entry["ragas_metrics"] = ragas_metrics
+                    
+                    results.append(result_entry)
                 except HTTPException as http_e:
                     logger.error(f"HTTP error evaluating question {i+1}: {http_e.detail}")
                     results.append({
