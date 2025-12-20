@@ -255,28 +255,56 @@ async def evaluate_rag(request: RAGASEvaluationRequest):
                 metrics_available.extend(["context_precision", "context_recall"])
             
             # Extract metrics with validation
-            faithfulness = result.get("faithfulness")
-            answer_relevancy = result.get("answer_relevancy")
-            overall_score = result.get("overall_score")
+            # Handle NaN values from RAGAS (they come as None or NaN in JSON)
+            def safe_float(value, default=0.0):
+                """Safely convert value to float, handling None and NaN"""
+                if value is None:
+                    return default
+                try:
+                    fval = float(value)
+                    import math
+                    if math.isnan(fval):
+                        return default
+                    return fval
+                except (ValueError, TypeError):
+                    return default
+            
+            faithfulness = safe_float(result.get("faithfulness"), 0.0)
+            answer_relevancy = safe_float(result.get("answer_relevancy"), 0.0)
+            overall_score = safe_float(result.get("overall_score"), 0.0)
+            context_precision = result.get("context_precision")
+            context_recall = result.get("context_recall")
+            
+            # Convert optional metrics safely
+            if context_precision is not None:
+                context_precision = safe_float(context_precision, None)
+            if context_recall is not None:
+                context_recall = safe_float(context_recall, None)
             
             # Log extracted metrics
-            logger.info(f"📊 Extracted metrics:")
+            logger.info(f"📊 Extracted metrics from RAGAS service:")
             logger.info(f"   Faithfulness: {faithfulness}")
             logger.info(f"   Answer Relevancy: {answer_relevancy}")
+            logger.info(f"   Context Precision: {context_precision}")
+            logger.info(f"   Context Recall: {context_recall}")
             logger.info(f"   Overall Score: {overall_score}")
+            logger.info(f"   Full result keys: {list(result.keys())}")
             
-            # Validate required metrics
-            if faithfulness is None or answer_relevancy is None:
-                logger.warning(f"⚠️ Some required metrics are missing: faithfulness={faithfulness}, answer_relevancy={answer_relevancy}")
-            
-            return RAGASEvaluationResponse(
-                faithfulness=faithfulness if faithfulness is not None else 0.0,
-                answer_relevancy=answer_relevancy if answer_relevancy is not None else 0.0,
-                context_precision=result.get("context_precision"),
-                context_recall=result.get("context_recall"),
-                overall_score=overall_score if overall_score is not None else 0.0,
+            # Even if some metrics are 0.0 (failed), we still return the response
+            # The frontend can handle partial results
+            response = RAGASEvaluationResponse(
+                faithfulness=faithfulness,
+                answer_relevancy=answer_relevancy,
+                context_precision=context_precision,
+                context_recall=context_recall,
+                overall_score=overall_score,
                 metrics_available=metrics_available
             )
+            
+            logger.info(f"✅ Returning RAGAS evaluation response to client")
+            logger.debug(f"   Response: {response.model_dump()}")
+            
+            return response
             
     except httpx.TimeoutException:
         logger.error("RAGAS service timeout")

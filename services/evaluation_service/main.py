@@ -155,15 +155,28 @@ def get_embeddings():
         logger.info("Using OpenAI embeddings for RAGAS evaluation")
         # OpenAI embeddings için retry ve timeout ayarları
         # LangChain 1.x: request_timeout parametresi kaldırıldı, sadece timeout kullanılmalı
-        # Timeout artırıldı: 60 -> 120 saniye (connection sorunları için)
-        # Max retries artırıldı: 5 -> 10 (daha fazla deneme şansı)
-        return OpenAIEmbeddings(
-            openai_api_key=openai_api_key,
-            model="text-embedding-3-small",  # Daha hızlı ve ucuz
-            timeout=120,  # Timeout artırıldı (hem connection hem request timeout için)
-            max_retries=10,  # Retry sayısı artırıldı (connection sorunları için)
-            # Connection pool ayarları (implicit - LangChain otomatik yönetir)
-        )
+        # Connection sorunları için agresif retry stratejisi
+        try:
+            embeddings = OpenAIEmbeddings(
+                openai_api_key=openai_api_key,
+                model="text-embedding-3-small",  # Daha hızlı ve ucuz
+                timeout=180,  # Timeout artırıldı: 120 -> 180 saniye (connection sorunları için)
+                max_retries=15,  # Retry sayısı artırıldı: 10 -> 15 (daha fazla deneme şansı)
+                # Exponential backoff otomatik (LangChain default)
+                # Connection pool ayarları (implicit - LangChain otomatik yönetir)
+            )
+            logger.info("✅ OpenAI embeddings configured successfully")
+            return embeddings
+        except Exception as e:
+            logger.error(f"❌ Failed to configure OpenAI embeddings: {e}")
+            # Fallback: Try with minimal settings
+            logger.warning("⚠️ Attempting fallback configuration...")
+            return OpenAIEmbeddings(
+                openai_api_key=openai_api_key,
+                model="text-embedding-3-small",
+                timeout=300,  # Very long timeout for problematic connections
+                max_retries=20  # Maximum retries
+            )
     
     error_msg = (
         "OPENAI_API_KEY required for embeddings. "
@@ -245,6 +258,18 @@ async def evaluate_rag(request: EvaluationRequest):
                 else:
                     metric_names.append(str(type(m).__name__))
             logger.info(f"   Metrics to evaluate: {', '.join(metric_names)}")
+            
+            # Pre-warm embeddings connection to avoid first-request timeout
+            # This helps prevent connection errors during evaluation
+            try:
+                logger.info("🔥 Pre-warming embeddings connection...")
+                # Test embeddings with a small text to ensure connection works
+                test_embedding = embeddings.embed_query("test connection")
+                logger.info(f"✅ Embeddings connection pre-warmed successfully (dimension: {len(test_embedding)})")
+            except Exception as warmup_error:
+                logger.warning(f"⚠️ Embeddings pre-warm failed (will continue anyway): {warmup_error}")
+                # Continue anyway - RAGAS will handle the error gracefully
+                # But answer_relevancy may fail if embeddings don't work
             
             # RAGAS evaluate() function signature:
             # evaluate(dataset, metrics, llm, embeddings, raise_exceptions=False)
@@ -364,13 +389,25 @@ async def evaluate_rag(request: EvaluationRequest):
             )
         
         # Return results - use 0.0 for failed metrics (they'll be marked as unavailable)
-        return EvaluationResponse(
+        # IMPORTANT: Even if some metrics fail (NaN), we still return the successful ones
+        # This ensures the frontend receives partial results instead of a complete failure
+        response_data = EvaluationResponse(
             faithfulness=faithfulness_score if faithfulness_score is not None else 0.0,
             answer_relevancy=answer_relevancy_score if answer_relevancy_score is not None else 0.0,
-            context_precision=context_precision_score,
-            context_recall=context_recall_score,
+            context_precision=context_precision_score if context_precision_score is not None else None,
+            context_recall=context_recall_score if context_recall_score is not None else None,
             overall_score=overall
         )
+        
+        # Log the response being returned
+        logger.info(f"📤 Returning evaluation response:")
+        logger.info(f"   Faithfulness: {response_data.faithfulness}")
+        logger.info(f"   Answer Relevancy: {response_data.answer_relevancy}")
+        logger.info(f"   Context Precision: {response_data.context_precision}")
+        logger.info(f"   Context Recall: {response_data.context_recall}")
+        logger.info(f"   Overall Score: {response_data.overall_score}")
+        
+        return response_data
         
     except HTTPException:
         raise
