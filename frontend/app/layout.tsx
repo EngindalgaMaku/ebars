@@ -18,7 +18,6 @@ export default function RootLayout({
     <html lang="tr" className="h-full" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
-        <meta httpEquiv="Content-Type" content="text/html; charset=utf-8" />
       </head>
       <body className="h-full bg-background text-foreground font-sans antialiased overflow-x-hidden">
         <ThemeProvider>

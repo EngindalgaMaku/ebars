@@ -99,6 +99,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add charset to JSON responses for proper Turkish character encoding
+@app.middleware("http")
+async def add_charset_header(request: Request, call_next):
+    response = await call_next(request)
+    # Add charset=utf-8 to JSON responses
+    content_type = response.headers.get("content-type", "")
+    if "application/json" in content_type and "charset" not in content_type:
+        response.headers["content-type"] = "application/json; charset=utf-8"
+    return response
+
 # Include test simulation router
 app.include_router(test_simulation_router, prefix="/api")
 # Include RAGAS evaluation router

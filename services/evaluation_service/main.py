@@ -84,9 +84,8 @@ def get_llm():
                 temperature=0,
                 openai_api_key=openrouter_api_key,  # API key
                 base_url="https://openrouter.ai/api/v1",  # OpenRouter endpoint
-                timeout=180,
+                timeout=180,  # LangChain 1.x: timeout hem connection hem request timeout için kullanılır
                 max_retries=5,
-                request_timeout=180,
                 # OpenRouter için özel headers
                 default_headers={
                     "HTTP-Referer": "http://localhost:8010",
@@ -123,9 +122,8 @@ def get_llm():
             model="gpt-3.5-turbo-0125",
             temperature=0,
             openai_api_key=openai_api_key,
-            timeout=180,
-            max_retries=5,
-            request_timeout=180
+            timeout=180,  # LangChain 1.x: timeout hem connection hem request timeout için kullanılır
+            max_retries=5
         )
     
     raise ValueError(
@@ -142,12 +140,12 @@ def get_embeddings():
     if openai_api_key:
         logger.info("Using OpenAI embeddings for RAGAS evaluation")
         # OpenAI embeddings için retry ve timeout ayarları
+        # LangChain 1.x: request_timeout parametresi kaldırıldı, sadece timeout kullanılmalı
         return OpenAIEmbeddings(
             openai_api_key=openai_api_key,
             model="text-embedding-3-small",  # Daha hızlı ve ucuz
-            timeout=60,  # Timeout artırıldı
-            max_retries=5,  # Retry sayısı artırıldı
-            request_timeout=60  # Request timeout
+            timeout=60,  # Timeout (hem connection hem request timeout için)
+            max_retries=5  # Retry sayısı
         )
     
     error_msg = (
