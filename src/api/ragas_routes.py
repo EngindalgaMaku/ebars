@@ -612,16 +612,24 @@ async def execute_ragas_batch_evaluation(
                     # Calculate aggregate metrics incrementally (for real-time display)
                     successful_results = [r for r in results if r.get("success")]
                     if successful_results:
-                        avg_faithfulness = sum(r["ragas_metrics"]["faithfulness"] for r in successful_results) / len(successful_results)
-                        avg_answer_relevancy = sum(r["ragas_metrics"]["answer_relevancy"] for r in successful_results) / len(successful_results)
-                        avg_overall = sum(r["ragas_metrics"]["overall_score"] for r in successful_results) / len(successful_results)
+                        # Safe sum with None handling - filter out None values
+                        faithfulness_values = [r["ragas_metrics"].get("faithfulness") for r in successful_results if r["ragas_metrics"].get("faithfulness") is not None]
+                        answer_relevancy_values = [r["ragas_metrics"].get("answer_relevancy") for r in successful_results if r["ragas_metrics"].get("answer_relevancy") is not None]
+                        overall_values = [r["ragas_metrics"].get("overall_score") for r in successful_results if r["ragas_metrics"].get("overall_score") is not None]
                         
+                        avg_faithfulness = sum(faithfulness_values) / len(faithfulness_values) if faithfulness_values else 0.0
+                        avg_answer_relevancy = sum(answer_relevancy_values) / len(answer_relevancy_values) if answer_relevancy_values else 0.0
+                        avg_overall = sum(overall_values) / len(overall_values) if overall_values else 0.0
+                        
+                        # Context metrics (optional - may be None)
                         context_results = [r for r in successful_results if r["ragas_metrics"].get("context_precision") is not None]
                         avg_context_precision = None
                         avg_context_recall = None
                         if context_results:
-                            avg_context_precision = sum(r["ragas_metrics"]["context_precision"] for r in context_results) / len(context_results)
-                            avg_context_recall = sum(r["ragas_metrics"]["context_recall"] for r in context_results) / len(context_results)
+                            context_precision_values = [r["ragas_metrics"]["context_precision"] for r in context_results if r["ragas_metrics"].get("context_precision") is not None]
+                            context_recall_values = [r["ragas_metrics"]["context_recall"] for r in context_results if r["ragas_metrics"].get("context_recall") is not None]
+                            avg_context_precision = sum(context_precision_values) / len(context_precision_values) if context_precision_values else None
+                            avg_context_recall = sum(context_recall_values) / len(context_recall_values) if context_recall_values else None
                         
                         test_data["aggregate_metrics"] = {
                             "average_faithfulness": avg_faithfulness,
@@ -690,19 +698,27 @@ async def execute_ragas_batch_evaluation(
                 test_data["failed_questions"] = i + 1 - successful_count
                 _save_ragas_test_to_db(test_id, test_data)
         
-        # Calculate aggregate metrics
+        # Calculate aggregate metrics (final calculation)
         successful_results = [r for r in results if r.get("success")]
         if successful_results:
-            avg_faithfulness = sum(r["ragas_metrics"]["faithfulness"] for r in successful_results) / len(successful_results)
-            avg_answer_relevancy = sum(r["ragas_metrics"]["answer_relevancy"] for r in successful_results) / len(successful_results)
-            avg_overall = sum(r["ragas_metrics"]["overall_score"] for r in successful_results) / len(successful_results)
+            # Safe sum with None handling - filter out None values
+            faithfulness_values = [r["ragas_metrics"].get("faithfulness") for r in successful_results if r["ragas_metrics"].get("faithfulness") is not None]
+            answer_relevancy_values = [r["ragas_metrics"].get("answer_relevancy") for r in successful_results if r["ragas_metrics"].get("answer_relevancy") is not None]
+            overall_values = [r["ragas_metrics"].get("overall_score") for r in successful_results if r["ragas_metrics"].get("overall_score") is not None]
             
+            avg_faithfulness = sum(faithfulness_values) / len(faithfulness_values) if faithfulness_values else 0.0
+            avg_answer_relevancy = sum(answer_relevancy_values) / len(answer_relevancy_values) if answer_relevancy_values else 0.0
+            avg_overall = sum(overall_values) / len(overall_values) if overall_values else 0.0
+            
+            # Context metrics (optional - may be None)
             context_results = [r for r in successful_results if r["ragas_metrics"].get("context_precision") is not None]
             avg_context_precision = None
             avg_context_recall = None
             if context_results:
-                avg_context_precision = sum(r["ragas_metrics"]["context_precision"] for r in context_results) / len(context_results)
-                avg_context_recall = sum(r["ragas_metrics"]["context_recall"] for r in context_results) / len(context_results)
+                context_precision_values = [r["ragas_metrics"]["context_precision"] for r in context_results if r["ragas_metrics"].get("context_precision") is not None]
+                context_recall_values = [r["ragas_metrics"]["context_recall"] for r in context_results if r["ragas_metrics"].get("context_recall") is not None]
+                avg_context_precision = sum(context_precision_values) / len(context_precision_values) if context_precision_values else None
+                avg_context_recall = sum(context_recall_values) / len(context_recall_values) if context_recall_values else None
             
             aggregate_metrics = {
                 "average_faithfulness": avg_faithfulness,
@@ -714,7 +730,8 @@ async def execute_ragas_batch_evaluation(
         else:
             aggregate_metrics = {}
         
-        # Update test data
+        # Update test data - ALWAYS set status to "completed" if we reach here
+        # Even if some questions failed, the test itself completed successfully
         test_data["status"] = "completed"
         test_data["progress"] = 100.0
         test_data["end_time"] = datetime.utcnow().isoformat()
@@ -724,18 +741,23 @@ async def execute_ragas_batch_evaluation(
         test_data["successful_questions"] = len(successful_results)
         test_data["failed_questions"] = total_questions - len(successful_results)
         
+        # CRITICAL: Ensure status is saved as "completed" not "failed"
         RAGAS_TEST_STORAGE[test_id] = test_data
         _save_ragas_test_to_db(test_id, test_data)
         
-        logger.info(f"Batch evaluation completed for test {test_id}")
+        logger.info(f"✅ Batch evaluation completed for test {test_id}: {len(successful_results)}/{total_questions} successful")
         
     except Exception as e:
-        logger.error(f"Batch evaluation failed: {e}", exc_info=True)
+        logger.error(f"❌ Batch evaluation failed: {e}", exc_info=True)
         test_data = RAGAS_TEST_STORAGE.get(test_id)
         if test_data:
+            # Only set to "failed" if there was an actual exception
+            # Don't set to "failed" if test completed but some questions failed
             test_data["status"] = "failed"
             test_data["error"] = str(e)
+            test_data["end_time"] = datetime.utcnow().isoformat()
             _save_ragas_test_to_db(test_id, test_data)
+            logger.error(f"   Test {test_id} marked as failed due to exception")
 
 
 @router.post("/start", summary="Start RAGAS Batch Evaluation")
