@@ -64,55 +64,65 @@ def get_llm():
     """Configure LLM based on environment variables
     
     Priority:
-    1. OpenRouter (ÖNCELİK - sisteminizde çalışıyor)
-    2. Groq (fallback)
+    1. Groq (ÖNCELİK - daha güvenilir ve hızlı)
+    2. OpenRouter (fallback - authentication sorunları olabilir)
     3. OpenAI (fallback)
     """
-    # Önce OpenRouter'ı dene - sisteminizde çalışıyor
+    # Önce Groq'u dene - daha güvenilir
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if groq_api_key:
+        groq_model = os.getenv("RAGAS_GROQ_MODEL", "llama-3.1-8b-instant")
+        logger.info(f"✅ Using Groq LLM for evaluation (model: {groq_model})")
+        try:
+            return ChatGroq(
+                model_name=groq_model,
+                temperature=0,
+                groq_api_key=groq_api_key,
+                timeout=180,
+                max_retries=5
+            )
+        except Exception as e:
+            logger.error(f"❌ Failed to configure Groq: {e}")
+            logger.warning("Falling back to OpenRouter...")
+    
+    # OpenRouter'ı dene (fallback)
     openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
     if openrouter_api_key:
-        logger.info(f"✅ Using OpenRouter LLM for evaluation (API key present: {bool(openrouter_api_key)})")
+        logger.info(f"⚠️ Using OpenRouter LLM for evaluation (API key present: {bool(openrouter_api_key)})")
         # OpenRouter için model seçimi
         openrouter_model = os.getenv("RAGAS_OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
         
         # ChatOpenAI ile OpenRouter kullanımı - authentication düzeltmesi
-        # Model inference service'te direkt HTTP kullanılıyor, ama RAGAS ChatOpenAI bekliyor
-        # Bu yüzden ChatOpenAI'yi OpenRouter için özel yapılandırıyoruz
+        # OpenRouter OpenAI-compatible API kullanıyor, ama özel header'lar gerekiyor
         try:
+            # OpenRouter API key formatını kontrol et
+            if not openrouter_api_key or not openrouter_api_key.strip():
+                raise ValueError("OpenRouter API key is empty or invalid")
+            
             llm = ChatOpenAI(
                 model=openrouter_model,
                 temperature=0,
-                openai_api_key=openrouter_api_key,  # API key
+                openai_api_key=openrouter_api_key,  # LangChain ChatOpenAI için openai_api_key parametresi kullanılmalı
                 base_url="https://openrouter.ai/api/v1",  # OpenRouter endpoint
                 timeout=180,  # LangChain 1.x: timeout hem connection hem request timeout için kullanılır
                 max_retries=5,
-                # OpenRouter için özel headers
+                # OpenRouter için özel headers (HTTP-Referer ve X-Title gerekli)
                 default_headers={
                     "HTTP-Referer": "http://localhost:8010",
                     "X-Title": "RAGAS Evaluation Service"
                 }
             )
-            # ChatOpenAI, openai_api_key'den Authorization header'ını otomatik ekler
-            # Ama base_url değiştiğinde bazen çalışmıyor, bu yüzden test ediyoruz
+            # ChatOpenAI, openai_api_key'den Authorization: Bearer <key> header'ını otomatik ekler
             logger.info(f"✅ ChatOpenAI configured for OpenRouter (model: {openrouter_model})")
+            logger.debug(f"   API Key present: {bool(openrouter_api_key)}")
+            logger.debug(f"   API Key prefix: {openrouter_api_key[:10] if openrouter_api_key else 'None'}...")
             return llm
         except Exception as e:
             logger.error(f"❌ Failed to configure ChatOpenAI for OpenRouter: {e}")
-            # Fallback to Groq
-            logger.warning("Falling back to Groq...")
-    
-    # Groq (fallback)
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    if groq_api_key:
-        groq_model = os.getenv("RAGAS_GROQ_MODEL", "llama-3.1-8b-instant")
-        logger.info(f"Using Groq LLM for evaluation (model: {groq_model})")
-        return ChatGroq(
-            model_name=groq_model,
-            temperature=0,
-            groq_api_key=groq_api_key,
-            timeout=180,
-            max_retries=5
-        )
+            import traceback
+            logger.error(f"   Traceback: {traceback.format_exc()}")
+            # Fallback to OpenAI
+            logger.warning("Falling back to OpenAI...")
     
     # OpenAI direct (son çare)
     openai_api_key = os.getenv("OPENAI_API_KEY")
