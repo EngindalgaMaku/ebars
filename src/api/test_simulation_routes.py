@@ -1512,10 +1512,15 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                     semantic_similarity_scores = [m.get("semantic_similarity") for m in filtered_metrics if m.get("semantic_similarity") is not None]
                     
                     # Extract retrieval metrics (cosine similarity) - only for RAG tests
-                    cosine_similarity_values = [m.get("max_similarity") for m in filtered_metrics if m.get("max_similarity") is not None]
+                    # For llmOnly, cosine_similarity is None (no retrieval), so exclude those
+                    cosine_similarity_values = [
+                        m.get("cosine_similarity") for m in filtered_metrics 
+                        if m.get("cosine_similarity") is not None and not m.get("is_llm_only", False)
+                    ]
                     response_time_values = [m.get("response_time_ms") for m in filtered_metrics if m.get("response_time_ms") is not None]
                     
-                    # Check if this is a semantic similarity test (has semantic_similarity but no cosine_similarity/retrieval)
+                    # Check if this is llmOnly method or semantic similarity test (has semantic_similarity but no cosine_similarity/retrieval)
+                    is_llm_only_method = any(m.get("is_llm_only", False) for m in filtered_metrics)
                     is_semantic_similarity_test = (len(semantic_similarity_scores) > 0 and len(cosine_similarity_values) == 0)
                     
                     # Calculate average similarity metrics for frontend compatibility
@@ -1527,9 +1532,14 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                     avg_f1 = sum(f1_scores) / len(f1_scores) if f1_scores else None
                     
                     method_comparison[method] = {
+                        # For llmOnly method, cosineSimilarity is None (no retrieval performed)
                         # For semantic similarity tests, cosineSimilarity should be None (no retrieval)
                         # For RAG tests, use actual cosine similarity from retrieval
-                        "cosineSimilarity": sum(cosine_similarity_values) / len(cosine_similarity_values) if cosine_similarity_values else (None if is_semantic_similarity_test else 0.0),
+                        "cosineSimilarity": None if is_llm_only_method else (
+                            sum(cosine_similarity_values) / len(cosine_similarity_values) if cosine_similarity_values else (
+                                None if is_semantic_similarity_test else 0.0
+                            )
+                        ),
                         "avgResponseTime": sum(response_time_values) / len(response_time_values) if response_time_values else 0.0,
                         # Accuracy: For semantic similarity tests, use semantic similarity. For RAG tests, use cosine similarity.
                         "accuracy": (avg_semantic * 100 if is_semantic_similarity_test and avg_semantic is not None else 
@@ -2418,7 +2428,9 @@ async def execute_full_test_simulation(
                                 logger.warning(f"No response available for question {question_id}, similarity metrics will be N/A")
                         
                         metrics = {
-                            "cosine_similarity": avg_similarity,  # Keep for backward compatibility, but use max_similarity for calculations
+                            # Cosine similarity: Only for retrieval-based methods (eduBars, basicRag)
+                            # For llmOnly, cosine similarity is N/A (no retrieval performed)
+                            "cosine_similarity": None if is_llm_only else avg_similarity,  # N/A for llmOnly, retrieval similarity for others
                             "max_similarity": max_similarity,  # PRIMARY METRIC: Use this for all comparisons and accuracy
                             "context_relevance": context_relevance,
                             "response_time_ms": result["execution_time_ms"],

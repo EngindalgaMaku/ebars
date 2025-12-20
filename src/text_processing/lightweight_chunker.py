@@ -74,7 +74,7 @@ class ChunkingConfig:
     target_size: int = 512
     min_size: int = 100
     max_size: int = 1024
-    overlap_ratio: float = 0.1
+    overlap_ratio: float = 0.2  # %20 örtüşme (20% overlap)
     
     # Turkish language settings
     language: str = "auto"
@@ -1389,7 +1389,7 @@ class LightweightSemanticChunker:
         self,
         text: str,
         target_size: int = 512,
-        overlap_ratio: float = 0.1,
+        overlap_ratio: float = 0.2,  # %20 örtüşme (20% overlap)
         language: str = "auto",
         use_embedding_analysis: bool = False,  # Ignored for compatibility
         use_llm_post_processing: bool = False,
@@ -1574,7 +1574,7 @@ class LightweightSemanticChunker:
 def create_semantic_chunks(
     text: str,
     target_size: int = 800,
-    overlap_ratio: float = 0.1,
+    overlap_ratio: float = 0.2,  # %20 örtüşme (20% overlap)
     language: str = "auto",
     fallback_strategy: str = "lightweight",  # Updated default
     use_llm_post_processing: bool = False,

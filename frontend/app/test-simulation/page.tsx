@@ -299,7 +299,7 @@ export default function TestSimulationPage() {
       numericValue = Number.isFinite(parsed) ? parsed : null;
     }
     if (numericValue === null) return ["", ""];
-    return [`${Math.round(numericValue)}ms`, "Yan─▒t S├╝resi"];
+    return [`${Math.round(numericValue)}ms`, "Yanıt Süresi"];
   };
 
 
@@ -340,7 +340,7 @@ export default function TestSimulationPage() {
       }
     } catch (error) {
       console.error("Error fetching sessions:", error);
-      setError("Ders oturumlar─▒ y├╝klenemedi");
+      setError("Ders oturumları yüklenemedi");
     } finally {
       setLoadingSessions(false);
     }
@@ -354,7 +354,7 @@ export default function TestSimulationPage() {
       setSelectedSession(sessionData);
     } catch (error) {
       console.error("Error fetching session details:", error);
-      setError("Ders oturumu bilgileri al─▒namad─▒");
+      setError("Ders oturumu bilgileri alınamadı");
     }
   };
 
@@ -504,7 +504,7 @@ export default function TestSimulationPage() {
 
   const startSemanticSimilarityTest = async () => {
     if (!config.testName.trim()) {
-      toast.error("L├╝tfen test ad─▒ girin");
+      toast.error("Lütfen test adı girin");
       return;
     }
 
@@ -513,7 +513,7 @@ export default function TestSimulationPage() {
       setError(null);
 
       if (config.customQuestions.length === 0) {
-        toast.error("L├╝tfen test sorular─▒n─▒ girin");
+        toast.error("Lütfen test sorularını girin");
         return;
       }
 
@@ -542,7 +542,7 @@ export default function TestSimulationPage() {
       if (!response.ok) {
         const error = await response
           .json()
-          .catch(() => ({ error: "Semantic similarity testi ba┼şlat─▒lamad─▒" }));
+          .catch(() => ({ error: "Semantic similarity testi başlatılamadı" }));
         throw new Error(error.error || `HTTP ${response.status}`);
       }
 
@@ -591,7 +591,7 @@ export default function TestSimulationPage() {
       };
 
       setCurrentTest(initialResult);
-      toast.success("Semantic similarity testi ba┼şlat─▒ld─▒");
+      toast.success("Semantic similarity testi başlatıldı");
 
       // Start polling for results
       pollTestStatus(result.testId);
@@ -599,8 +599,8 @@ export default function TestSimulationPage() {
       setTimeout(() => loadTestList(), 1000);
     } catch (err: any) {
       console.error("Semantic similarity test error:", err);
-      setError(err.message || "Semantic similarity testi ba┼şlat─▒lamad─▒");
-      toast.error(err.message || "Semantic similarity testi ba┼şlat─▒lamad─▒");
+      setError(err.message || "Semantic similarity testi başlatılamadı");
+      toast.error(err.message || "Semantic similarity testi başlatılamadı");
       setIsRunning(false);
     }
   };
@@ -608,11 +608,11 @@ export default function TestSimulationPage() {
   // Single Query Comparison Test
   const runSingleQueryComparison = async () => {
     if (!singleQueryQuestion.trim()) {
-      toast.error("L├╝tfen bir soru girin");
+      toast.error("Lütfen bir soru girin");
       return;
     }
     if (!selectedSessionId) {
-      toast.error("L├╝tfen bir session se├ğin");
+      toast.error("Lütfen bir session seçin");
       return;
     }
 
@@ -621,7 +621,7 @@ export default function TestSimulationPage() {
     setError(null);
 
     try {
-      toast.info("Tek sorguluk kar┼ş─▒la┼şt─▒rma testi ba┼şlat─▒l─▒yor...");
+      toast.info("Tek sorguluk karşılaştırma testi başlatılıyor...");
 
       const response = await fetch("/api/test-simulation/single-query-comparison", {
         method: "POST",
@@ -638,18 +638,18 @@ export default function TestSimulationPage() {
       if (!response.ok) {
         const error = await response
           .json()
-          .catch(() => ({ error: "Test ba┼şlat─▒lamad─▒" }));
+          .catch(() => ({ error: "Test başlatılamadı" }));
         throw new Error(error.error || `HTTP ${response.status}`);
       }
 
       const result = await response.json();
       setSingleQueryResult(result);
       
-      toast.success("Test tamamland─▒! Sonu├ğlar g├Âr├╝nt├╝leniyor.");
+      toast.success("Test tamamlandı! Sonuçlar görüntüleniyor.");
     } catch (error: any) {
       console.error("Single query comparison error:", error);
       setError(error.message);
-      toast.error("Test ba┼şar─▒s─▒z: " + error.message);
+      toast.error("Test başarısız: " + error.message);
     } finally {
       setIsRunningSingleQuery(false);
     }
@@ -657,7 +657,7 @@ export default function TestSimulationPage() {
 
   const startTest = async () => {
     if (!config.testName.trim()) {
-      toast.error("L├╝tfen test ad─▒ girin");
+      toast.error("Lütfen test adı girin");
       return;
     }
 
@@ -666,7 +666,7 @@ export default function TestSimulationPage() {
       setError(null);
 
       if (config.customQuestions.length === 0) {
-        toast.error("L├╝tfen test sorular─▒n─▒ girin");
+        toast.error("Lütfen test sorularını girin");
         return;
       }
 
@@ -693,10 +693,10 @@ export default function TestSimulationPage() {
 
       // Debug log to verify expected answers mapping
       if (Object.keys(expectedAnswers).length > 0) {
-        console.log("­şÄ» Expected answers mapping:", expectedAnswers);
-        console.log("­şôØ Test questions count:", testQuestions.length);
+        console.log("✅ Expected answers mapping:", expectedAnswers);
+        console.log("📊 Test questions count:", testQuestions.length);
         console.log(
-          "­şÆí Questions with ground truth:",
+          "📝 Questions with ground truth:",
           Object.keys(expectedAnswers).length
         );
       } else {
@@ -727,7 +727,7 @@ export default function TestSimulationPage() {
       if (!response.ok) {
         const error = await response
           .json()
-          .catch(() => ({ error: "Test ba┼şlat─▒lamad─▒" }));
+          .catch(() => ({ error: "Test başlatılamadı" }));
         throw new Error(error.error || `HTTP ${response.status}`);
       }
 
@@ -777,16 +777,16 @@ export default function TestSimulationPage() {
 
       setCurrentTest(initialResult);
       setActiveTab("monitoring");
-      toast.success("Test ba┼şlat─▒ld─▒!");
+      toast.success("Test başlatıldı!");
 
       // Start polling for test progress
       pollTestStatus(result.testId);
       // Refresh test list after starting a new test
       setTimeout(() => loadTestList(), 1000);
     } catch (error) {
-      console.error("Test ba┼şlatma hatas─▒:", error);
-      setError(error instanceof Error ? error.message : "Test ba┼şlat─▒lamad─▒");
-      toast.error("Test ba┼şlat─▒lamad─▒");
+      console.error("Test başlatma hatası:", error);
+      setError(error instanceof Error ? error.message : "Test başlatılamadı");
+      toast.error("Test başlatılamadı");
       setIsRunning(false);
     }
   };
@@ -804,7 +804,7 @@ export default function TestSimulationPage() {
         const status = await response.json();
 
         // Debug logging to see what data structure is received
-        console.log("­şôè Test Status Update Received:", {
+        console.log("📈 Test Status Update Received:", {
           status: status.status,
           progress: status.progress,
           metrics: status.metrics,
@@ -835,7 +835,7 @@ export default function TestSimulationPage() {
 
           // Debug similarity data structure
           if (status.methodComparison) {
-            console.log("­şöı Method Comparison Similarity Data:", {
+            console.log("🔍 Method Comparison Similarity Data:", {
               eduBars: {
                 similarity: status.methodComparison.eduBars?.similarity,
                 answerQualitySimilarity:
@@ -862,10 +862,10 @@ export default function TestSimulationPage() {
           setIsRunning(false);
 
           if (status.status === "completed") {
-            toast.success("Test tamamland─▒!");
+            toast.success("Test tamamlandı!");
             setActiveTab("results");
           } else if (status.status === "failed") {
-            toast.error("Test ba┼şar─▒s─▒z!");
+            toast.error("Test başarısız!");
             setError("Test execution failed");
           } else if (status.status === "stopped") {
             toast.info("Test durduruldu");
@@ -889,7 +889,7 @@ export default function TestSimulationPage() {
         );
 
         if (!response.ok) {
-          throw new Error("Test durdurulamad─▒");
+          throw new Error("Test durdurulamadı");
         }
 
         const result = await response.json();
@@ -903,7 +903,7 @@ export default function TestSimulationPage() {
         toast.info("Test durduruldu");
       } catch (error) {
         console.error("Stop test error:", error);
-        toast.error("Test durdurulurken hata olu┼ştu");
+        toast.error("Test durdurulurken hata oluştu");
       }
     }
   };
@@ -924,7 +924,7 @@ export default function TestSimulationPage() {
       );
 
       if (!response.ok) {
-        throw new Error("Export ba┼şar─▒s─▒z");
+        throw new Error("Export başarısız");
       }
 
       const timestamp = new Date().toISOString().split("T")[0];
@@ -954,10 +954,10 @@ export default function TestSimulationPage() {
         URL.revokeObjectURL(url);
       }
 
-      toast.success(`${format.toUpperCase()} dosyas─▒ indirildi!`);
+      toast.success(`${format.toUpperCase()} dosyası indirildi!`);
     } catch (error) {
       console.error("Export error:", error);
-      toast.error("Export ba┼şar─▒s─▒z oldu");
+      toast.error("Export başarısız oldu");
 
       // Fallback to client-side export
       const timestamp = new Date().toISOString().split("T")[0];
@@ -1125,7 +1125,7 @@ export default function TestSimulationPage() {
       <TeacherLayout>
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-gray-600">Y├╝kleniyor...</span>
+          <span className="ml-3 text-gray-600">Yükleniyor...</span>
         </div>
       </TeacherLayout>
     );
@@ -1141,10 +1141,10 @@ export default function TestSimulationPage() {
               <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl">
                 <Brain className="h-8 w-8 text-white" />
               </div>
-              Metodoloji Test Sim├╝lasyonu
+              Metodoloji Test Simülasyonu
             </h1>
             <p className="text-gray-600 mt-1">
-              Ak─▒ll─▒Rehber Performans Analizi ve Kar┼ş─▒la┼şt─▒rma Testleri
+              AkıllıRehber Performans Analizi ve Karşılaştırma Testleri
             </p>
           </div>
         </div>
@@ -1166,7 +1166,7 @@ export default function TestSimulationPage() {
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
-                  Test Ge├ğmi┼şi
+                  Test Geçmişi
                 </div>
                 <Button
                   onClick={loadTestList}
@@ -1185,7 +1185,7 @@ export default function TestSimulationPage() {
             <CardContent>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">
-                  G├Âr├╝nt├╝lenecek Testi Se├ğin:
+                  Görüntülenecek Testi Seçin:
                 </label>
                 <select
                   value={selectedTestId || ""}
@@ -1196,16 +1196,16 @@ export default function TestSimulationPage() {
                   }}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="">Yeni test ba┼şlat...</option>
+                  <option value="">Yeni test başlat...</option>
                   {testList.map((test) => (
                     <option key={test.testId} value={test.testId}>
                       {test.testName} -{" "}
                       {test.status === "completed"
-                        ? "Ô£à Tamamland─▒"
+                        ? "✅ Tamamlandı"
                         : test.status === "running"
-                        ? "­şöä ├çal─▒┼ş─▒yor"
+                        ? "🔄 Çalışıyor"
                         : test.status === "failed"
-                        ? "ÔØî Ba┼şar─▒s─▒z"
+                        ? "❌ Başarısız"
                         : test.status}{" "}
                       -{" "}
                       {new Date(
@@ -1220,10 +1220,10 @@ export default function TestSimulationPage() {
                 </select>
                 {selectedTestId && currentTest && (
                   <div className="mt-2 text-sm text-gray-600">
-                    <span className="font-medium">Se├ğili Test:</span>{" "}
+                    <span className="font-medium">Seçili Test:</span>{" "}
                     {currentTest.testName} -{" "}
                     {currentTest.status === "completed"
-                      ? "Tamamland─▒"
+                      ? "Tamamlandı"
                       : currentTest.status}
                     {currentTest.testType && (
                       <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
@@ -1247,7 +1247,7 @@ export default function TestSimulationPage() {
               className="flex items-center gap-2"
             >
               <Settings className="h-4 w-4" />
-              Konfig├╝rasyon
+              Konfigürasyon
             </TabsTrigger>
             <TabsTrigger value="monitoring" className="flex items-center gap-2">
               <Activity className="h-4 w-4" />
@@ -1271,22 +1271,22 @@ export default function TestSimulationPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Target className="h-5 w-5 text-blue-500" />
-                    Temel Test Ayarlar─▒
+                    Temel Test Ayarları
                   </CardTitle>
                   <CardDescription>
-                    Test parametrelerini yap─▒land─▒r─▒n
+                    Test parametrelerini yapılandırın
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="testName">Test Ad─▒</Label>
+                    <Label htmlFor="testName">Test Adı</Label>
                     <Input
                       id="testName"
                       value={config.testName}
                       onChange={(e) =>
                         setConfig({ ...config, testName: e.target.value })
                       }
-                      placeholder="├ûrn: RAG Performans Testi #1"
+                      placeholder="Örn: RAG Performans Testi #1"
                     />
                   </div>
 
@@ -2181,7 +2181,7 @@ export default function TestSimulationPage() {
                     Hen├╝z Aktif Test Yok
                   </h3>
                   <p className="text-gray-500 mb-4">
-                    Monitoring verilerini g├Ârmek i├ğin ├Ânce bir test ba┼şlat─▒n.
+                    Monitoring verilerini görmek için önce bir test başlatın.
                   </p>
                   <Button
                     onClick={() => setActiveTab("configuration")}
@@ -2940,7 +2940,7 @@ export default function TestSimulationPage() {
                     Hen├╝z Sonu├ğ Yok
                   </h3>
                   <p className="text-gray-500 mb-4">
-                    Sonu├ğlar─▒ g├Ârmek i├ğin ├Ânce bir test ba┼şlat─▒n ve tamamlay─▒n.
+                    Sonuçları görmek için önce bir test başlatın ve tamamlayın.
                   </p>
                   <Button
                     onClick={() => setActiveTab("configuration")}
@@ -4276,7 +4276,7 @@ export default function TestSimulationPage() {
                     Hen├╝z Detayl─▒ Sonu├ğ Yok
                   </h3>
                   <p className="text-gray-500 mb-4">
-                    Detayl─▒ sonu├ğlar─▒ g├Ârmek i├ğin ├Ânce bir test ba┼şlat─▒n ve
+                    Detaylı sonuçları görmek için önce bir test başlatın ve
                     tamamlay─▒n.
                   </p>
                   <Button

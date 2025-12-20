@@ -151,13 +151,13 @@ def add_document_to_store(
     # Use GROQ-powered semantic chunking if available
     try:
         print(f"🧠 Using GROQ-powered semantic chunking...")
-        print(f"🔧 Text length: {len(text)}, target_size: {chunk_size or 800}, overlap_ratio: {(chunk_overlap or 100) / (chunk_size or 800)}")
+        print(f"🔧 Text length: {len(text)}, target_size: {chunk_size or 800}, overlap_ratio: {(chunk_overlap or 160) / (chunk_size or 800)}")
         print(f"🔧 Fallback strategy: {strategy or 'markdown'}")
         
         chunks = create_semantic_chunks(
             text,
             target_size=chunk_size or 800,
-            overlap_ratio=(chunk_overlap or 100) / (chunk_size or 800),
+            overlap_ratio=(chunk_overlap or 160) / (chunk_size or 800),
             language="auto",
             fallback_strategy=strategy or "markdown"
         )

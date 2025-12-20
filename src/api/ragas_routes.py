@@ -177,7 +177,14 @@ async def evaluate_rag(request: RAGASEvaluationRequest):
         logger.info(f"Evaluating RAG performance for question: {request.question[:50]}...")
         
         # Forward request to RAGAS service
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        # Increased timeout to 300 seconds (5 minutes) for RAGAS evaluation
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            logger.info(f"📡 Sending request to RAGAS service at {RAGAS_SERVICE_URL}/evaluate")
+            logger.debug(f"   Question: {request.question[:50]}...")
+            logger.debug(f"   Answer length: {len(request.answer)} chars")
+            logger.debug(f"   Contexts count: {len(request.contexts)}")
+            logger.debug(f"   Ground truth: {'Yes' if request.ground_truth else 'No'}")
+            
             response = await client.post(
                 f"{RAGAS_SERVICE_URL}/evaluate",
                 json={
@@ -188,27 +195,86 @@ async def evaluate_rag(request: RAGASEvaluationRequest):
                 }
             )
             
+            logger.info(f"📥 RAGAS service response: {response.status_code}")
+            
             if response.status_code != 200:
-                error_text = await response.aread()
-                logger.error(f"RAGAS service error: {response.status_code} - {error_text.decode()}")
+                try:
+                    error_text = await response.aread()
+                    error_str = error_text.decode() if error_text else "Unknown error"
+                    logger.error(f"❌ RAGAS service error: {response.status_code} - {error_str[:500]}")
+                    raise HTTPException(
+                        status_code=response.status_code,
+                        detail=f"RAGAS service error: {error_str[:500]}"
+                    )
+                except Exception as e:
+                    logger.error(f"❌ Failed to read error response: {e}")
+                    raise HTTPException(
+                        status_code=response.status_code,
+                        detail=f"RAGAS service returned status {response.status_code}"
+                    )
+            
+            # Parse response with better error handling
+            try:
+                response_text = await response.aread()
+                if not response_text:
+                    logger.error("❌ RAGAS service returned empty response")
+                    raise HTTPException(
+                        status_code=502,
+                        detail="RAGAS service returned empty response"
+                    )
+                
+                result = json.loads(response_text.decode())
+                logger.info(f"✅ RAGAS response parsed successfully")
+                logger.debug(f"   Result keys: {list(result.keys())}")
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"❌ Failed to parse RAGAS response as JSON: {e}")
+                logger.error(f"   Response text (first 500 chars): {response_text.decode()[:500] if response_text else 'None'}")
                 raise HTTPException(
-                    status_code=response.status_code,
-                    detail=f"RAGAS service error: {error_text.decode()}"
+                    status_code=502,
+                    detail=f"RAGAS service returned invalid JSON: {str(e)[:200]}"
+                )
+            except Exception as e:
+                logger.error(f"❌ Error reading RAGAS response: {e}")
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Failed to read RAGAS service response: {str(e)[:200]}"
                 )
             
-            result = response.json()
+            # Validate response has required fields
+            if not isinstance(result, dict):
+                logger.error(f"❌ RAGAS response is not a dictionary: {type(result)}")
+                raise HTTPException(
+                    status_code=502,
+                    detail="RAGAS service returned invalid response format"
+                )
             
             # Determine which metrics were calculated
             metrics_available = ["faithfulness", "answer_relevancy"]
             if request.ground_truth:
                 metrics_available.extend(["context_precision", "context_recall"])
             
+            # Extract metrics with validation
+            faithfulness = result.get("faithfulness")
+            answer_relevancy = result.get("answer_relevancy")
+            overall_score = result.get("overall_score")
+            
+            # Log extracted metrics
+            logger.info(f"📊 Extracted metrics:")
+            logger.info(f"   Faithfulness: {faithfulness}")
+            logger.info(f"   Answer Relevancy: {answer_relevancy}")
+            logger.info(f"   Overall Score: {overall_score}")
+            
+            # Validate required metrics
+            if faithfulness is None or answer_relevancy is None:
+                logger.warning(f"⚠️ Some required metrics are missing: faithfulness={faithfulness}, answer_relevancy={answer_relevancy}")
+            
             return RAGASEvaluationResponse(
-                faithfulness=result.get("faithfulness", 0.0),
-                answer_relevancy=result.get("answer_relevancy", 0.0),
+                faithfulness=faithfulness if faithfulness is not None else 0.0,
+                answer_relevancy=answer_relevancy if answer_relevancy is not None else 0.0,
                 context_precision=result.get("context_precision"),
                 context_recall=result.get("context_recall"),
-                overall_score=result.get("overall_score", 0.0),
+                overall_score=overall_score if overall_score is not None else 0.0,
                 metrics_available=metrics_available
             )
             
@@ -260,34 +326,82 @@ async def execute_rag_query(session_id: str, question: str, session_settings: Op
             execution_time = (time.time() - start_time) * 1000
             
             if response.status_code == 200:
-                result = response.json()
-                
-                # Extract answer and contexts
-                answer = result.get("answer", "")
-                sources = result.get("sources", [])
-                contexts = []
-                for source in sources:
-                    content = source.get("content") or source.get("chunk_text") or source.get("text", "")
-                    if content:
-                        contexts.append(content)
-                
-                return {
-                    "success": True,
-                    "answer": answer,
-                    "contexts": contexts,
-                    "sources": sources,
-                    "response_time_ms": execution_time
-                }
+                try:
+                    result = response.json()
+                    
+                    # Validate response structure
+                    if not isinstance(result, dict):
+                        logger.error(f"RAG query returned non-dict response: {type(result)}")
+                        return {
+                            "success": False,
+                            "error": "Invalid response format from RAG service",
+                            "answer": "",
+                            "contexts": [],
+                            "sources": [],
+                            "response_time_ms": execution_time
+                        }
+                    
+                    # Extract answer and contexts
+                    answer = result.get("answer", "")
+                    sources = result.get("sources", [])
+                    contexts = []
+                    
+                    if not sources:
+                        logger.warning(f"No sources returned from RAG query")
+                    
+                    for source in sources:
+                        if isinstance(source, dict):
+                            content = source.get("content") or source.get("chunk_text") or source.get("text", "")
+                            if content:
+                                contexts.append(content)
+                        elif isinstance(source, str):
+                            contexts.append(source)
+                    
+                    if not answer:
+                        logger.warning(f"Empty answer returned from RAG query")
+                    
+                    logger.info(f"✅ RAG query successful: answer_length={len(answer)}, contexts_count={len(contexts)}")
+                    
+                    return {
+                        "success": True,
+                        "answer": answer,
+                        "contexts": contexts,
+                        "sources": sources,
+                        "response_time_ms": execution_time
+                    }
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse RAG response as JSON: {e}")
+                    return {
+                        "success": False,
+                        "error": f"Failed to parse RAG response: {str(e)[:200]}",
+                        "answer": "",
+                        "contexts": [],
+                        "sources": [],
+                        "response_time_ms": execution_time
+                    }
             else:
-                error_text = await response.aread()
-                return {
-                    "success": False,
-                    "error": f"API Error: {response.status_code} - {error_text.decode()[:200]}",
-                    "answer": "",
-                    "contexts": [],
-                    "sources": [],
-                    "response_time_ms": execution_time
-                }
+                try:
+                    error_text = await response.aread()
+                    error_str = error_text.decode()[:500] if error_text else f"HTTP {response.status_code}"
+                    logger.error(f"RAG query failed: {response.status_code} - {error_str}")
+                    return {
+                        "success": False,
+                        "error": f"API Error: {response.status_code} - {error_str}",
+                        "answer": "",
+                        "contexts": [],
+                        "sources": [],
+                        "response_time_ms": execution_time
+                    }
+                except Exception as e:
+                    logger.error(f"Failed to read error response: {e}")
+                    return {
+                        "success": False,
+                        "error": f"API Error: {response.status_code} - Failed to read error message",
+                        "answer": "",
+                        "contexts": [],
+                        "sources": [],
+                        "response_time_ms": execution_time
+                    }
     except Exception as e:
         execution_time = (time.time() - start_time) * 1000
         logger.error(f"Failed to execute RAG query: {e}")
@@ -354,27 +468,77 @@ async def execute_ragas_batch_evaluation(
                 # Get ground truth if available
                 ground_truth = expected_answers.get(i) if expected_answers else None
                 
+                # Validate RAG result before evaluation
+                if not rag_result.get("answer"):
+                    logger.warning(f"Question {i+1} has empty answer, skipping RAGAS evaluation")
+                    results.append({
+                        "question_id": i + 1,
+                        "question": question,
+                        "success": False,
+                        "error": "Empty answer from RAG query"
+                    })
+                    continue
+                
+                if not rag_result.get("contexts"):
+                    logger.warning(f"Question {i+1} has no contexts, RAGAS evaluation may be limited")
+                
                 # Evaluate with RAGAS
-                ragas_request = RAGASEvaluationRequest(
-                    question=question,
-                    answer=rag_result["answer"],
-                    contexts=rag_result["contexts"],
-                    ground_truth=ground_truth
-                )
-                
-                ragas_result = await evaluate_rag(ragas_request)
-                
-                results.append({
-                    "question_id": i + 1,
-                    "question": question,
-                    "answer": rag_result["answer"],
-                    "contexts": rag_result["contexts"],
-                    "ground_truth": ground_truth,
-                    "ragas_metrics": ragas_result.dict(),
-                    "response_time_ms": rag_result["response_time_ms"],
-                    "retrieval_count": len(rag_result["contexts"]),
-                    "success": True
-                })
+                try:
+                    ragas_request = RAGASEvaluationRequest(
+                        question=question,
+                        answer=rag_result["answer"],
+                        contexts=rag_result["contexts"] or [""],  # Ensure at least empty list
+                        ground_truth=ground_truth
+                    )
+                    
+                    logger.info(f"Evaluating question {i+1} with RAGAS...")
+                    ragas_result = await evaluate_rag(ragas_request)
+                    
+                    # Validate RAGAS result
+                    if not ragas_result:
+                        logger.error(f"RAGAS returned empty result for question {i+1}")
+                        results.append({
+                            "question_id": i + 1,
+                            "question": question,
+                            "success": False,
+                            "error": "RAGAS evaluation returned empty result"
+                        })
+                        continue
+                    
+                    # Convert to dict safely
+                    ragas_metrics = ragas_result.dict() if hasattr(ragas_result, 'dict') else ragas_result
+                    
+                    logger.info(f"✅ Question {i+1} evaluated successfully: faithfulness={ragas_metrics.get('faithfulness')}, answer_relevancy={ragas_metrics.get('answer_relevancy')}")
+                    
+                    results.append({
+                        "question_id": i + 1,
+                        "question": question,
+                        "answer": rag_result["answer"],
+                        "contexts": rag_result["contexts"],
+                        "ground_truth": ground_truth,
+                        "ragas_metrics": ragas_metrics,
+                        "response_time_ms": rag_result["response_time_ms"],
+                        "retrieval_count": len(rag_result["contexts"]),
+                        "success": True
+                    })
+                except HTTPException as http_e:
+                    logger.error(f"HTTP error evaluating question {i+1}: {http_e.detail}")
+                    results.append({
+                        "question_id": i + 1,
+                        "question": question,
+                        "success": False,
+                        "error": f"RAGAS evaluation HTTP error: {http_e.detail[:200]}"
+                    })
+                except Exception as ragas_error:
+                    logger.error(f"RAGAS evaluation failed for question {i+1}: {ragas_error}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    results.append({
+                        "question_id": i + 1,
+                        "question": question,
+                        "success": False,
+                        "error": f"RAGAS evaluation error: {str(ragas_error)[:200]}"
+                    })
                 
             except Exception as e:
                 logger.error(f"Failed to evaluate question {i+1}: {e}")

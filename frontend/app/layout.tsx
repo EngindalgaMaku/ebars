@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 export const metadata: Metadata = {
   title: "RAG Eğitim Platformu",
   description: "Yapay Zeka Destekli Kişiselleştirilmiş Eğitim Platformu",
+  charset: "utf-8",
 };
 
 export default function RootLayout({
@@ -16,6 +17,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="tr" className="h-full" suppressHydrationWarning>
+      <head>
+        <meta charSet="utf-8" />
+        <meta httpEquiv="Content-Type" content="text/html; charset=utf-8" />
+      </head>
       <body className="h-full bg-background text-foreground font-sans antialiased overflow-x-hidden">
         <ThemeProvider>
           <AuthProvider>

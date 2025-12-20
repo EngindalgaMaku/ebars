@@ -68,3 +68,5 @@ print("Şema 'deneysel_tasarim_sema.png' olarak kaydedildi.")
 
 
 
+
+
