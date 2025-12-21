@@ -207,16 +207,27 @@ async def rag_query(request: RAGQueryRequest):
         
         # Step 6: Rerank (optional)
         # Check use_rerank from request or session settings (request takes priority)
+        # CRITICAL: Explicitly check for False, not just falsy values
         effective_use_rerank = request.use_rerank
         if effective_use_rerank is None:
             # If not specified in request, check session settings
-            effective_use_rerank = session_rag_settings.get("use_rerank", False)
+            effective_use_rerank = session_rag_settings.get("use_rerank")
+            # Also check use_reranker_service as fallback
+            if effective_use_rerank is None:
+                use_reranker_service = session_rag_settings.get("use_reranker_service")
+                if use_reranker_service is not None:
+                    effective_use_rerank = use_reranker_service
+                else:
+                    effective_use_rerank = False  # Default to False if nothing specified
         
-        if effective_use_rerank and context_docs:
-            logger.info(f"🔍 Rerank enabled: Applying reranking to {len(context_docs)} documents (from request: {request.use_rerank}, session: {session_rag_settings.get('use_rerank')})")
+        logger.info(f"🔍 [RERANKER CHECK] request.use_rerank={request.use_rerank}, session.use_rerank={session_rag_settings.get('use_rerank')}, session.use_reranker_service={session_rag_settings.get('use_reranker_service')}, effective={effective_use_rerank}")
+        
+        # CRITICAL: Only rerank if explicitly True
+        if effective_use_rerank is True and context_docs:
+            logger.info(f"🔍 Rerank enabled: Applying reranking to {len(context_docs)} documents")
             context_docs = _apply_rerank(request.query, context_docs)
         else:
-            logger.info(f"⏭️ Rerank disabled: Skipping reranking (from request: {request.use_rerank}, session: {session_rag_settings.get('use_rerank')})")
+            logger.info(f"🚫 Rerank DISABLED: Skipping reranking (effective_use_rerank={effective_use_rerank})")
             # Clear any existing rerank scores if reranking is disabled
             for doc in context_docs:
                 if "rerank_score" in doc:
