@@ -1013,17 +1013,30 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
         _require_owner_or_admin(http_request, test_data.get("session_id", ""))
         
         # Create PDF in memory
+        # ReportLab handles Unicode automatically when using Paragraph
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+        doc = SimpleDocTemplate(
+            buffer, 
+            pagesize=A4, 
+            topMargin=0.5*inch, 
+            bottomMargin=0.5*inch
+        )
         
         # Helper function to escape HTML and handle Turkish characters
         def escape_html(text):
-            """Escape HTML special characters for ReportLab Paragraph"""
-            if not text:
+            """Escape HTML special characters for ReportLab Paragraph, preserving Unicode"""
+            if text is None:
                 return ""
-            # Convert to string if not already
+            # Ensure we have a Unicode string (not bytes)
+            if isinstance(text, bytes):
+                try:
+                    text = text.decode('utf-8')
+                except UnicodeDecodeError:
+                    text = text.decode('latin-1', errors='ignore')
+            # Convert to string, ensuring Unicode
             text = str(text)
-            # Replace HTML special characters
+            # Replace HTML special characters (but preserve Turkish/Unicode characters)
+            # Order matters: & must be first
             text = text.replace("&", "&amp;")
             text = text.replace("<", "&lt;")
             text = text.replace(">", "&gt;")
@@ -1057,13 +1070,13 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
         failed_questions = test_data.get("failed_questions", 0)
         
         info_data = [
-            [escape_html("Test Adı:"), escape_html(test_name)],
-            [escape_html("Durum:"), escape_html(status.upper())],
-            [escape_html("Başlangıç:"), escape_html(start_time[:19] if start_time else "N/A")],
-            [escape_html("Bitiş:"), escape_html(end_time[:19] if end_time else "N/A")],
-            [escape_html("Toplam Soru:"), escape_html(str(total_questions))],
-            [escape_html("Başarılı:"), escape_html(str(successful_questions))],
-            [escape_html("Başarısız:"), escape_html(str(failed_questions))],
+            ["Test Adı:", test_name],
+            ["Durum:", status.upper()],
+            ["Başlangıç:", start_time[:19] if start_time else "N/A"],
+            ["Bitiş:", end_time[:19] if end_time else "N/A"],
+            ["Toplam Soru:", str(total_questions)],
+            ["Başarılı:", str(successful_questions)],
+            ["Başarısız:", str(failed_questions)],
         ]
         
         # Convert table data to Paragraphs for Unicode support
@@ -1095,17 +1108,17 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
             elements.append(Paragraph(escape_html("Ortalama Metrikler"), styles['Heading2']))
             elements.append(Spacer(1, 0.1*inch))
             
-            metrics_data = [[escape_html("Metrik"), escape_html("Skor (%)")]]
+            metrics_data = [["Metrik", "Skor (%)"]]
             if aggregate_metrics.get("average_faithfulness") is not None:
-                metrics_data.append([escape_html("Faithfulness"), escape_html(f"{aggregate_metrics['average_faithfulness']*100:.1f}%")])
+                metrics_data.append(["Faithfulness", f"{aggregate_metrics['average_faithfulness']*100:.1f}%"])
             if aggregate_metrics.get("average_answer_relevancy") is not None:
-                metrics_data.append([escape_html("Answer Relevancy"), escape_html(f"{aggregate_metrics['average_answer_relevancy']*100:.1f}%")])
+                metrics_data.append(["Answer Relevancy", f"{aggregate_metrics['average_answer_relevancy']*100:.1f}%"])
             if aggregate_metrics.get("average_context_precision") is not None:
-                metrics_data.append([escape_html("Context Precision"), escape_html(f"{aggregate_metrics['average_context_precision']*100:.1f}%")])
+                metrics_data.append(["Context Precision", f"{aggregate_metrics['average_context_precision']*100:.1f}%"])
             if aggregate_metrics.get("average_context_recall") is not None:
-                metrics_data.append([escape_html("Context Recall"), escape_html(f"{aggregate_metrics['average_context_recall']*100:.1f}%")])
+                metrics_data.append(["Context Recall", f"{aggregate_metrics['average_context_recall']*100:.1f}%"])
             if aggregate_metrics.get("average_overall_score") is not None:
-                metrics_data.append([escape_html("Genel Skor"), escape_html(f"{aggregate_metrics['average_overall_score']*100:.1f}%")])
+                metrics_data.append(["Genel Skor", f"{aggregate_metrics['average_overall_score']*100:.1f}%"])
             
             # Convert table data to Paragraphs for Unicode support
             metrics_table_data = []
@@ -1157,17 +1170,17 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
                 elements.append(Paragraph(escape_html(f"{idx}. {question}"), question_style))
                 
                 # Metrics table for this question
-                q_metrics_data = [[escape_html("Metrik"), escape_html("Skor (%)")]]
+                q_metrics_data = [["Metrik", "Skor (%)"]]
                 if ragas_metrics.get("faithfulness") is not None:
-                    q_metrics_data.append([escape_html("Faithfulness"), escape_html(f"{ragas_metrics['faithfulness']*100:.1f}%")])
+                    q_metrics_data.append(["Faithfulness", f"{ragas_metrics['faithfulness']*100:.1f}%"])
                 if ragas_metrics.get("answer_relevancy") is not None:
-                    q_metrics_data.append([escape_html("Answer Relevancy"), escape_html(f"{ragas_metrics['answer_relevancy']*100:.1f}%")])
+                    q_metrics_data.append(["Answer Relevancy", f"{ragas_metrics['answer_relevancy']*100:.1f}%"])
                 if ragas_metrics.get("context_precision") is not None:
-                    q_metrics_data.append([escape_html("Context Precision"), escape_html(f"{ragas_metrics['context_precision']*100:.1f}%")])
+                    q_metrics_data.append(["Context Precision", f"{ragas_metrics['context_precision']*100:.1f}%"])
                 if ragas_metrics.get("context_recall") is not None:
-                    q_metrics_data.append([escape_html("Context Recall"), escape_html(f"{ragas_metrics['context_recall']*100:.1f}%")])
+                    q_metrics_data.append(["Context Recall", f"{ragas_metrics['context_recall']*100:.1f}%"])
                 if ragas_metrics.get("overall_score") is not None:
-                    q_metrics_data.append([escape_html("Genel Skor"), escape_html(f"{ragas_metrics['overall_score']*100:.1f}%")])
+                    q_metrics_data.append(["Genel Skor", f"{ragas_metrics['overall_score']*100:.1f}%"])
                 
                 # Convert table data to Paragraphs for Unicode support
                 q_metrics_table_data = []
@@ -1224,12 +1237,31 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
         buffer.seek(0)
         
         # Return PDF as response
-        filename = f"ragas_test_{test_id[:8]}_{test_name.replace(' ', '_')}.pdf"
+        # Clean filename: remove Turkish characters and special chars for safe filename
+        import re
+        safe_test_name = re.sub(r'[^\w\s-]', '', test_name).strip()
+        safe_test_name = safe_test_name.replace(' ', '_')
+        # Remove Turkish characters for filename (keep content with Turkish chars)
+        turkish_char_map = {
+            'ş': 's', 'Ş': 'S', 'ğ': 'g', 'Ğ': 'G',
+            'ü': 'u', 'Ü': 'U', 'ö': 'o', 'Ö': 'O',
+            'ç': 'c', 'Ç': 'C', 'ı': 'i', 'İ': 'I'
+        }
+        for tr_char, en_char in turkish_char_map.items():
+            safe_test_name = safe_test_name.replace(tr_char, en_char)
+        
+        filename = f"ragas_test_{test_id[:8]}_{safe_test_name[:50]}.pdf"
+        
+        # Use RFC 5987 encoding for filename with Turkish characters in Content-Disposition
+        from urllib.parse import quote
+        encoded_filename = quote(test_name.encode('utf-8'))
+        safe_filename = filename.encode('ascii', 'ignore').decode('ascii')
+        
         return Response(
             content=buffer.getvalue(),
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
+                "Content-Disposition": f'attachment; filename="{safe_filename}"; filename*=UTF-8\'\'{encoded_filename}.pdf'
             }
         )
         
