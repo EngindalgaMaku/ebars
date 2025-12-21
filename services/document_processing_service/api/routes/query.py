@@ -206,11 +206,17 @@ async def rag_query(request: RAGQueryRequest):
             )
         
         # Step 6: Rerank (optional)
-        if request.use_rerank and context_docs:
-            logger.info(f"🔍 Rerank enabled: Applying reranking to {len(context_docs)} documents")
+        # Check use_rerank from request or session settings (request takes priority)
+        effective_use_rerank = request.use_rerank
+        if effective_use_rerank is None:
+            # If not specified in request, check session settings
+            effective_use_rerank = session_rag_settings.get("use_rerank", False)
+        
+        if effective_use_rerank and context_docs:
+            logger.info(f"🔍 Rerank enabled: Applying reranking to {len(context_docs)} documents (from request: {request.use_rerank}, session: {session_rag_settings.get('use_rerank')})")
             context_docs = _apply_rerank(request.query, context_docs)
         else:
-            logger.info(f"⏭️ Rerank disabled: Skipping reranking")
+            logger.info(f"⏭️ Rerank disabled: Skipping reranking (from request: {request.use_rerank}, session: {session_rag_settings.get('use_rerank')})")
             # Clear any existing rerank scores if reranking is disabled
             for doc in context_docs:
                 if "rerank_score" in doc:
@@ -244,7 +250,7 @@ async def rag_query(request: RAGQueryRequest):
                 similarity_score = doc.get("score", 0.0)
                 # Only use rerank_score if reranking was enabled, otherwise use 0.0
                 # Also check CRAG score only if CRAG was enabled
-                if request.use_rerank:
+                if effective_use_rerank:
                     rerank_score = doc.get("rerank_score", 0.0)
                 elif request.use_crag is True:
                     # If CRAG was enabled, use CRAG score instead of rerank score
@@ -317,7 +323,7 @@ async def rag_query(request: RAGQueryRequest):
             conversation_history=request.conversation_history,
             chain_type=chain_type,
             max_context_chars=request.max_context_chars,
-            use_rerank=request.use_rerank,
+            use_rerank=effective_use_rerank,  # Use effective use_rerank from session settings
             use_crag=request.use_crag if request.use_crag is not None else False
         )
         
