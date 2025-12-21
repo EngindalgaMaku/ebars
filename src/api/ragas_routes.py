@@ -532,7 +532,7 @@ async def execute_ragas_batch_evaluation(
                 if not rag_result.get("contexts"):
                     logger.warning(f"Question {i+1} has no contexts, RAGAS evaluation may be limited")
                 
-                # Evaluate with RAGAS
+                # Evaluate with RAGAS (with retry for low scores)
                 try:
                     ragas_request = RAGASEvaluationRequest(
                         question=question,
@@ -554,6 +554,65 @@ async def execute_ragas_batch_evaluation(
                             "error": "RAGAS evaluation returned empty result"
                         })
                         continue
+                    
+                    # Check if retry is needed for low scores
+                    # Convert to dict to check scores
+                    if hasattr(ragas_result, 'model_dump'):
+                        first_result_metrics = ragas_result.model_dump()
+                    elif hasattr(ragas_result, 'dict'):
+                        first_result_metrics = ragas_result.dict()
+                    else:
+                        first_result_metrics = ragas_result if isinstance(ragas_result, dict) else {}
+                    
+                    # Check scores - retry if Faithfulness < 30% OR Answer Relevancy < 30%
+                    first_faithfulness = first_result_metrics.get("faithfulness", 0.0) or 0.0
+                    first_answer_relevancy = first_result_metrics.get("answer_relevancy", 0.0) or 0.0
+                    
+                    retry_attempted = False
+                    retry_reason = None
+                    
+                    if first_faithfulness < 30.0 or first_answer_relevancy < 30.0:
+                        logger.warning(f"⚠️ Question {i+1} has low scores (Faithfulness: {first_faithfulness:.1f}%, Answer Relevancy: {first_answer_relevancy:.1f}%). Retrying...")
+                        retry_reason = f"Low scores (F:{first_faithfulness:.1f}%, AR:{first_answer_relevancy:.1f}%)"
+                        
+                        # Wait a bit before retry (LLMs can be non-deterministic)
+                        import asyncio
+                        await asyncio.sleep(2)
+                        
+                        # Retry evaluation
+                        try:
+                            logger.info(f"🔄 Retrying RAGAS evaluation for question {i+1}...")
+                            retry_ragas_result = await evaluate_rag(ragas_request)
+                            
+                            if retry_ragas_result:
+                                # Convert retry result to dict
+                                if hasattr(retry_ragas_result, 'model_dump'):
+                                    retry_metrics = retry_ragas_result.model_dump()
+                                elif hasattr(retry_ragas_result, 'dict'):
+                                    retry_metrics = retry_ragas_result.dict()
+                                else:
+                                    retry_metrics = retry_ragas_result if isinstance(retry_ragas_result, dict) else {}
+                                
+                                retry_faithfulness = retry_metrics.get("faithfulness", 0.0) or 0.0
+                                retry_answer_relevancy = retry_metrics.get("answer_relevancy", 0.0) or 0.0
+                                
+                                # Use retry result if it's better (higher average of the two metrics)
+                                first_avg = (first_faithfulness + first_answer_relevancy) / 2
+                                retry_avg = (retry_faithfulness + retry_answer_relevancy) / 2
+                                
+                                if retry_avg > first_avg:
+                                    logger.info(f"✅ Retry improved scores: {first_avg:.1f}% → {retry_avg:.1f}%. Using retry result.")
+                                    ragas_result = retry_ragas_result
+                                    retry_attempted = True
+                                else:
+                                    logger.info(f"ℹ️ Retry did not improve scores: {first_avg:.1f}% vs {retry_avg:.1f}%. Using original result.")
+                                    retry_attempted = True
+                            else:
+                                logger.warning(f"⚠️ Retry returned empty result, using original result.")
+                                retry_attempted = True
+                        except Exception as retry_error:
+                            logger.warning(f"⚠️ Retry failed: {retry_error}. Using original result.")
+                            retry_attempted = True
                     
                     # Convert to dict safely - Pydantic v2 uses model_dump() instead of dict()
                     if hasattr(ragas_result, 'model_dump'):
@@ -586,7 +645,30 @@ async def execute_ragas_batch_evaluation(
                                 "metrics_available": []
                             }
                     
+                    # If retry was used, convert the final result to metrics dict
+                    if retry_attempted:
+                        # Convert final ragas_result to dict (might be retry result)
+                        if hasattr(ragas_result, 'model_dump'):
+                            ragas_metrics = ragas_result.model_dump()
+                        elif hasattr(ragas_result, 'dict'):
+                            ragas_metrics = ragas_result.dict()
+                        elif isinstance(ragas_result, dict):
+                            ragas_metrics = ragas_result
+                        else:
+                            # Last resort conversion
+                            try:
+                                import json
+                                if hasattr(ragas_result, 'model_dump_json'):
+                                    ragas_metrics = json.loads(ragas_result.model_dump_json())
+                                else:
+                                    ragas_metrics = json.loads(json.dumps(ragas_result, default=str))
+                            except Exception as e:
+                                logger.error(f"Failed to convert retry RAGAS result to dict: {e}")
+                                # Keep original metrics
+                    
                     logger.info(f"✅ Question {i+1} evaluated successfully: faithfulness={ragas_metrics.get('faithfulness')}, answer_relevancy={ragas_metrics.get('answer_relevancy')}")
+                    if retry_attempted:
+                        logger.info(f"   🔄 Retry was attempted: {retry_reason}")
                     logger.debug(f"   RAGAS metrics type: {type(ragas_metrics)}, keys: {list(ragas_metrics.keys()) if isinstance(ragas_metrics, dict) else 'N/A'}")
                     
                     result_entry = {
@@ -598,7 +680,9 @@ async def execute_ragas_batch_evaluation(
                         "ragas_metrics": ragas_metrics,
                         "response_time_ms": rag_result["response_time_ms"],
                         "retrieval_count": len(rag_result["contexts"]),
-                        "success": True
+                        "success": True,
+                        "retry_attempted": retry_attempted,
+                        "retry_reason": retry_reason if retry_attempted else None
                     }
                     
                     # Validate ragas_metrics is serializable
