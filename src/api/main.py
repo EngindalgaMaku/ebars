@@ -1718,6 +1718,9 @@ class RAGSettings(BaseModel):
     use_reranker_service: Optional[bool] = None
     reranker_type: Optional[str] = None
     min_score_threshold: Optional[float] = None  # Minimum score threshold for source filtering (default: 0.4)
+    # Retrieval component toggles
+    use_kb: Optional[bool] = None        # Whether to use knowledge base in Hybrid RAG
+    use_qa_pairs: Optional[bool] = None  # Whether to use QA pairs for direct answers
 
 @app.get("/sessions/{session_id}/rag-settings")
 def get_rag_settings(session_id: str, request: Request):

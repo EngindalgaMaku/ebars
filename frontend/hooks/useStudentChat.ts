@@ -192,8 +192,8 @@ export function useStudentChat({
           session_id: sessionId,
           query,
           top_k: 5,
-          use_kb: true,
-          use_qa_pairs: true,
+          use_kb: sessionRagSettings?.use_kb ?? true,
+          use_qa_pairs: sessionRagSettings?.use_qa_pairs ?? true,
           use_crag: true,
           model: sessionRagSettings?.model,
           embedding_model: sessionRagSettings?.embedding_model, // CRITICAL: Match collection's embedding model

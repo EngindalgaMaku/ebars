@@ -52,6 +52,10 @@ export const RagSettingsTab: React.FC<RagSettingsTabProps> = ({
     hasUnsavedChanges,
     validateSettings,
     error,
+    useKb,
+    useQaPairs,
+    setUseKb,
+    setUseQaPairs,
   } = useRagSettings(sessionId);
 
   const validation = validateSettings();
@@ -273,6 +277,66 @@ export const RagSettingsTab: React.FC<RagSettingsTabProps> = ({
           </Badge>
         </div>
         <RerankerSelector sessionId={sessionId} />
+      </div>
+
+      {/* Knowledge Base & QA Usage Section */}
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Database className="w-4 h-4 text-primary" />
+              Bilgi Kaynakları Kullanımı
+            </CardTitle>
+            <CardDescription>
+              Öğrenci cevaplarında hangi ek bilgi kaynaklarının (bilgi tabanı ve QA çiftleri) kullanılacağını belirleyin.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-medium text-foreground">
+                  Bilgi Tabanı Kullan
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 max-w-md">
+                  Ders için tanımlanmış konu özetleri ve kavram haritalarını cevaplara ek bağlam olarak kullanır.
+                </p>
+              </div>
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 text-primary border-border rounded focus:ring-primary"
+                  checked={useKb}
+                  onChange={(e) => setUseKb(e.target.checked)}
+                />
+                <span className="text-xs text-muted-foreground">
+                  {useKb ? "Aktif" : "Pasif"}
+                </span>
+              </label>
+            </div>
+
+            <div className="flex items-start justify-between gap-4 pt-3 border-t border-border/60">
+              <div>
+                <div className="text-sm font-medium text-foreground">
+                  QA Çiftleri Kullan
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 max-w-md">
+                  Önceden tanımlanmış soru-cevap çiftlerini kullanarak doğrudan ve hızlı yanıt üretmeye çalışır.
+                </p>
+              </div>
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 text-primary border-border rounded focus:ring-primary"
+                  checked={useQaPairs}
+                  onChange={(e) => setUseQaPairs(e.target.checked)}
+                />
+                <span className="text-xs text-muted-foreground">
+                  {useQaPairs ? "Aktif" : "Pasif"}
+                </span>
+              </label>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Score Threshold Section */}

@@ -60,6 +60,8 @@ interface RagSettings {
   min_score?: number;
   max_context_chars?: number;
   min_score_threshold?: number; // Minimum score threshold for source filtering (default: 0.4)
+  use_kb?: boolean;
+  use_qa_pairs?: boolean;
 }
 
 export const useRagSettings = (sessionId: string) => {
@@ -86,6 +88,8 @@ export const useRagSettings = (sessionId: string) => {
   const [selectedRerankerType, setSelectedRerankerType] =
     useState<string>("bge-reranker-v2-m3");
   const [minScoreThreshold, setMinScoreThreshold] = useState<number>(0.4); // Default: 0.4 (40%)
+  const [useKb, setUseKb] = useState<boolean>(true);
+  const [useQaPairs, setUseQaPairs] = useState<boolean>(true);
 
   // Loading states
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -147,6 +151,11 @@ export const useRagSettings = (sessionId: string) => {
         setMinScoreThreshold(settings.min_score_threshold);
       else
         setMinScoreThreshold(0.4); // Default if not set
+      if (settings.use_kb !== undefined) setUseKb(settings.use_kb);
+      else setUseKb(true);
+      if (settings.use_qa_pairs !== undefined)
+        setUseQaPairs(settings.use_qa_pairs);
+      else setUseQaPairs(true);
 
       setHasUnsavedChanges(false);
     } else {
@@ -158,6 +167,8 @@ export const useRagSettings = (sessionId: string) => {
       setUseRerankerService(false);
       setSelectedRerankerType("bge-reranker-v2-m3");
       setMinScoreThreshold(0.4); // Default
+      setUseKb(true);
+      setUseQaPairs(true);
       setHasUnsavedChanges(false);
     }
   }, [currentSession?.rag_settings]);
@@ -174,7 +185,9 @@ export const useRagSettings = (sessionId: string) => {
       currentSettings.embedding_model !== selectedEmbeddingModel ||
       currentSettings.use_reranker_service !== useRerankerService ||
       currentSettings.reranker_type !== selectedRerankerType ||
-      (currentSettings.min_score_threshold ?? 0.4) !== minScoreThreshold;
+      (currentSettings.min_score_threshold ?? 0.4) !== minScoreThreshold ||
+      (currentSettings.use_kb ?? true) !== useKb ||
+      (currentSettings.use_qa_pairs ?? true) !== useQaPairs;
 
     setHasUnsavedChanges(hasChanges);
   }, [
@@ -185,6 +198,8 @@ export const useRagSettings = (sessionId: string) => {
     useRerankerService,
     selectedRerankerType,
     minScoreThreshold,
+    useKb,
+    useQaPairs,
     currentSession?.rag_settings,
   ]);
 
@@ -276,6 +291,8 @@ export const useRagSettings = (sessionId: string) => {
         min_score: 0.5,
         max_context_chars: 8000,
         use_reranker_service: useRerankerService,
+        use_kb: useKb,
+        use_qa_pairs: useQaPairs,
       };
 
       // Add selected values if they exist
@@ -331,6 +348,8 @@ export const useRagSettings = (sessionId: string) => {
     setUseRerankerService(false);
     setSelectedRerankerType("bge-reranker-v2-m3");
     setMinScoreThreshold(0.4); // Reset to default
+    setUseKb(true);
+    setUseQaPairs(true);
     setError(null);
     setSuccess(null);
   };
@@ -410,6 +429,8 @@ export const useRagSettings = (sessionId: string) => {
     setUseRerankerService,
     setSelectedRerankerType,
     setMinScoreThreshold,
+    setUseKb,
+    setUseQaPairs,
 
     // Operations
     saveSettings,
