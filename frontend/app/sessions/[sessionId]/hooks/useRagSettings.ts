@@ -410,6 +410,8 @@ export const useRagSettings = (sessionId: string) => {
     useRerankerService,
     selectedRerankerType,
     minScoreThreshold,
+    useKb,
+    useQaPairs,
 
     // Loading states
     modelsLoading,

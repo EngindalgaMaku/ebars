@@ -408,9 +408,9 @@ export function createLogoutButton(defaultProps: Partial<LogoutButtonProps>) {
 }
 
 /**
- * Helper to check if user can logout all sessions
+ * Hook: Helper to check if user can logout all sessions
  */
-export function canLogoutAllSessions(): boolean {
+export function useCanLogoutAllSessions(): boolean {
   const { isAdmin } = useRoles();
   return isAdmin;
 }
