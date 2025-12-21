@@ -219,6 +219,17 @@ async def rag_query(request: RAGQueryRequest):
                     effective_use_rerank = use_reranker_service
                 else:
                     effective_use_rerank = False  # Default to False if nothing specified
+
+        # HARD OVERRIDE:
+        # Eğer oturum RAG ayarlarında use_reranker_service explicitly False ise,
+        # bu servisin kendi rerank'ini de kesinlikle kapat.
+        # Böylece hem threshold kontrolü hem de LLM'e giden sources skorları
+        # saf benzerlik skorlarını (score) yansıtır.
+        if session_rag_settings.get("use_reranker_service") is False:
+            logger.info(
+                "⏹️ [DOC-SVC RERANK] Session use_reranker_service is False -> disabling internal rerank"
+            )
+            effective_use_rerank = False
         
         logger.info(f"🔍 [RERANKER CHECK] request.use_rerank={request.use_rerank}, session.use_rerank={session_rag_settings.get('use_rerank')}, session.use_reranker_service={session_rag_settings.get('use_reranker_service')}, effective={effective_use_rerank}")
         
