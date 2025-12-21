@@ -763,16 +763,16 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
             else:
                 logger.info(f"🔍 [APRAG RERANK] Reranking {len(chunk_results)} chunks with internal APRAG reranker... (use_rerank from settings: {use_rerank_from_settings}, use_crag: {request.use_crag})")
                 rerank_result = await rerank_documents(request.query, chunk_results)
-        elif not should_rerank:
-            logger.info(f"⏭️ [APRAG RERANK] Reranking disabled (use_rerank from settings: {use_rerank_from_settings}, use_crag: {request.use_crag})")
                 
                 # Use reranked chunks instead of original chunks
                 # IMPORTANT: Take only top_k chunks after reranking
-                if rerank_result.get("reranked_docs"):
+                if rerank_result and rerank_result.get("reranked_docs"):
                     reranked_chunks = rerank_result["reranked_docs"]
                     # Take top_k chunks after reranking
                     chunk_results = reranked_chunks[:request.top_k]
                     logger.info(f"✅ [APRAG RERANK] Rerank completed: {len(reranked_chunks)} chunks reranked, using top {len(chunk_results)} chunks, max_score={rerank_result.get('max_score', 0.0):.4f}")
+        elif not should_rerank:
+            logger.info(f"⏭️ [APRAG RERANK] Reranking disabled (use_rerank from settings: {use_rerank_from_settings}, use_crag: {request.use_crag})")
         
         # REMOVED: CRAG reject check - we always use reranked chunks now
         # No more reject logic - reranker just sorts documents by relevance
