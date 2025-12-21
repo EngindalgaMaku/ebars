@@ -274,7 +274,7 @@ class RAGQueryRequest(BaseModel):
     query: str
     top_k: int = 5
     use_rerank: bool = True
-    min_score: float = 0.1
+    min_score: float = 0.4  # Default threshold for source filtering (matches Document Processing Service default)
     max_context_chars: int = 8000
     model: Optional[str] = None
     use_direct_llm: bool = False
@@ -1938,7 +1938,7 @@ async def rag_query(req: RAGQueryRequest, request: Request):
         effective = {
             "top_k": req.top_k or saved_settings.get("top_k", 5),
             "use_rerank": reranker_strategy["use_reranker"],
-            "min_score": req.min_score or saved_settings.get("min_score", 0.1),
+            "min_score": req.min_score or saved_settings.get("min_score", 0.4),
             "max_context_chars": req.max_context_chars or saved_settings.get("max_context_chars", 8000),
             "model": req.model or saved_settings.get("model"),
             "chain_type": req.chain_type or saved_settings.get("chain_type"),

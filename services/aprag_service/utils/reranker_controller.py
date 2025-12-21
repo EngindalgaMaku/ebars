@@ -166,7 +166,7 @@ class RerankerController:
             # Configuration for API Gateway reranking
             config.update({
                 "use_rerank": True,
-                "min_score": request_params.get("min_score") or session_settings.get("min_score") or 0.1,
+                "min_score": request_params.get("min_score") or session_settings.get("min_score") or 0.4,
                 "top_k": request_params.get("top_k") or session_settings.get("top_k") or 5
             })
         

@@ -361,7 +361,7 @@ async def execute_rag_query(session_id: str, question: str, session_settings: Op
                     "query": question,
                     "top_k": 5,
                     "use_rerank": True,
-                    "min_score": 0.1,
+                    "min_score": 0.4,  # Use same threshold as chat pages for consistency
                     "max_context_chars": 8000,
                     "use_direct_llm": False,
                     "disable_aprag": True,  # Disable personalization for consistent evaluation
