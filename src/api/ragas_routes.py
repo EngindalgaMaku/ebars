@@ -24,9 +24,23 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 import requests
 import httpx
+from io import BytesIO
+try:
+    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
+    logger.warning("reportlab not available - PDF export will be disabled")
 
 logger = logging.getLogger(__name__)
 
@@ -971,6 +985,297 @@ async def list_ragas_tests(http_request: Request, session_id: Optional[str] = No
     except Exception as e:
         logger.error(f"Failed to list RAGAS tests: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to list tests: {str(e)}")
+
+
+# Update test name model
+class UpdateTestNameRequest(BaseModel):
+    """Request model for updating test name"""
+    testName: str = Field(..., description="New test name")
+
+
+@router.get("/export-pdf/{test_id}", summary="Export RAGAS Test Results as PDF")
+async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response:
+    """Export RAGAS test results as PDF report"""
+    from src.api.main import _require_owner_or_admin
+    
+    if not REPORTLAB_AVAILABLE:
+        raise HTTPException(status_code=503, detail="PDF export not available - reportlab not installed")
+    
+    try:
+        # Load test data
+        test_data = RAGAS_TEST_STORAGE.get(test_id)
+        if not test_data:
+            test_data = _load_ragas_test_from_db(test_id)
+            if not test_data:
+                raise HTTPException(status_code=404, detail="Test not found")
+        
+        # Verify access
+        _require_owner_or_admin(http_request, test_data.get("session_id", ""))
+        
+        # Create PDF in memory
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+        
+        # Container for the 'Flowable' objects
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor('#1a1a1a'),
+            spaceAfter=30,
+            alignment=1  # Center
+        )
+        elements.append(Paragraph("RAGAS Test Raporu", title_style))
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # Test Information
+        test_name = test_data.get("test_name", f"Test {test_id[:8]}")
+        status = test_data.get("status", "unknown")
+        start_time = test_data.get("start_time", "")
+        end_time = test_data.get("end_time", "")
+        total_questions = test_data.get("total_questions", 0)
+        successful_questions = test_data.get("successful_questions", 0)
+        failed_questions = test_data.get("failed_questions", 0)
+        
+        info_data = [
+            ["Test Adı:", test_name],
+            ["Durum:", status.upper()],
+            ["Başlangıç:", start_time[:19] if start_time else "N/A"],
+            ["Bitiş:", end_time[:19] if end_time else "N/A"],
+            ["Toplam Soru:", str(total_questions)],
+            ["Başarılı:", str(successful_questions)],
+            ["Başarısız:", str(failed_questions)],
+        ]
+        
+        info_table = Table(info_data, colWidths=[2*inch, 4*inch])
+        info_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f5f5f5')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 0.3*inch))
+        
+        # Aggregate Metrics
+        aggregate_metrics = test_data.get("aggregate_metrics", {})
+        if aggregate_metrics:
+            elements.append(Paragraph("Ortalama Metrikler", styles['Heading2']))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            metrics_data = [["Metrik", "Skor (%)"]]
+            if aggregate_metrics.get("average_faithfulness") is not None:
+                metrics_data.append(["Faithfulness", f"{aggregate_metrics['average_faithfulness']*100:.1f}%"])
+            if aggregate_metrics.get("average_answer_relevancy") is not None:
+                metrics_data.append(["Answer Relevancy", f"{aggregate_metrics['average_answer_relevancy']*100:.1f}%"])
+            if aggregate_metrics.get("average_context_precision") is not None:
+                metrics_data.append(["Context Precision", f"{aggregate_metrics['average_context_precision']*100:.1f}%"])
+            if aggregate_metrics.get("average_context_recall") is not None:
+                metrics_data.append(["Context Recall", f"{aggregate_metrics['average_context_recall']*100:.1f}%"])
+            if aggregate_metrics.get("average_overall_score") is not None:
+                metrics_data.append(["Genel Skor", f"{aggregate_metrics['average_overall_score']*100:.1f}%"])
+            
+            metrics_table = Table(metrics_data, colWidths=[3*inch, 3*inch])
+            metrics_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a5568')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9f9f9')]),
+            ]))
+            elements.append(metrics_table)
+            elements.append(Spacer(1, 0.3*inch))
+        
+        # Detailed Results
+        results = test_data.get("results", [])
+        if results:
+            elements.append(Paragraph("Detaylı Sonuçlar", styles['Heading2']))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            for idx, result in enumerate(results[:50], 1):  # Limit to first 50 for PDF size
+                if idx > 1:
+                    elements.append(Spacer(1, 0.2*inch))
+                
+                question = result.get("question", "")
+                answer = result.get("answer", "")
+                ragas_metrics = result.get("ragas_metrics", {})
+                success = result.get("success", False)
+                
+                # Question header
+                question_style = ParagraphStyle(
+                    'QuestionStyle',
+                    parent=styles['Heading3'],
+                    fontSize=12,
+                    textColor=colors.HexColor('#2d3748'),
+                    spaceAfter=6,
+                )
+                elements.append(Paragraph(f"{idx}. {question}", question_style))
+                
+                # Metrics table for this question
+                q_metrics_data = [["Metrik", "Skor (%)"]]
+                if ragas_metrics.get("faithfulness") is not None:
+                    q_metrics_data.append(["Faithfulness", f"{ragas_metrics['faithfulness']*100:.1f}%"])
+                if ragas_metrics.get("answer_relevancy") is not None:
+                    q_metrics_data.append(["Answer Relevancy", f"{ragas_metrics['answer_relevancy']*100:.1f}%"])
+                if ragas_metrics.get("context_precision") is not None:
+                    q_metrics_data.append(["Context Precision", f"{ragas_metrics['context_precision']*100:.1f}%"])
+                if ragas_metrics.get("context_recall") is not None:
+                    q_metrics_data.append(["Context Recall", f"{ragas_metrics['context_recall']*100:.1f}%"])
+                if ragas_metrics.get("overall_score") is not None:
+                    q_metrics_data.append(["Genel Skor", f"{ragas_metrics['overall_score']*100:.1f}%"])
+                
+                q_metrics_table = Table(q_metrics_data, colWidths=[2.5*inch, 3.5*inch])
+                q_metrics_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
+                    ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ]))
+                elements.append(q_metrics_table)
+                
+                # Answer preview (truncated)
+                if answer:
+                    answer_style = ParagraphStyle(
+                        'AnswerStyle',
+                        parent=styles['Normal'],
+                        fontSize=9,
+                        textColor=colors.HexColor('#4a5568'),
+                        spaceBefore=6,
+                        spaceAfter=6,
+                    )
+                    answer_preview = answer[:200] + "..." if len(answer) > 200 else answer
+                    elements.append(Paragraph(f"<b>Cevap:</b> {answer_preview}", answer_style))
+                
+                if not success:
+                    error = result.get("error", "Unknown error")
+                    error_style = ParagraphStyle(
+                        'ErrorStyle',
+                        parent=styles['Normal'],
+                        fontSize=9,
+                        textColor=colors.red,
+                        spaceBefore=6,
+                    )
+                    elements.append(Paragraph(f"<b>Hata:</b> {error}", error_style))
+                
+                if idx >= 50:
+                    elements.append(Spacer(1, 0.2*inch))
+                    elements.append(Paragraph(f"<i>Not: Toplam {len(results)} soru var, ilk 50 soru gösteriliyor.</i>", styles['Normal']))
+                    break
+        
+        # Build PDF
+        doc.build(elements)
+        buffer.seek(0)
+        
+        # Return PDF as response
+        filename = f"ragas_test_{test_id[:8]}_{test_name.replace(' ', '_')}.pdf"
+        return Response(
+            content=buffer.getvalue(),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate PDF for test {test_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
+
+
+@router.put("/update/{test_id}", summary="Update RAGAS Test")
+async def update_ragas_test(test_id: str, request: UpdateTestNameRequest, http_request: Request) -> Dict[str, Any]:
+    """Update RAGAS test name"""
+    from src.api.main import _require_owner_or_admin
+    
+    try:
+        # Load test data
+        test_data = RAGAS_TEST_STORAGE.get(test_id)
+        if not test_data:
+            test_data = _load_ragas_test_from_db(test_id)
+            if not test_data:
+                raise HTTPException(status_code=404, detail="Test not found")
+        
+        # Verify access
+        _require_owner_or_admin(http_request, test_data.get("session_id", ""))
+        
+        # Update test name
+        test_data["test_name"] = request.testName
+        
+        # Save to DB and memory
+        _save_ragas_test_to_db(test_id, test_data)
+        
+        logger.info(f"✅ Updated test {test_id} name to: {request.testName}")
+        
+        return {
+            "success": True,
+            "testId": test_id,
+            "testName": request.testName,
+            "message": "Test updated successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update test {test_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update test: {str(e)}")
+
+
+@router.delete("/delete/{test_id}", summary="Delete RAGAS Test")
+async def delete_ragas_test(test_id: str, http_request: Request) -> Dict[str, Any]:
+    """Delete RAGAS test"""
+    from src.api.main import _require_owner_or_admin
+    
+    try:
+        # Load test data to verify access
+        test_data = RAGAS_TEST_STORAGE.get(test_id)
+        if not test_data:
+            test_data = _load_ragas_test_from_db(test_id)
+            if not test_data:
+                raise HTTPException(status_code=404, detail="Test not found")
+        
+        # Verify access
+        _require_owner_or_admin(http_request, test_data.get("session_id", ""))
+        
+        # Delete from database
+        with sqlite3.connect(RAGAS_TEST_DB_PATH) as conn:
+            conn.execute("DELETE FROM ragas_test_results WHERE test_id = ?", (test_id,))
+        
+        # Delete from memory
+        if test_id in RAGAS_TEST_STORAGE:
+            del RAGAS_TEST_STORAGE[test_id]
+        
+        logger.info(f"🗑️ Deleted test {test_id}")
+        
+        return {
+            "success": True,
+            "testId": test_id,
+            "message": "Test deleted successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete test {test_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete test: {str(e)}")
 
 
 @router.post("/evaluate-batch")

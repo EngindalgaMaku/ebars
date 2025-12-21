@@ -19,6 +19,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Play,
   Square,
   RotateCcw,
@@ -34,6 +42,9 @@ import {
   TrendingUp,
   Activity,
   List,
+  Download,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
@@ -135,6 +146,13 @@ export default function RAGMetricsTestPage() {
 
   // UI State
   const [questionText, setQuestionText] = useState("");
+  
+  // Edit/Delete Dialog State
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editingTestId, setEditingTestId] = useState<string | null>(null);
+  const [editingTestName, setEditingTestName] = useState("");
+  const [deletingTestId, setDeletingTestId] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -842,7 +860,37 @@ export default function RAGMetricsTestPage() {
                 {/* Test Summary */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Test Özeti</CardTitle>
+                    <div className="flex justify-between items-center">
+                      <CardTitle>Test Özeti</CardTitle>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => exportPDF(currentTest.testId)}
+                          disabled={currentTest.status !== "completed"}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          PDF Rapor Al
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditTest(currentTest.testId, currentTest.testName)}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Düzenle
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteTest(currentTest.testId)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Sil
+                        </Button>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1024,27 +1072,67 @@ export default function RAGMetricsTestPage() {
                     {testList.map((test) => (
                       <div
                         key={test.testId}
-                        className="p-3 border rounded-lg hover:bg-muted cursor-pointer"
-                        onClick={() => loadTestDetails(test.testId)}
+                        className="p-3 border rounded-lg hover:bg-muted"
                       >
                         <div className="flex justify-between items-center">
-                          <div>
+                          <div
+                            className="flex-1 cursor-pointer"
+                            onClick={() => loadTestDetails(test.testId)}
+                          >
                             <p className="font-semibold">{test.testName}</p>
                             <p className="text-sm text-muted-foreground">
                               {test.totalQuestions} soru | {test.progress}% tamamlandı
                             </p>
                           </div>
-                          <Badge
-                            variant={
-                              test.status === "completed"
-                                ? "default"
-                                : test.status === "failed"
-                                ? "destructive"
-                                : "secondary"
-                            }
-                          >
-                            {test.status}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant={
+                                test.status === "completed"
+                                  ? "default"
+                                  : test.status === "failed"
+                                  ? "destructive"
+                                  : "secondary"
+                              }
+                            >
+                              {test.status}
+                            </Badge>
+                            {test.status === "completed" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  exportPDF(test.testId);
+                                }}
+                                title="PDF İndir"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditTest(test.testId, test.testName);
+                              }}
+                              title="Düzenle"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTest(test.testId);
+                              }}
+                              className="text-red-600 hover:text-red-700"
+                              title="Sil"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1055,6 +1143,56 @@ export default function RAGMetricsTestPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Test Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Test Adını Düzenle</DialogTitle>
+            <DialogDescription>
+              Test adını değiştirin
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="testName">Test Adı</Label>
+            <Input
+              id="testName"
+              value={editingTestName}
+              onChange={(e) => setEditingTestName(e.target.value)}
+              placeholder="Test adı girin"
+              className="mt-2"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              İptal
+            </Button>
+            <Button onClick={saveEditTest}>
+              Kaydet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Test Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Testi Sil</DialogTitle>
+            <DialogDescription>
+              Bu testi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              İptal
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteTest}>
+              Sil
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TeacherLayout>
   );
 }

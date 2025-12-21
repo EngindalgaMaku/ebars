@@ -13,3 +13,6 @@ pandas>=1.5.0
 # Authentication dependencies
 bcrypt>=4.0.0
 passlib>=1.7.4
+
+# PDF export support
+reportlab>=4.0.0
