@@ -135,7 +135,7 @@ export const useRagSettings = (sessionId: string) => {
   // Load settings from session
   useEffect(() => {
     if (currentSession?.rag_settings) {
-      const settings = currentSession.rag_settings;
+      const settings: any = currentSession.rag_settings;
 
       if (settings.provider) setSelectedProvider(settings.provider);
       if (settings.model) setSelectedQueryModel(settings.model);
@@ -177,7 +177,7 @@ export const useRagSettings = (sessionId: string) => {
   useEffect(() => {
     if (!currentSession?.rag_settings) return;
 
-    const currentSettings = currentSession.rag_settings;
+    const currentSettings: any = currentSession.rag_settings;
     const hasChanges =
       currentSettings.provider !== selectedProvider ||
       currentSettings.model !== selectedQueryModel ||
