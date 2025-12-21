@@ -1044,6 +1044,37 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
             text = text.replace("'", "&#x27;")
             return text
         
+        # Try to register a Unicode font for Turkish characters
+        # ReportLab's default fonts support Unicode, but we can try DejaVu if available
+        font_registered = False
+        default_font = 'Helvetica'  # Default fallback
+        try:
+            # Try to use DejaVu Sans which has excellent Unicode support
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+            import os
+            
+            # Common paths for DejaVu fonts on Linux
+            dejavu_paths = [
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                '/usr/share/fonts/TTF/DejaVuSans.ttf',
+                '/System/Library/Fonts/Helvetica.ttc',  # macOS fallback
+            ]
+            
+            for font_path in dejavu_paths:
+                if os.path.exists(font_path):
+                    try:
+                        pdfmetrics.registerFont(TTFont('DejaVuSans', font_path))
+                        font_registered = True
+                        default_font = 'DejaVuSans'
+                        logger.info(f"Registered DejaVuSans font from {font_path}")
+                        break
+                    except Exception as e:
+                        logger.debug(f"Could not register font from {font_path}: {e}")
+                        continue
+        except Exception as e:
+            logger.debug(f"Font registration failed, using default: {e}")
+        
         # Container for the 'Flowable' objects
         elements = []
         styles = getSampleStyleSheet()
@@ -1055,10 +1086,26 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
             fontSize=24,
             textColor=colors.HexColor('#1a1a1a'),
             spaceAfter=30,
-            alignment=1  # Center
+            alignment=1,  # Center
+            fontName=default_font
         )
         elements.append(Paragraph(escape_html("RAGAS Test Raporu"), title_style))
         elements.append(Spacer(1, 0.2*inch))
+        
+        # Helper function to format datetime
+        def format_datetime(dt_string):
+            """Format ISO datetime string to readable format"""
+            if not dt_string:
+                return "N/A"
+            try:
+                from datetime import datetime
+                # Parse ISO format: 2025-12-21T08:19:09 or 2025-12-21T08:19:09.123456
+                dt = datetime.fromisoformat(dt_string.replace('Z', '+00:00'))
+                # Format as: 21.12.2025 08:19
+                return dt.strftime("%d.%m.%Y %H:%M")
+            except (ValueError, AttributeError):
+                # Fallback: just show first 16 chars if parsing fails
+                return dt_string[:16] if len(dt_string) > 16 else dt_string
         
         # Test Information
         test_name = test_data.get("test_name", f"Test {test_id[:8]}")
@@ -1072,19 +1119,31 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
         info_data = [
             ["Test Adı:", test_name],
             ["Durum:", status.upper()],
-            ["Başlangıç:", start_time[:19] if start_time else "N/A"],
-            ["Bitiş:", end_time[:19] if end_time else "N/A"],
+            ["Başlangıç:", format_datetime(start_time)],
+            ["Bitiş:", format_datetime(end_time)],
             ["Toplam Soru:", str(total_questions)],
             ["Başarılı:", str(successful_questions)],
             ["Başarısız:", str(failed_questions)],
         ]
         
+        # Create styles with Unicode font support
+        normal_style_unicode = ParagraphStyle(
+            'NormalUnicode',
+            parent=styles['Normal'],
+            fontName=default_font
+        )
+        bold_style_unicode = ParagraphStyle(
+            'BoldUnicode',
+            parent=styles['Normal'],
+            fontName=default_font + '-Bold' if font_registered else 'Helvetica-Bold'
+        )
+        
         # Convert table data to Paragraphs for Unicode support
         info_table_data = []
         for row in info_data:
             info_table_data.append([
-                Paragraph(escape_html(row[0]), styles['Normal']),
-                Paragraph(escape_html(row[1]), styles['Normal'])
+                Paragraph(escape_html(row[0]), bold_style_unicode),
+                Paragraph(escape_html(row[1]), normal_style_unicode)
             ])
         
         info_table = Table(info_table_data, colWidths=[2*inch, 4*inch])
@@ -1092,8 +1151,6 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
             ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f5f5f5')),
             ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
             ('TOPPADDING', (0, 0), (-1, -1), 8),
@@ -1102,10 +1159,17 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
         elements.append(info_table)
         elements.append(Spacer(1, 0.3*inch))
         
+        # Heading style with Unicode font
+        heading2_style_unicode = ParagraphStyle(
+            'Heading2Unicode',
+            parent=styles['Heading2'],
+            fontName=default_font
+        )
+        
         # Aggregate Metrics
         aggregate_metrics = test_data.get("aggregate_metrics", {})
         if aggregate_metrics:
-            elements.append(Paragraph(escape_html("Ortalama Metrikler"), styles['Heading2']))
+            elements.append(Paragraph(escape_html("Ortalama Metrikler"), heading2_style_unicode))
             elements.append(Spacer(1, 0.1*inch))
             
             metrics_data = [["Metrik", "Skor (%)"]]
@@ -1122,18 +1186,29 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
             
             # Convert table data to Paragraphs for Unicode support
             metrics_table_data = []
-            for row in metrics_data:
-                metrics_table_data.append([
-                    Paragraph(escape_html(row[0]), styles['Normal']),
-                    Paragraph(escape_html(row[1]), styles['Normal'])
-                ])
+            header_style = ParagraphStyle(
+                'HeaderUnicode',
+                parent=styles['Normal'],
+                fontName=default_font + '-Bold' if font_registered else 'Helvetica-Bold',
+                textColor=colors.whitesmoke
+            )
+            for i, row in enumerate(metrics_data):
+                if i == 0:  # Header row
+                    metrics_table_data.append([
+                        Paragraph(escape_html(row[0]), header_style),
+                        Paragraph(escape_html(row[1]), header_style)
+                    ])
+                else:
+                    metrics_table_data.append([
+                        Paragraph(escape_html(row[0]), normal_style_unicode),
+                        Paragraph(escape_html(row[1]), normal_style_unicode)
+                    ])
             
             metrics_table = Table(metrics_table_data, colWidths=[3*inch, 3*inch])
             metrics_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a5568')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, 0), 12),
                 ('FONTSIZE', (0, 1), (-1, -1), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
@@ -1147,7 +1222,7 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
         # Detailed Results
         results = test_data.get("results", [])
         if results:
-            elements.append(Paragraph(escape_html("Detaylı Sonuçlar"), styles['Heading2']))
+            elements.append(Paragraph(escape_html("Detaylı Sonuçlar"), heading2_style_unicode))
             elements.append(Spacer(1, 0.1*inch))
             
             for idx, result in enumerate(results[:50], 1):  # Limit to first 50 for PDF size
@@ -1166,6 +1241,7 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
                     fontSize=12,
                     textColor=colors.HexColor('#2d3748'),
                     spaceAfter=6,
+                    fontName=default_font
                 )
                 elements.append(Paragraph(escape_html(f"{idx}. {question}"), question_style))
                 
@@ -1186,8 +1262,8 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
                 q_metrics_table_data = []
                 for row in q_metrics_data:
                     q_metrics_table_data.append([
-                        Paragraph(escape_html(row[0]), styles['Normal']),
-                        Paragraph(escape_html(row[1]), styles['Normal'])
+                        Paragraph(escape_html(row[0]), normal_style_unicode),
+                        Paragraph(escape_html(row[1]), normal_style_unicode)
                     ])
                 
                 q_metrics_table = Table(q_metrics_table_data, colWidths=[2.5*inch, 3.5*inch])
@@ -1212,9 +1288,10 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
                         textColor=colors.HexColor('#4a5568'),
                         spaceBefore=6,
                         spaceAfter=6,
+                        fontName=default_font
                     )
                     answer_preview = answer[:200] + "..." if len(answer) > 200 else answer
-                    elements.append(Paragraph(f"<b>Cevap:</b> {answer_preview}", answer_style))
+                    elements.append(Paragraph(f"<b>{escape_html('Cevap:')}</b> {escape_html(answer_preview)}", answer_style))
                 
                 if not success:
                     error = result.get("error", "Unknown error")
@@ -1224,12 +1301,18 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
                         fontSize=9,
                         textColor=colors.red,
                         spaceBefore=6,
+                        fontName=default_font
                     )
-                    elements.append(Paragraph(f"<b>Hata:</b> {error}", error_style))
+                    elements.append(Paragraph(f"<b>{escape_html('Hata:')}</b> {escape_html(error)}", error_style))
                 
                 if idx >= 50:
+                    note_style = ParagraphStyle(
+                        'NoteStyle',
+                        parent=styles['Normal'],
+                        fontName=default_font
+                    )
                     elements.append(Spacer(1, 0.2*inch))
-                    elements.append(Paragraph(f"<i>Not: Toplam {len(results)} soru var, ilk 50 soru gösteriliyor.</i>", styles['Normal']))
+                    elements.append(Paragraph(f"<i>{escape_html(f'Not: Toplam {len(results)} soru var, ilk 50 soru gösteriliyor.')}</i>", note_style))
                     break
         
         # Build PDF
