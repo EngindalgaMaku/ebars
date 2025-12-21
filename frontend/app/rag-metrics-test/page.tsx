@@ -455,6 +455,109 @@ export default function RAGMetricsTestPage() {
     return () => clearInterval(interval);
   };
 
+  // Export PDF
+  const exportPDF = async (testId: string) => {
+    try {
+      const response = await fetch(`/api/rag-metrics/export-pdf/${testId}`);
+      if (!response.ok) {
+        throw new Error("PDF oluşturulamadı");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ragas_test_${testId.substring(0, 8)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success("PDF rapor indirildi");
+    } catch (error: any) {
+      console.error("PDF export error:", error);
+      toast.error(error.message || "PDF indirilemedi");
+    }
+  };
+
+  // Edit test name
+  const handleEditTest = (testId: string, currentName: string) => {
+    setEditingTestId(testId);
+    setEditingTestName(currentName);
+    setEditDialogOpen(true);
+  };
+
+  const saveEditTest = async () => {
+    if (!editingTestId || !editingTestName.trim()) {
+      toast.error("Lütfen test adı girin");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/rag-metrics/update/${editingTestId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ testName: editingTestName.trim() }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Test güncellenemedi");
+      }
+
+      toast.success("Test adı güncellendi");
+      setEditDialogOpen(false);
+      setEditingTestId(null);
+      setEditingTestName("");
+      
+      // Refresh test list and current test if it's the one being edited
+      loadTestList();
+      if (currentTest?.testId === editingTestId) {
+        loadTestDetails(editingTestId);
+      }
+    } catch (error: any) {
+      console.error("Edit test error:", error);
+      toast.error(error.message || "Test güncellenemedi");
+    }
+  };
+
+  // Delete test
+  const handleDeleteTest = (testId: string) => {
+    setDeletingTestId(testId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteTest = async () => {
+    if (!deletingTestId) return;
+
+    try {
+      const response = await fetch(`/api/rag-metrics/delete/${deletingTestId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Test silinemedi");
+      }
+
+      toast.success("Test silindi");
+      setDeleteDialogOpen(false);
+      setDeletingTestId(null);
+      
+      // Clear current test if it's the one being deleted
+      if (currentTest?.testId === deletingTestId) {
+        setCurrentTest(null);
+        setSelectedTestId(null);
+      }
+      
+      // Refresh test list
+      loadTestList();
+    } catch (error: any) {
+      console.error("Delete test error:", error);
+      toast.error(error.message || "Test silinemedi");
+    }
+  };
+
   // Stop test
   const stopTest = async () => {
     if (!currentTest) return;
