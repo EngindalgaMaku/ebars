@@ -254,9 +254,12 @@ async def rag_query(request: RAGQueryRequest):
                 similarity_score = max(0.0, min(1.0, similarity_score))
                 rerank_score = max(0.0, min(1.0, rerank_score))
                 
-                # Use reranker score if available, otherwise use similarity score
+                # Use the maximum of similarity and rerank scores
+                # This ensures we don't reject good similarity matches when rerank scores are low
+                # Rerank scores can be lower due to different normalization or model behavior
                 if rerank_score > 0.0:
-                    doc_max = rerank_score
+                    # If both scores exist, use the maximum to avoid false rejections
+                    doc_max = max(similarity_score, rerank_score)
                 else:
                     doc_max = similarity_score
                 

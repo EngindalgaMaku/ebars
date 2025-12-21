@@ -738,10 +738,16 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
         
         # RERANK chunks (if enabled) - PHASE 1: Check unified reranker controller
         rerank_result = None
-        if request.use_crag and chunk_results:
+        # Check if reranking should be enabled based on session settings or request
+        # Priority: session_rag_settings.use_rerank > request.use_crag
+        use_rerank_from_settings = session_rag_settings.get("use_rerank")
+        should_rerank = use_rerank_from_settings if use_rerank_from_settings is not None else request.use_crag
+        
+        if should_rerank and chunk_results:
             # PHASE 1: Check if APRAG reranking should be prevented due to external reranker usage
             request_params = {
                 "use_crag": request.use_crag,
+                "use_rerank": use_rerank_from_settings if use_rerank_from_settings is not None else request.use_crag,  # Include use_rerank from session settings
                 "top_k": request.top_k,
             }
             should_prevent = should_prevent_aprag_reranking(
@@ -755,8 +761,10 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
                 # Skip APRAG reranking - external reranker (API Gateway or dedicated service) will handle it
                 rerank_result = None
             else:
-                logger.info(f"🔍 [APRAG RERANK] Reranking {len(chunk_results)} chunks with internal APRAG reranker...")
+                logger.info(f"🔍 [APRAG RERANK] Reranking {len(chunk_results)} chunks with internal APRAG reranker... (use_rerank from settings: {use_rerank_from_settings}, use_crag: {request.use_crag})")
                 rerank_result = await rerank_documents(request.query, chunk_results)
+        elif not should_rerank:
+            logger.info(f"⏭️ [APRAG RERANK] Reranking disabled (use_rerank from settings: {use_rerank_from_settings}, use_crag: {request.use_crag})")
                 
                 # Use reranked chunks instead of original chunks
                 # IMPORTANT: Take only top_k chunks after reranking
@@ -771,6 +779,15 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
         
         # IMPORTANT: Always ensure KB and QA are in merged_results
         # If rerank was performed, rebuild merged_results. Otherwise, ensure KB/QA are present.
+        # IMPORTANT: If reranking was disabled, clear any existing rerank scores from chunks
+        if not should_rerank and chunk_results:
+            # Clear rerank scores if reranking was disabled
+            for chunk in chunk_results:
+                if "rerank_score" in chunk:
+                    chunk["rerank_score"] = 0.0
+                if "rerank_score_raw" in chunk:
+                    chunk["rerank_score_raw"] = 0.0
+        
         if rerank_result and rerank_result.get("reranked_docs"):
             # Create a map of reranked chunks by their identifiers
             reranked_map = {}
@@ -851,6 +868,14 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
             logger.info(f"✅ Rebuilt merged_results: {len([m for m in merged_results if m.get('source') == 'chunk'])} chunks, {len([m for m in merged_results if m.get('source') == 'knowledge_base'])} KB, {len([m for m in merged_results if m.get('source') == 'qa_pair'])} QA")
         else:
             # No rerank performed - but ensure KB and QA are in merged_results
+            # Clear rerank scores from chunks if reranking was disabled
+            for m in merged_results:
+                if m.get("source") == "chunk":
+                    m["rerank_score"] = 0.0
+                    m["rerank_score_raw"] = 0.0
+                    # Use similarity score as final score when reranking is disabled
+                    m["final_score"] = m.get("score", 0.0)
+            
             # Check if KB/QA are already in merged_results
             kb_in_merged = len([m for m in merged_results if m.get("source") == "knowledge_base"])
             qa_in_merged = len([m for m in merged_results if m.get("source") == "qa_pair"])

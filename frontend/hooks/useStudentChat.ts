@@ -166,7 +166,7 @@ export function useStudentChat({
           query,
           top_k: 5,
           use_rerank: sessionRagSettings?.use_rerank ?? false, // Use session settings
-          min_score: sessionRagSettings?.min_score ?? 0.5,
+          min_score: sessionRagSettings?.min_score ?? 0.4,  // Match backend default
           max_context_chars: 8000,
           use_direct_llm: false,
           max_tokens: 2048,
