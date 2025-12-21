@@ -316,7 +316,9 @@ async def rag_query(request: RAGQueryRequest):
             max_tokens=request.max_tokens,
             conversation_history=request.conversation_history,
             chain_type=chain_type,
-            max_context_chars=request.max_context_chars
+            max_context_chars=request.max_context_chars,
+            use_rerank=request.use_rerank,
+            use_crag=request.use_crag if request.use_crag is not None else False
         )
         
         return RAGQueryResponse(
@@ -621,7 +623,9 @@ def _generate_answer_with_llm(
     max_tokens: int = 2048,
     conversation_history: List[Dict[str, str]] = None,
     chain_type: str = "stuff",
-    max_context_chars: int = 8000
+    max_context_chars: int = 8000,
+    use_rerank: bool = False,
+    use_crag: bool = False
 ) -> tuple[str, List[Dict[str, Any]]]:
     """Generate answer using LLM via Model Inference Service"""
     try:
@@ -639,9 +643,9 @@ def _generate_answer_with_llm(
             similarity_score = doc.get("score", 0.0)
             # Only use rerank_score if reranking was enabled, otherwise use 0.0
             # Also check CRAG score only if CRAG was enabled
-            if request.use_rerank:
+            if use_rerank:
                 rerank_score = doc.get("rerank_score", 0.0)
-            elif request.use_crag is True:
+            elif use_crag is True:
                 # If CRAG was enabled, use CRAG score instead of rerank score
                 rerank_score = doc.get("crag_score", 0.0)
             else:
