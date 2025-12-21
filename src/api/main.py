@@ -273,7 +273,7 @@ class RAGQueryRequest(BaseModel):
     session_id: str
     query: str
     top_k: int = 5
-    use_rerank: bool = True
+    use_rerank: Optional[bool] = None  # None = use session settings, True/False = override
     min_score: float = 0.4  # Default threshold for source filtering (matches Document Processing Service default)
     max_context_chars: int = 8000
     model: Optional[str] = None
@@ -1920,9 +1920,23 @@ async def rag_query(req: RAGQueryRequest, request: Request):
         
         # PHASE 1 SOLUTION: Unified Reranker Control
         # Determine optimal reranker strategy and prevent conflicts
+        # IMPORTANT: Check session settings for use_rerank if not specified in request
+        # Priority: request.use_rerank > session_settings.use_rerank > default (None)
+        effective_use_rerank = req.use_rerank
+        if effective_use_rerank is None:
+            # Check session settings - use_rerank takes priority over use_reranker_service
+            effective_use_rerank = saved_settings.get("use_rerank")
+            if effective_use_rerank is None:
+                # Fallback to use_reranker_service if use_rerank is not set
+                use_reranker_service = saved_settings.get("use_reranker_service")
+                if use_reranker_service is not None:
+                    effective_use_rerank = use_reranker_service
+        
+        logger.info(f"🔍 [RERANKER] use_rerank decision: request={req.use_rerank}, session_use_rerank={saved_settings.get('use_rerank')}, session_use_reranker_service={saved_settings.get('use_reranker_service')}, effective={effective_use_rerank}")
+        
         request_params = {
             "top_k": req.top_k,
-            "use_rerank": req.use_rerank,
+            "use_rerank": effective_use_rerank,  # Use session settings if request doesn't specify
             "min_score": req.min_score,
             "use_reranker_service": getattr(req, 'use_reranker_service', saved_settings.get("use_reranker_service")),
             "reranker_type": getattr(req, 'reranker_type', saved_settings.get("reranker_type")),
@@ -1935,9 +1949,21 @@ async def rag_query(req: RAGQueryRequest, request: Request):
         logger.info(f"🎯 [UNIFIED RERANKER] Strategy for session {req.session_id}: {reranker_strategy['routing_decision']}")
         
         # Compute effective params with reranker strategy applied
+        # IMPORTANT: If session settings explicitly disable reranking, respect it even if strategy says otherwise
+        final_use_rerank = reranker_strategy["use_reranker"]
+        # Override strategy if session settings explicitly set use_rerank to False
+        if effective_use_rerank is False:
+            # Session settings explicitly disabled reranking, override strategy
+            final_use_rerank = False
+            logger.info(f"🚫 [RERANKER] Session settings disabled reranking (use_rerank=False), overriding strategy")
+        elif effective_use_rerank is None and saved_settings.get("use_rerank") is False:
+            # Session settings disabled reranking but request didn't specify, use session setting
+            final_use_rerank = False
+            logger.info(f"🚫 [RERANKER] Session settings disabled reranking (from saved_settings), overriding strategy")
+        
         effective = {
             "top_k": req.top_k or saved_settings.get("top_k", 5),
-            "use_rerank": reranker_strategy["use_reranker"],
+            "use_rerank": final_use_rerank,  # Use final decision (respects session settings)
             "min_score": req.min_score or saved_settings.get("min_score", 0.4),
             "max_context_chars": req.max_context_chars or saved_settings.get("max_context_chars", 8000),
             "model": req.model or saved_settings.get("model"),
