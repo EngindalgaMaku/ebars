@@ -211,6 +211,12 @@ async def rag_query(request: RAGQueryRequest):
             context_docs = _apply_rerank(request.query, context_docs)
         else:
             logger.info(f"⏭️ Rerank disabled: Skipping reranking")
+            # Clear any existing rerank scores if reranking is disabled
+            for doc in context_docs:
+                if "rerank_score" in doc:
+                    doc["rerank_score"] = 0.0
+                if "rerank_score_raw" in doc:
+                    doc["rerank_score_raw"] = 0.0
         
         # Step 6.5: CRAG Evaluation (optional, only if use_crag=True)
         # NOTE: CRAG is independent from external rerank service (Alibaba API)
@@ -236,7 +242,16 @@ async def rag_query(request: RAGQueryRequest):
             
             for doc in context_docs:
                 similarity_score = doc.get("score", 0.0)
-                rerank_score = doc.get("rerank_score") or doc.get("crag_score", 0.0)
+                # Only use rerank_score if reranking was enabled, otherwise use 0.0
+                # Also check CRAG score only if CRAG was enabled
+                if request.use_rerank:
+                    rerank_score = doc.get("rerank_score", 0.0)
+                elif request.use_crag is True:
+                    # If CRAG was enabled, use CRAG score instead of rerank score
+                    rerank_score = doc.get("crag_score", 0.0)
+                else:
+                    # Reranking and CRAG both disabled, clear rerank score
+                    rerank_score = 0.0
                 
                 # Normalize scores if needed
                 if similarity_score > 1.0:
@@ -622,7 +637,16 @@ def _generate_answer_with_llm(
             context_parts.append(content)
             # Include both similarity_score and rerank_score in sources
             similarity_score = doc.get("score", 0.0)
-            rerank_score = doc.get("rerank_score") or doc.get("crag_score", 0.0)
+            # Only use rerank_score if reranking was enabled, otherwise use 0.0
+            # Also check CRAG score only if CRAG was enabled
+            if request.use_rerank:
+                rerank_score = doc.get("rerank_score", 0.0)
+            elif request.use_crag is True:
+                # If CRAG was enabled, use CRAG score instead of rerank score
+                rerank_score = doc.get("crag_score", 0.0)
+            else:
+                # Reranking and CRAG both disabled, clear rerank score
+                rerank_score = 0.0
             # Use rerank_score if available, otherwise use similarity_score
             final_score = rerank_score if rerank_score > 0.0 else similarity_score
             sources.append({
