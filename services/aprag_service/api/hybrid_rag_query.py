@@ -739,9 +739,23 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
         # RERANK chunks (if enabled) - PHASE 1: Check unified reranker controller
         rerank_result = None
         # Check if reranking should be enabled based on session settings or request
-        # Priority: session_rag_settings.use_rerank > request.use_crag
+        # Priority: session_rag_settings.use_rerank > request.use_crag, BUT
+        # if session_rag_settings.use_reranker_service is explicitly False, APRAG internal
+        # reranking must be disabled so that scores reflect original similarity values.
         use_rerank_from_settings = session_rag_settings.get("use_rerank")
-        should_rerank = use_rerank_from_settings if use_rerank_from_settings is not None else request.use_crag
+        should_rerank = (
+            use_rerank_from_settings
+            if use_rerank_from_settings is not None
+            else request.use_crag
+        )
+
+        # Hard override: if teacher disabled reranker service at session-level,
+        # do not perform APRAG internal reranking either
+        if session_rag_settings.get("use_reranker_service") is False:
+            logger.info(
+                "⏹️ [APRAG RERANK] Session use_reranker_service is False -> disabling internal rerank"
+            )
+            should_rerank = False
         
         if should_rerank and chunk_results:
             # PHASE 1: Check if APRAG reranking should be prevented due to external reranker usage
