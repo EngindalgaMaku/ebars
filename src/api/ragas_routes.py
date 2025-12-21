@@ -1054,24 +1054,41 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
             from reportlab.pdfbase.ttfonts import TTFont
             import os
             
-            # Common paths for DejaVu fonts on Linux
+            # Common paths for DejaVu fonts on Linux (after apt-get install fonts-dejavu)
             dejavu_paths = [
                 '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+                '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
                 '/usr/share/fonts/TTF/DejaVuSans.ttf',
+                '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
                 '/System/Library/Fonts/Helvetica.ttc',  # macOS fallback
             ]
             
+            # Register regular and bold fonts
+            regular_font_path = None
+            bold_font_path = None
+            
             for font_path in dejavu_paths:
-                if os.path.exists(font_path):
-                    try:
-                        pdfmetrics.registerFont(TTFont('DejaVuSans', font_path))
-                        font_registered = True
-                        default_font = 'DejaVuSans'
-                        logger.info(f"Registered DejaVuSans font from {font_path}")
-                        break
-                    except Exception as e:
-                        logger.debug(f"Could not register font from {font_path}: {e}")
-                        continue
+                if 'Bold' in font_path:
+                    if os.path.exists(font_path) and not bold_font_path:
+                        bold_font_path = font_path
+                else:
+                    if os.path.exists(font_path) and not regular_font_path:
+                        regular_font_path = font_path
+                
+                if regular_font_path and bold_font_path:
+                    break
+            
+            if regular_font_path:
+                try:
+                    pdfmetrics.registerFont(TTFont('DejaVuSans', regular_font_path))
+                    if bold_font_path:
+                        pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', bold_font_path))
+                    font_registered = True
+                    default_font = 'DejaVuSans'
+                    logger.info(f"Registered DejaVuSans fonts: {regular_font_path}, {bold_font_path}")
+                except Exception as e:
+                    logger.warning(f"Could not register DejaVu fonts: {e}")
+                    font_registered = False
         except Exception as e:
             logger.debug(f"Font registration failed, using default: {e}")
         
@@ -1135,7 +1152,7 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
         bold_style_unicode = ParagraphStyle(
             'BoldUnicode',
             parent=styles['Normal'],
-            fontName=default_font + '-Bold' if font_registered else 'Helvetica-Bold'
+            fontName='DejaVuSans-Bold' if font_registered else 'Helvetica-Bold'
         )
         
         # Convert table data to Paragraphs for Unicode support
@@ -1189,7 +1206,7 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
             header_style = ParagraphStyle(
                 'HeaderUnicode',
                 parent=styles['Normal'],
-                fontName=default_font + '-Bold' if font_registered else 'Helvetica-Bold',
+                fontName='DejaVuSans-Bold' if font_registered else 'Helvetica-Bold',
                 textColor=colors.whitesmoke
             )
             for i, row in enumerate(metrics_data):

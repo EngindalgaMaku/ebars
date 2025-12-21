@@ -7,10 +7,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install system dependencies (minimal)
+# Install system dependencies (minimal) + fonts for Turkish character support
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
+        fonts-dejavu \
+        fonts-dejavu-core \
+        fonts-dejavu-extra \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install requirements
