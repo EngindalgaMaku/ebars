@@ -1016,6 +1016,21 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
         
+        # Helper function to escape HTML and handle Turkish characters
+        def escape_html(text):
+            """Escape HTML special characters for ReportLab Paragraph"""
+            if not text:
+                return ""
+            # Convert to string if not already
+            text = str(text)
+            # Replace HTML special characters
+            text = text.replace("&", "&amp;")
+            text = text.replace("<", "&lt;")
+            text = text.replace(">", "&gt;")
+            text = text.replace('"', "&quot;")
+            text = text.replace("'", "&#x27;")
+            return text
+        
         # Container for the 'Flowable' objects
         elements = []
         styles = getSampleStyleSheet()
@@ -1029,7 +1044,7 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
             spaceAfter=30,
             alignment=1  # Center
         )
-        elements.append(Paragraph("RAGAS Test Raporu", title_style))
+        elements.append(Paragraph(escape_html("RAGAS Test Raporu"), title_style))
         elements.append(Spacer(1, 0.2*inch))
         
         # Test Information
@@ -1042,16 +1057,24 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
         failed_questions = test_data.get("failed_questions", 0)
         
         info_data = [
-            ["Test Adı:", test_name],
-            ["Durum:", status.upper()],
-            ["Başlangıç:", start_time[:19] if start_time else "N/A"],
-            ["Bitiş:", end_time[:19] if end_time else "N/A"],
-            ["Toplam Soru:", str(total_questions)],
-            ["Başarılı:", str(successful_questions)],
-            ["Başarısız:", str(failed_questions)],
+            [escape_html("Test Adı:"), escape_html(test_name)],
+            [escape_html("Durum:"), escape_html(status.upper())],
+            [escape_html("Başlangıç:"), escape_html(start_time[:19] if start_time else "N/A")],
+            [escape_html("Bitiş:"), escape_html(end_time[:19] if end_time else "N/A")],
+            [escape_html("Toplam Soru:"), escape_html(str(total_questions))],
+            [escape_html("Başarılı:"), escape_html(str(successful_questions))],
+            [escape_html("Başarısız:"), escape_html(str(failed_questions))],
         ]
         
-        info_table = Table(info_data, colWidths=[2*inch, 4*inch])
+        # Convert table data to Paragraphs for Unicode support
+        info_table_data = []
+        for row in info_data:
+            info_table_data.append([
+                Paragraph(escape_html(row[0]), styles['Normal']),
+                Paragraph(escape_html(row[1]), styles['Normal'])
+            ])
+        
+        info_table = Table(info_table_data, colWidths=[2*inch, 4*inch])
         info_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f5f5f5')),
             ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
@@ -1069,22 +1092,30 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
         # Aggregate Metrics
         aggregate_metrics = test_data.get("aggregate_metrics", {})
         if aggregate_metrics:
-            elements.append(Paragraph("Ortalama Metrikler", styles['Heading2']))
+            elements.append(Paragraph(escape_html("Ortalama Metrikler"), styles['Heading2']))
             elements.append(Spacer(1, 0.1*inch))
             
-            metrics_data = [["Metrik", "Skor (%)"]]
+            metrics_data = [[escape_html("Metrik"), escape_html("Skor (%)")]]
             if aggregate_metrics.get("average_faithfulness") is not None:
-                metrics_data.append(["Faithfulness", f"{aggregate_metrics['average_faithfulness']*100:.1f}%"])
+                metrics_data.append([escape_html("Faithfulness"), escape_html(f"{aggregate_metrics['average_faithfulness']*100:.1f}%")])
             if aggregate_metrics.get("average_answer_relevancy") is not None:
-                metrics_data.append(["Answer Relevancy", f"{aggregate_metrics['average_answer_relevancy']*100:.1f}%"])
+                metrics_data.append([escape_html("Answer Relevancy"), escape_html(f"{aggregate_metrics['average_answer_relevancy']*100:.1f}%")])
             if aggregate_metrics.get("average_context_precision") is not None:
-                metrics_data.append(["Context Precision", f"{aggregate_metrics['average_context_precision']*100:.1f}%"])
+                metrics_data.append([escape_html("Context Precision"), escape_html(f"{aggregate_metrics['average_context_precision']*100:.1f}%")])
             if aggregate_metrics.get("average_context_recall") is not None:
-                metrics_data.append(["Context Recall", f"{aggregate_metrics['average_context_recall']*100:.1f}%"])
+                metrics_data.append([escape_html("Context Recall"), escape_html(f"{aggregate_metrics['average_context_recall']*100:.1f}%")])
             if aggregate_metrics.get("average_overall_score") is not None:
-                metrics_data.append(["Genel Skor", f"{aggregate_metrics['average_overall_score']*100:.1f}%"])
+                metrics_data.append([escape_html("Genel Skor"), escape_html(f"{aggregate_metrics['average_overall_score']*100:.1f}%")])
             
-            metrics_table = Table(metrics_data, colWidths=[3*inch, 3*inch])
+            # Convert table data to Paragraphs for Unicode support
+            metrics_table_data = []
+            for row in metrics_data:
+                metrics_table_data.append([
+                    Paragraph(escape_html(row[0]), styles['Normal']),
+                    Paragraph(escape_html(row[1]), styles['Normal'])
+                ])
+            
+            metrics_table = Table(metrics_table_data, colWidths=[3*inch, 3*inch])
             metrics_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4a5568')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -1103,7 +1134,7 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
         # Detailed Results
         results = test_data.get("results", [])
         if results:
-            elements.append(Paragraph("Detaylı Sonuçlar", styles['Heading2']))
+            elements.append(Paragraph(escape_html("Detaylı Sonuçlar"), styles['Heading2']))
             elements.append(Spacer(1, 0.1*inch))
             
             for idx, result in enumerate(results[:50], 1):  # Limit to first 50 for PDF size
@@ -1123,22 +1154,30 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
                     textColor=colors.HexColor('#2d3748'),
                     spaceAfter=6,
                 )
-                elements.append(Paragraph(f"{idx}. {question}", question_style))
+                elements.append(Paragraph(escape_html(f"{idx}. {question}"), question_style))
                 
                 # Metrics table for this question
-                q_metrics_data = [["Metrik", "Skor (%)"]]
+                q_metrics_data = [[escape_html("Metrik"), escape_html("Skor (%)")]]
                 if ragas_metrics.get("faithfulness") is not None:
-                    q_metrics_data.append(["Faithfulness", f"{ragas_metrics['faithfulness']*100:.1f}%"])
+                    q_metrics_data.append([escape_html("Faithfulness"), escape_html(f"{ragas_metrics['faithfulness']*100:.1f}%")])
                 if ragas_metrics.get("answer_relevancy") is not None:
-                    q_metrics_data.append(["Answer Relevancy", f"{ragas_metrics['answer_relevancy']*100:.1f}%"])
+                    q_metrics_data.append([escape_html("Answer Relevancy"), escape_html(f"{ragas_metrics['answer_relevancy']*100:.1f}%")])
                 if ragas_metrics.get("context_precision") is not None:
-                    q_metrics_data.append(["Context Precision", f"{ragas_metrics['context_precision']*100:.1f}%"])
+                    q_metrics_data.append([escape_html("Context Precision"), escape_html(f"{ragas_metrics['context_precision']*100:.1f}%")])
                 if ragas_metrics.get("context_recall") is not None:
-                    q_metrics_data.append(["Context Recall", f"{ragas_metrics['context_recall']*100:.1f}%"])
+                    q_metrics_data.append([escape_html("Context Recall"), escape_html(f"{ragas_metrics['context_recall']*100:.1f}%")])
                 if ragas_metrics.get("overall_score") is not None:
-                    q_metrics_data.append(["Genel Skor", f"{ragas_metrics['overall_score']*100:.1f}%"])
+                    q_metrics_data.append([escape_html("Genel Skor"), escape_html(f"{ragas_metrics['overall_score']*100:.1f}%")])
                 
-                q_metrics_table = Table(q_metrics_data, colWidths=[2.5*inch, 3.5*inch])
+                # Convert table data to Paragraphs for Unicode support
+                q_metrics_table_data = []
+                for row in q_metrics_data:
+                    q_metrics_table_data.append([
+                        Paragraph(escape_html(row[0]), styles['Normal']),
+                        Paragraph(escape_html(row[1]), styles['Normal'])
+                    ])
+                
+                q_metrics_table = Table(q_metrics_table_data, colWidths=[2.5*inch, 3.5*inch])
                 q_metrics_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
                     ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
