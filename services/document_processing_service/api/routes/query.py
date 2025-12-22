@@ -727,6 +727,19 @@ def _generate_answer_with_llm(
                 f"SORU: {query}\n\n"
                 "CEVAP:"
             )
+
+        # DEBUG: Log which prompt policy is used and a safe preview of the prompt
+        try:
+            rag_prompt_style = (os.getenv("RAG_PROMPT_STYLE") or "legacy").strip().lower()
+            prompt_source = "prompt_policy" if _build_rag_answer_prompt_tr is not None else "fallback_inline"
+            preview_limit = 600
+            full_prompt_preview = full_prompt[:preview_limit] + "..." if len(full_prompt) > preview_limit else full_prompt
+            logger.info(
+                f"[RAG PROMPT DEBUG] source={prompt_source} RAG_PROMPT_STYLE={rag_prompt_style} full_prompt_len={len(full_prompt)}"
+            )
+            logger.info(f"[RAG PROMPT DEBUG] full_prompt_preview=\n{full_prompt_preview}")
+        except Exception as _log_err:
+            logger.debug(f"[RAG PROMPT DEBUG] Failed to log prompt preview: {_log_err}")
         
         # Call LLM using /models/generate endpoint
         generate_url = f"{MODEL_INFERENCER_URL}/models/generate"
