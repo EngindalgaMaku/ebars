@@ -443,6 +443,15 @@ def is_groq_model(model_name: str) -> bool:
 
 def is_openrouter_model(model_name: str) -> bool:
     """Check if the model is intended for OpenRouter based on free models."""
+    if not model_name:
+        return False
+
+    # OpenRouter free-tier models are typically expressed with a ':free' suffix.
+    # Treat these as OpenRouter models even if they are not present in the static
+    # allowlist to avoid mis-routing to Ollama (which can cause 404 model-not-found).
+    if isinstance(model_name, str) and model_name.strip().endswith(":free"):
+        return True
+
     # Free OpenRouter models - cost-effective options
     openrouter_models = [
         "meta-llama/llama-3.1-8b-instruct:free",

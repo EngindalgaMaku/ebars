@@ -172,7 +172,15 @@ def _call_model_inference_service(
 
     client = _HttpxPool.get_client()
     resp = client.post(url, json=payload)
-    resp.raise_for_status()
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        body = (resp.text or "")
+        body_preview = body[:500]
+        raise RuntimeError(
+            f"Model inference HTTP {resp.status_code} for model='{model}'. "
+            f"Body (first 500 chars): {body_preview}"
+        ) from e
     data = resp.json()
     return (data.get("response") or "").strip()
 
