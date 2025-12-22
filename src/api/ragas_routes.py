@@ -547,20 +547,13 @@ async def execute_ragas_batch_evaluation(
                 
                 # Evaluate with RAGAS (with retry for low scores)
                 try:
-                    llm_provider = None
-                    llm_model = None
-                    if isinstance(session_settings, dict):
-                        # RAG settings store provider/model under these keys
-                        llm_provider = session_settings.get("provider") or None
-                        llm_model = session_settings.get("model") or None
-
                     ragas_request = RAGASEvaluationRequest(
                         question=question,
                         answer=rag_result["answer"],
                         contexts=rag_result["contexts"] or [""],  # Ensure at least empty list
                         ground_truth=ground_truth,
-                        llm_provider=llm_provider,
-                        llm_model=llm_model,
+                        llm_provider=None,
+                        llm_model=None,
                     )
                     
                     logger.info(f"Evaluating question {i+1} with RAGAS...")
