@@ -13,9 +13,9 @@ import httpx
 class LLMMarkdownChunkingConfig:
     target_size: int = 1000
     overlap: int = 200
-    llm_input_char_limit: int = 12000
+    llm_input_char_limit: int = 6000
     temperature: float = 0.1
-    max_tokens: int = 1200
+    max_tokens: int = 2200
     concurrency: int = 4
     primary_model: str = "meta-llama/llama-3.1-8b-instruct:free"
     fallback_model: str = "llama-3.1-8b-instant"
@@ -146,7 +146,7 @@ def _build_llm_prompt(text: str, target_size: int) -> str:
         "Kod bloklarını (``` ... ```) ve Markdown tablolarını parçalama. "
         f"Her parça yaklaşık {target_size} karakteri geçmeyecek şekilde böl (gerekirse daha kısa olabilir). "
         "Çıktıyı SADECE geçerli JSON olarak ver. Şema tam olarak şu olmalı: {\"chunks\": [\"...\", \"...\"]}. "
-        "JSON dışında hiçbir şey yazma.\n\n"
+        "JSON dışında hiçbir şey yazma. Geçersiz JSON üretme. Sadece tek bir JSON nesnesi döndür.\n\n"
         "METİN:\n"
         + text
     )
@@ -219,31 +219,50 @@ def create_llm_markdown_chunks(
     def run_llm(text: str) -> List[str]:
         prompt = _build_llm_prompt(text, cfg.target_size)
 
-        try:
+        def _try_call(model: str, max_tokens: int) -> Optional[List[str]]:
             raw = _call_model_inference_service(
                 model_inference_url=model_inference_url,
                 prompt=prompt,
-                model=cfg.primary_model,
+                model=model,
                 temperature=cfg.temperature,
-                max_tokens=cfg.max_tokens,
+                max_tokens=max_tokens,
             )
-            chunks = _extract_chunks_from_json(raw)
+            return _extract_chunks_from_json(raw)
+
+        # 1) Primary model
+        try:
+            chunks = _try_call(cfg.primary_model, cfg.max_tokens)
             if chunks:
                 return chunks
-        except Exception:
-            pass
+        except Exception as e:
+            # If JSON mode failed due to token limits, retry with a bigger budget once.
+            err = str(e)
+            if "json_validate_failed" in err or "max completion tokens" in err.lower():
+                try:
+                    retry_tokens = min(max(cfg.max_tokens * 2, cfg.max_tokens + 800), 4000)
+                    chunks = _try_call(cfg.primary_model, retry_tokens)
+                    if chunks:
+                        return chunks
+                except Exception:
+                    pass
 
-        raw = _call_model_inference_service(
-            model_inference_url=model_inference_url,
-            prompt=prompt,
-            model=cfg.fallback_model,
-            temperature=cfg.temperature,
-            max_tokens=cfg.max_tokens,
-        )
-        chunks = _extract_chunks_from_json(raw)
-        if chunks:
-            return chunks
+        # 2) Fallback model
+        try:
+            chunks = _try_call(cfg.fallback_model, cfg.max_tokens)
+            if chunks:
+                return chunks
+        except Exception as e:
+            err = str(e)
+            if "json_validate_failed" in err or "max completion tokens" in err.lower():
+                try:
+                    retry_tokens = min(max(cfg.max_tokens * 2, cfg.max_tokens + 800), 4000)
+                    chunks = _try_call(cfg.fallback_model, retry_tokens)
+                    if chunks:
+                        return chunks
+                except Exception:
+                    pass
 
+        # 3) Hard fallback: return the original block untouched
         return [text]
 
     if llm_tasks:
