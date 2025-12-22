@@ -1453,6 +1453,25 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
                     )
                     answer_preview = answer[:200] + "..." if len(answer) > 200 else answer
                     elements.append(Paragraph(f"<b>{escape_html('Cevap:')}</b> {escape_html(answer_preview)}", answer_style))
+                    
+                    # Add ground truth if available
+                    if "ground_truth" in result and result["ground_truth"]:
+                        ground_truth = result["ground_truth"]
+                        ground_truth_style = ParagraphStyle(
+                            'GroundTruthStyle',
+                            parent=styles['Normal'],
+                            fontSize=9,
+                            textColor=colors.HexColor('#4caf50'),
+                            spaceBefore=6,
+                            spaceAfter=6,
+                            fontName=default_font,
+                            backColor=colors.HexColor('#f0fff4')
+                        )
+                        ground_truth_preview = ground_truth[:200] + "..." if len(ground_truth) > 200 else ground_truth
+                        elements.append(Paragraph(
+                            f"<b>{escape_html('Ground Truth:')}</b> {escape_html(ground_truth_preview)}", 
+                            ground_truth_style
+                        ))
                 
                 if not success:
                     error = result.get("error", "Unknown error")
