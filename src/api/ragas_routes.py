@@ -87,7 +87,7 @@ def _save_ragas_test_to_db(test_id: str, test_data: Dict[str, Any]):
             conn.execute("""
                 INSERT OR REPLACE INTO ragas_test_results (test_id, data, updated_at)
                 VALUES (?, ?, CURRENT_TIMESTAMP)
-            """, (test_id, json.dumps(test_data)))
+            """, (test_id, json.dumps(test_data, default=str, ensure_ascii=False)))
         
         # CRITICAL: Always update memory after saving to DB to prevent cache issues
         # This ensures memory and DB stay in sync
@@ -1087,11 +1087,29 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
     
     try:
         # Load test data
-        test_data = RAGAS_TEST_STORAGE.get(test_id)
-        if not test_data:
-            test_data = _load_ragas_test_from_db(test_id)
-            if not test_data:
-                raise HTTPException(status_code=404, detail="Test not found")
+        # Prefer the most complete dataset between memory and DB.
+        memory_data = RAGAS_TEST_STORAGE.get(test_id)
+        db_data = _load_ragas_test_from_db(test_id)
+
+        if not memory_data and not db_data:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if memory_data and db_data:
+            mem_results = memory_data.get("results", []) or []
+            db_results = db_data.get("results", []) or []
+            mem_status = memory_data.get("status")
+            db_status = db_data.get("status")
+
+            # If one is completed and has more results, choose it.
+            if mem_status == "completed" and len(mem_results) >= len(db_results):
+                test_data = memory_data
+            elif db_status == "completed" and len(db_results) >= len(mem_results):
+                test_data = db_data
+            else:
+                # Otherwise choose the one with more results.
+                test_data = memory_data if len(mem_results) >= len(db_results) else db_data
+        else:
+            test_data = memory_data or db_data
         
         # Verify access
         _require_owner_or_admin(http_request, test_data.get("session_id", ""))
@@ -1326,7 +1344,9 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
             elements.append(Paragraph(escape_html("Detaylı Sonuçlar"), heading2_style_unicode))
             elements.append(Spacer(1, 0.1*inch))
             
-            for idx, result in enumerate(results[:50], 1):  # Limit to first 50 for PDF size
+            # NOTE: Previously this was limited to first 50 results, which caused users to
+            # see "missing" results in the PDF for larger tests.
+            for idx, result in enumerate(results, 1):
                 if idx > 1:
                     elements.append(Spacer(1, 0.2*inch))
                 
@@ -1406,15 +1426,9 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
                     )
                     elements.append(Paragraph(f"<b>{escape_html('Hata:')}</b> {escape_html(error)}", error_style))
                 
-                if idx >= 50:
-                    note_style = ParagraphStyle(
-                        'NoteStyle',
-                        parent=styles['Normal'],
-                        fontName=default_font
-                    )
-                    elements.append(Spacer(1, 0.2*inch))
-                    elements.append(Paragraph(f"<i>{escape_html(f'Not: Toplam {len(results)} soru var, ilk 50 soru gösteriliyor.')}</i>", note_style))
-                    break
+                # Add a page break every ~6 questions for readability
+                if idx % 6 == 0:
+                    elements.append(PageBreak())
         
         # Build PDF
         doc.build(elements)
@@ -1438,14 +1452,14 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
         
         # Use RFC 5987 encoding for filename with Turkish characters in Content-Disposition
         from urllib.parse import quote
-        encoded_filename = quote(test_name.encode('utf-8'))
+        encoded_filename = quote(filename)
         safe_filename = filename.encode('ascii', 'ignore').decode('ascii')
         
         return Response(
             content=buffer.getvalue(),
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f'attachment; filename="{safe_filename}"; filename*=UTF-8\'\'{encoded_filename}.pdf'
+                "Content-Disposition": f'attachment; filename="{safe_filename}"; filename*=UTF-8\'\'{encoded_filename}'
             }
         )
         

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import TeacherLayout from "../components/TeacherLayout";
 import { getSession, SessionMeta, listSessions } from "@/lib/api";
 import {
@@ -57,6 +57,8 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+
+import type { ValueType } from "recharts/types/component/DefaultTooltipContent";
 
 // RAGAS Test Configuration Interface
 interface RAGASTestConfig {
@@ -154,10 +156,26 @@ export default function RAGMetricsTestPage() {
   const [editingTestName, setEditingTestName] = useState("");
   const [deletingTestId, setDeletingTestId] = useState<string | null>(null);
 
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const currentTestRef = useRef<RAGASTestResult | null>(null);
+
+  useEffect(() => {
+    currentTestRef.current = currentTest;
+  }, [currentTest]);
+
   useEffect(() => {
     setMounted(true);
     fetchAvailableSessions();
     loadTestList();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
   }, []);
 
   // Fetch available sessions
@@ -268,6 +286,11 @@ export default function RAGMetricsTestPage() {
   // Load specific test details
   const loadTestDetails = async (testId: string) => {
     try {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+
       const response = await fetch(`/api/rag-metrics/status/${testId}`);
       if (!response.ok) {
         console.error("Failed to load test details");
@@ -292,6 +315,7 @@ export default function RAGMetricsTestPage() {
 
       setCurrentTest(testResult);
       setSelectedTestId(testId);
+      setIsRunning(testResult.status === "running");
       setActiveTab("results");
     } catch (error) {
       console.error("Error loading test details:", error);
@@ -390,10 +414,15 @@ export default function RAGMetricsTestPage() {
 
   // Poll test status
   const pollTestStatus = (testId: string) => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
     let lastProgress = 0;
     let lastResultsCount = 0;
     
-    const interval = setInterval(async () => {
+    pollIntervalRef.current = setInterval(async () => {
       try {
         const response = await fetch(`/api/rag-metrics/status/${testId}`);
         if (!response.ok) {
@@ -429,7 +458,10 @@ export default function RAGMetricsTestPage() {
           executionTime: status.executionTime,
           aggregate_metrics: status.aggregate_metrics,
           // Only update results if we have more results than before
-          results: newResultsCount >= lastResultsCount ? (status.results || []) : (currentTest?.results || []),
+          results:
+            newResultsCount >= lastResultsCount
+              ? status.results || []
+              : currentTestRef.current?.results || [],
           total_questions: status.total_questions,
           successful_questions: status.successful_questions,
           failed_questions: status.failed_questions,
@@ -439,7 +471,10 @@ export default function RAGMetricsTestPage() {
 
         // Stop polling if test is completed or failed
         if (status.status === "completed" || status.status === "failed") {
-          clearInterval(interval);
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
           setIsRunning(false);
           if (status.status === "completed") {
             toast.success("Test tamamlandı!");
@@ -450,9 +485,6 @@ export default function RAGMetricsTestPage() {
         console.error("Error polling test status:", error);
       }
     }, 2000); // Poll every 2 seconds
-
-    // Cleanup interval on unmount
-    return () => clearInterval(interval);
   };
 
   // Export PDF
@@ -464,10 +496,14 @@ export default function RAGMetricsTestPage() {
       }
       
       const blob = await response.blob();
+      const contentDisposition = response.headers.get("content-disposition") || "";
+      const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+      const suggestedFilename = filenameMatch?.[1];
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `ragas_test_${testId.substring(0, 8)}.pdf`;
+      a.download = suggestedFilename || `ragas_test_${testId.substring(0, 8)}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -1073,10 +1109,13 @@ export default function RAGMetricsTestPage() {
                           <XAxis dataKey="metric" />
                           <YAxis domain={[0, 1]} tickFormatter={(value) => (value * 100).toFixed(0) + "%"} />
                           <Tooltip
-                            formatter={(value: number | undefined) => [
-                              value !== undefined ? (value * 100).toFixed(2) + "%" : "N/A",
-                              "Score",
-                            ]}
+                            formatter={(value: ValueType) => {
+                              const num = typeof value === "number" ? value : Number(value);
+                              const label = Number.isFinite(num)
+                                ? (num * 100).toFixed(2) + "%"
+                                : "N/A";
+                              return [label, "Score"];
+                            }}
                           />
                           <Legend />
                           <Bar dataKey="score" fill="#8884d8" />

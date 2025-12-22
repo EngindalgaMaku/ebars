@@ -61,10 +61,11 @@ TÜRKÇE DİKKAT ET:
 - Gereksiz süslü kelimeler kullanma
 
 CEVAP ŞEKLİ:
-• Önce ana konuyu açıkla
-• Detayları sırayla ver
-• Basit örnekler kullan
-• Kısa paragraflar yaz
+• İLK SATIRDA sorunun cevabını net biçimde ver.
+  - Eğer soru tek bir isim/tarih/sayı istiyorsa SADECE onu yaz (örn: "1071", "Buhar gücü", "HTTPS").
+• Sonrasında en fazla 2 kısa cümleyle gerekçe/açıklama ekle (opsiyonel).
+• Soru dışına çıkma, gereksiz detay/öğretici anlatım ekleme.
+• Yanıtın 1-4 cümleyi geçmesin.
 
 CEVAP:""",
         'en': """
