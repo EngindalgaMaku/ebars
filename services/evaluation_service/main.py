@@ -298,12 +298,20 @@ async def evaluate_rag(request: EvaluationRequest):
         
         # Prepare data for RAGAS
         has_ground_truth = bool(request.ground_truth and request.ground_truth.strip())
+        reference = request.ground_truth.strip() if has_ground_truth else ""
         data = {
+            # Legacy column names used by ragas.evaluate wrappers
             "question": [request.question],
             "answer": [request.answer],
             "contexts": [request.contexts],
-            # RAGAS 0.4.x expects ground_truths as a list per row
-            "ground_truths": [[request.ground_truth]] if has_ground_truth else [[]]
+            "ground_truths": [[reference]] if has_ground_truth else [[]],
+
+            # Stable column names required by some metrics in newer ragas internals
+            # (e.g., context_precision/context_recall require 'reference')
+            "user_input": [request.question],
+            "response": [request.answer],
+            "retrieved_contexts": [request.contexts],
+            "reference": [reference],
         }
         
         dataset = Dataset.from_dict(data)
