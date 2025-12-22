@@ -700,6 +700,9 @@ export default function RAGMetricsTestPage() {
                       <p className="text-xs text-muted-foreground">
                         Doküman: {selectedSession.document_count || 0} | Chunk: {selectedSession.total_chunks || 0}
                       </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        LLM: {selectedSession.rag_settings?.provider || "-"} / {selectedSession.rag_settings?.model || "-"}
+                      </p>
                     </div>
                   )}
                 </CardContent>

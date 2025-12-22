@@ -60,6 +60,8 @@ class EvaluationRequest(BaseModel):
     answer: str
     contexts: List[str]
     ground_truth: Optional[str] = None
+    llm_provider: Optional[str] = None
+    llm_model: Optional[str] = None
 
 class EvaluationResponse(BaseModel):
     faithfulness: float
@@ -69,7 +71,7 @@ class EvaluationResponse(BaseModel):
     context_recall: Optional[float] = None
     overall_score: float
 
-def get_llm():
+def get_llm(llm_provider: Optional[str] = None, llm_model: Optional[str] = None):
     """Configure LLM based on environment variables
     
     Priority for RAGAS evaluation (Türkçe metinler için):
@@ -82,19 +84,82 @@ def get_llm():
     yetersiz kalıyor. RAGAS'ın faithfulness ve answer_relevancy metrikleri
     Türkçe statement/question generation gerektiriyor, bu yüzden OpenAI tercih ediliyor.
     """
+    requested_provider = (llm_provider or "").strip().lower() or None
+    requested_model = (llm_model or "").strip() or None
+
+    def _get_openai_llm(model_name: Optional[str] = None):
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            return None
+        openai_model = model_name or os.getenv("RAGAS_OPENAI_MODEL", "gpt-4o-mini")
+        logger.info(f"✅ Using OpenAI LLM for RAGAS evaluation (model: {openai_model})")
+        return ChatOpenAI(
+            model=openai_model,
+            temperature=0,
+            openai_api_key=openai_api_key,
+            timeout=180,
+            max_retries=5
+        )
+
+    def _get_groq_llm(model_name: Optional[str] = None):
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if not groq_api_key:
+            return None
+        groq_model = model_name or os.getenv("RAGAS_GROQ_MODEL", "llama-3.1-8b-instant")
+        logger.info(f"⚠️ Using Groq LLM for evaluation (model: {groq_model})")
+        return ChatGroq(
+            model_name=groq_model,
+            temperature=0,
+            groq_api_key=groq_api_key,
+            timeout=180,
+            max_retries=5
+        )
+
+    def _get_openrouter_llm(model_name: Optional[str] = None):
+        openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+        if not openrouter_api_key:
+            return None
+        openrouter_model = model_name or os.getenv("RAGAS_OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
+        logger.info(f"⚠️ Using OpenRouter LLM for evaluation (model: {openrouter_model})")
+        return ChatOpenAI(
+            model=openrouter_model,
+            temperature=0,
+            openai_api_key=openrouter_api_key,
+            base_url="https://openrouter.ai/api/v1",
+            timeout=180,
+            max_retries=5,
+            default_headers={
+                "HTTP-Referer": "http://localhost:8010",
+                "X-Title": "RAGAS Evaluation Service"
+            }
+        )
+
+    # If a specific provider was requested (e.g., from session rag_settings), honor it first.
+    if requested_provider:
+        try:
+            if requested_provider == "openai":
+                llm = _get_openai_llm(requested_model)
+                if llm is not None:
+                    return llm
+            elif requested_provider == "groq":
+                llm = _get_groq_llm(requested_model)
+                if llm is not None:
+                    return llm
+            elif requested_provider == "openrouter":
+                llm = _get_openrouter_llm(requested_model)
+                if llm is not None:
+                    return llm
+            else:
+                logger.warning(f"Unknown requested llm_provider='{requested_provider}', falling back to default selection")
+        except Exception as e:
+            logger.error(f"❌ Failed to configure requested provider '{requested_provider}': {e}")
+
+    # Default selection order (env-based)
     # Önce OpenAI'ı dene - Türkçe için en iyi performans
     openai_api_key = os.getenv("OPENAI_API_KEY")
     if openai_api_key:
-        openai_model = os.getenv("RAGAS_OPENAI_MODEL", "gpt-4o-mini")  # gpt-4o-mini hızlı ve ucuz, Türkçe için iyi
-        logger.info(f"✅ Using OpenAI LLM for RAGAS evaluation (model: {openai_model}) - Best for Turkish text")
         try:
-            return ChatOpenAI(
-                model=openai_model,
-                temperature=0,
-                openai_api_key=openai_api_key,
-                timeout=180,
-                max_retries=5
-            )
+            return _get_openai_llm()
         except Exception as e:
             logger.error(f"❌ Failed to configure OpenAI: {e}")
             logger.warning("Falling back to Groq...")
@@ -102,16 +167,8 @@ def get_llm():
     # Groq'u dene (fallback - Türkçe için daha az doğru)
     groq_api_key = os.getenv("GROQ_API_KEY")
     if groq_api_key:
-        groq_model = os.getenv("RAGAS_GROQ_MODEL", "llama-3.1-8b-instant")
-        logger.info(f"⚠️ Using Groq LLM for evaluation (model: {groq_model}) - May have issues with Turkish text")
         try:
-            return ChatGroq(
-                model_name=groq_model,
-                temperature=0,
-                groq_api_key=groq_api_key,
-                timeout=180,
-                max_retries=5
-            )
+            return _get_groq_llm()
         except Exception as e:
             logger.error(f"❌ Failed to configure Groq: {e}")
             logger.warning("Falling back to OpenRouter...")
@@ -130,19 +187,7 @@ def get_llm():
             if not openrouter_api_key or not openrouter_api_key.strip():
                 raise ValueError("OpenRouter API key is empty or invalid")
             
-            llm = ChatOpenAI(
-                model=openrouter_model,
-                temperature=0,
-                openai_api_key=openrouter_api_key,  # LangChain ChatOpenAI için openai_api_key parametresi kullanılmalı
-                base_url="https://openrouter.ai/api/v1",  # OpenRouter endpoint
-                timeout=180,  # LangChain 1.x: timeout hem connection hem request timeout için kullanılır
-                max_retries=5,
-                # OpenRouter için özel headers (HTTP-Referer ve X-Title gerekli)
-                default_headers={
-                    "HTTP-Referer": "http://localhost:8010",
-                    "X-Title": "RAGAS Evaluation Service"
-                }
-            )
+            llm = _get_openrouter_llm(openrouter_model)
             # ChatOpenAI, openai_api_key'den Authorization: Bearer <key> header'ını otomatik ekler
             logger.info(f"✅ ChatOpenAI configured for OpenRouter (model: {openrouter_model})")
             logger.debug(f"   API Key present: {bool(openrouter_api_key)}")
@@ -257,7 +302,7 @@ async def evaluate_rag(request: EvaluationRequest):
             
         # Configure RAGAS with our LLM
         logger.info("🔧 Getting LLM configuration...")
-        llm = get_llm()
+        llm = get_llm(request.llm_provider, request.llm_model)
         logger.info(f"✅ LLM configured: {type(llm).__name__}")
         
         # Evaluate with exception handling disabled to prevent crashes
