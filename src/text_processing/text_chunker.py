@@ -88,6 +88,15 @@ except ImportError:
         def create_semantic_sections(self, ast_nodes):
             return []
 
+# Import LLM-based markdown chunker (optional)
+LLM_MARKDOWN_CHUNKER_AVAILABLE = False
+try:
+    from .llm_markdown_chunker import create_llm_markdown_chunks_safe
+    LLM_MARKDOWN_CHUNKER_AVAILABLE = True
+    logger.info("✅ LLM markdown chunker available")
+except ImportError:
+    logger.info("ℹ️ LLM markdown chunker not available")
+
 def _group_units(units: Sequence[str], chunk_size: int, chunk_overlap: int) -> List[str]:
     """Group sentence/paragraph units into chunks close to chunk_size (by characters)."""
     chunks: List[str] = []
@@ -447,7 +456,7 @@ def chunk_text(
     text: str,
     chunk_size: int = None,
     chunk_overlap: int = None,
-    strategy: Literal["char", "paragraph", "sentence", "markdown", "semantic", "hybrid", "lightweight"] = "lightweight",
+    strategy: Literal["char", "paragraph", "sentence", "markdown", "semantic", "hybrid", "lightweight", "llm_markdown"] = "lightweight",
     language: str = "auto",
     use_embedding_refinement: bool = True,
     use_lightweight_chunker: bool = True,
@@ -470,6 +479,7 @@ def chunk_text(
                   - "markdown": Enhanced markdown structure-aware chunking
                   - "semantic": LLM-based semantic chunking (with safe fallback)
                   - "hybrid": Combination of markdown + semantic analysis
+                  - "llm_markdown": LLM-assisted markdown chunking (OpenRouter free primary + Groq fallback)
         language: Language of the text ("tr", "en", or "auto")
         use_embedding_refinement: Whether to use embedding-based refinement
         use_lightweight_chunker: Whether to use the new lightweight chunker (DEFAULT: True)
@@ -537,6 +547,40 @@ def chunk_text(
     elif strategy == "markdown":
         # Enhanced markdown structure-aware chunking - DEFAULT and RECOMMENDED
         return _chunk_by_markdown_structure(normalized, chunk_size, chunk_overlap)
+    
+    elif strategy == "llm_markdown":
+        # LLM-assisted markdown chunking: OpenRouter free primary + Groq fallback
+        if not LLM_MARKDOWN_CHUNKER_AVAILABLE:
+            logger.info("⚠️ LLM markdown chunker not available, using enhanced markdown")
+            return _chunk_by_markdown_structure(normalized, chunk_size, chunk_overlap)
+        try:
+            # Primary: OpenRouter free model (low cost)
+            # Fallback: Groq model (stable)
+            # Note: llm_model_name param can override primary when provided by caller
+            # If caller didn't explicitly set a model, default to OpenRouter free.
+            # (llm_model_name default is a Groq model used elsewhere in the codebase)
+            if not llm_model_name or llm_model_name == "llama-3.1-8b-instant":
+                primary_model = "meta-llama/llama-3.1-8b-instruct:free"
+            else:
+                primary_model = llm_model_name
+            fallback_model = "llama-3.1-8b-instant"
+            chunks = create_llm_markdown_chunks_safe(
+                markdown_text=normalized,
+                target_size=chunk_size,
+                overlap=chunk_overlap,
+                model_inference_url=model_inference_url,
+                llm_model_name=primary_model,
+                fallback_model_name=fallback_model,
+                concurrency=4,
+            )
+            if chunks:
+                logger.info(f"✅ LLM markdown chunking successful: {len(chunks)} chunks")
+                return chunks
+            return _chunk_by_markdown_structure(normalized, chunk_size, chunk_overlap)
+        except Exception as e:
+            logger.error(f"❌ LLM markdown chunking failed: {e}")
+            logger.info("⚠️ Falling back to enhanced markdown strategy")
+            return _chunk_by_markdown_structure(normalized, chunk_size, chunk_overlap)
     
     elif strategy == "lightweight" or (use_lightweight_chunker and strategy in ["semantic", "markdown"]):
         # NEW Lightweight Turkish chunking system - PREFERRED METHOD
