@@ -17,8 +17,8 @@ class LLMMarkdownChunkingConfig:
     temperature: float = 0.1
     max_tokens: int = 2200
     concurrency: int = 4
-    primary_model: str = "meta-llama/llama-3.1-8b-instruct:free"
-    fallback_model: str = "llama-3.1-8b-instant"
+    primary_model: str = "llama-3.1-8b-instant"
+    fallback_model: str = "llama-3.3-70b-versatile"
 
 
 class _HttpxPool:
@@ -237,28 +237,6 @@ def create_llm_markdown_chunks(
             )
             return _extract_chunks_from_json(raw)
 
-        def _is_openrouter_no_endpoints_error(err: str) -> bool:
-            if not err:
-                return False
-            e = err.lower()
-            return "openrouter api error: 404" in e and "no endpoints found" in e
-
-        def _openrouter_fallback_models(primary: str) -> List[str]:
-            candidates = [
-                primary,
-                "google/gemma-2-9b-it:free",
-                "mistralai/mistral-7b-instruct:free",
-                "microsoft/phi-3-mini-4k-instruct:free",
-                "nousresearch/hermes-3-llama-3.1-8b:free",
-            ]
-            seen = set()
-            out: List[str] = []
-            for m in candidates:
-                if isinstance(m, str) and m and m not in seen:
-                    seen.add(m)
-                    out.append(m)
-            return out
-
         # 1) Primary model
         try:
             chunks = _try_call(cfg.primary_model, cfg.max_tokens)
@@ -275,20 +253,6 @@ def create_llm_markdown_chunks(
                         return chunks
                 except Exception:
                     pass
-
-            # If OpenRouter cannot route the selected free model, try a small set of
-            # alternative free models before switching providers.
-            if _is_openrouter_no_endpoints_error(err):
-                for m in _openrouter_fallback_models(cfg.primary_model):
-                    if m == cfg.primary_model:
-                        continue
-                    try:
-                        chunks = _try_call(m, cfg.max_tokens)
-                        if chunks:
-                            return chunks
-                    except Exception as e2:
-                        if not _is_openrouter_no_endpoints_error(str(e2)):
-                            break
 
         # 2) Fallback model
         try:
