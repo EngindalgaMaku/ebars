@@ -456,7 +456,7 @@ def chunk_text(
     text: str,
     chunk_size: int = None,
     chunk_overlap: int = None,
-    strategy: Literal["char", "paragraph", "sentence", "markdown", "semantic", "hybrid", "lightweight", "llm_markdown"] = "lightweight",
+    strategy: Literal["char", "paragraph", "sentence", "markdown", "semantic", "hybrid", "lightweight", "llm_markdown"] = "llm_markdown",
     language: str = "auto",
     use_embedding_refinement: bool = True,
     use_lightweight_chunker: bool = True,
@@ -472,7 +472,8 @@ def chunk_text(
         chunk_size: The desired maximum size of each chunk (in characters).
         chunk_overlap: The desired overlap between consecutive chunks (in characters).
         strategy: Chunking strategy to use:
-                  - "lightweight": NEW Turkish-optimized lightweight chunker (DEFAULT)
+                  - "llm_markdown": LLM-assisted markdown chunking (DEFAULT, Groq primary + fallback)
+                  - "lightweight": Turkish-optimized lightweight chunker (fallback)
                   - "char": Character-based chunking with word boundaries
                   - "paragraph": Paragraph-based chunking
                   - "sentence": Turkish-aware sentence-based chunking
@@ -497,7 +498,7 @@ def chunk_text(
     # Examples handled: "LLM_MARKDOWN", " llm-markdown ", "Llm_Markdown"
     original_strategy = strategy
     try:
-        strategy = (strategy or "lightweight").strip().lower().replace("-", "_")
+        strategy = (strategy or "llm_markdown").strip().lower().replace("-", "_")
     except Exception:
         strategy = "lightweight"
     if original_strategy != strategy:
