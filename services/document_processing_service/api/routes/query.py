@@ -754,6 +754,19 @@ def _generate_answer_with_llm(
         if response.status_code == 200:
             result = response.json()
             answer = result.get("response", "Cevap oluşturulamadı.")
+            try:
+                a = (answer or "").strip()
+                if a:
+                    import re
+                    m = re.match(r"^([^\n]{2,80})\s+\1([\s\,:\-])", a, flags=re.IGNORECASE)
+                    if m:
+                        a = a[len(m.group(1)):].lstrip()
+                    m2 = re.match(r"^([^\n]{2,80})\s+([A-Za-zÇĞİÖŞÜçğıöşü0-9'\-]+\s+){0,3}\1([\s\,:\-])", a, flags=re.IGNORECASE)
+                    if m2:
+                        a = a[len(m2.group(1)):].lstrip()
+                    answer = a
+            except Exception:
+                pass
             logger.info(f"✅ Generated answer ({len(answer)} chars): '{answer[:200]}'")  # İlk 200 karakteri göster
             return answer, sources
         else:

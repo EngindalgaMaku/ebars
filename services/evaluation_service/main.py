@@ -178,6 +178,13 @@ def get_llm(llm_provider: Optional[str] = None, llm_model: Optional[str] = None)
                 openai_llm = _get_openai_llm("gpt-4o-mini")
                 if openai_llm is not None:
                     return openai_llm
+
+            # If OpenAI was explicitly requested, do not silently fall back to Groq.
+            # This prevents evaluation quality regressions and makes misconfiguration obvious.
+            raise RuntimeError(
+                "OpenAI provider requested but could not be initialized. "
+                "Check OPENAI_API_KEY, model availability, and network connectivity."
+            )
                     
         elif requested_provider == "groq":
             groq_llm = _get_groq_llm(requested_model)
@@ -194,6 +201,10 @@ def get_llm(llm_provider: Optional[str] = None, llm_model: Optional[str] = None)
     except Exception as e:
         logger.error(f"❌ Error configuring requested LLM (provider: {requested_provider}, model: {requested_model}): {str(e)}")
 
+        # If OpenAI was requested, propagate the error to avoid silently switching providers.
+        if requested_provider == "openai":
+            raise
+
     # Fallback to default OpenAI with gpt-4o-mini if no provider specified or if there was an error
     logger.info("🔧 Falling back to default OpenAI with gpt-4o-mini")
     openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -205,7 +216,7 @@ def get_llm(llm_provider: Optional[str] = None, llm_model: Optional[str] = None)
     else:
         logger.error("❌ OPENAI_API_KEY not found in environment variables")
     
-    # Final fallback to Groq if available
+    # Final fallback to Groq if available (only if OpenAI wasn't explicitly requested)
     groq_api_key = os.getenv("GROQ_API_KEY")
     if groq_api_key:
         try:
@@ -286,18 +297,20 @@ async def evaluate_rag(request: EvaluationRequest):
         logger.info(f"Evaluating request for question: {request.question[:100]}...")
         
         # Prepare data for RAGAS
+        has_ground_truth = bool(request.ground_truth and request.ground_truth.strip())
         data = {
             "question": [request.question],
             "answer": [request.answer],
             "contexts": [request.contexts],
-            "ground_truth": [request.ground_truth] if request.ground_truth else [""]
+            # RAGAS 0.4.x expects ground_truths as a list per row
+            "ground_truths": [[request.ground_truth]] if has_ground_truth else [[]]
         }
         
         dataset = Dataset.from_dict(data)
         
         # Select metrics based on available data
         metrics = [faithfulness, answer_relevancy]
-        if request.ground_truth:
+        if has_ground_truth:
             metrics.extend([context_precision, context_recall])
             if ANSWER_CORRECTNESS_AVAILABLE and answer_correctness is not None:
                 metrics.append(answer_correctness)
