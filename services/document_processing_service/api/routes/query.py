@@ -19,9 +19,19 @@ router = APIRouter()
 # Import centralized prompt policy from API Gateway codebase (shared src/)
 import sys
 from pathlib import Path
-_src_path = Path(__file__).resolve().parents[4] / "src"
-sys.path.append(str(_src_path))
-from utils.prompt_policy import build_rag_answer_prompt_tr
+_build_rag_answer_prompt_tr = None
+try:
+    _src_path = None
+    for p in Path(__file__).resolve().parents:
+        candidate = p / "src"
+        if candidate.exists() and candidate.is_dir():
+            _src_path = candidate
+            break
+    if _src_path is not None:
+        sys.path.append(str(_src_path))
+        from utils.prompt_policy import build_rag_answer_prompt_tr as _build_rag_answer_prompt_tr
+except Exception as _prompt_policy_import_err:
+    _build_rag_answer_prompt_tr = None
 
 
 @router.post("/query", response_model=RAGQueryResponse)
@@ -700,7 +710,23 @@ def _generate_answer_with_llm(
         context = "\n\n".join(context_parts)
         
         # Simple and direct prompt - no meta-analysis, just answer from context
-        full_prompt = build_rag_answer_prompt_tr(context=context, query=query)
+        if _build_rag_answer_prompt_tr is not None:
+            full_prompt = _build_rag_answer_prompt_tr(context=context, query=query)
+        else:
+            full_prompt = (
+                "Aşağıdaki KAYNAK metinleri kullanarak soruyu cevapla.\n"
+                "KURALLAR:\n"
+                "- SADECE kaynak metinlerde geçen bilgileri kullan.\n"
+                "- İLK SATIRDA sorunun cevabını net biçimde ver.\n"
+                "  - Eğer soru tek bir isim/tarih/sayı istiyorsa SADECE onu yaz (örn: '1071', 'HTTPS', 'Buhar gücü').\n"
+                "- Sonrasında en fazla 2 kısa cümleyle gerekçe/açıklama ekle (opsiyonel).\n"
+                "- Soru dışına çıkma, gereksiz detay/öğretici anlatım ekleme.\n"
+                "- Yanıtın 1-4 cümleyi geçmesin.\n"
+                "- Kaynaklarda cevap yoksa: 'Bu bilgi ders dökümanlarında bulunamamıştır.' de ve dur.\n\n"
+                f"KAYNAK METİNLER:\n{context}\n\n"
+                f"SORU: {query}\n\n"
+                "CEVAP:"
+            )
         
         # Call LLM using /models/generate endpoint
         generate_url = f"{MODEL_INFERENCER_URL}/models/generate"
