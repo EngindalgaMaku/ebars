@@ -19,6 +19,14 @@ from ragas.metrics import (
     context_precision,
     context_recall,
 )
+
+# Optional metric: not available in all ragas versions
+try:
+    from ragas.metrics import answer_correctness  # type: ignore
+    ANSWER_CORRECTNESS_AVAILABLE = True
+except Exception:
+    answer_correctness = None  # type: ignore
+    ANSWER_CORRECTNESS_AVAILABLE = False
 from datasets import Dataset
 
 # Setup logging
@@ -56,6 +64,7 @@ class EvaluationRequest(BaseModel):
 class EvaluationResponse(BaseModel):
     faithfulness: float
     answer_relevancy: float
+    answer_correctness: Optional[float] = None
     context_precision: Optional[float] = None
     context_recall: Optional[float] = None
     overall_score: float
@@ -243,6 +252,8 @@ async def evaluate_rag(request: EvaluationRequest):
         metrics = [faithfulness, answer_relevancy]
         if request.ground_truth:
             metrics.extend([context_precision, context_recall])
+            if ANSWER_CORRECTNESS_AVAILABLE and answer_correctness is not None:
+                metrics.append(answer_correctness)
             
         # Configure RAGAS with our LLM
         logger.info("🔧 Getting LLM configuration...")
@@ -395,6 +406,7 @@ async def evaluate_rag(request: EvaluationRequest):
         answer_relevancy_score = safe_float(scores.get("answer_relevancy"))
         context_precision_score = safe_float(scores.get("context_precision"))
         context_recall_score = safe_float(scores.get("context_recall"))
+        answer_correctness_score = safe_float(scores.get("answer_correctness"))
         
         # Log which metrics succeeded/failed
         successful_metrics = []
@@ -415,6 +427,11 @@ async def evaluate_rag(request: EvaluationRequest):
             successful_metrics.append("context_recall")
         else:
             failed_metrics.append("context_recall")
+        if ANSWER_CORRECTNESS_AVAILABLE and request.ground_truth:
+            if answer_correctness_score is not None:
+                successful_metrics.append("answer_correctness")
+            else:
+                failed_metrics.append("answer_correctness")
         
         if successful_metrics:
             logger.info(f"✅ Successful metrics: {', '.join(successful_metrics)}")
@@ -435,6 +452,7 @@ async def evaluate_rag(request: EvaluationRequest):
         response_data = EvaluationResponse(
             faithfulness=faithfulness_score if faithfulness_score is not None else 0.0,
             answer_relevancy=answer_relevancy_score if answer_relevancy_score is not None else 0.0,
+            answer_correctness=answer_correctness_score if (ANSWER_CORRECTNESS_AVAILABLE and request.ground_truth) else None,
             context_precision=context_precision_score if context_precision_score is not None else None,
             context_recall=context_recall_score if context_recall_score is not None else None,
             overall_score=overall

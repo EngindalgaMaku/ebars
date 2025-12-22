@@ -124,6 +124,7 @@ class RAGASEvaluationResponse(BaseModel):
     """Response model for RAGAS evaluation"""
     faithfulness: float = Field(..., description="Faithfulness score (0-1)")
     answer_relevancy: float = Field(..., description="Answer relevancy score (0-1)")
+    answer_correctness: Optional[float] = Field(None, description="Answer correctness score (0-1), requires ground_truth")
     context_precision: Optional[float] = Field(None, description="Context precision score (0-1), requires ground_truth")
     context_recall: Optional[float] = Field(None, description="Context recall score (0-1), requires ground_truth")
     overall_score: float = Field(..., description="Overall average score")
@@ -272,6 +273,9 @@ async def evaluate_rag(request: RAGASEvaluationRequest):
             metrics_available = ["faithfulness", "answer_relevancy"]
             if request.ground_truth:
                 metrics_available.extend(["context_precision", "context_recall"])
+                # answer_correctness is optional in the evaluation-service depending on ragas version
+                if result.get("answer_correctness") is not None:
+                    metrics_available.append("answer_correctness")
             
             # Extract metrics with validation
             # Handle NaN values from RAGAS (they come as None or NaN in JSON)
@@ -293,17 +297,21 @@ async def evaluate_rag(request: RAGASEvaluationRequest):
             overall_score = safe_float(result.get("overall_score"), 0.0)
             context_precision = result.get("context_precision")
             context_recall = result.get("context_recall")
+            answer_correctness = result.get("answer_correctness")
             
             # Convert optional metrics safely
             if context_precision is not None:
                 context_precision = safe_float(context_precision, None)
             if context_recall is not None:
                 context_recall = safe_float(context_recall, None)
+            if answer_correctness is not None:
+                answer_correctness = safe_float(answer_correctness, None)
             
             # Log extracted metrics
             logger.info(f"📊 Extracted metrics from RAGAS service:")
             logger.info(f"   Faithfulness: {faithfulness}")
             logger.info(f"   Answer Relevancy: {answer_relevancy}")
+            logger.info(f"   Answer Correctness: {answer_correctness}")
             logger.info(f"   Context Precision: {context_precision}")
             logger.info(f"   Context Recall: {context_recall}")
             logger.info(f"   Overall Score: {overall_score}")
@@ -314,6 +322,7 @@ async def evaluate_rag(request: RAGASEvaluationRequest):
             response = RAGASEvaluationResponse(
                 faithfulness=faithfulness,
                 answer_relevancy=answer_relevancy,
+                answer_correctness=answer_correctness,
                 context_precision=context_precision,
                 context_recall=context_recall,
                 overall_score=overall_score,
