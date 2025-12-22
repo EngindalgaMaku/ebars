@@ -5,6 +5,8 @@ import time
 import requests
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
+from src.utils.prompt_policy import build_rag_answer_prompt_tr
+
 # Optional import for ollama - handle gracefully when not available (e.g., in tests)
 try:
     import ollama
@@ -301,22 +303,8 @@ class RAGPipeline:
         if len(context_str) > max_context_length:
             context_str = context_str[:max_context_length] + "..."
             self.logger.info("Context truncated due to length limit")
-        
-        system_prompt = (
-            "Sen, yalnızca ve yalnızca sana sağlanan BAĞLAM metnini kullanarak soruları yanıtlayan bir yapay zeka asistanısın. "
-            "Görevin, kullanıcının sorusunun cevabını bu bağlam içinde bulmaktır. "
-            "Eğer sorunun cevabı bağlamda açıkça yer almıyorsa, kesinlikle kendi bilgini kullanma. "
-            "Bunun yerine, 'Bilgi sağlanan bağlamda bulunamadı.' şeklinde net bir cevap ver. "
-            "Cevaplarını kısa ve doğrudan tut. Sadece Türkçe cevap ver."
-        )
-        
-        full_prompt = f"""System: {system_prompt}
 
-User: Bağlam:
-{context_str}
-
-Soru: {query}
-Cevap:"""
+        full_prompt = build_rag_answer_prompt_tr(context=context_str, query=query)
 
         try:
             # Use ThreadPoolExecutor for timeout control

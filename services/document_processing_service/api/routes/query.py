@@ -16,6 +16,13 @@ import os
 
 router = APIRouter()
 
+# Import centralized prompt policy from API Gateway codebase (shared src/)
+import sys
+from pathlib import Path
+_src_path = Path(__file__).resolve().parents[4] / "src"
+sys.path.append(str(_src_path))
+from utils.prompt_policy import build_rag_answer_prompt_tr
+
 
 @router.post("/query", response_model=RAGQueryResponse)
 async def rag_query(request: RAGQueryRequest):
@@ -693,7 +700,7 @@ def _generate_answer_with_llm(
         context = "\n\n".join(context_parts)
         
         # Simple and direct prompt - no meta-analysis, just answer from context
-        full_prompt = f"Aşağıdaki bilgileri kullanarak soruyu cevapla:\n\n{context}\n\nSoru: {query}\n\nCevap:"
+        full_prompt = build_rag_answer_prompt_tr(context=context, query=query)
         
         # Call LLM using /models/generate endpoint
         generate_url = f"{MODEL_INFERENCER_URL}/models/generate"
