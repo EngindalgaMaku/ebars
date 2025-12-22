@@ -1745,5 +1745,3 @@ async def get_qa_analytics(session_id: str):
     except Exception as e:
         logger.error(f"Error fetching QA analytics: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch analytics: {str(e)}")
-
-
