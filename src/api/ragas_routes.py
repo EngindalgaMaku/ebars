@@ -722,10 +722,16 @@ async def execute_ragas_batch_evaluation(
                         # Safe sum with None handling - filter out None values
                         faithfulness_values = [r["ragas_metrics"].get("faithfulness") for r in successful_results if r["ragas_metrics"].get("faithfulness") is not None]
                         answer_relevancy_values = [r["ragas_metrics"].get("answer_relevancy") for r in successful_results if r["ragas_metrics"].get("answer_relevancy") is not None]
+                        answer_correctness_values = [r["ragas_metrics"].get("answer_correctness") for r in successful_results if r["ragas_metrics"].get("answer_correctness") is not None]
                         overall_values = [r["ragas_metrics"].get("overall_score") for r in successful_results if r["ragas_metrics"].get("overall_score") is not None]
                         
                         avg_faithfulness = sum(faithfulness_values) / len(faithfulness_values) if faithfulness_values else 0.0
                         avg_answer_relevancy = sum(answer_relevancy_values) / len(answer_relevancy_values) if answer_relevancy_values else 0.0
+                        avg_answer_correctness = (
+                            sum(answer_correctness_values) / len(answer_correctness_values)
+                            if answer_correctness_values
+                            else None
+                        )
                         avg_overall = sum(overall_values) / len(overall_values) if overall_values else 0.0
                         
                         # Context metrics (optional - may be None)
@@ -741,6 +747,7 @@ async def execute_ragas_batch_evaluation(
                         test_data["aggregate_metrics"] = {
                             "average_faithfulness": avg_faithfulness,
                             "average_answer_relevancy": avg_answer_relevancy,
+                            "average_answer_correctness": avg_answer_correctness,
                             "average_context_precision": avg_context_precision,
                             "average_context_recall": avg_context_recall,
                             "average_overall_score": avg_overall
@@ -811,10 +818,16 @@ async def execute_ragas_batch_evaluation(
             # Safe sum with None handling - filter out None values
             faithfulness_values = [r["ragas_metrics"].get("faithfulness") for r in successful_results if r["ragas_metrics"].get("faithfulness") is not None]
             answer_relevancy_values = [r["ragas_metrics"].get("answer_relevancy") for r in successful_results if r["ragas_metrics"].get("answer_relevancy") is not None]
+            answer_correctness_values = [r["ragas_metrics"].get("answer_correctness") for r in successful_results if r["ragas_metrics"].get("answer_correctness") is not None]
             overall_values = [r["ragas_metrics"].get("overall_score") for r in successful_results if r["ragas_metrics"].get("overall_score") is not None]
             
             avg_faithfulness = sum(faithfulness_values) / len(faithfulness_values) if faithfulness_values else 0.0
             avg_answer_relevancy = sum(answer_relevancy_values) / len(answer_relevancy_values) if answer_relevancy_values else 0.0
+            avg_answer_correctness = (
+                sum(answer_correctness_values) / len(answer_correctness_values)
+                if answer_correctness_values
+                else None
+            )
             avg_overall = sum(overall_values) / len(overall_values) if overall_values else 0.0
             
             # Context metrics (optional - may be None)
@@ -830,6 +843,7 @@ async def execute_ragas_batch_evaluation(
             aggregate_metrics = {
                 "average_faithfulness": avg_faithfulness,
                 "average_answer_relevancy": avg_answer_relevancy,
+                "average_answer_correctness": avg_answer_correctness,
                 "average_context_precision": avg_context_precision,
                 "average_context_recall": avg_context_recall,
                 "average_overall_score": avg_overall
@@ -1305,6 +1319,8 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
                 metrics_data.append(["Faithfulness", f"{aggregate_metrics['average_faithfulness']*100:.1f}%"])
             if aggregate_metrics.get("average_answer_relevancy") is not None:
                 metrics_data.append(["Answer Relevancy", f"{aggregate_metrics['average_answer_relevancy']*100:.1f}%"])
+            if aggregate_metrics.get("average_answer_correctness") is not None:
+                metrics_data.append(["Answer Correctness", f"{aggregate_metrics['average_answer_correctness']*100:.1f}%"])
             if aggregate_metrics.get("average_context_precision") is not None:
                 metrics_data.append(["Context Precision", f"{aggregate_metrics['average_context_precision']*100:.1f}%"])
             if aggregate_metrics.get("average_context_recall") is not None:
@@ -1381,6 +1397,8 @@ async def export_ragas_test_pdf(test_id: str, http_request: Request) -> Response
                     q_metrics_data.append(["Faithfulness", f"{ragas_metrics['faithfulness']*100:.1f}%"])
                 if ragas_metrics.get("answer_relevancy") is not None:
                     q_metrics_data.append(["Answer Relevancy", f"{ragas_metrics['answer_relevancy']*100:.1f}%"])
+                if ragas_metrics.get("answer_correctness") is not None:
+                    q_metrics_data.append(["Answer Correctness", f"{ragas_metrics['answer_correctness']*100:.1f}%"])
                 if ragas_metrics.get("context_precision") is not None:
                     q_metrics_data.append(["Context Precision", f"{ragas_metrics['context_precision']*100:.1f}%"])
                 if ragas_metrics.get("context_recall") is not None:

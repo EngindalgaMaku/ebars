@@ -88,6 +88,7 @@ interface RAGASTestResult {
   aggregate_metrics?: {
     average_faithfulness: number;
     average_answer_relevancy: number;
+    average_answer_correctness?: number;
     average_context_precision?: number;
     average_context_recall?: number;
     average_overall_score: number;
@@ -101,6 +102,7 @@ interface RAGASTestResult {
     ragas_metrics: {
       faithfulness: number;
       answer_relevancy: number;
+      answer_correctness?: number;
       context_precision?: number;
       context_recall?: number;
       overall_score: number;
@@ -146,6 +148,15 @@ export default function RAGMetricsTestPage() {
 
   // UI State
   const [questionText, setQuestionText] = useState("");
+
+  const getAggregateMetricCount = (aggregate?: RAGASTestResult["aggregate_metrics"]) => {
+    if (!aggregate) return 0;
+    let count = 2; // faithfulness + answer_relevancy
+    if (aggregate.average_answer_correctness !== undefined) count += 1;
+    if (aggregate.average_context_precision !== undefined) count += 1;
+    if (aggregate.average_context_recall !== undefined) count += 1;
+    return count;
+  };
   
   // Edit/Delete Dialog State
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -911,11 +922,11 @@ export default function RAGMetricsTestPage() {
                     <CardHeader>
                       <CardTitle>Ortalama Metrikler</CardTitle>
                       <CardDescription>
-                        RAGAS değerlendirme metrikleri (4 metrik)
+                        RAGAS değerlendirme metrikleri ({getAggregateMetricCount(currentTest.aggregate_metrics)} metrik)
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                         <div className="p-3 border rounded-lg">
                           <p className="text-sm text-muted-foreground mb-1">Faithfulness</p>
                           <p className={`text-2xl font-bold ${getScoreColor(currentTest.aggregate_metrics.average_faithfulness)}`}>
@@ -932,6 +943,22 @@ export default function RAGMetricsTestPage() {
                               : (currentTest.aggregate_metrics.average_answer_relevancy * 100).toFixed(1) + "%"}
                           </p>
                         </div>
+                        {currentTest.aggregate_metrics.average_answer_correctness !== undefined ? (
+                          <div className="p-3 border rounded-lg">
+                            <p className="text-sm text-muted-foreground mb-1">Answer Correctness</p>
+                            <p className={`text-2xl font-bold ${getScoreColor(currentTest.aggregate_metrics.average_answer_correctness)}`}>
+                              {isNaN(currentTest.aggregate_metrics.average_answer_correctness)
+                                ? "N/A"
+                                : (currentTest.aggregate_metrics.average_answer_correctness * 100).toFixed(1) + "%"}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-3 border rounded-lg border-dashed opacity-50">
+                            <p className="text-sm text-muted-foreground mb-1">Answer Correctness</p>
+                            <p className="text-2xl font-bold text-muted-foreground">N/A</p>
+                            <p className="text-xs text-muted-foreground mt-1">Ground truth gerekli</p>
+                          </div>
+                        )}
                         {currentTest.aggregate_metrics.average_context_precision !== undefined ? (
                           <div className="p-3 border rounded-lg">
                             <p className="text-sm text-muted-foreground mb-1">Context Precision</p>
@@ -1085,6 +1112,14 @@ export default function RAGMetricsTestPage() {
                               metric: "Answer Relevancy",
                               score: currentTest.aggregate_metrics.average_answer_relevancy,
                             },
+                            ...(currentTest.aggregate_metrics.average_answer_correctness !== undefined
+                              ? [
+                                  {
+                                    metric: "Answer Correctness",
+                                    score: currentTest.aggregate_metrics.average_answer_correctness,
+                                  },
+                                ]
+                              : []),
                             ...(currentTest.aggregate_metrics.average_context_precision !== undefined
                               ? [
                                   {
@@ -1156,6 +1191,14 @@ export default function RAGMetricsTestPage() {
                                         {(result.ragas_metrics.answer_relevancy * 100).toFixed(1)}%
                                       </Badge>
                                     </div>
+                                    {result.ragas_metrics.answer_correctness !== undefined && (
+                                      <div>
+                                        <p className="text-xs text-muted-foreground">Answer Correctness</p>
+                                        <Badge className={getScoreBadgeColor(result.ragas_metrics.answer_correctness)}>
+                                          {(result.ragas_metrics.answer_correctness * 100).toFixed(1)}%
+                                        </Badge>
+                                      </div>
+                                    )}
                                     {result.ragas_metrics.context_precision !== undefined && (
                                       <div>
                                         <p className="text-xs text-muted-foreground">Context Precision</p>
