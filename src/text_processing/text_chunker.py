@@ -573,10 +573,10 @@ def chunk_text(
             # If caller didn't explicitly set a model, default to OpenRouter free.
             # (llm_model_name default is a Groq model used elsewhere in the codebase)
             if not llm_model_name or llm_model_name == "llama-3.1-8b-instant":
-                primary_model = "meta-llama/llama-3.1-8b-instruct:free"
+                primary_model = "llama-3.1-8b-instant"
             else:
                 primary_model = llm_model_name
-            fallback_model = "llama-3.1-8b-instant"
+            fallback_model = "llama-3.3-70b-versatile"
             chunks = create_llm_markdown_chunks_safe(
                 markdown_text=normalized,
                 target_size=chunk_size,
