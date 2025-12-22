@@ -493,6 +493,16 @@ def chunk_text(
         2. Seamless chunk transitions (bir chunkın bittiği yerden diğer chunk başlamalı)
         3. Header preservation with content (başlıkları chunk içinde tutmak)
     """
+    # Normalize strategy to avoid silent fallbacks due to casing/whitespace/hyphens
+    # Examples handled: "LLM_MARKDOWN", " llm-markdown ", "Llm_Markdown"
+    original_strategy = strategy
+    try:
+        strategy = (strategy or "lightweight").strip().lower().replace("-", "_")
+    except Exception:
+        strategy = "lightweight"
+    if original_strategy != strategy:
+        logger.info(f"Normalized chunking strategy: '{original_strategy}' -> '{strategy}'")
+
     # Use config defaults if not provided
     if chunk_size is None:
         chunk_size = getattr(config, 'CHUNK_SIZE', 1000)
@@ -503,7 +513,10 @@ def chunk_text(
         logger.warning("Input text is empty. Returning no chunks.")
         return []
 
-    logger.info(f"Chunking text with chunk_size={chunk_size}, chunk_overlap={chunk_overlap}, strategy={strategy}")
+    logger.info(
+        f"Chunking text with chunk_size={chunk_size}, chunk_overlap={chunk_overlap}, "
+        f"strategy={strategy}, use_lightweight_chunker={use_lightweight_chunker}"
+    )
 
     # Normalize newlines
     normalized = text.replace("\r\n", "\n").replace("\r", "\n")
