@@ -58,8 +58,6 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-import type { ValueType } from "recharts/types/component/DefaultTooltipContent";
-
 // RAGAS Test Configuration Interface
 interface RAGASTestConfig {
   testName: string;
@@ -1109,8 +1107,9 @@ export default function RAGMetricsTestPage() {
                           <XAxis dataKey="metric" />
                           <YAxis domain={[0, 1]} tickFormatter={(value) => (value * 100).toFixed(0) + "%"} />
                           <Tooltip
-                            formatter={(value: ValueType) => {
-                              const num = typeof value === "number" ? value : Number(value);
+                            formatter={(value?: string | number | readonly (string | number)[]) => {
+                              const raw = Array.isArray(value) ? value[0] : value;
+                              const num = typeof raw === "number" ? raw : Number(raw);
                               const label = Number.isFinite(num)
                                 ? (num * 100).toFixed(2) + "%"
                                 : "N/A";
