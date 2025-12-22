@@ -307,6 +307,15 @@ class RAGPipeline:
         full_prompt = build_rag_answer_prompt_tr(context=context_str, query=query)
 
         try:
+            rag_prompt_style = (os.getenv("RAG_PROMPT_STYLE") or "legacy").strip().lower()
+            preview_limit = 600
+            full_prompt_preview = full_prompt[:preview_limit] + "..." if len(full_prompt) > preview_limit else full_prompt
+            self.logger.info(f"[RAG PROMPT DEBUG] RAG_PROMPT_STYLE={rag_prompt_style} full_prompt_len={len(full_prompt)}")
+            self.logger.info(f"[RAG PROMPT DEBUG] full_prompt_preview=\n{full_prompt_preview}")
+        except Exception as _log_err:
+            self.logger.debug(f"[RAG PROMPT DEBUG] Failed to log prompt preview: {_log_err}")
+
+        try:
             # Use ThreadPoolExecutor for timeout control
             with ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(self._call_model_inference_service, full_prompt)

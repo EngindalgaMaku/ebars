@@ -75,31 +75,56 @@ def get_llm(llm_provider: Optional[str] = None, llm_model: Optional[str] = None)
     """Configure LLM based on environment variables
     
     Priority for RAGAS evaluation (Türkçe metinler için):
-    1. OpenAI GPT-4 (EN İYİ - Türkçe için en iyi performans)
-    2. OpenAI GPT-3.5-turbo (fallback - hızlı ve ucuz)
-    3. Groq (fallback - Türkçe için daha az doğru)
-    4. OpenRouter (fallback - authentication sorunları olabilir)
+    1. OpenAI gpt-4o-mini (Varsayılan - En iyi Türkçe performansı için)
+    2. OpenAI GPT-4 (Fallback)
+    3. OpenAI GPT-3.5-turbo (Fallback - daha hızlı)
+    4. Groq (Son çare - Türkçe için daha az doğru)
     
-    NOT: Groq LLM (llama-3.1-8b-instant) Türkçe metinleri değerlendirirken
-    yetersiz kalıyor. RAGAS'ın faithfulness ve answer_relevancy metrikleri
-    Türkçe statement/question generation gerektiriyor, bu yüzden OpenAI tercih ediliyor.
+    NOT: gpt-4o-mini Türkçe metin değerlendirmeleri için optimize edilmiştir.
+    Diğer modeller özellikle faithfulness ve answer_relevancy metriklerinde daha düşük performans gösterebilir.
     """
-    requested_provider = (llm_provider or "").strip().lower() or None
-    requested_model = (llm_model or "").strip() or None
+    requested_provider = (llm_provider or "openai").strip().lower() or "openai"
+    requested_model = (llm_model or "gpt-4o-mini").strip() or "gpt-4o-mini"
+    
+    logger.info(f"🔧 Configuring LLM - Requested: provider='{requested_provider}', model='{requested_model}'")
 
     def _get_openai_llm(model_name: Optional[str] = None):
         openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:
+            logger.error("❌ OPENAI_API_KEY not found in environment variables")
             return None
-        openai_model = model_name or os.getenv("RAGAS_OPENAI_MODEL", "gpt-4o-mini")
-        logger.info(f"✅ Using OpenAI LLM for RAGAS evaluation (model: {openai_model})")
-        return ChatOpenAI(
-            model=openai_model,
-            temperature=0,
-            openai_api_key=openai_api_key,
-            timeout=180,
-            max_retries=5
-        )
+            
+        # Always default to gpt-4o-mini if no model specified
+        openai_model = model_name or "gpt-4o-mini"
+        
+        # Ensure we're using a valid model
+        valid_models = ["gpt-4o-mini", "gpt-4", "gpt-3.5-turbo"]
+        if openai_model not in valid_models:
+            logger.warning(f"⚠️ Model '{openai_model}' is not in the recommended list. Using 'gpt-4o-mini' instead.")
+            openai_model = "gpt-4o-mini"
+            
+        logger.info(f"🔧 Initializing OpenAI LLM with model: {openai_model}")
+        
+        try:
+            llm = ChatOpenAI(
+                model=openai_model,
+                temperature=0,
+                openai_api_key=openai_api_key,
+                timeout=180,  # 3 minute timeout
+                max_retries=3,
+                model_kwargs={
+                    "frequency_penalty": 0.1,  # Slightly reduce repetition
+                    "presence_penalty": 0.1,   # Slightly encourage diversity
+                }
+            )
+            
+            # Test the connection
+            logger.info(f"✅ Successfully initialized OpenAI LLM with model: {openai_model}")
+            return llm
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize OpenAI LLM (model: {openai_model}): {str(e)}")
+            return None
 
     def _get_groq_llm(model_name: Optional[str] = None):
         groq_api_key = os.getenv("GROQ_API_KEY")
@@ -134,88 +159,65 @@ def get_llm(llm_provider: Optional[str] = None, llm_model: Optional[str] = None)
             }
         )
 
-    # If a specific provider was requested (e.g., from session rag_settings), honor it first.
-    if requested_provider:
-        try:
-            if requested_provider == "openai":
-                llm = _get_openai_llm(requested_model)
-                if llm is not None:
-                    return llm
-            elif requested_provider == "groq":
-                llm = _get_groq_llm(requested_model)
-                if llm is not None:
-                    return llm
-            elif requested_provider == "openrouter":
-                llm = _get_openrouter_llm(requested_model)
-                if llm is not None:
-                    return llm
-            else:
-                logger.warning(f"Unknown requested llm_provider='{requested_provider}', falling back to default selection")
-        except Exception as e:
-            logger.error(f"❌ Failed to configure requested provider '{requested_provider}': {e}")
+    # Try to use the requested provider/model first
+    try:
+        if requested_provider == "openai":
+            # Always use gpt-4o-mini as the default for OpenAI
+            model_to_use = requested_model if requested_model != "default" else "gpt-4o-mini"
+            logger.info(f"🔍 Attempting to use OpenAI with model: {model_to_use}")
+            
+            # First try with gpt-4o-mini if available
+            openai_llm = _get_openai_llm(model_to_use)
+            if openai_llm is not None:
+                logger.info(f"✅ Using OpenAI with model: {model_to_use}")
+                return openai_llm
+                
+            # If specific model fails, try with default gpt-4o-mini
+            if model_to_use != "gpt-4o-mini":
+                logger.warning(f"⚠️ Requested model {model_to_use} not available, falling back to gpt-4o-mini")
+                openai_llm = _get_openai_llm("gpt-4o-mini")
+                if openai_llm is not None:
+                    return openai_llm
+                    
+        elif requested_provider == "groq":
+            groq_llm = _get_groq_llm(requested_model)
+            if groq_llm is not None:
+                logger.warning("⚠️ Using Groq - Note: May have lower quality for Turkish text evaluation")
+                return groq_llm
+                
+        elif requested_provider == "openrouter":
+            openrouter_llm = _get_openrouter_llm(requested_model)
+            if openrouter_llm is not None:
+                logger.warning("⚠️ Using OpenRouter - Note: May have authentication or quality issues")
+                return openrouter_llm
+                
+    except Exception as e:
+        logger.error(f"❌ Error configuring requested LLM (provider: {requested_provider}, model: {requested_model}): {str(e)}")
 
-    # Default selection order (env-based)
-    # Önce OpenAI'ı dene - Türkçe için en iyi performans
+    # Fallback to default OpenAI with gpt-4o-mini if no provider specified or if there was an error
+    logger.info("🔧 Falling back to default OpenAI with gpt-4o-mini")
     openai_api_key = os.getenv("OPENAI_API_KEY")
     if openai_api_key:
         try:
-            return _get_openai_llm()
+            return _get_openai_llm("gpt-4o-mini")
         except Exception as e:
-            logger.error(f"❌ Failed to configure OpenAI: {e}")
-            logger.warning("Falling back to Groq...")
+            logger.error(f"❌ Failed to configure default OpenAI gpt-4o-mini: {e}")
+    else:
+        logger.error("❌ OPENAI_API_KEY not found in environment variables")
     
-    # Groq'u dene (fallback - Türkçe için daha az doğru)
+    # Final fallback to Groq if available
     groq_api_key = os.getenv("GROQ_API_KEY")
     if groq_api_key:
         try:
+            logger.warning("⚠️ Falling back to Groq as last resort")
             return _get_groq_llm()
         except Exception as e:
             logger.error(f"❌ Failed to configure Groq: {e}")
-            logger.warning("Falling back to OpenRouter...")
     
-    # OpenRouter'ı dene (fallback)
-    openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-    if openrouter_api_key:
-        logger.info(f"⚠️ Using OpenRouter LLM for evaluation (API key present: {bool(openrouter_api_key)})")
-        # OpenRouter için model seçimi
-        openrouter_model = os.getenv("RAGAS_OPENROUTER_MODEL", "openai/gpt-3.5-turbo")
-        
-        # ChatOpenAI ile OpenRouter kullanımı - authentication düzeltmesi
-        # OpenRouter OpenAI-compatible API kullanıyor, ama özel header'lar gerekiyor
-        try:
-            # OpenRouter API key formatını kontrol et
-            if not openrouter_api_key or not openrouter_api_key.strip():
-                raise ValueError("OpenRouter API key is empty or invalid")
-            
-            llm = _get_openrouter_llm(openrouter_model)
-            # ChatOpenAI, openai_api_key'den Authorization: Bearer <key> header'ını otomatik ekler
-            logger.info(f"✅ ChatOpenAI configured for OpenRouter (model: {openrouter_model})")
-            logger.debug(f"   API Key present: {bool(openrouter_api_key)}")
-            logger.debug(f"   API Key prefix: {openrouter_api_key[:10] if openrouter_api_key else 'None'}...")
-            return llm
-        except Exception as e:
-            logger.error(f"❌ Failed to configure ChatOpenAI for OpenRouter: {e}")
-            import traceback
-            logger.error(f"   Traceback: {traceback.format_exc()}")
-            # Fallback to OpenAI
-            logger.warning("Falling back to OpenAI...")
-    
-    # OpenAI direct (son çare)
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    if openai_api_key:
-        logger.info("Using OpenAI LLM for evaluation (direct)")
-        return ChatOpenAI(
-            model="gpt-3.5-turbo-0125",
-            temperature=0,
-            openai_api_key=openai_api_key,
-            timeout=180,  # LangChain 1.x: timeout hem connection hem request timeout için kullanılır
-            max_retries=5
-        )
-    
-    raise ValueError(
-        "OPENROUTER_API_KEY, GROQ_API_KEY, or OPENAI_API_KEY must be set for RAGAS evaluation. "
-        "OPENROUTER_API_KEY is preferred (sisteminizde çalışıyor)."
-    )
+    # If we get here, no suitable LLM could be configured
+    error_msg = "❌ No suitable LLM could be configured. Please check your API keys and environment variables."
+    logger.error(error_msg)
+    raise RuntimeError(error_msg)
 
 def get_embeddings():
     """Configure Embeddings - OpenAI kullan (retry ve timeout ayarları ile)"""
