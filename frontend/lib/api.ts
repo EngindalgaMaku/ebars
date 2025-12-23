@@ -47,6 +47,7 @@ export type SessionMeta = {
     model?: string;
     provider?: string;
     chain_type?: "stuff" | "refine" | "map_reduce";
+    language?: "tr" | "en";
     top_k?: number;
     use_rerank?: boolean;
     min_score?: number;

@@ -152,6 +152,7 @@ export default function SessionPage() {
   const [selectedRerankerType, setSelectedRerankerType] =
     useState<string>("ms-marco");
   const [useRerankerService, setUseRerankerService] = useState<boolean>(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<"tr" | "en">("tr");
   const [selectedEmbeddingProvider, setSelectedEmbeddingProvider] =
     useState<string>("ollama");
   const [selectedDocumentFilter, setSelectedDocumentFilter] = useState<
@@ -559,6 +560,11 @@ export default function SessionPage() {
       if (session.rag_settings.reranker_type) {
         setSelectedRerankerType(session.rag_settings.reranker_type);
       }
+      if (session.rag_settings.language === "tr" || session.rag_settings.language === "en") {
+        setSelectedLanguage(session.rag_settings.language);
+      } else {
+        setSelectedLanguage("tr");
+      }
     } else {
       // Reset to defaults if no settings
       setSelectedProvider("groq");
@@ -566,6 +572,7 @@ export default function SessionPage() {
       setSelectedEmbeddingProvider("ollama");
       setUseRerankerService(false);
       setSelectedRerankerType("ms-marco");
+      setSelectedLanguage("tr");
     }
   }, [session?.rag_settings]);
 
@@ -1030,6 +1037,22 @@ export default function SessionPage() {
                         )}
                       </div>
 
+                      {/* Answer Language */}
+                      <div className="space-y-3">
+                        <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                          <Settings className="w-4 h-4 text-primary" />
+                          Cevap Dili
+                        </label>
+                        <select
+                          value={selectedLanguage}
+                          onChange={(e) => setSelectedLanguage(e.target.value as "tr" | "en")}
+                          className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-background shadow-sm"
+                        >
+                          <option value="tr">Türkçe</option>
+                          <option value="en">English</option>
+                        </select>
+                      </div>
+
                       {/* Model Management - Model Ekle/Çıkar */}
                       <div className="lg:col-span-2 mt-4">
                         <ModelManagement
@@ -1364,6 +1387,7 @@ export default function SessionPage() {
                                 session?.rag_settings?.use_rerank ?? false,
                               min_score: 0.5,
                               max_context_chars: 8000,
+                              language: selectedLanguage,
                               use_reranker_service: useRerankerService,
                             };
 
