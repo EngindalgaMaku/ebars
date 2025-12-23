@@ -1708,6 +1708,7 @@ class RAGSettings(BaseModel):
     model: Optional[str] = None
     provider: Optional[str] = None  # AI Provider (groq, deepseek, etc.)
     chain_type: Optional[str] = None
+    language: Optional[str] = None  # Answer language override: 'tr' or 'en'
     top_k: Optional[int] = None
     use_rerank: Optional[bool] = None
     min_score: Optional[float] = None

@@ -20,6 +20,7 @@ router = APIRouter()
 import sys
 from pathlib import Path
 _build_rag_answer_prompt_tr = None
+_build_rag_answer_prompt_en = None
 try:
     _src_path = None
     for p in Path(__file__).resolve().parents:
@@ -30,8 +31,10 @@ try:
     if _src_path is not None:
         sys.path.append(str(_src_path))
         from utils.prompt_policy import build_rag_answer_prompt_tr as _build_rag_answer_prompt_tr
+        from utils.prompt_policy import build_rag_answer_prompt_en as _build_rag_answer_prompt_en
 except Exception as _prompt_policy_import_err:
     _build_rag_answer_prompt_tr = None
+    _build_rag_answer_prompt_en = None
 
 
 @router.post("/query", response_model=RAGQueryResponse)
@@ -90,6 +93,13 @@ async def rag_query(request: RAGQueryRequest):
         # Determine effective model: request > session settings > default
         effective_model = request.model or session_rag_settings.get("model") or None
         effective_embedding_model = request.embedding_model or session_rag_settings.get("embedding_model")
+
+        # Determine answer language: request > session settings > default (tr)
+        requested_language = (request.language or "").strip().lower() if request.language else None
+        session_language = (session_rag_settings.get("language") or "").strip().lower() if isinstance(session_rag_settings, dict) else None
+        effective_language = requested_language or session_language or "tr"
+        if effective_language not in ["tr", "en"]:
+            effective_language = "tr"
         
         if effective_model:
             logger.info(f"🔍 Using model: {effective_model} (from request: {request.model}, session: {session_rag_settings.get('model')})")
@@ -337,7 +347,11 @@ async def rag_query(request: RAGQueryRequest):
             if max_score < min_score_threshold:
                 logger.warning(f"❌ REJECTED: Max source score ({max_score:.4f}) is below threshold ({min_score_threshold:.4f})")
                 return RAGQueryResponse(
-                    answer="Bu bilgi ders dökümanlarında bulunamamıştır.",
+                    answer=(
+                        "This information could not be found in the course documents."
+                        if effective_language == "en"
+                        else "Bu bilgi ders dökümanlarında bulunamamıştır."
+                    ),
                     sources=[],
                     chain_type=chain_type
                 )
@@ -350,28 +364,30 @@ async def rag_query(request: RAGQueryRequest):
             return RAGQueryResponse(
                 answer="",  # Empty answer when skip_llm=True
                 sources=context_docs,  # Return chunks as sources
-                chain_type=chain_type
+                chain_type=chain_type,
             )
-        
-        # Step 7: Generate answer
+
+        # Generate answer
+        use_crag = True if request.use_crag is True else False
         answer, sources = _generate_answer_with_llm(
             query=request.query,
             context_docs=context_docs,
-            model=effective_model,  # Use effective model from session settings
-            max_tokens=request.max_tokens,
+            model=effective_model,
+            max_tokens=request.max_tokens or 2048,
             conversation_history=request.conversation_history,
             chain_type=chain_type,
             max_context_chars=request.max_context_chars,
-            use_rerank=effective_use_rerank,  # Use effective use_rerank from session settings
-            use_crag=request.use_crag if request.use_crag is not None else False
+            use_rerank=bool(effective_use_rerank),
+            use_crag=use_crag,
+            language=effective_language,
         )
-        
+
         return RAGQueryResponse(
             answer=answer,
             sources=sources,
-            chain_type=chain_type
+            chain_type=chain_type,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -670,7 +686,8 @@ def _generate_answer_with_llm(
     chain_type: str = "stuff",
     max_context_chars: int = 8000,
     use_rerank: bool = False,
-    use_crag: bool = False
+    use_crag: bool = False,
+    language: str = "tr"
 ) -> tuple[str, List[Dict[str, Any]]]:
     """Generate answer using LLM via Model Inference Service"""
     try:
@@ -710,21 +727,36 @@ def _generate_answer_with_llm(
         context = "\n\n".join(context_parts)
         
         # Simple and direct prompt - no meta-analysis, just answer from context
-        if _build_rag_answer_prompt_tr is not None:
+        if language == "en" and _build_rag_answer_prompt_en is not None:
+            full_prompt = _build_rag_answer_prompt_en(context=context, query=query)
+        elif _build_rag_answer_prompt_tr is not None:
             full_prompt = _build_rag_answer_prompt_tr(context=context, query=query)
         else:
-            full_prompt = (
-                "Aşağıdaki KAYNAK metinleri kullanarak soruyu cevapla.\n"
-                "KURALLAR:\n"
-                "- SADECE kaynak metinlerde geçen bilgileri kullan.\n"
-                "- Soru neyi soruyorsa SADECE onu cevapla; konu dışına çıkma.\n"
-                "- Kullanıcı açıkça istemedikçe örnek, liste, adım adım anlatım, ek açıklama ekleme.\n"
-                "- Soru bir tanım sorusuysa (\"... nedir?\" gibi): tanımı ver ve orada dur.\n"
-                "- Kaynaklarda cevap yoksa: 'Bu bilgi ders dökümanlarında bulunamamıştır.' de ve dur.\n\n"
-                f"KAYNAK METİNLER:\n{context}\n\n"
-                f"SORU: {query}\n\n"
-                "CEVAP:"
-            )
+            if language == "en":
+                full_prompt = (
+                    "Answer the question using the SOURCES below.\n"
+                    "RULES:\n"
+                    "- Use ONLY information explicitly present in the sources.\n"
+                    "- Answer ONLY what the question asks; do not go off-topic.\n"
+                    "- Do not add examples, lists, step-by-step explanations, or extra commentary unless the user explicitly asks.\n"
+                    "- If the sources do not contain the answer: 'This information could not be found in the course documents.' and stop.\n\n"
+                    f"SOURCES:\n{context}\n\n"
+                    f"QUESTION: {query}\n\n"
+                    "ANSWER:"
+                )
+            else:
+                full_prompt = (
+                    "Aşağıdaki KAYNAK metinleri kullanarak soruyu cevapla.\n"
+                    "KURALLAR:\n"
+                    "- SADECE kaynak metinlerde geçen bilgileri kullan.\n"
+                    "- Soru neyi soruyorsa SADECE onu cevapla; konu dışına çıkma.\n"
+                    "- Kullanıcı açıkça istemedikçe örnek, liste, adım adım anlatım, ek açıklama ekleme.\n"
+                    "- Soru bir tanım sorusuysa (\"... nedir?\" gibi): tanımı ver ve orada dur.\n"
+                    "- Kaynaklarda cevap yoksa: 'Bu bilgi ders dökümanlarında bulunamamıştır.' de ve dur.\n\n"
+                    f"KAYNAK METİNLER:\n{context}\n\n"
+                    f"SORU: {query}\n\n"
+                    "CEVAP:"
+                )
 
         # DEBUG: Log which prompt policy is used and a safe preview of the prompt
         try:

@@ -53,6 +53,7 @@ interface RagSettings {
   model?: string;
   embedding_provider?: string;
   embedding_model?: string;
+  language?: "tr" | "en";
   use_reranker_service?: boolean;
   reranker_type?: "bge" | "ms-marco";
   top_k?: number;
@@ -82,11 +83,12 @@ export const useRagSettings = (sessionId: string) => {
   const [selectedQueryModel, setSelectedQueryModel] = useState<string>("");
   const [selectedEmbeddingProvider, setSelectedEmbeddingProvider] =
     useState<string>("alibaba"); // Alibaba first as per requirement
-  const [selectedEmbeddingModel, setSelectedEmbeddingModel] =
-    useState<string>("");
+  const [selectedEmbeddingModel, setSelectedEmbeddingModel] = useState<string>(
+    ""
+  );
+  const [selectedLanguage, setSelectedLanguage] = useState<"tr" | "en">("tr");
   const [useRerankerService, setUseRerankerService] = useState<boolean>(false);
-  const [selectedRerankerType, setSelectedRerankerType] =
-    useState<string>("bge-reranker-v2-m3");
+  const [selectedRerankerType, setSelectedRerankerType] = useState<string>("bge-reranker-v2-m3");
   const [minScoreThreshold, setMinScoreThreshold] = useState<number>(0.4); // Default: 0.4 (40%)
   const [useKb, setUseKb] = useState<boolean>(true);
   const [useQaPairs, setUseQaPairs] = useState<boolean>(true);
@@ -143,6 +145,9 @@ export const useRagSettings = (sessionId: string) => {
         setSelectedEmbeddingProvider(settings.embedding_provider);
       if (settings.embedding_model)
         setSelectedEmbeddingModel(settings.embedding_model);
+      if (settings.language === "en" || settings.language === "tr")
+        setSelectedLanguage(settings.language);
+      else setSelectedLanguage("tr");
       if (settings.use_reranker_service !== undefined)
         setUseRerankerService(settings.use_reranker_service);
       if (settings.reranker_type)
@@ -164,6 +169,7 @@ export const useRagSettings = (sessionId: string) => {
       setSelectedQueryModel("");
       setSelectedEmbeddingProvider("alibaba");
       setSelectedEmbeddingModel("");
+      setSelectedLanguage("tr");
       setUseRerankerService(false);
       setSelectedRerankerType("bge-reranker-v2-m3");
       setMinScoreThreshold(0.4); // Default
@@ -183,6 +189,7 @@ export const useRagSettings = (sessionId: string) => {
       currentSettings.model !== selectedQueryModel ||
       currentSettings.embedding_provider !== selectedEmbeddingProvider ||
       currentSettings.embedding_model !== selectedEmbeddingModel ||
+      (currentSettings.language ?? "tr") !== selectedLanguage ||
       currentSettings.use_reranker_service !== useRerankerService ||
       currentSettings.reranker_type !== selectedRerankerType ||
       (currentSettings.min_score_threshold ?? 0.4) !== minScoreThreshold ||
@@ -195,6 +202,7 @@ export const useRagSettings = (sessionId: string) => {
     selectedQueryModel,
     selectedEmbeddingProvider,
     selectedEmbeddingModel,
+    selectedLanguage,
     useRerankerService,
     selectedRerankerType,
     minScoreThreshold,
@@ -290,6 +298,7 @@ export const useRagSettings = (sessionId: string) => {
         use_rerank: currentSession?.rag_settings?.use_rerank ?? false,
         min_score: 0.5,
         max_context_chars: 8000,
+        language: selectedLanguage,
         use_reranker_service: useRerankerService,
         use_kb: useKb,
         use_qa_pairs: useQaPairs,
@@ -345,6 +354,7 @@ export const useRagSettings = (sessionId: string) => {
     setSelectedQueryModel("");
     setSelectedEmbeddingProvider("alibaba");
     setSelectedEmbeddingModel("");
+    setSelectedLanguage("tr");
     setUseRerankerService(false);
     setSelectedRerankerType("bge-reranker-v2-m3");
     setMinScoreThreshold(0.4); // Reset to default
@@ -407,6 +417,7 @@ export const useRagSettings = (sessionId: string) => {
     selectedQueryModel,
     selectedEmbeddingProvider,
     selectedEmbeddingModel,
+    selectedLanguage,
     useRerankerService,
     selectedRerankerType,
     minScoreThreshold,
@@ -428,6 +439,7 @@ export const useRagSettings = (sessionId: string) => {
     setSelectedQueryModel,
     setSelectedEmbeddingProvider,
     setSelectedEmbeddingModel,
+    setSelectedLanguage,
     setUseRerankerService,
     setSelectedRerankerType,
     setMinScoreThreshold,

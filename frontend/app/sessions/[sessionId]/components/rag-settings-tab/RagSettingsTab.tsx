@@ -45,6 +45,8 @@ export const RagSettingsTab: React.FC<RagSettingsTabProps> = ({
     selectedQueryModel,
     selectedEmbeddingProvider,
     selectedEmbeddingModel,
+    selectedLanguage,
+    setSelectedLanguage,
     useRerankerService,
     selectedRerankerType,
     minScoreThreshold,
@@ -245,6 +247,31 @@ export const RagSettingsTab: React.FC<RagSettingsTabProps> = ({
           <h3 className="text-lg font-medium text-foreground">Model Seçimi</h3>
         </div>
         <ModelSelector sessionId={sessionId} />
+      </div>
+
+      {/* Answer Language Section */}
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe className="w-4 h-4 text-primary" />
+              Cevap Dili
+            </CardTitle>
+            <CardDescription>
+              Bu ders oturumunda asistanın cevaplarını hangi dilde üreteceğini seçin.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <select
+              value={selectedLanguage}
+              onChange={(e) => setSelectedLanguage(e.target.value as "tr" | "en")}
+              className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-background shadow-sm"
+            >
+              <option value="tr">Türkçe</option>
+              <option value="en">English</option>
+            </select>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Embedding Selection Section */}

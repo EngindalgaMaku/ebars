@@ -62,6 +62,7 @@ export interface RagSettings {
   model: string;
   embedding_provider: string;
   embedding_model: string;
+  language?: "tr" | "en";
   use_reranker_service: boolean;
   reranker_type: string;
   top_k: number;

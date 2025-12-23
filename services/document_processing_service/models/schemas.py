@@ -31,6 +31,7 @@ class RAGQueryRequest(BaseModel):
     """Request model for RAG queries"""
     session_id: str
     query: str
+    language: Optional[str] = None  # Optional answer language override: 'tr' or 'en'
     top_k: int = 5
     use_rerank: bool = True
     min_score: float = 0.1
