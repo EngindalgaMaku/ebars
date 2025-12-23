@@ -217,10 +217,34 @@ export function useStudentChat({
           (sessionRagSettings?.chunk_strategy === "semantic" ? 100 : 0);
         const useAsyncRAG = estimatedComplexity > 150; // Use async for complex queries
 
+        const shouldUseClassicRagFallback =
+          (sessionRagSettings?.use_kb ?? true) === false &&
+          (sessionRagSettings?.use_qa_pairs ?? true) === false;
+
         let result;
         let actualDurationMs;
 
-        if (useAsyncRAG) {
+        if (shouldUseClassicRagFallback) {
+          console.log(
+            "🧩 KB ve QA kapalı: Hybrid APRAG yerine klasik RAG (/rag/query) kullanılacak"
+          );
+
+          result = await ragQuery({
+            session_id: sessionId,
+            query,
+            top_k: 5,
+            use_rerank: sessionRagSettings?.use_rerank ?? false,
+            min_score: sessionRagSettings?.min_score ?? 0.4,
+            max_context_chars: 8000,
+            use_direct_llm: false,
+            conversation_history:
+              conversationHistory.length > 0 ? conversationHistory : undefined,
+            model: sessionRagSettings?.model,
+            chain_type: sessionRagSettings?.chain_type,
+            embedding_model: sessionRagSettings?.embedding_model,
+          });
+          actualDurationMs = Date.now() - startTime;
+        } else if (useAsyncRAG) {
           // ASYNC RAG PATH: Start background task and poll for results
           console.log(
             `🚀 Using async RAG for complex query (complexity: ${estimatedComplexity})`
