@@ -48,6 +48,8 @@ export type SessionMeta = {
     provider?: string;
     chain_type?: "stuff" | "refine" | "map_reduce";
     language?: "tr" | "en";
+    use_kb?: boolean;
+    use_qa_pairs?: boolean;
     top_k?: number;
     use_rerank?: boolean;
     min_score?: number;
@@ -1163,6 +1165,8 @@ export async function saveSessionRagSettings(
     provider?: string;
     chain_type?: "stuff" | "refine" | "map_reduce";
     language?: "tr" | "en";
+    use_kb?: boolean;
+    use_qa_pairs?: boolean;
     top_k?: number;
     use_rerank?: boolean;
     min_score?: number;

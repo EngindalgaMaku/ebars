@@ -153,6 +153,8 @@ export default function SessionPage() {
     useState<string>("ms-marco");
   const [useRerankerService, setUseRerankerService] = useState<boolean>(false);
   const [selectedLanguage, setSelectedLanguage] = useState<"tr" | "en">("tr");
+  const [useKb, setUseKb] = useState<boolean>(true);
+  const [useQaPairs, setUseQaPairs] = useState<boolean>(true);
   const [selectedEmbeddingProvider, setSelectedEmbeddingProvider] =
     useState<string>("ollama");
   const [selectedDocumentFilter, setSelectedDocumentFilter] = useState<
@@ -565,6 +567,16 @@ export default function SessionPage() {
       } else {
         setSelectedLanguage("tr");
       }
+      if (session.rag_settings.use_kb !== undefined) {
+        setUseKb(session.rag_settings.use_kb);
+      } else {
+        setUseKb(true);
+      }
+      if (session.rag_settings.use_qa_pairs !== undefined) {
+        setUseQaPairs(session.rag_settings.use_qa_pairs);
+      } else {
+        setUseQaPairs(true);
+      }
     } else {
       // Reset to defaults if no settings
       setSelectedProvider("groq");
@@ -573,6 +585,8 @@ export default function SessionPage() {
       setUseRerankerService(false);
       setSelectedRerankerType("ms-marco");
       setSelectedLanguage("tr");
+      setUseKb(true);
+      setUseQaPairs(true);
     }
   }, [session?.rag_settings]);
 
@@ -1053,6 +1067,63 @@ export default function SessionPage() {
                         </select>
                       </div>
 
+                      {/* Knowledge Base & QA Usage */}
+                      <div className="space-y-4 lg:col-span-2">
+                        <div className="space-y-1">
+                          <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                            <Database className="w-4 h-4 text-primary" />
+                            Bilgi Kaynakları Kullanımı
+                          </label>
+                          <p className="text-xs text-muted-foreground">
+                            Öğrenci cevaplarında hangi ek bilgi kaynaklarının (bilgi tabanı ve QA çiftleri) kullanılacağını belirleyin.
+                          </p>
+                        </div>
+
+                        <div className="flex items-start justify-between gap-4 p-4 border border-border rounded-lg bg-muted/20">
+                          <div>
+                            <div className="text-sm font-medium text-foreground">
+                              Bilgi Tabanı Kullan
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 max-w-md">
+                              Ders için tanımlanmış konu özetleri ve kavram haritalarını cevaplara ek bağlam olarak kullanır.
+                            </p>
+                          </div>
+                          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 text-primary border-border rounded focus:ring-primary"
+                              checked={useKb}
+                              onChange={(e) => setUseKb(e.target.checked)}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {useKb ? "Aktif" : "Pasif"}
+                            </span>
+                          </label>
+                        </div>
+
+                        <div className="flex items-start justify-between gap-4 p-4 border border-border rounded-lg bg-muted/20">
+                          <div>
+                            <div className="text-sm font-medium text-foreground">
+                              QA Çiftleri Kullan
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 max-w-md">
+                              Önceden tanımlanmış soru-cevap çiftlerini kullanarak doğrudan ve hızlı yanıt üretmeye çalışır.
+                            </p>
+                          </div>
+                          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 text-primary border-border rounded focus:ring-primary"
+                              checked={useQaPairs}
+                              onChange={(e) => setUseQaPairs(e.target.checked)}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {useQaPairs ? "Aktif" : "Pasif"}
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+
                       {/* Model Management - Model Ekle/Çıkar */}
                       <div className="lg:col-span-2 mt-4">
                         <ModelManagement
@@ -1388,6 +1459,8 @@ export default function SessionPage() {
                               min_score: 0.5,
                               max_context_chars: 8000,
                               language: selectedLanguage,
+                              use_kb: useKb,
+                              use_qa_pairs: useQaPairs,
                               use_reranker_service: useRerankerService,
                             };
 
