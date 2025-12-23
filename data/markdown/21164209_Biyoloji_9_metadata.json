@@ -1,0 +1,29 @@
+{
+  "source_file": "21164209_Biyoloji_9.pdf",
+  "processing_method": "marker_optimized_for_large_files",
+  "page_count": 0,
+  "extraction_quality": "high",
+  "has_images": false,
+  "image_count": 0,
+  "marker_rendered_type": "MarkdownOutput",
+  "marker_metadata": "md",
+  "timeout_used": 300,
+  "file_size_mb": 0.36663150787353516,
+  "resource_limits": {
+    "max_memory_mb": 8192,
+    "max_cpu_percent": 80,
+    "timeout_seconds": 300,
+    "max_pages": 200,
+    "max_file_size_mb": 0,
+    "enable_monitoring": false
+  },
+  "processing_time_estimate": "Processed in under 300s",
+  "text_length": 20364,
+  "estimated_reading_time": 10.045,
+  "structure_detected": {
+    "has_headings": true,
+    "has_lists": true,
+    "has_code": true,
+    "paragraph_count": 42
+  }
+}
