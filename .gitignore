@@ -75,6 +75,7 @@ id_rsa.pub
 # IDE specific files
 .idea/
 .vscode/
+.cursorrules
 *.swp
 *.swo
 .DS_Store
