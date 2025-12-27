@@ -4,6 +4,7 @@
 /debug_raporlari
 /implementation
 /docs
+/docs/
 /architecture
 
 # Python
@@ -45,6 +46,27 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Production env files
+.env.production
+
+# Any env file variants (keep explicit allowlist via negation if needed)
+.env.*
+
+docker-compose.prod.yml
+docker-compose.prod.yaml
+docker-compose.*.prod.yml
+docker-compose.*.prod.yaml
+
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
 
 # IDE specific files
 .idea/
