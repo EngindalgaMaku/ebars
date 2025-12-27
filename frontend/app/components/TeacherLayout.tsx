@@ -212,7 +212,7 @@ function TeacherLayout({
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-[998] bg-black/50 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -220,7 +220,7 @@ function TeacherLayout({
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-16 bottom-0 left-0 z-50
+          fixed top-16 bottom-0 left-0 z-[999]
           ${sidebarCollapsed ? "w-16" : "w-64"}
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
           lg:relative lg:translate-x-0 lg:inset-y-auto
