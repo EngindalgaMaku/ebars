@@ -68,6 +68,10 @@ id_rsa.pub
 *.cer
 *.jks
 
+*.db
+*.sqlite
+*.sqlite3
+
 # IDE specific files
 .idea/
 .vscode/
