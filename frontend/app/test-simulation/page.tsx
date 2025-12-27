@@ -693,14 +693,14 @@ export default function TestSimulationPage() {
 
       // Debug log to verify expected answers mapping
       if (Object.keys(expectedAnswers).length > 0) {
-        console.log("✅ Expected answers mapping:", expectedAnswers);
-        console.log("📊 Test questions count:", testQuestions.length);
+        console.log("Expected answers mapping:", expectedAnswers);
+        console.log("Test questions count:", testQuestions.length);
         console.log(
-          "📝 Questions with ground truth:",
+          "Questions with ground truth:",
           Object.keys(expectedAnswers).length
         );
       } else {
-        console.log("ÔÜá´©Å No expected answers found for any test questions");
+        console.log("No expected answers found for any test questions");
       }
 
       // Real API call to start test with session info
@@ -973,23 +973,23 @@ export default function TestSimulationPage() {
         link.download = filename;
         link.click();
         URL.revokeObjectURL(url);
-        toast.success(`${format.toUpperCase()} dosyas─▒ indirildi (fallback)!`);
+        toast.success(`${format.toUpperCase()} dosyası indirildi (fallback)!`);
       } else if (format === "csv") {
         const csvData = [
-          ["Metric", "Ak─▒ll─▒Rehber", "Basic RAG", "LLM Only", "Benchmark"],
+          ["Metric", "Akıllı Rehber", "Basic RAG", "LLM Only", "Benchmark"],
           [
             "Cosine Similarity",
             (
-              currentTest.methodComparison.eduBars?.cosineSimilarity ?? 0
+              currentTest.methodComparison.eduBars?.cosineSimilarity || 0
             ).toFixed(3),
             (
-              currentTest.methodComparison.basicRag?.cosineSimilarity ?? 0
+              currentTest.methodComparison.basicRag?.cosineSimilarity || 0
             ).toFixed(3),
             (
-              currentTest.methodComparison.llmOnly?.cosineSimilarity ?? 0
+              currentTest.methodComparison.llmOnly?.cosineSimilarity || 0
             ).toFixed(3),
             (
-              currentTest.benchmarkComparison?.ekoBot?.cosineSimilarity ?? 0
+              currentTest.benchmarkComparison?.ekoBot?.cosineSimilarity || 0
             ).toFixed(3),
           ],
           [
@@ -998,19 +998,19 @@ export default function TestSimulationPage() {
               getSimilarityValue(
                 currentTest.methodComparison.eduBars,
                 "semanticSimilarity"
-              ) ?? 0
+              ) || 0
             ).toFixed(3),
             (
               getSimilarityValue(
                 currentTest.methodComparison.basicRag,
                 "semanticSimilarity"
-              ) ?? 0
+              ) || 0
             ).toFixed(3),
             (
               getSimilarityValue(
                 currentTest.methodComparison.llmOnly,
                 "semanticSimilarity"
-              ) ?? 0
+              ) || 0
             ).toFixed(3),
             "N/A",
           ],
@@ -1020,19 +1020,19 @@ export default function TestSimulationPage() {
               getSimilarityValue(
                 currentTest.methodComparison.eduBars,
                 "bleuScore"
-              ) ?? 0
+              ) || 0
             ).toFixed(3),
             (
               getSimilarityValue(
                 currentTest.methodComparison.basicRag,
                 "bleuScore"
-              ) ?? 0
+              ) || 0
             ).toFixed(3),
             (
               getSimilarityValue(
                 currentTest.methodComparison.llmOnly,
                 "bleuScore"
-              ) ?? 0
+              ) || 0
             ).toFixed(3),
             "N/A",
           ],
@@ -1042,19 +1042,19 @@ export default function TestSimulationPage() {
               getSimilarityValue(
                 currentTest.methodComparison.eduBars,
                 "rougeL"
-              ) ?? 0
+              ) || 0
             ).toFixed(3),
             (
               getSimilarityValue(
                 currentTest.methodComparison.basicRag,
                 "rougeL"
-              ) ?? 0
+              ) || 0
             ).toFixed(3),
             (
               getSimilarityValue(
                 currentTest.methodComparison.llmOnly,
                 "rougeL"
-              ) ?? 0
+              ) || 0
             ).toFixed(3),
             "N/A",
           ],
@@ -1064,40 +1064,40 @@ export default function TestSimulationPage() {
               getSimilarityValue(
                 currentTest.methodComparison.eduBars,
                 "f1Score"
-              ) ?? 0
+              ) || 0
             ).toFixed(3),
             (
               getSimilarityValue(
                 currentTest.methodComparison.basicRag,
                 "f1Score"
-              ) ?? 0
+              ) || 0
             ).toFixed(3),
             (
               getSimilarityValue(
                 currentTest.methodComparison.llmOnly,
                 "f1Score"
-              ) ?? 0
+              ) || 0
             ).toFixed(3),
             "N/A",
           ],
           [
             "Avg Response Time (ms)",
             (
-              currentTest.methodComparison.eduBars?.avgResponseTime ?? 0
+              currentTest.methodComparison.eduBars?.avgResponseTime || 0
             ).toFixed(0),
             (
-              currentTest.methodComparison.basicRag?.avgResponseTime ?? 0
+              currentTest.methodComparison.basicRag?.avgResponseTime || 0
             ).toFixed(0),
             (
-              currentTest.methodComparison.llmOnly?.avgResponseTime ?? 0
+              currentTest.methodComparison.llmOnly?.avgResponseTime || 0
             ).toFixed(0),
             "N/A",
           ],
           [
             "Accuracy (%)",
-            (currentTest.methodComparison.eduBars?.accuracy ?? 0).toFixed(1),
-            (currentTest.methodComparison.basicRag?.accuracy ?? 0).toFixed(1),
-            (currentTest.methodComparison.llmOnly?.accuracy ?? 0).toFixed(1),
+            (currentTest.methodComparison.eduBars?.accuracy || 0).toFixed(1),
+            (currentTest.methodComparison.basicRag?.accuracy || 0).toFixed(1),
+            (currentTest.methodComparison.llmOnly?.accuracy || 0).toFixed(1),
             "N/A",
           ],
         ];
@@ -1115,7 +1115,7 @@ export default function TestSimulationPage() {
         link.download = filename;
         link.click();
         URL.revokeObjectURL(url);
-        toast.success(`${format.toUpperCase()} dosyas─▒ indirildi (fallback)!`);
+        toast.success(`${format.toUpperCase()} dosyası indirildi (fallback)!`);
       }
     }
   };
@@ -1144,7 +1144,7 @@ export default function TestSimulationPage() {
               Metodoloji Test Simülasyonu
             </h1>
             <p className="text-gray-600 mt-1">
-              AkıllıRehber Performans Analizi ve Karşılaştırma Testleri
+              Akıllı Rehber Performans Analizi ve Karşılaştırma Testleri
             </p>
           </div>
         </div>
@@ -1251,15 +1251,15 @@ export default function TestSimulationPage() {
             </TabsTrigger>
             <TabsTrigger value="monitoring" className="flex items-center gap-2">
               <Activity className="h-4 w-4" />
-              Monitoring
+              İzleme
             </TabsTrigger>
             <TabsTrigger value="results" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              Sonu├ğlar
+              Sonuçlar
             </TabsTrigger>
             <TabsTrigger value="detailed" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
-              Detayl─▒ Rapor
+              Detaylı Rapor
             </TabsTrigger>
           </TabsList>
 
@@ -1291,7 +1291,7 @@ export default function TestSimulationPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="numQuestions">Soru Say─▒s─▒</Label>
+                    <Label htmlFor="numQuestions">Soru Sayısı</Label>
                     <Input
                       id="numQuestions"
                       type="number"
@@ -1310,24 +1310,24 @@ export default function TestSimulationPage() {
                       disabled={config.customQuestions.length === 0}
                     />
                     <p className="text-sm text-gray-500">
-                      Test edilecek soru say─▒s─▒ (maksimum:{" "}
+                      Test edilecek soru sayısı (maksimum:{" "}
                       {config.customQuestions.length || 0})
                     </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Test Metodlar─▒</Label>
+                    <Label>Test Metodları</Label>
                     <div className="space-y-2">
                       {[
                         {
                           id: "eduBars",
                           label:
-                            "Ak─▒ll─▒Rehber(RAG +ReRanker Kombinasyonu) (APRAG Ki┼şiselle┼ştirme KAPALI)",
+                            "AkıllıRehber (RAG + ReRanker Kombinasyonu) (APRAG Kişiselleştirme KAPALI)",
                         },
                         {
                           id: "basicRag",
                           label:
-                            "Ak─▒ll─▒Rehber(Sadece RAG) (CRAG ve Reranker yok)",
+                            "AkıllıRehber (Sadece RAG) (CRAG ve Reranker yok)",
                         },
                         { id: "llmOnly", label: "Sadece LLM (Retrieval yok)" },
                       ].map((method) => (
@@ -1371,10 +1371,10 @@ export default function TestSimulationPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Database className="h-5 w-5 text-indigo-500" />
-                    Ders Oturumu Se├ğimi
+                    Ders Oturumu Seçimi
                   </CardTitle>
                   <CardDescription>
-                    Test i├ğin kullan─▒lacak ders oturumunu se├ğin
+                    Test için kullanılacak ders oturumunu seçin
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1388,19 +1388,19 @@ export default function TestSimulationPage() {
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white shadow-sm"
                     >
                       {loadingSessions ? (
-                        <option value="">Oturumlar y├╝kleniyor...</option>
+                        <option value="">Oturumlar yükleniyor...</option>
                       ) : availableSessions.length === 0 ? (
-                        <option value="">Ders oturumu bulunamad─▒</option>
+                        <option value="">Ders oturumu bulunamadı</option>
                       ) : (
                         <>
-                          <option value="">Oturum se├ğin...</option>
+                          <option value="">Oturum seçin...</option>
                           {availableSessions.map((session) => (
                             <option
                               key={session.session_id}
                               value={session.session_id}
                             >
                               {session.name} (
-                              {session.description || "A├ğ─▒klama yok"})
+                              {session.description || "Açıklama yok"})
                             </option>
                           ))}
                         </>
@@ -1412,7 +1412,7 @@ export default function TestSimulationPage() {
                     <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
                       <h4 className="text-sm font-medium text-blue-800 mb-2 flex items-center gap-2">
                         <Settings className="h-4 w-4" />
-                        Mevcut Model Ayarlar─▒
+                        Mevcut Model Ayarları
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                         <div>
@@ -1421,7 +1421,7 @@ export default function TestSimulationPage() {
                           </span>
                           <span className="ml-2 text-gray-700">
                             {selectedSession.rag_settings.provider ||
-                              "Belirtilmemi┼ş"}
+                              "Belirtilmemiş"}
                           </span>
                         </div>
                         <div>
@@ -1430,7 +1430,7 @@ export default function TestSimulationPage() {
                           </span>
                           <span className="ml-2 text-gray-700">
                             {selectedSession.rag_settings.model ||
-                              "Belirtilmemi┼ş"}
+                              "Belirtilmemiş"}
                           </span>
                         </div>
                         <div>
@@ -1439,7 +1439,7 @@ export default function TestSimulationPage() {
                           </span>
                           <span className="ml-2 text-gray-700">
                             {selectedSession.rag_settings.embedding_provider ||
-                              "Belirtilmemi┼ş"}
+                              "Belirtilmemiş"}
                           </span>
                         </div>
                         <div>
@@ -1448,7 +1448,7 @@ export default function TestSimulationPage() {
                           </span>
                           <span className="ml-2 text-gray-700">
                             {selectedSession.rag_settings.embedding_model ||
-                              "Belirtilmemi┼ş"}
+                              "Belirtilmemiş"}
                           </span>
                         </div>
                         {selectedSession.rag_settings.use_reranker_service && (
@@ -1465,8 +1465,7 @@ export default function TestSimulationPage() {
                         )}
                       </div>
                       <div className="mt-3 p-2 bg-blue-100 rounded text-xs text-blue-700">
-                        ­şÆí Bu ayarlar test s─▒ras─▒nda t├╝m metodlar i├ğin
-                        kullan─▒lacak
+                        Bu ayarlar test sırasında tüm metodlar için kullanılacak
                       </div>
                     </div>
                   )}
@@ -1474,7 +1473,7 @@ export default function TestSimulationPage() {
                   {!selectedSession && selectedSessionId && (
                     <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <div className="text-sm text-yellow-800">
-                        Se├ğilen oturum y├╝kleniyor...
+                        Seçilen oturum yükleniyor...
                       </div>
                     </div>
                   )}
@@ -1487,7 +1486,7 @@ export default function TestSimulationPage() {
                   <CardTitle className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Zap className="h-5 w-5 text-orange-500" />
-                      Geli┼şmi┼ş Ayarlar
+                      Gelişmiş Ayarlar
                     </div>
                     <input
                       type="checkbox"
@@ -1496,18 +1495,16 @@ export default function TestSimulationPage() {
                       className="w-4 h-4 text-blue-600"
                     />
                   </CardTitle>
-                  <CardDescription>
-                    Benchmark ve export se├ğenekleri
-                  </CardDescription>
+                  <CardDescription>Benchmark ve export seçenekleri</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {showAdvanced && (
                     <>
                       <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
-                          <Label>Benchmark Kar┼ş─▒la┼şt─▒rmas─▒</Label>
+                          <Label>Benchmark Karşılaştırması</Label>
                           <p className="text-sm text-gray-500">
-                            EkoBot referans de─şerleri ile kar┼ş─▒la┼şt─▒r
+                            EkoBot referans değerleri ile karşılaştır
                           </p>
                         </div>
                         <input
@@ -1524,7 +1521,7 @@ export default function TestSimulationPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Export Formatlar─▒</Label>
+                        <Label>Export Formatları</Label>
                         <div className="space-y-2">
                           {[
                             { id: "json", label: "JSON" },
@@ -1585,12 +1582,12 @@ export default function TestSimulationPage() {
                       {isRunning ? (
                         <>
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Test Ba┼şlat─▒l─▒yor...
+                          Test başlatılıyor...
                         </>
                       ) : (
                         <>
                           <Play className="mr-2 h-5 w-5" />
-                          Testi Ba┼şlat
+                          Testi Başlat
                         </>
                       )}
                     </Button>
@@ -1610,7 +1607,7 @@ export default function TestSimulationPage() {
                       {isRunning ? (
                         <>
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Semantic Similarity Testi Ba┼şlat─▒l─▒yor...
+                          Semantic Similarity Testi başlatılıyor...
                         </>
                       ) : (
                         <>
@@ -1634,12 +1631,12 @@ export default function TestSimulationPage() {
                       {isRunningSingleQuery ? (
                         <>
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Test ├çal─▒┼şt─▒r─▒l─▒yor...
+                          Test çalıştırılıyor...
                         </>
                       ) : (
                         <>
                           <Zap className="mr-2 h-5 w-5" />
-                          Tek Sorguluk Kar┼ş─▒la┼şt─▒rma Testi
+                          Tek Sorguluk Karşılaştırma Testi
                         </>
                       )}
                     </Button>
@@ -1652,11 +1649,11 @@ export default function TestSimulationPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Zap className="h-5 w-5 text-yellow-500" />
-                    Tek Sorguluk Kar┼ş─▒la┼şt─▒rma Testi
+                    Tek Sorguluk Karşılaştırma Testi
                   </CardTitle>
                   <CardDescription>
-                    Rerankers─▒z ve rerankerl─▒ sistemleri kar┼ş─▒la┼şt─▒rmak i├ğin tek bir soru girin.
-                    Detayl─▒ analiz sonu├ğlar─▒ g├Âsterilecektir.
+                    Rerankersız ve rerankerli sistemleri karşılaştırmak için tek bir soru girin.
+                    Detaylı analiz sonuçları gösterilecektir.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1666,33 +1663,34 @@ export default function TestSimulationPage() {
                       id="singleQuery"
                       value={singleQueryQuestion}
                       onChange={(e) => setSingleQueryQuestion(e.target.value)}
-                      placeholder="Sel├ğuklularda meliklerin (┼şehzadelerin) e─şitiminden sorumlu olan tecr├╝beli devlet adam─▒na ne ad verilir?"
+                      placeholder="Selçuklularda meliklerin (şehzadelerin) eğitiminden sorumlu olan tecrübeli devlet adamına ne ad verilir?"
                       disabled={isRunningSingleQuery}
                     />
                   </div>
                   {singleQueryResult && (
                     <div className="mt-4 space-y-4 border-t pt-4">
-                      <h3 className="font-semibold text-lg">Test Sonu├ğlar─▒</h3>
+                      <h3 className="font-semibold text-lg">Test Sonuçları</h3>
                       
                       {/* Basic RAG Results */}
                       <div className="border rounded-lg p-4 bg-blue-50">
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                          Basic RAG (Rerankers─▒z)
+                          Basic RAG (Rerankersız)
                         </h4>
                         <div className="space-y-2 text-sm">
                           <div>
                             <strong>Durum:</strong>{" "}
                             {singleQueryResult.basic_rag.success ? (
-                              <span className="text-green-600">Ô£à Ba┼şar─▒l─▒</span>
+                              <span className="text-green-600">Başarılı</span>
                             ) : (
-                              <span className="text-red-600">ÔØî Ba┼şar─▒s─▒z</span>
+                              <span className="text-red-600">Başarısız</span>
                             )}
                           </div>
                           {singleQueryResult.basic_rag.success && (
                             <>
                               <div>
-                                <strong>S├╝re:</strong> {singleQueryResult.basic_rag.execution_time_ms.toFixed(0)}ms
+                                <strong>Süre:</strong>{" "}
+                                {singleQueryResult.basic_rag.execution_time_ms.toFixed(0)}ms
                               </div>
                               <div>
                                 <strong>Cevap:</strong>
@@ -1710,7 +1708,7 @@ export default function TestSimulationPage() {
                               </div>
                               {singleQueryResult.analysis.basic_rag_out_of_scope && (
                                 <div className="text-orange-600 font-semibold">
-                                  ÔÜá´©Å "Ders kapsam─▒ d─▒┼ş─▒nda" mesaj─▒ tespit edildi
+                                  Uyarı: "Ders kapsamı dışında" mesajı tespit edildi
                                 </div>
                               )}
                             </>
@@ -1727,21 +1725,22 @@ export default function TestSimulationPage() {
                       <div className="border rounded-lg p-4 bg-green-50">
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                          EduBars Full System (Rerankerl─▒)
+                          EduBars Full System (Rerankerli)
                         </h4>
                         <div className="space-y-2 text-sm">
                           <div>
                             <strong>Durum:</strong>{" "}
                             {singleQueryResult.edubars_full_system.success ? (
-                              <span className="text-green-600">Ô£à Ba┼şar─▒l─▒</span>
+                              <span className="text-green-600">Başarılı</span>
                             ) : (
-                              <span className="text-red-600">ÔØî Ba┼şar─▒s─▒z</span>
+                              <span className="text-red-600">Başarısız</span>
                             )}
                           </div>
                           {singleQueryResult.edubars_full_system.success && (
                             <>
                               <div>
-                                <strong>S├╝re:</strong> {singleQueryResult.edubars_full_system.execution_time_ms.toFixed(0)}ms
+                                <strong>Süre:</strong>{" "}
+                                {singleQueryResult.edubars_full_system.execution_time_ms.toFixed(0)}ms
                               </div>
                               <div>
                                 <strong>Cevap:</strong>
@@ -1764,26 +1763,26 @@ export default function TestSimulationPage() {
                               </div>
                               {singleQueryResult.analysis.edubars_out_of_scope && (
                                 <div className="text-orange-600 font-semibold">
-                                  ÔÜá´©Å "Ders kapsam─▒ d─▒┼ş─▒nda" mesaj─▒ tespit edildi
+                                  Uyarı: "Ders kapsamı dışında" mesajı tespit edildi
                                 </div>
                               )}
                               {singleQueryResult.edubars_full_system.crag_evaluation && (
                                 <div className="mt-2 p-2 bg-white rounded border">
-                                  <strong>CRAG De─şerlendirmesi:</strong>
+                                  <strong>CRAG Değerlendirmesi:</strong>
                                   <div className="mt-1 text-xs space-y-1">
                                     {singleQueryResult.edubars_full_system.crag_evaluation.relevant !== undefined && (
                                       <div>
-                                        <strong>─░lgili mi?</strong>{" "}
+                                        <strong>İlgili mi?</strong>{" "}
                                         {singleQueryResult.edubars_full_system.crag_evaluation.relevant ? (
-                                          <span className="text-green-600">Ô£à Evet</span>
+                                          <span className="text-green-600">Evet</span>
                                         ) : (
-                                          <span className="text-red-600">ÔØî Hay─▒r</span>
+                                          <span className="text-red-600">Hayır</span>
                                         )}
                                       </div>
                                     )}
                                     {singleQueryResult.edubars_full_system.crag_evaluation.reasoning && (
                                       <div>
-                                        <strong>Gerek├ğe:</strong>
+                                        <strong>Gerekçe:</strong>
                                         <div className="mt-1 p-1 bg-gray-50 rounded text-xs">
                                           {singleQueryResult.edubars_full_system.crag_evaluation.reasoning}
                                         </div>
@@ -1791,7 +1790,7 @@ export default function TestSimulationPage() {
                                     )}
                                     <details className="mt-2">
                                       <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
-                                        T├╝m CRAG Detaylar─▒
+                                        Tüm CRAG Detayları
                                       </summary>
                                       <pre className="mt-1 text-xs overflow-auto max-h-40">
                                         {JSON.stringify(singleQueryResult.edubars_full_system.crag_evaluation, null, 2)}
@@ -1802,49 +1801,71 @@ export default function TestSimulationPage() {
                               )}
                               {singleQueryResult.edubars_full_system.sources.length === 0 && (
                                 <div className="mt-2 p-2 bg-red-50 border-2 border-red-300 rounded">
-                                  <strong className="text-red-800 text-base">­şöı TESP─░T ED─░LEN SEBEP</strong>
+                                  <strong className="text-red-800 text-base">TESPİT EDİLEN SEBEP</strong>
                                   {singleQueryResult.analysis.root_cause?.detected ? (
                                     <div className="mt-2 space-y-2">
                                       <div className="p-2 bg-white rounded border border-red-200">
                                         <strong className="text-red-700">
-                                          {singleQueryResult.analysis.root_cause.reason === "CRAG_DE─ŞERLEND─░RMES─░_REDDETT─░" && "ÔØî CRAG De─şerlendirmesi Kaynaklar─▒ Reddetti"}
-                                          {singleQueryResult.analysis.root_cause.reason === "RERANKER_T├£M_KAYNAKLARI_F─░LTRELED─░" && "ÔØî Reranker T├╝m Kaynaklar─▒ Filtreledi"}
-                                          {singleQueryResult.analysis.root_cause.reason === "THRESHOLD_GE├çEMED─░" && "ÔØî Kaynak Skorlar─▒ Threshold'u Ge├ğemedi"}
-                                          {singleQueryResult.analysis.root_cause.reason === "EMBEDDING_SIMILARITY_├çOK_D├£┼Ş├£K" && "ÔØî Embedding Similarity ├çok D├╝┼ş├╝k"}
-                                          {singleQueryResult.analysis.root_cause.reason === "H─░├ç_KAYNAK_BULUNAMADI" && "ÔØî Hi├ğ Kaynak Bulunamad─▒"}
+                                          {singleQueryResult.analysis.root_cause.reason === "CRAG_DEĞERLENDİRMESİ_REDDETTİ" &&
+                                            "CRAG değerlendirmesi kaynakları reddetti"}
+                                          {singleQueryResult.analysis.root_cause.reason === "RERANKER_TÜM_KAYNAKLARI_FİLTRELEDİ" &&
+                                            "Reranker tüm kaynakları filtreledi"}
+                                          {singleQueryResult.analysis.root_cause.reason === "THRESHOLD_GEÇEMEDİ" &&
+                                            "Kaynak skorları threshold'u geçemedi"}
+                                          {singleQueryResult.analysis.root_cause.reason === "EMBEDDING_SIMILARITY_ÇOK_DÜŞÜK" &&
+                                            "Embedding similarity çok düşük"}
+                                          {singleQueryResult.analysis.root_cause.reason === "HİÇ_KAYNAK_BULUNAMADI" &&
+                                            "Hiç kaynak bulunamadı"}
                                         </strong>
                                       </div>
                                       {singleQueryResult.analysis.root_cause.details && (
                                         <div className="text-xs space-y-1">
-                                          {singleQueryResult.analysis.root_cause.reason === "CRAG_DE─ŞERLEND─░RMES─░_REDDETT─░" && (
+                                          {singleQueryResult.analysis.root_cause.reason === "CRAG_DEĞERLENDİRMESİ_REDDETTİ" && (
                                             <>
                                               <div><strong>Action:</strong> {singleQueryResult.analysis.root_cause.details.action}</div>
                                               {singleQueryResult.analysis.root_cause.details.reasoning && (
-                                                <div><strong>Gerek├ğe:</strong> {singleQueryResult.analysis.root_cause.details.reasoning}</div>
+                                                <div>
+                                                  <strong>Gerekçe:</strong>{" "}
+                                                  {singleQueryResult.analysis.root_cause.details.reasoning}
+                                                </div>
                                               )}
                                               {singleQueryResult.analysis.root_cause.details.relevance_score !== undefined && (
                                                 <div><strong>Relevance Score:</strong> {singleQueryResult.analysis.root_cause.details.relevance_score}</div>
                                               )}
                                             </>
                                           )}
-                                          {singleQueryResult.analysis.root_cause.reason === "RERANKER_T├£M_KAYNAKLARI_F─░LTRELED─░" && (
+                                          {singleQueryResult.analysis.root_cause.reason === "RERANKER_TÜM_KAYNAKLARI_FİLTRELEDİ" && (
                                             <>
-                                              <div><strong>Rerank ├ûncesi Kaynak:</strong> {singleQueryResult.analysis.root_cause.details.initial_sources}</div>
-                                              <div><strong>Rerank Sonras─▒ Kaynak:</strong> {singleQueryResult.analysis.root_cause.details.after_rerank}</div>
+                                              <div>
+                                                <strong>Rerank Öncesi Kaynak:</strong>{" "}
+                                                {singleQueryResult.analysis.root_cause.details.initial_sources}
+                                              </div>
+                                              <div>
+                                                <strong>Rerank Sonrası Kaynak:</strong>{" "}
+                                                {singleQueryResult.analysis.root_cause.details.after_rerank}
+                                              </div>
                                               {singleQueryResult.analysis.root_cause.details.rerank_scores && singleQueryResult.analysis.root_cause.details.rerank_scores.length > 0 && (
-                                                <div><strong>Rerank Skorlar─▒:</strong> {singleQueryResult.analysis.root_cause.details.rerank_scores.map((s: number) => s.toFixed(4)).join(", ")}</div>
+                                                <div>
+                                                  <strong>Rerank Skorları:</strong>{" "}
+                                                  {singleQueryResult.analysis.root_cause.details.rerank_scores
+                                                    .map((s: number) => s.toFixed(4))
+                                                    .join(", ")}
+                                                </div>
                                               )}
                                             </>
                                           )}
-                                          {singleQueryResult.analysis.root_cause.reason === "THRESHOLD_GE├çEMED─░" && (
+                                          {singleQueryResult.analysis.root_cause.reason === "THRESHOLD_GEÇEMEDİ" && (
                                             <>
                                               <div><strong>Basic RAG Max Score:</strong> {singleQueryResult.analysis.root_cause.details.basic_rag_max_score?.toFixed(4)}</div>
                                               <div><strong>Basic RAG Avg Score:</strong> {singleQueryResult.analysis.root_cause.details.basic_rag_avg_score?.toFixed(4)}</div>
                                               <div><strong>Threshold:</strong> {singleQueryResult.analysis.root_cause.details.threshold}</div>
-                                              <div><strong>Basic RAG Kaynak Say─▒s─▒:</strong> {singleQueryResult.analysis.root_cause.details.basic_rag_sources_count}</div>
+                                              <div>
+                                                <strong>Basic RAG Kaynak Sayısı:</strong>{" "}
+                                                {singleQueryResult.analysis.root_cause.details.basic_rag_sources_count}
+                                              </div>
                                             </>
                                           )}
-                                          {singleQueryResult.analysis.root_cause.reason === "EMBEDDING_SIMILARITY_├çOK_D├£┼Ş├£K" && (
+                                          {singleQueryResult.analysis.root_cause.reason === "EMBEDDING_SIMILARITY_ÇOK_DÜŞÜK" && (
                                             <>
                                               <div><strong>Max Similarity:</strong> {singleQueryResult.analysis.root_cause.details.max_similarity?.toFixed(4)}</div>
                                               <div><strong>Avg Similarity:</strong> {singleQueryResult.analysis.root_cause.details.avg_similarity?.toFixed(4)}</div>
@@ -1855,7 +1876,9 @@ export default function TestSimulationPage() {
                                     </div>
                                   ) : (
                                     <div className="mt-1 text-xs text-yellow-700">
-                                      <div>Rerankerl─▒ sistem 0 kaynak buldu. Sebep tespit edilemedi.</div>
+                                      <div>
+                                        Rerankerli sistem 0 kaynak buldu. Sebep tespit edilemedi.
+                                      </div>
                                     </div>
                                   )}
                                 </div>
@@ -1872,25 +1895,30 @@ export default function TestSimulationPage() {
 
                       {/* Analysis Summary */}
                       <div className="border rounded-lg p-4 bg-gray-50">
-                        <h4 className="font-semibold mb-2">Analiz ├ûzeti</h4>
+                        <h4 className="font-semibold mb-2">Analiz Özeti</h4>
                         <div className="space-y-2 text-sm">
                           {singleQueryResult.analysis.basic_rag_out_of_scope && !singleQueryResult.analysis.edubars_out_of_scope && (
                             <div className="text-red-600 font-semibold p-2 bg-red-50 rounded">
-                              ÔÜá´©Å <strong>Sorun Tespit Edildi:</strong> Rerankers─▒z sistem "ders kapsam─▒ d─▒┼ş─▒nda" diyor, rerankerl─▒ sistem cevap veriyor
+                              Uyarı: <strong>Sorun Tespit Edildi:</strong> Rerankersız sistem "ders kapsamı dışında" diyor, rerankerli sistem cevap veriyor
                             </div>
                           )}
                           {!singleQueryResult.analysis.basic_rag_out_of_scope && singleQueryResult.analysis.edubars_out_of_scope && (
                             <div className="text-red-600 font-semibold p-2 bg-red-50 rounded border-2 border-red-300">
-                              ÔÜá´©Å <strong>Sorun Tespit Edildi:</strong> Rerankerl─▒ sistem "ders kapsam─▒ d─▒┼ş─▒nda" diyor, rerankers─▒z sistem cevap veriyor
+                              Uyarı: <strong>Sorun Tespit Edildi:</strong> Rerankerli sistem "ders kapsamı dışında" diyor, rerankersız sistem cevap veriyor
                               {singleQueryResult.analysis.root_cause?.detected && (
                                 <div className="mt-2 p-2 bg-white rounded border border-red-200">
-                                  <strong className="text-red-700">­şöı Tespit Edilen Sebep:</strong>
+                                  <strong className="text-red-700">Tespit Edilen Sebep:</strong>
                                   <div className="mt-1 text-xs">
-                                    {singleQueryResult.analysis.root_cause.reason === "CRAG_DE─ŞERLEND─░RMES─░_REDDETT─░" && "CRAG de─şerlendirmesi kaynaklar─▒ reddetti"}
-                                    {singleQueryResult.analysis.root_cause.reason === "RERANKER_T├£M_KAYNAKLARI_F─░LTRELED─░" && "Reranker t├╝m kaynaklar─▒ filtreledi"}
-                                    {singleQueryResult.analysis.root_cause.reason === "THRESHOLD_GE├çEMED─░" && "Kaynak skorlar─▒ threshold'u ge├ğemedi"}
-                                    {singleQueryResult.analysis.root_cause.reason === "EMBEDDING_SIMILARITY_├çOK_D├£┼Ş├£K" && "Embedding similarity ├ğok d├╝┼ş├╝k"}
-                                    {singleQueryResult.analysis.root_cause.reason === "H─░├ç_KAYNAK_BULUNAMADI" && "Hi├ğ kaynak bulunamad─▒"}
+                                    {singleQueryResult.analysis.root_cause.reason === "CRAG_DEĞERLENDİRMESİ_REDDETTİ" &&
+                                      "CRAG değerlendirmesi kaynakları reddetti"}
+                                    {singleQueryResult.analysis.root_cause.reason === "RERANKER_TÜM_KAYNAKLARI_FİLTRELEDİ" &&
+                                      "Reranker tüm kaynakları filtreledi"}
+                                    {singleQueryResult.analysis.root_cause.reason === "THRESHOLD_GEÇEMEDİ" &&
+                                      "Kaynak skorları threshold'u geçemedi"}
+                                    {singleQueryResult.analysis.root_cause.reason === "EMBEDDING_SIMILARITY_ÇOK_DÜŞÜK" &&
+                                      "Embedding similarity çok düşük"}
+                                    {singleQueryResult.analysis.root_cause.reason === "HİÇ_KAYNAK_BULUNAMADI" &&
+                                      "Hiç kaynak bulunamadı"}
                                   </div>
                                 </div>
                               )}
@@ -1898,18 +1926,18 @@ export default function TestSimulationPage() {
                           )}
                           {singleQueryResult.analysis.basic_rag_out_of_scope && singleQueryResult.analysis.edubars_out_of_scope && (
                             <div className="text-orange-600 p-2 bg-orange-50 rounded">
-                              ÔÜá´©Å Her iki sistem de "ders kapsam─▒ d─▒┼ş─▒nda" diyor
+                              Uyarı: Her iki sistem de "ders kapsamı dışında" diyor
                             </div>
                           )}
                           {!singleQueryResult.analysis.basic_rag_out_of_scope && !singleQueryResult.analysis.edubars_out_of_scope && (
                             <div className="text-green-600 p-2 bg-green-50 rounded">
-                              Ô£à Her iki sistem de cevap veriyor
+                              Her iki sistem de cevap veriyor
                             </div>
                           )}
                           
-                          {/* Kaynak kar┼ş─▒la┼şt─▒rmas─▒ */}
+                          {/* Kaynak karşılaştırması */}
                           <div className="mt-3 pt-3 border-t">
-                            <strong>Kaynak Kar┼ş─▒la┼şt─▒rmas─▒:</strong>
+                            <strong>Kaynak Karşılaştırması:</strong>
                             <div className="mt-1 space-y-1">
                               <div>
                                 Basic RAG: {singleQueryResult.basic_rag.sources.length} kaynak
@@ -1934,7 +1962,7 @@ export default function TestSimulationPage() {
                               </div>
                               {singleQueryResult.basic_rag.sources.length > 0 && singleQueryResult.edubars_full_system.sources.length === 0 && (
                                 <div className="text-red-600 font-semibold mt-2">
-                                  ÔÜá´©Å Rerankerl─▒ sistem kaynak bulamad─▒ ama rerankers─▒z sistem {singleQueryResult.basic_rag.sources.length} kaynak buldu!
+                                  Uyarı: Rerankerli sistem kaynak bulamadı ama rerankersız sistem {singleQueryResult.basic_rag.sources.length} kaynak buldu!
                                 </div>
                               )}
                             </div>
@@ -1951,26 +1979,26 @@ export default function TestSimulationPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BookOpen className="h-5 w-5 text-green-500" />
-                    Test Sorular─▒
+                    Test Soruları
                   </CardTitle>
                   <CardDescription>
-                    Tarih dersi chunk'lar─▒n─▒ test etmek i├ğin sorular─▒n─▒z─▒ buraya
-                    yap─▒┼şt─▒r─▒n. Her sat─▒rda bir soru olacak ┼şekilde d├╝zenleyin.
+                    Tarih dersi chunk'larını test etmek için sorularınızı buraya
+                    yapıştırın. Her satırda bir soru olacak şekilde düzenleyin.
                     <br />
                     <strong>Opsiyonel:</strong> Ground truth (beklenen cevap)
-                    eklemek i├ğin her sat─▒rda{" "}
+                    eklemek için her satırda{" "}
                     <code className="bg-gray-100 px-1 rounded">Soru|Cevap</code>{" "}
-                    format─▒n─▒ kullan─▒n.
+                    formatını kullanın.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="questionText">Test Sorular─▒</Label>
+                    <Label htmlFor="questionText">Test Soruları</Label>
                     <Textarea
                       id="questionText"
                       value={questionText}
                       onChange={(e) => setQuestionText(e.target.value)}
-                      placeholder="Test sorular─▒n─▒ buraya kopyalay─▒n (her sat─▒rda bir soru)&#10;&#10;├ûrnek (sadece sorular):&#10;Osmanl─▒ ─░mparatorlu─şu hangi y├╝zy─▒lda kuruldu?&#10;Fatih Sultan Mehmet hangi ┼şehri fethetti?&#10;&#10;├ûrnek (sorular + beklenen cevaplar):&#10;Osmanl─▒ ─░mparatorlu─şu hangi y├╝zy─▒lda kuruldu?|13. y├╝zy─▒l&#10;Fatih Sultan Mehmet hangi ┼şehri fethetti?|─░stanbul&#10;Tanzimat Ferman─▒ ne zaman ilan edildi?|1839&#10;&#10;Not: | i┼şareti ile soru ve cevab─▒ ay─▒r─▒n. Cevap opsiyoneldir."
+                      placeholder="Test sorularını buraya kopyalayın (her satırda bir soru)\n\nÖrnek (sadece sorular):\nOsmanlı İmparatorluğu hangi yüzyılda kuruldu?\nFatih Sultan Mehmet hangi şehri fethetti?\n\nÖrnek (sorular + beklenen cevaplar):\nOsmanlı İmparatorluğu hangi yüzyılda kuruldu?|13. yüzyıl\nFatih Sultan Mehmet hangi şehri fethetti?|İstanbul\nTanzimat Fermanı ne zaman ilan edildi?|1839\n\nNot: | işareti ile soru ve cevabı ayırın. Cevap opsiyoneldir."
                       className="min-h-[200px] resize-y"
                       rows={12}
                     />
@@ -1985,7 +2013,7 @@ export default function TestSimulationPage() {
                               Object.keys(config.customExpectedAnswers || {})
                                 .length
                             }{" "}
-                            soru i├ğin beklenen cevap var)
+                            soru için beklenen cevap var)
                           </span>
                         )}
                       </span>
@@ -1998,8 +2026,8 @@ export default function TestSimulationPage() {
                       <div className="flex items-center gap-2 text-green-800">
                         <CheckCircle className="h-4 w-4" />
                         <span className="text-sm font-medium">
-                          {config.customQuestions.length} soru ba┼şar─▒yla
-                          y├╝klendi
+                          {config.customQuestions.length} soru başarıyla
+                          yüklendi
                         </span>
                       </div>
                       <div className="text-xs text-green-600 mt-1">
@@ -2008,17 +2036,17 @@ export default function TestSimulationPage() {
                           config.customQuestions.length,
                           config.numQuestions
                         )}{" "}
-                        soru ile ├ğal─▒┼şacak
+                        soru ile çalışacak
                         {Object.keys(config.customExpectedAnswers || {})
                           .length > 0 && (
                           <span className="block mt-1 text-blue-600">
-                            ­şÆí{" "}
+                            Not:{" "}
                             {
                               Object.keys(config.customExpectedAnswers || {})
                                 .length
                             }{" "}
-                            soru i├ğin semantik / BLEU / ROUGE / F1 metrikleri
-                            hesaplanacak (fallback yok; ground truth ┼şart).
+                            soru için semantik / BLEU / ROUGE / F1 metrikleri
+                            hesaplanacak (fallback yok; ground truth şart).
                           </span>
                         )}
                       </div>
@@ -2044,14 +2072,14 @@ export default function TestSimulationPage() {
                       <div className="flex items-center gap-2">
                         {currentTest.status === "running" && (
                           <Badge className="bg-green-500 animate-pulse">
-                            ├çal─▒┼ş─▒yor
+                            Çalışıyor
                           </Badge>
                         )}
                         {currentTest.status === "completed" && (
-                          <Badge className="bg-blue-500">Tamamland─▒</Badge>
+                          <Badge className="bg-blue-500">Tamamlandı</Badge>
                         )}
                         {currentTest.status === "failed" && (
-                          <Badge className="bg-red-500">Ba┼şar─▒s─▒z</Badge>
+                          <Badge className="bg-red-500">Başarısız</Badge>
                         )}
                         {currentTest.status === "stopped" && (
                           <Badge className="bg-gray-500">Durduruldu</Badge>
@@ -2062,7 +2090,7 @@ export default function TestSimulationPage() {
                   <CardContent>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between text-sm mb-2">
-                        <span>─░lerleme</span>
+                        <span>İlerleme</span>
                         <span>{Math.round(currentTest.progress)}%</span>
                       </div>
                       <Progress value={currentTest.progress} />
@@ -2111,7 +2139,7 @@ export default function TestSimulationPage() {
                             s
                           </div>
                           <div className="text-sm text-gray-500">
-                            Ge├ğen S├╝re
+                            Geçen Süre
                           </div>
                         </div>
                       </div>
@@ -2129,7 +2157,7 @@ export default function TestSimulationPage() {
                         )}
                         <Button onClick={resetTest} variant="outline" size="sm">
                           <RotateCcw className="mr-2 h-4 w-4" />
-                          S─▒f─▒rla
+                          Sıfırla
                         </Button>
                       </div>
                     </div>
@@ -2142,7 +2170,7 @@ export default function TestSimulationPage() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <TrendingUp className="h-5 w-5" />
-                        Ger├ğek Zamanl─▒ Metrikler
+                        Gerçek Zamanlı Metrikler
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -2178,7 +2206,7 @@ export default function TestSimulationPage() {
                 <CardContent className="text-center py-12">
                   <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Hen├╝z Aktif Test Yok
+                    Henüz Aktif Test Yok
                   </h3>
                   <p className="text-gray-500 mb-4">
                     Monitoring verilerini görmek için önce bir test başlatın.
@@ -2187,7 +2215,7 @@ export default function TestSimulationPage() {
                     onClick={() => setActiveTab("configuration")}
                     variant="outline"
                   >
-                    Test Ba┼şlat
+                    Test Başlat
                     <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
                 </CardContent>
@@ -2205,7 +2233,7 @@ export default function TestSimulationPage() {
                     <div className="flex items-center justify-between">
                       <CardTitle className="flex items-center gap-2">
                         <Award className="h-5 w-5" />
-                        Test ├ûzeti: {currentTest.testName}
+                        Test Özeti: {currentTest.testName}
                       </CardTitle>
                       <DataExportControls
                         testResult={currentTest}
@@ -2228,7 +2256,7 @@ export default function TestSimulationPage() {
                   <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div>
-                        <div className="text-sm text-gray-500">Test S├╝resi</div>
+                        <div className="text-sm text-gray-500">Test Süresi</div>
                         <div className="text-lg font-semibold">
                           {currentTest.executionTime?.formatted ||
                             (currentTest.executionTime?.total_seconds
@@ -2254,14 +2282,14 @@ export default function TestSimulationPage() {
                         </div>
                       </div>
                       <div>
-                        <div className="text-sm text-gray-500">Do─şru Cevap</div>
+                        <div className="text-sm text-gray-500">Doğru Cevap</div>
                         <div className="text-lg font-semibold">
                           {currentTest.metrics.correctAnswers}
                         </div>
                       </div>
                       <div>
                         <div className="text-sm text-gray-500">
-                          Ba┼şar─▒ Oran─▒
+                          Başarı Oranı
                         </div>
                         <div className="text-lg font-semibold">
                           {(
@@ -2281,7 +2309,7 @@ export default function TestSimulationPage() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <BarChart3 className="h-5 w-5" />
-                      Metod Kar┼ş─▒la┼şt─▒rmas─▒
+                      Metod Karşılaştırması
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -2307,8 +2335,8 @@ export default function TestSimulationPage() {
                             ([method, results]) => {
                               const methodNames: Record<string, string> = {
                                 eduBars:
-                                  "Ak─▒ll─▒Rehber(RAG +ReRanker Kombinasyonu)",
-                                basicRag: "Ak─▒ll─▒ Rehber(Sadece Rag)",
+                                  "AkıllıRehber(RAG +ReRanker Kombinasyonu)",
+                                basicRag: "Akıllı Rehber(Sadece Rag)",
                                 llmOnly: "Sadece LLM",
                               };
 
@@ -2488,93 +2516,91 @@ export default function TestSimulationPage() {
                       </table>
                     </div>
 
-                    {/* Metriklerin a├ğ─▒klamalar─▒ */}
+                    {/* Metriklerin açıklamaları */}
                     <div className="mt-6 p-4 bg-gray-50 border rounded-lg">
                       <h4 className="text-sm font-semibold text-gray-800 mb-3">
-                        ­şôè Performans Metrikleri A├ğ─▒klamalar─▒
+                        Performans Metrikleri Açıklamaları
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
                         <div>
                           <div className="font-medium text-blue-700 mb-1">
-                            ­şÄ» Cosine Similarity
+                            Cosine Similarity
                           </div>
                           <p className="text-xs leading-relaxed">
-                            Sorgu ile bulunan en benzer dok├╝man aras─▒ndaki
-                            kosin├╝s benzerli─şi. 0-1 aras─▒ de─şer al─▒r. Y├╝ksek
-                            de─şerler daha iyi retrieval performans─▒n─▒ g├Âsterir.
+                            Sorgu ile bulunan en benzer doküman arasındaki
+                            kosinüs benzerliği. 0-1 arasında değer alır. Yüksek
+                            değerler daha iyi retrieval performansını gösterir.
                           </p>
                         </div>
                         <div>
                           <div className="font-medium text-green-700 mb-1">
-                            ­şôê Precision@5 (%)
+                            Precision@5 (%)
                           </div>
                           <p className="text-xs leading-relaxed">
-                            ─░lk 5 sonu├ğtan ka├ğ─▒n─▒n alakal─▒ oldu─şunu ├Âl├ğer. RAG
-                            sistemlerinin dok├╝man se├ğme ba┼şar─▒s─▒n─▒
-                            de─şerlendirir. <strong>Literat├╝r referans─▒:</strong>{" "}
-                            E─şitsel RAG sistemlerde {">"}40% kabul edilebilir,{" "}
-                            {">"}60% iyi, {">"}80% m├╝kemmel performans
-                            g├Âstergesi.
+                            İlk 5 sonuçtan kaçının alakalı olduğunu ölçer. RAG
+                            sistemlerinin doküman seçim başarısını değerlendirir.
+                            <strong>Literatür referansı:</strong> Eşit RAG
+                            sistemlerde &gt;40% kabul edilebilir, &gt;60% iyi, &gt;80%
+                            mükemmel performans göstergesi.
                           </p>
                         </div>
                         <div>
                           <div className="font-medium text-purple-700 mb-1">
-                            ­şôè Precision@10 (%)
+                            Precision@10 (%)
                           </div>
                           <p className="text-xs leading-relaxed">
-                            ─░lk 10 sonu├ğtan ka├ğ─▒n─▒n alakal─▒ oldu─şunu ├Âl├ğer. Daha
-                            geni┼ş retrieval performans─▒n─▒ de─şerlendirir.{" "}
-                            <strong>Literat├╝r referans─▒:</strong> Genellikle
-                            Precision@5'ten %5-15 d├╝┼ş├╝k ├ğ─▒kar, {">"}35% kabul
+                            İlk 10 sonuçtan kaçının alakalı olduğunu ölçer. Daha
+                            geniş retrieval performansını değerlendirir.
+                            <strong>Literatür referansı:</strong> Genellikle
+                            Precision@5'ten %5-15 düşük çıkar, &gt;35% kabul
                             edilebilir performans.
                           </p>
                         </div>
                         <div>
                           <div className="font-medium text-orange-700 mb-1">
-                            ÔÅ▒´©Å Avg Response (ms)
+                            Avg Response (ms)
                           </div>
                           <p className="text-xs leading-relaxed">
-                            Sistemin ortalama yan─▒t verme s├╝resi (milisaniye).
-                            D├╝┼ş├╝k de─şerler daha iyi performans─▒ g├Âsterir.
+                            Sistemin ortalama yanıt verme süresi (milisaniye
+                            cinsinden). Düşük değerler daha iyi performans
+                            gösterir.
                           </p>
                         </div>
                         <div>
                           <div className="font-medium text-red-700 mb-1">
-                            Ô£ô Accuracy (%)
+                            Accuracy (%)
                           </div>
                           <p className="text-xs leading-relaxed">
-                            Do─şru yan─▒t verme oran─▒. Genel sistem ba┼şar─▒s─▒n─▒
-                            ├Âl├ğer. Cosine similarity {">"} 0.5 olan yan─▒tlar
-                            do─şru kabul edilir.
+                            Doğru yanıt verme oranı. Genel sistem başarısını
+                            ölçer. Cosine similarity &gt; 0.5 olan yanıtlar doğru
+                            kabul edilir.
                           </p>
                         </div>
                         <div>
                           <div className="font-medium text-gray-700 mb-1">
-                            ÔÜá´©Å Sadece LLM - Precision Metrikleri
+                            Sadece LLM - Precision Metrikleri
                           </div>
                           <p className="text-xs leading-relaxed text-gray-600">
-                            Sadece LLM metodunda dok├╝man retrieval olmad─▒─ş─▒ i├ğin
-                            Precision@5 ve Precision@10 metrikleri
-                            ├Âl├ğ├╝lememektedir. Bu metrikler yaln─▒zca RAG tabanl─▒
-                            sistemler i├ğin anlaml─▒d─▒r.
+                            Sadece LLM metodunda doküman retrieval olmadığı
+                            için Precision@5 ve Precision@10 metrikleri
+                            hesaplanmamaktadır. Bu metrikler yalnızca RAG tabanlı
+                            sistemler için anlamlıdır.
                           </p>
                         </div>
                         <div>
                           <div className="font-medium text-blue-700 mb-1">
-                            ­şÄ» Semantic Similarity (Cevap Kalitesi)
+                            Semantic Similarity (Cevap Kalitesi)
                           </div>
                           <p className="text-xs leading-relaxed text-gray-600">
-                            LLM'in verdi─şi cevap ile beklenen cevap (ground
-                            truth) aras─▒ndaki
-                            <strong> semantic benzerlik</strong> ├Âl├ğ├╝l├╝r.
-                            Embedding modeli ile hesaplan─▒r (cosine similarity).
-                            0-1 aras─▒ de─şer al─▒r.
-                            <strong>Y├Ântem:</strong> Model inference servisi
-                            ├╝zerinden text-embedding-v4 ile her iki cevab─▒n
-                            embedding'i al─▒n─▒r ve cosine similarity hesaplan─▒r.
-                            <strong>
-                              Sadece ground truth olan sorular i├ğin g├Âsterilir.
-                            </strong>
+                            LLM'in verdiği cevap ile beklenen cevap (ground truth)
+                            arasındaki semantic benzerlik ölçülür. Embedding
+                            modeli ile hesaplanır (cosine similarity). 0-1 arasında
+                            değer alır.
+                            <strong>Yöntem:</strong> Model inference servisi
+                            üzerinden text-embedding-v4 ile her iki cevabın
+                            embedding'i alınır ve cosine similarity hesaplanır.
+                            <strong>Sadece ground truth olan sorular için
+                              gösterilir.</strong>
                           </p>
                         </div>
                       </div>
@@ -2590,11 +2616,11 @@ export default function TestSimulationPage() {
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <BarChart3 className="h-5 w-5" />
-                          Performans Kar┼ş─▒la┼şt─▒rmas─▒
+                          Performans Karşılaştırması
                         </div>
                         <ChartExportControls
                           chartId="method-performance-chart"
-                          chartTitle="Performans Kar┼ş─▒la┼şt─▒rmas─▒"
+                          chartTitle="Performans Karşılaştırması"
                           variant="compact"
                           showLabels={false}
                         />
@@ -2614,8 +2640,8 @@ export default function TestSimulationPage() {
                               .map(([method, results]) => ({
                                 name:
                                   {
-                                    eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                    basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                    eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                    basicRag: "Akıllı Rehber(Sadece Rag)",
                                     llmOnly: "Sadece LLM",
                                   }[method] || method,
                                 cosine: results.cosineSimilarity, // Backend already uses max_similarity
@@ -2658,11 +2684,11 @@ export default function TestSimulationPage() {
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Clock className="h-5 w-5" />
-                          Yan─▒t S├╝releri
+                          Yanıt Süreleri
                         </div>
                         <ChartExportControls
                           chartId="response-time-chart"
-                          chartTitle="Yan─▒t S├╝releri"
+                          chartTitle="Yanıt Süreleri"
                           variant="compact"
                           showLabels={false}
                         />
@@ -2682,8 +2708,8 @@ export default function TestSimulationPage() {
                               .map(([method, results]) => ({
                                 name:
                                   {
-                                    eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                    basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                    eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                    basicRag: "Akıllı Rehber(Sadece Rag)",
                                     llmOnly: "Sadece LLM",
                                   }[method] || method,
                                 responseTime: results.avgResponseTime,
@@ -2704,7 +2730,7 @@ export default function TestSimulationPage() {
                             <Bar
                               dataKey="responseTime"
                               fill="#ef4444"
-                              name="Yan─▒t S├╝resi (ms)"
+                              name="Yanıt Süresi (ms)"
                               radius={[2, 2, 0, 0]}
                             />
                           </BarChart>
@@ -2762,10 +2788,10 @@ export default function TestSimulationPage() {
 
                                 const methodName =
                                   {
-                                    eduBars: "Ak─▒ll─▒Rehber",
+                                    eduBars: "AkıllıRehber",
                                     singleModel: "TekModel",
-                                    twoStageRetrieval: "IkiAsama",
-                                    singleStageRetrieval: "TekAsama",
+                                    twoStageRetrieval: "İkiAşama",
+                                    singleStageRetrieval: "TekAşama",
                                   }[method] || method;
 
                                 acc[methodName] = value;
@@ -2788,8 +2814,8 @@ export default function TestSimulationPage() {
                           {config.testMethods.map((method, index) => {
                             const methodName =
                               {
-                                eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                basicRag: "Akıllı Rehber(Sadece Rag)",
                                 llmOnly: "SadeceLLM",
                               }[method] || method;
 
@@ -2804,13 +2830,13 @@ export default function TestSimulationPage() {
                                 key={method}
                                 name={
                                   {
-                                    "Ak─▒ll─▒Rehber(RAG +ReRanker)":
-                                      "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                    "Ak─▒ll─▒Rehber(Sadece RAG)":
-                                      "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                    "AkıllıRehber(RAG +ReRanker)":
+                                      "AkıllıRehber(RAG +ReRanker)",
+                                    "Akıllı Rehber(Sadece Rag)":
+                                      "Akıllı Rehber(Sadece Rag)",
                                     TekModel: "Tek Model",
-                                    IkiAsama: "─░ki A┼şama",
-                                    TekAsama: "Tek A┼şama",
+                                    İkiAşama: "İki Aşama",
+                                    TekAşama: "Tek Aşama",
                                     SadeceLLM: "Sadece LLM",
                                   }[methodName] || methodName
                                 }
@@ -2836,11 +2862,11 @@ export default function TestSimulationPage() {
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Target className="h-5 w-5" />
-                          Benchmark Kar┼ş─▒la┼şt─▒rmas─▒
+                          Benchmark Karşılaştırması
                         </div>
                         <ChartExportControls
                           chartId="benchmark-comparison-chart"
-                          chartTitle="Benchmark Kar┼ş─▒la┼şt─▒rmas─▒"
+                          chartTitle="Benchmark Karşılaştırması"
                           variant="compact"
                           showLabels={false}
                         />
@@ -2879,7 +2905,7 @@ export default function TestSimulationPage() {
                               <div className="flex items-center gap-2 text-green-600">
                                 <CheckCircle className="h-5 w-5" />
                                 <span className="font-medium">
-                                  Benchmark'─▒{" "}
+                                  Benchmark'i{" "}
                                   {(
                                     ((currentTest.benchmarkComparison.current
                                       .cosineSimilarity -
@@ -2889,14 +2915,14 @@ export default function TestSimulationPage() {
                                         .cosineSimilarity) *
                                     100
                                   ).toFixed(1)}
-                                  % ge├ğti
+                                  % geçti
                                 </span>
                               </div>
                             ) : (
                               <div className="flex items-center gap-2 text-orange-600">
                                 <AlertTriangle className="h-5 w-5" />
                                 <span className="font-medium">
-                                  Benchmark'─▒n{" "}
+                                  Benchmark'in{" "}
                                   {(
                                     ((currentTest.benchmarkComparison.ekoBot
                                       .cosineSimilarity -
@@ -2906,7 +2932,7 @@ export default function TestSimulationPage() {
                                         .cosineSimilarity) *
                                     100
                                   ).toFixed(1)}
-                                  % alt─▒nda
+                                  % altında
                                 </span>
                               </div>
                             )}
@@ -2925,10 +2951,10 @@ export default function TestSimulationPage() {
                     Test Devam Ediyor
                   </h3>
                   <p className="text-gray-500 mb-4">
-                    Sonu├ğlar─▒ g├Ârmek i├ğin testin tamamlanmas─▒n─▒ bekleyin.
+                    Sonuçları görmek için testin tamamlanmasını bekleyin.
                   </p>
                   <div className="text-sm text-gray-400">
-                    ─░lerleme: {Math.round(currentTest.progress)}%
+                    İlerleme: {Math.round(currentTest.progress)}%
                   </div>
                 </CardContent>
               </Card>
@@ -2937,7 +2963,7 @@ export default function TestSimulationPage() {
                 <CardContent className="text-center py-12">
                   <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Hen├╝z Sonu├ğ Yok
+                    Henüz Sonuç Yok
                   </h3>
                   <p className="text-gray-500 mb-4">
                     Sonuçları görmek için önce bir test başlatın ve tamamlayın.
@@ -2946,7 +2972,7 @@ export default function TestSimulationPage() {
                     onClick={() => setActiveTab("configuration")}
                     variant="outline"
                   >
-                    Test Ba┼şlat
+                    Test Başlat
                     <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
                 </CardContent>
@@ -2964,12 +2990,12 @@ export default function TestSimulationPage() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
-                        Soru Bazl─▒ Kapsaml─▒ Metrik Tablosu
+                        Soru Bazlı Kapsamlı Metrik Tablosu
                       </CardTitle>
                       <CardDescription>
-                        T├╝m sorular i├ğin metodoloji baz─▒nda detayl─▒ metrikler:
-                        cosine similarity, precision, yan─▒t s├╝resi, yan─▒t
-                        uzunlu─şu ve ground truth metrikleri
+                        Tüm sorular için metodoloji bazında detaylı metrikler:
+                        cosine similarity, precision, yanıt süresi, yanıt uzunluğu
+                        ve ground truth metrikleri
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -2999,10 +3025,10 @@ export default function TestSimulationPage() {
                                 Precision@10 (%)
                               </th>
                               <th className="text-center p-3 font-semibold">
-                                Cevap S├╝resi (ms)
+                                Cevap Süresi (ms)
                               </th>
                               <th className="text-center p-3 font-semibold">
-                                Yan─▒t Uzunlu─şu
+                                Yanıt Uzunluğu
                               </th>
                               <th className="text-center p-3 font-semibold">
                                 Semantic
@@ -3023,8 +3049,8 @@ export default function TestSimulationPage() {
                               Object.entries(question.methodologies).map(
                                 ([method, results]) => {
                                   const methodNames: Record<string, string> = {
-                                    eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                    basicRag: "Ak─▒ll─▒ Rehber(Sadece Rag)",
+                                    eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                    basicRag: "Akıllı Rehber(Sadece Rag)",
                                     llmOnly: "Sadece LLM",
                                   };
 
@@ -3073,7 +3099,7 @@ export default function TestSimulationPage() {
                                         </div>
                                         {question.expected_answer && (
                                           <div className="text-xs text-blue-600 mt-1">
-                                            ­şôØ Ground truth var
+                                            Ground truth var
                                           </div>
                                         )}
                                       </td>
@@ -3126,7 +3152,7 @@ export default function TestSimulationPage() {
                                           }`}
                                         >
                                           {method === "llmOnly"
-                                            ? "├ûl├ğ├╝lmedi"
+                                            ? "Ölçülmedi"
                                             : (
                                                 results.precision_at_5 * 100
                                               ).toFixed(1) + "%"}
@@ -3145,7 +3171,7 @@ export default function TestSimulationPage() {
                                           }`}
                                         >
                                           {method === "llmOnly"
-                                            ? "├ûl├ğ├╝lmedi"
+                                            ? "Ölçülmedi"
                                             : (
                                                 results.precision_at_10 * 100
                                               ).toFixed(1) + "%"}
@@ -3257,38 +3283,36 @@ export default function TestSimulationPage() {
                       {/* Table Legend */}
                       <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                         <h5 className="text-sm font-semibold text-gray-800 mb-2">
-                          ­şôè Tablo Renk Kodlar─▒
+                          Tablo Renk Kodları
                         </h5>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-gray-700">
                           <div>
                             <strong>Max/Cosine Similarity:</strong>
-                            <span className="text-green-600 ml-2">
-                              ÔëÑ0.8 M├╝kemmel
-                            </span>
+                            <span className="text-green-600 ml-2">0.8 Mükemmel</span>
                             <span className="text-yellow-600 ml-2">
-                              ÔëÑ0.6 ─░yi
+                              0.6 İyi
                             </span>
                             <span className="text-orange-600 ml-2">
-                              ÔëÑ0.4 Orta
+                              0.4 Orta
                             </span>
                             <span className="text-red-600 ml-2">
-                              &lt;0.4 D├╝┼ş├╝k
+                              &lt;0.4 Düşük
                             </span>
                           </div>
                           <div>
-                            <strong>Yan─▒t S├╝resi:</strong>
+                            <strong>Yanıt Süresi:</strong>
                             <span className="text-green-600 ml-2">
-                              Ôëñ1s H─▒zl─▒
+                              &lt;1s Hızlı
                             </span>
                             <span className="text-yellow-600 ml-2">
-                              Ôëñ2s Normal
+                              &lt;2s Normal
                             </span>
                             <span className="text-red-600 ml-2">
-                              &gt;2s Yava┼ş
+                              &gt;2s Yavaş
                             </span>
                           </div>
                           <div>
-                            <strong>Yan─▒t Uzunlu─şu:</strong>
+                            <strong>Yanıt Uzunluğu:</strong>
                             <span className="text-blue-600 ml-2">
                               &gt;500 Uzun
                             </span>
@@ -3296,22 +3320,22 @@ export default function TestSimulationPage() {
                               &gt;200 Normal
                             </span>
                             <span className="text-yellow-600 ml-2">
-                              &gt;50 K─▒sa
+                              &gt;50 Kısa
                             </span>
                             <span className="text-red-600 ml-2">
-                              Ôëñ50 ├çok K─▒sa
+                              &lt;50 Çok Kısa
                             </span>
                           </div>
                           <div>
                             <strong>Ground Truth Metrikleri:</strong>
                             <span className="text-green-600 ml-2">
-                              ÔëÑ0.7 ─░yi
+                              0.7 İyi
                             </span>
                             <span className="text-yellow-600 ml-2">
-                              ÔëÑ0.5 Orta
+                              0.5 Orta
                             </span>
                             <span className="text-red-600 ml-2">
-                              &lt;0.5 D├╝┼ş├╝k
+                              &lt;0.5 Düşük
                             </span>
                             <span className="text-gray-400 ml-2">N/A Yok</span>
                           </div>
@@ -3329,16 +3353,16 @@ export default function TestSimulationPage() {
                           <div>
                             <div className="flex items-center gap-2">
                               <TrendingUp className="h-5 w-5" />
-                              Cosine Similarity Da─ş─▒l─▒m─▒ (Metodoloji Baz─▒nda)
+                              Cosine Similarity Dağılımı (Metodoloji Bazında)
                             </div>
                             <CardDescription>
-                              Her metodoloji i├ğin cosine similarity de─şerlerinin
-                              ortalamas─▒ (max similarity bazl─▒)
+                              Her metodoloji için cosine similarity değerlerinin
+                              ortalaması (max similarity bazlı)
                             </CardDescription>
                           </div>
                           <ChartExportControls
                             chartId="cosine-similarity-chart"
-                            chartTitle="Cosine Similarity Da─ş─▒l─▒m─▒"
+                            chartTitle="Cosine Similarity Dağılımı"
                             variant="compact"
                             showLabels={false}
                           />
@@ -3358,8 +3382,8 @@ export default function TestSimulationPage() {
                                 .map(([method, results]) => ({
                                   name:
                                     {
-                                      eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                      basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                      eduBars: "AkıllıRehber (RAG + ReRanker)",
+                                      basicRag: "AkıllıRehber (Sadece RAG)",
                                       llmOnly: "Sadece LLM",
                                     }[method] || method,
                                   similarity: results.cosineSimilarity,
@@ -3395,17 +3419,17 @@ export default function TestSimulationPage() {
                         <CardTitle className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Clock className="h-5 w-5" />
-                            Yan─▒t S├╝resi Kar┼ş─▒la┼şt─▒rmas─▒
+                            Yanıt Süresi Karşılaştırması
                           </div>
                           <ChartExportControls
                             chartId="response-time-detailed-chart"
-                            chartTitle="Yan─▒t S├╝resi Kar┼ş─▒la┼şt─▒rmas─▒"
+                            chartTitle="Yanıt Süresi Karşılaştırması"
                             variant="compact"
                             showLabels={false}
                           />
                         </CardTitle>
                         <CardDescription>
-                          Her metodoloji i├ğin ortalama yan─▒t s├╝resi (milisaniye
+                          Her metodoloji için ortalama yanıt süresi (milisaniye
                           cinsinden)
                         </CardDescription>
                       </CardHeader>
@@ -3423,8 +3447,8 @@ export default function TestSimulationPage() {
                                 .map(([method, results]) => ({
                                   name:
                                     {
-                                      eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                      basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                      eduBars: "AkıllıRehber (RAG + ReRanker)",
+                                      basicRag: "AkıllıRehber (Sadece RAG)",
                                       llmOnly: "Sadece LLM",
                                     }[method] || method,
                                   responseTime: results.avgResponseTime,
@@ -3446,7 +3470,7 @@ export default function TestSimulationPage() {
                               <Bar
                                 dataKey="responseTime"
                                 fill="#ef4444"
-                                name="Yan─▒t S├╝resi (ms)"
+                                name="Yanıt Süresi (ms)"
                                 radius={[2, 2, 0, 0]}
                               />
                             </BarChart>
@@ -3461,18 +3485,18 @@ export default function TestSimulationPage() {
                         <CardTitle className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Award className="h-5 w-5" />
-                            Do─şruluk Oran─▒ Kar┼ş─▒la┼şt─▒rmas─▒
+                            Doğruluk Oranı Karşılaştırması
                           </div>
                           <ChartExportControls
                             chartId="accuracy-comparison-chart"
-                            chartTitle="Do─şruluk Oran─▒ Kar┼ş─▒la┼şt─▒rmas─▒"
+                            chartTitle="Doğruluk Oranı Karşılaştırması"
                             variant="compact"
                             showLabels={false}
                           />
                         </CardTitle>
                         <CardDescription>
-                          Her metodoloji i├ğin do─şruluk oran─▒ (accuracy)
-                          kar┼ş─▒la┼şt─▒rmas─▒
+                          Her metodoloji için doğruluk oranı (accuracy)
+                          karşılaştırması
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
@@ -3489,8 +3513,8 @@ export default function TestSimulationPage() {
                                 .map(([method, results]) => ({
                                   name:
                                     {
-                                      eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                      basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                      eduBars: "AkıllıRehber (RAG + ReRanker)",
+                                      basicRag: "AkıllıRehber (Sadece RAG)",
                                       llmOnly: "Sadece LLM",
                                     }[method] || method,
                                   accuracy: results.accuracy,
@@ -3513,7 +3537,7 @@ export default function TestSimulationPage() {
                               <Bar
                                 dataKey="accuracy"
                                 fill="#f59e0b"
-                                name="Do─şruluk Oran─▒ (%)"
+                                name="Doğruluk Oranı (%)"
                                 radius={[2, 2, 0, 0]}
                               />
                             </BarChart>
@@ -3529,18 +3553,18 @@ export default function TestSimulationPage() {
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <BarChart3 className="h-5 w-5" />
-                          Soru Baz─▒nda Performans Analizi (Heatmap)
+                          Soru Bazında Performans Analizi (Heatmap)
                         </div>
                         <ChartExportControls
                           chartId="question-performance-chart"
-                          chartTitle="Soru Baz─▒nda Performans Analizi"
+                          chartTitle="Soru Bazında Performans Analizi"
                           variant="compact"
                           showLabels={false}
                         />
                       </CardTitle>
                       <CardDescription>
-                        Her soru i├ğin metodoloji baz─▒nda cosine similarity
-                        de─şerlerinin g├Ârselle┼ştirilmesi
+                        Her soru için metodoloji bazında cosine similarity
+                        değerlerinin görselleştirilmesi
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -3565,9 +3589,9 @@ export default function TestSimulationPage() {
                                           const methodName =
                                             {
                                               eduBars:
-                                                "Ak─▒ll─▒Rehber(RAG +ReRanker)",
+                                                "AkıllıRehber (RAG + ReRanker)",
                                               basicRag:
-                                                "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                                "AkıllıRehber (Sadece RAG)",
                                               llmOnly: "Sadece LLM",
                                             }[method] || method;
                                           data[methodName] =
@@ -3599,13 +3623,13 @@ export default function TestSimulationPage() {
                             {config.testMethods.map((method) => {
                               const methodName =
                                 {
-                                  eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                  basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                  eduBars: "AkıllıRehber (RAG + ReRanker)",
+                                  basicRag: "AkıllıRehber (Sadece RAG)",
                                   llmOnly: "Sadece LLM",
                                 }[method] || method;
                               const colors: Record<string, string> = {
-                                "Ak─▒ll─▒Rehber(RAG +ReRanker)": "#3b82f6",
-                                "Ak─▒ll─▒Rehber(Sadece RAG)": "#10b981",
+                                "AkıllıRehber (RAG + ReRanker)": "#3b82f6",
+                                "AkıllıRehber (Sadece RAG)": "#10b981",
                                 "Sadece LLM": "#f59e0b",
                               };
                               return (
@@ -3629,11 +3653,11 @@ export default function TestSimulationPage() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <TrendingUp className="h-5 w-5" />
-                        Kapsaml─▒ Performans Analizi (Radar Chart)
+                        Kapsamlı Performans Analizi (Radar Chart)
                       </CardTitle>
                       <CardDescription>
-                        T├╝m metriklerin bir arada g├Ârselle┼ştirilmesi: Cosine
-                        Similarity, Precision@5, Precision@10, Accuracy ve H─▒z
+                        Tüm metriklerin bir arada görselleştirilmesi: Cosine
+                        Similarity, Precision@5, Precision@10, Accuracy ve Hız
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -3647,7 +3671,7 @@ export default function TestSimulationPage() {
                             metric: {
                               cosine: "Cosine Similarity",
                               accuracy: "Accuracy",
-                              speed: "H─▒z (Ters)",
+                              speed: "Hız (Ters)",
                             }[metric],
                             ...Object.entries(currentTest.methodComparison)
                               .filter(([method]) =>
@@ -3670,9 +3694,9 @@ export default function TestSimulationPage() {
 
                                 const methodName =
                                   {
-                                    eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                    basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
-                                    llmOnly: "SadeceLLM",
+                                    eduBars: "AkıllıRehber (RAG + ReRanker)",
+                                    basicRag: "AkıllıRehber (Sadece RAG)",
+                                    llmOnly: "Sadece LLM",
                                   }[method] || method;
 
                                 acc[methodName] = value;
@@ -3703,9 +3727,9 @@ export default function TestSimulationPage() {
                             .map((method, index) => {
                               const methodName =
                                 {
-                                  eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                  basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
-                                  llmOnly: "SadeceLLM",
+                                  eduBars: "AkıllıRehber (RAG + ReRanker)",
+                                  basicRag: "AkıllıRehber (Sadece RAG)",
+                                  llmOnly: "Sadece LLM",
                                 }[method] || method;
 
                               const colors = [
@@ -3719,11 +3743,11 @@ export default function TestSimulationPage() {
                                   key={method}
                                   name={
                                     {
-                                      "Ak─▒ll─▒Rehber(RAG +ReRanker)":
-                                        "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                      "Ak─▒ll─▒Rehber(Sadece RAG)":
-                                        "Ak─▒ll─▒Rehber(Sadece RAG)",
-                                      SadeceLLM: "Sadece LLM",
+                                      "AkıllıRehber (RAG + ReRanker)":
+                                        "AkıllıRehber (RAG + ReRanker)",
+                                      "AkıllıRehber (Sadece RAG)":
+                                        "AkıllıRehber (Sadece RAG)",
+                                      "Sadece LLM": "Sadece LLM",
                                     }[methodName] || methodName
                                   }
                                   dataKey={methodName}
@@ -3746,18 +3770,18 @@ export default function TestSimulationPage() {
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <BarChart3 className="h-5 w-5" />
-                          Cosine Similarity De─şer Da─ş─▒l─▒m─▒
+                          Cosine Similarity Değer Dağılımı
                         </div>
                         <ChartExportControls
                           chartId="similarity-distribution-chart"
-                          chartTitle="Cosine Similarity De─şer Da─ş─▒l─▒m─▒"
+                          chartTitle="Cosine Similarity Değer Dağılımı"
                           variant="compact"
                           showLabels={false}
                         />
                       </CardTitle>
                       <CardDescription>
-                        Her metodoloji i├ğin cosine similarity de─şerlerinin
-                        histogram da─ş─▒l─▒m─▒ (soru baz─▒nda, max similarity bazl─▒)
+                        Her metodoloji için cosine similarity değerlerinin
+                        histogram dağılımı (soru bazında, max similarity bazlı)
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -3798,8 +3822,8 @@ export default function TestSimulationPage() {
                                   ).length;
                                   const methodName =
                                     {
-                                      eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                      basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                      eduBars: "AkıllıRehber (RAG + ReRanker)",
+                                      basicRag: "AkıllıRehber (Sadece RAG)",
                                       llmOnly: "Sadece LLM",
                                     }[method] || method;
                                   data[methodName] = count;
@@ -3825,13 +3849,13 @@ export default function TestSimulationPage() {
                             {config.testMethods.map((method) => {
                               const methodName =
                                 {
-                                  eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                  basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                  eduBars: "AkıllıRehber (RAG + ReRanker)",
+                                  basicRag: "AkıllıRehber (Sadece RAG)",
                                   llmOnly: "Sadece LLM",
                                 }[method] || method;
                               const colors: Record<string, string> = {
-                                "Ak─▒ll─▒Rehber(RAG +ReRanker)": "#3b82f6",
-                                "Ak─▒ll─▒Rehber(Sadece RAG)": "#10b981",
+                                "AkıllıRehber (RAG + ReRanker)": "#3b82f6",
+                                "AkıllıRehber (Sadece RAG)": "#10b981",
                                 "Sadece LLM": "#f59e0b",
                               };
                               return (
@@ -3856,19 +3880,18 @@ export default function TestSimulationPage() {
                       <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <CheckCircle className="h-5 w-5" />
-                          Soru Baz─▒nda Ba┼şar─▒ Oran─▒
+                          Soru Bazında Başarı Oranı
                         </div>
                         <ChartExportControls
                           chartId="success-rate-chart"
-                          chartTitle="Soru Baz─▒nda Ba┼şar─▒ Oran─▒"
+                          chartTitle="Soru Bazında Başarı Oranı"
                           variant="compact"
                           showLabels={false}
                         />
                       </CardTitle>
                       <CardDescription>
-                        Her soru i├ğin metodoloji baz─▒nda ba┼şar─▒l─▒ yan─▒t oran─▒
-                        (cosine similarity {">"} 0.5 olan sorular, max
-                        similarity bazl─▒)
+                        Her soru için metodoloji bazında başarılı yanıt oranı
+                        (cosine similarity {">"} 0.5 olan sorular, max similarity bazlı)
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -3894,9 +3917,9 @@ export default function TestSimulationPage() {
                                           const methodName =
                                             {
                                               eduBars:
-                                                "Ak─▒ll─▒Rehber(RAG +ReRanker)",
+                                                "AkıllıRehber (RAG + ReRanker)",
                                               basicRag:
-                                                "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                                "AkıllıRehber (Sadece RAG)",
                                               llmOnly: "Sadece LLM",
                                             }[method] || method;
                                           // Success = max similarity > 0.5
@@ -3929,7 +3952,7 @@ export default function TestSimulationPage() {
                                 payload,
                                 index
                               ) => [
-                                value === 100 ? "Ba┼şar─▒l─▒" : "Ba┼şar─▒s─▒z",
+                                value === 100 ? "Başarılı" : "Başarısız",
                                 name,
                               ]}
                             />
@@ -3937,13 +3960,13 @@ export default function TestSimulationPage() {
                             {config.testMethods.map((method) => {
                               const methodName =
                                 {
-                                  eduBars: "Ak─▒ll─▒Rehber(RAG +ReRanker)",
-                                  basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                  eduBars: "AkıllıRehber (RAG + ReRanker)",
+                                  basicRag: "AkıllıRehber (Sadece RAG)",
                                   llmOnly: "Sadece LLM",
                                 }[method] || method;
                               const colors: Record<string, string> = {
-                                "Ak─▒ll─▒Rehber(RAG +ReRanker)": "#3b82f6",
-                                "Ak─▒ll─▒Rehber(Sadece RAG)": "#10b981",
+                                "AkıllıRehber (RAG + ReRanker)": "#3b82f6",
+                                "AkıllıRehber (Sadece RAG)": "#10b981",
                                 "Sadece LLM": "#f59e0b",
                               };
                               return (
@@ -3969,11 +3992,11 @@ export default function TestSimulationPage() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
-                        Detayl─▒ Sorgu Sonu├ğlar─▒ ve Metrikler
+                        Detaylı Sorgu Sonuçları ve Metrikler
                       </CardTitle>
                       <CardDescription>
-                        Her sorgu i├ğin metodoloji baz─▒nda detayl─▒ sonu├ğlar, LLM
-                        yan─▒tlar─▒ ve kaynak dok├╝man bilgileri
+                        Her sorgu için metodoloji bazında detaylı sonuçlar, LLM
+                        yanıtları ve kaynak doküman bilgileri
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -4011,8 +4034,8 @@ export default function TestSimulationPage() {
                                 ([method, results]) => {
                                   const methodNames: Record<string, string> = {
                                     eduBars:
-                                      "Ak─▒ll─▒Rehber(RAG +ReRanker Kombinasyonu)",
-                                    basicRag: "Ak─▒ll─▒Rehber(Sadece RAG)",
+                                      "AkıllıRehber (RAG + ReRanker Kombinasyonu)",
+                                    basicRag: "AkıllıRehber (Sadece RAG)",
                                     llmOnly: "Sadece LLM",
                                   };
 
@@ -4134,8 +4157,7 @@ export default function TestSimulationPage() {
                                             // Show a message if no ground truth metrics are available
                                             return (
                                               <div className="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-600">
-                                                ­şôØ Ground truth metrics require
-                                                expected answers
+                                                Ground truth metrikleri için beklenen cevaplar gerekir.
                                               </div>
                                             );
                                           }
@@ -4172,7 +4194,7 @@ export default function TestSimulationPage() {
                                           return (
                                             <div className="mt-2 space-y-1 text-sm border-t pt-2">
                                               <div className="text-xs font-medium text-gray-700 mb-1">
-                                                ­şÄ» Answer Quality Metrics:
+                                                Answer Quality Metrics:
                                               </div>
                                               {semantic !== null &&
                                                 renderColoredValue(
@@ -4213,11 +4235,11 @@ export default function TestSimulationPage() {
 
                                       <div className="mt-4 pt-3 border-t">
                                         <div className="text-xs text-gray-500 mb-1">
-                                          LLM Yan─▒t─▒:
+                                          LLM Yanıtı:
                                         </div>
                                         <div className="text-sm text-gray-700 bg-white p-2 rounded border max-h-32 overflow-y-auto">
                                           {results.response ||
-                                            "Yan─▒t al─▒namad─▒"}
+                                            "Yanıt alınamadı"}
                                         </div>
                                       </div>
                                     </div>
@@ -4236,10 +4258,10 @@ export default function TestSimulationPage() {
                   <CardContent className="text-center py-12">
                     <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      Detayl─▒ Sonu├ğlar Hen├╝z Haz─▒r De─şil
+                      Detaylı Sonuçlar Henüz Hazır Değil
                     </h3>
                     <p className="text-gray-500 mb-4">
-                      Detayl─▒ sorgu sonu├ğlar─▒ y├╝kleniyor...
+                      Detaylı sorgu sonuçları yükleniyor...
                     </p>
                     {currentTest.detailedResultsUrl && (
                       <Button
@@ -4249,7 +4271,7 @@ export default function TestSimulationPage() {
                         variant="outline"
                       >
                         <FileText className="mr-2 h-4 w-4" />
-                        Detayl─▒ Raporu A├ğ
+                        Detaylı Raporu Aç
                       </Button>
                     )}
                   </CardContent>
@@ -4263,7 +4285,7 @@ export default function TestSimulationPage() {
                     Test Devam Ediyor
                   </h3>
                   <p className="text-gray-500 mb-4">
-                    Detayl─▒ sonu├ğlar─▒ g├Ârmek i├ğin testin tamamlanmas─▒n─▒
+                    Detaylı sonuçları görmek için testin tamamlanmasını
                     bekleyin.
                   </p>
                 </CardContent>
@@ -4273,17 +4295,17 @@ export default function TestSimulationPage() {
                 <CardContent className="text-center py-12">
                   <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Hen├╝z Detayl─▒ Sonu├ğ Yok
+                    Henüz Detaylı Sonuç Yok
                   </h3>
                   <p className="text-gray-500 mb-4">
                     Detaylı sonuçları görmek için önce bir test başlatın ve
-                    tamamlay─▒n.
+                    tamamlayın.
                   </p>
                   <Button
                     onClick={() => setActiveTab("configuration")}
                     variant="outline"
                   >
-                    Test Ba┼şlat
+                    Test Başlat
                     <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
                 </CardContent>
