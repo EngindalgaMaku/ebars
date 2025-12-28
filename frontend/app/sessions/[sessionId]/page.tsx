@@ -23,7 +23,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import FileUploadModal from "@/components/FileUploadModal";
 import DocumentUploadModal from "@/components/DocumentUploadModal";
-import TeacherLayout from "@/app/components/TeacherLayout";
+import TeacherLayout, { type TabType } from "@/app/components/TeacherLayout";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Card,
@@ -59,16 +59,6 @@ export default function SessionPage() {
   const sessionId = params.sessionId as string;
 
   // Handler for sidebar navigation
-  type TabType =
-    | "dashboard"
-    | "sessions"
-    | "upload"
-    | "analytics"
-    | "modules"
-    | "assistant"
-    | "query"
-    | "test-simulation"
-    | "rag-metrics-test";
   const handleTabChange = (tab: TabType) => {
     // Navigate to main page, which will handle the tab change
     router.push("/");
