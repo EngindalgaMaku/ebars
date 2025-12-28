@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import NotificationSystem from "@/components/NotificationSystem";
 
-type TabType =
+export type TabType =
   | "dashboard"
   | "sessions"
   | "upload"
@@ -34,7 +34,7 @@ type TabType =
   | "rag-metrics-test"
   | "system-prompts";
 
-interface TeacherLayoutProps {
+export interface TeacherLayoutProps {
   children: React.ReactNode;
   activeTab?: TabType;
   onTabChange?: (tab: TabType) => void;
