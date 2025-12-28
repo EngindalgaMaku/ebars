@@ -19,6 +19,8 @@ src_path = Path(__file__).parent.parent.parent.parent / "src"
 sys.path.append(str(src_path))
 from utils.response_message_handler import ResponseMessageHandler
 from utils.reranker_controller import should_prevent_aprag_reranking
+from utils.prompt_templates import BilingualPromptManager
+from utils.prompt_policy import get_rag_abstain_message_tr
 
 logger = logging.getLogger(__name__)
 
@@ -254,56 +256,23 @@ async def generate_answer_with_llm(
         tuple: (answer, debug_info) if return_debug=True, else (answer, None)
     """
     
-    # Add course scope validation if session_name is provided
-    course_scope_section = ""
-    if session_name and session_name.strip():
-        # PHASE 1: Use centralized response message handler
-        response_handler = ResponseMessageHandler()
-        course_scope_msg = response_handler.get_course_scope_message("tr", session_name.strip())
-        
-        course_scope_section = (
-            f"⚠️ ÇOK ÖNEMLİ - İLK KONTROL (DERS KAPSAMI):\n"
-            f"ŞU ANDA '{session_name.strip()}' DERSİ İÇİN CEVAP VERİYORSUN.\n\n"
-            f"🔴 KRİTİK KURAL - MUTLAKA UYGULA:\n"
-            f"- Öğrencinin sorusu '{session_name.strip()}' dersi kapsamında olmalıdır.\n"
-            f"- Eğer soru ders kapsamı dışındaysa (örneğin: tarih, matematik, coğrafya, farklı bir ders konusu), HEMEN şu cevabı ver:\n"
-            f"  '{course_scope_msg}'\n"
-            f"- Bu kontrol, ders materyallerine BAKMADAN ÖNCE yapılır.\n"
-            f"- Materyaller olsa bile, eğer soru ders kapsamı dışındaysa MUTLAKA yukarıdaki cevabı ver.\n"
-            f"- SADECE '{session_name.strip()}' dersi konularıyla ilgili sorulara normal cevap ver.\n"
-            f"- ÖRNEK: Eğer soru 'Roma'yı kim yaktı?' gibi bir tarih sorusuysa ve ders 'Bilişim Teknolojilerinin Temelleri' ise, MUTLAKA '{course_scope_msg}' cevabını ver.\n\n"
-        )
+    prompt_manager = BilingualPromptManager()
     
-    # Focused, Turkish-only prompt with topic context
-    prompt = f"""{course_scope_section}Sen bir eğitim asistanısın. Aşağıdaki ders materyallerini kullanarak ÖĞRENCİ SORUSUNU kısa, net ve konu dışına çıkmadan yanıtla.
+    # NOTE: We intentionally build prompts via BilingualPromptManager so that
+    # teacher/admin overrides from data/system_prompts.json affect APRAG output too.
+    # Any additional course-scope instructions are already injected by get_system_prompt(..., session_name=...)
+    system_prompt = prompt_manager.get_system_prompt("tr", "rag", session_name=session_name)
+    user_prompt = prompt_manager.get_user_prompt("tr", query, context)
 
-{f"📚 KONU: {topic_title}" if topic_title else ""}
-
-📖 DERS MATERYALLERİ VE BİLGİ TABANI:
-{context}
-
-👨‍🎓 ÖĞRENCİ SORUSU:
-{query}
-
-YANIT KURALLARI (ÇOK ÖNEMLİ):
-1. Yanıt TAMAMEN TÜRKÇE olmalı.
-2. Sadece sorulan soruya odaklan; konu dışına çıkma, gereksiz alt başlıklar açma.
-3. Yanıtın toplam uzunluğunu en fazla 3 paragraf ve yaklaşık 5–8 cümle ile sınırla.
-4. Gerekirse en fazla 1 tane kısa gerçek hayat örneği ver; uzun anlatımlardan kaçın.
-5. Bilgiyi mutlaka yukarıdaki ders materyali ve bilgi tabanından al; emin olmadığın şeyleri yazma, uydurma.
-6. 🔴 ÇOK ÖNEMLİ - Eğer sorunun cevabı ders materyallerinde yoksa veya materyaller soruyla ilgili değilse:
-   - SADECE şu cümleyi yaz: 'Bu bilgi ders dökümanlarında bulunamamıştır.'
-   - BAŞKA HİÇBİR ŞEY EKLEME, açıklama yapma, örnek verme, başka bilgi verme
-   - SADECE bu cümleyi yaz ve bitir
-7. Önemli kavramları gerektiğinde **kalın** yazarak vurgulayabilirsin ama liste/rapor formatına dönüştürme.
-
-✍️ YANIT (sadece cevabı yaz, başlık veya madde listesi ekleme):"""
+    prompt = f"System: {system_prompt}\n\nUser: {user_prompt}"
 
     debug_info = None
     if return_debug:
         debug_info = {
             "prompt": prompt,
             "prompt_length": len(prompt),
+            "system_prompt": system_prompt,
+            "user_prompt": user_prompt,
             "context_length": len(context),
             "query_length": len(query),
             "model": model,
@@ -1019,14 +988,14 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
                 try:
                     suggestions = await _generate_followup_suggestions(
                         question=request.query,
-                        answer="Bu bilgi ders dökümanlarında bulunamamıştır.",
+                        answer=get_rag_abstain_message_tr(),
                         sources=[]
                     )
                 except Exception as sugg_err:
                     logger.warning(f"Failed to generate suggestions for low-score case: {sugg_err}")
                 
                 return HybridRAGQueryResponse(
-                    answer="Bu bilgi ders dökümanlarında bulunamamıştır.",
+                    answer=get_rag_abstain_message_tr(),
                     confidence="low",
                     retrieval_strategy="low_score_reject",
                     sources_used={"chunks": 0, "kb": 0, "qa_pairs": 0},
@@ -1124,7 +1093,7 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
                     "reason": "No context available for LLM generation"
                 },
                 "final_response": {
-                    "answer": "Üzgünüm, bu soruyla ilgili yeterli bilgi bulamadım.",
+                    "answer": get_rag_abstain_message_tr(),
                     "confidence": "low",
                     "retrieval_strategy": "no_context"
                 },
@@ -1152,14 +1121,14 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
             try:
                 suggestions = await _generate_followup_suggestions(
                     question=request.query,
-                    answer="Üzgünüm, bu soruyla ilgili yeterli bilgi bulamadım.",
+                    answer=get_rag_abstain_message_tr(),
                     sources=[]
                 )
             except Exception as sugg_err:
                 logger.warning(f"Failed to generate suggestions for no-context case: {sugg_err}")
             
             return HybridRAGQueryResponse(
-                answer="Üzgünüm, bu soruyla ilgili yeterli bilgi bulamadım.",
+                answer=get_rag_abstain_message_tr(),
                 confidence="low",
                 retrieval_strategy="no_context",
                 sources_used={"chunks": 0, "kb": 0, "qa_pairs": 0},

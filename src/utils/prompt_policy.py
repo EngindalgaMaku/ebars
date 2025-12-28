@@ -4,7 +4,7 @@ import os
 
 
 def get_rag_abstain_message_tr() -> str:
-    return "Bu bilgi ders dökümanlarında bulunamamıştır."
+    return "Aradığınız bilgi ders dökümanlarında bulunamamıştır."
 
 
 def get_rag_abstain_message_en() -> str:
