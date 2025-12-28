@@ -4276,19 +4276,104 @@ async def aprag_hybrid_rag_query_proxy(request: Request):
             detail=error_detail
         )
 
+@app.post("/api/aprag/async-rag/async-query")
+async def aprag_async_rag_start_proxy(request: Request):
+    """Proxy to APRAG service for starting async hybrid RAG query"""
+    try:
+        body = await request.json()
+        logger.info(f"🔗 APRAG async RAG start for session {body.get('session_id', 'unknown')}")
+
+        response = requests.post(
+            f"{APRAG_SERVICE_URL}/api/aprag/async-rag/async-query",
+            json=body,
+            timeout=30
+        )
+
+        if response.status_code == 200:
+            return response.json()
+
+        error_detail = f"APRAG async RAG start error: {response.status_code} - {response.text}"
+        logger.error(f"❌ {error_detail}")
+        raise HTTPException(status_code=response.status_code, detail=error_detail)
+    except HTTPException:
+        raise
+    except requests.exceptions.RequestException as e:
+        error_detail = f"APRAG service unavailable for async RAG start: {str(e)}"
+        logger.error(f"❌ {error_detail}")
+        raise HTTPException(status_code=503, detail=error_detail)
+    except Exception as e:
+        error_detail = f"Error in APRAG async RAG start proxy: {str(e)}"
+        logger.error(f"❌ {error_detail}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_detail)
+
+@app.get("/api/aprag/async-rag/async-query/{task_id}/status")
+async def aprag_async_rag_status_proxy(task_id: str):
+    """Proxy to APRAG service for polling async hybrid RAG status"""
+    try:
+        response = requests.get(
+            f"{APRAG_SERVICE_URL}/api/aprag/async-rag/async-query/{task_id}/status",
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return response.json()
+
+        error_detail = f"APRAG async RAG status error: {response.status_code} - {response.text}"
+        logger.error(f"❌ {error_detail}")
+        raise HTTPException(status_code=response.status_code, detail=error_detail)
+    except HTTPException:
+        raise
+    except requests.exceptions.RequestException as e:
+        error_detail = f"APRAG service unavailable for async RAG status: {str(e)}"
+        logger.error(f"❌ {error_detail}")
+        raise HTTPException(status_code=503, detail=error_detail)
+    except Exception as e:
+        error_detail = f"Error in APRAG async RAG status proxy: {str(e)}"
+        logger.error(f"❌ {error_detail}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_detail)
+
+@app.delete("/api/aprag/async-rag/async-query/{task_id}")
+async def aprag_async_rag_cancel_proxy(task_id: str):
+    """Proxy to APRAG service for cancelling async hybrid RAG task"""
+    try:
+        response = requests.delete(
+            f"{APRAG_SERVICE_URL}/api/aprag/async-rag/async-query/{task_id}",
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            return response.json()
+
+        error_detail = f"APRAG async RAG cancel error: {response.status_code} - {response.text}"
+        logger.error(f"❌ {error_detail}")
+        raise HTTPException(status_code=response.status_code, detail=error_detail)
+    except HTTPException:
+        raise
+    except requests.exceptions.RequestException as e:
+        error_detail = f"APRAG service unavailable for async RAG cancel: {str(e)}"
+        logger.error(f"❌ {error_detail}")
+        raise HTTPException(status_code=503, detail=error_detail)
+    except Exception as e:
+        error_detail = f"Error in APRAG async RAG cancel proxy: {str(e)}"
+        logger.error(f"❌ {error_detail}")
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_detail)
+
 @app.post("/api/aprag/adaptive-query")
 async def aprag_adaptive_query_proxy(request: Request):
     """Proxy to APRAG service for adaptive query with personalization"""
     try:
         body = await request.json()
-        logger.info(f"🎯 APRAG adaptive query for user {body.get('user_id', 'unknown')}")
-        
+        logger.info(f"🔗 APRAG adaptive query for session {body.get('session_id', 'unknown')}")
+
         response = requests.post(
             f"{APRAG_SERVICE_URL}/api/aprag/adaptive-query",
             json=body,
             timeout=60  # Adaptive query can take longer
         )
-        
+
         if response.status_code == 200:
             return response.json()
         else:
@@ -4340,7 +4425,7 @@ async def get_student_profile_proxy(user_id: str, session_id: str):
             f"{APRAG_SERVICE_URL}/api/aprag/profiles/{user_id}/{session_id}",
             timeout=10
         )
-        
+
         if response.status_code == 200:
             return response.json()
         else:
