@@ -144,6 +144,7 @@ function SessionCard({
   onToggleStatus,
   onOpenRecent,
   onUpdateName,
+  isCurrent = false,
   index = 0,
 }: {
   session: SessionMeta;
@@ -152,19 +153,18 @@ function SessionCard({
   onToggleStatus: (id: string, currentStatus: string) => void;
   onOpenRecent: (id: string) => void;
   onUpdateName: (id: string, newName: string) => void;
+  isCurrent?: boolean;
   index?: number;
 }) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(session.name);
-  const colorPalette = [
-    { bg: "from-blue-500 to-indigo-600", text: "text-white" },
-    { bg: "from-green-500 to-emerald-600", text: "text-white" },
-    { bg: "from-purple-500 to-violet-600", text: "text-white" },
-    { bg: "from-rose-500 to-red-600", text: "text-white" },
-    { bg: "from-amber-500 to-orange-600", text: "text-white" },
-    { bg: "from-cyan-500 to-sky-600", text: "text-white" },
-  ];
-  const c = colorPalette[index % colorPalette.length];
+  const [showRagSettings, setShowRagSettings] = useState(false);
+  const isActive = session.status === "active";
+  const zebraBg = index % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-900/60";
+  const frame = isActive
+    ? "border-emerald-300 dark:border-emerald-700 ring-2 ring-emerald-200 dark:ring-emerald-900"
+    : "border-gray-200 dark:border-gray-700";
+  const inactiveTone = !isActive ? "opacity-70 hover:opacity-100" : "";
 
   const handleNameEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -188,11 +188,11 @@ function SessionCard({
 
   return (
     <div
-      className={`relative group bg-gradient-to-br ${c.bg} ${c.text} rounded-xl sm:rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer p-4 sm:p-6 animate-slide-up`}
+      className={`relative group ${zebraBg} ${inactiveTone} rounded-xl border ${frame} shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer p-3 sm:p-4`}
       style={{ animationDelay: `${index * 0.1}s` }}
       onClick={() => onNavigate(session.session_id)}
     >
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           {isEditingName ? (
             <div
@@ -210,44 +210,46 @@ function SessionCard({
                     handleNameCancel(e as any);
                   }
                 }}
-                className="flex-1 px-2 py-1 text-base sm:text-lg font-bold bg-white/20 border border-white/40 rounded text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50"
+                className="flex-1 px-2 py-1 text-sm sm:text-base font-semibold bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-200 dark:focus:ring-emerald-900"
                 placeholder="Oturum adı"
                 autoFocus
                 onClick={(e) => e.stopPropagation()}
               />
               <button
                 onClick={handleNameSave}
-                className="px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-sm font-semibold transition-colors"
+                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-semibold transition-colors"
                 title="Kaydet"
               >
                 ✓
               </button>
               <button
                 onClick={handleNameCancel}
-                className="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-semibold transition-colors"
+                className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-sm font-semibold transition-colors"
                 title="İptal"
               >
                 ✕
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-base sm:text-lg font-bold truncate flex-1">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white truncate flex-1">
                 {session.name}
               </h3>
               <button
                 onClick={handleNameEdit}
-                className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 text-xs bg-white/20 hover:bg-white/30 rounded text-white font-semibold"
+                className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded text-gray-700 dark:text-gray-200 font-semibold"
                 title="İsmi değiştir"
               >
                 ✏️
               </button>
             </div>
           )}
-          <p className="text-xs sm:text-sm opacity-80 mb-3 sm:mb-4 line-clamp-2">
+
+          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
             {session.description}
-          </p>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm opacity-90">
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-600 dark:text-gray-300">
             <div className="flex items-center gap-1.5">
               <DocumentIcon />
               <span>{session.document_count}</span>
@@ -260,15 +262,28 @@ function SessionCard({
               <QueryIcon />
               <span>{session.query_count}</span>
             </div>
+
+            {session.rag_settings && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowRagSettings((v) => !v);
+                }}
+                className="ml-auto px-2 py-1 rounded-md text-xs font-medium border border-gray-200 dark:border-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
+                title="Oturum ayarlarını göster/gizle"
+              >
+                {showRagSettings ? "Ayarları Gizle" : "Ayarlar"}
+              </button>
+            )}
           </div>
 
           {/* RAG Settings Info */}
-          {session.rag_settings && (
-            <div className="mt-3 pt-3 border-t border-white/20">
-              <div className="text-xs opacity-75 mb-2 font-semibold">
-                ⚙️ Oturum Ayarları:
+          {session.rag_settings && showRagSettings && (
+            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <div className="text-xs text-gray-600 dark:text-gray-300 mb-2 font-semibold">
+                Oturum Ayarları
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs opacity-80">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
                 {session.rag_settings.embedding_model && (
                   <div className="flex items-center gap-1">
                     <span className="opacity-70">📊</span>
@@ -277,112 +292,63 @@ function SessionCard({
                     </span>
                   </div>
                 )}
-                {session.rag_settings.chunk_strategy && (
-                  <div className="flex items-center gap-1">
-                    <span className="opacity-70">✂️</span>
-                    <span className="truncate">
-                      {session.rag_settings.chunk_strategy}
-                    </span>
-                  </div>
-                )}
-                {session.rag_settings.chunk_size && (
-                  <div className="flex items-center gap-1">
-                    <span className="opacity-70">📏</span>
-                    <span>Size: {session.rag_settings.chunk_size}</span>
-                  </div>
-                )}
-                {session.rag_settings.top_k && (
-                  <div className="flex items-center gap-1">
-                    <span className="opacity-70">🔍</span>
-                    <span>Top-K: {session.rag_settings.top_k}</span>
-                  </div>
-                )}
               </div>
             </div>
           )}
         </div>
 
-        <div className="flex flex-col items-end gap-2 sm:gap-3 min-w-fit">
-          {/* Status Display */}
-          <div
-            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              session.status === "active"
-                ? "bg-white/30 text-white"
-                : "bg-black/20 text-gray-200"
-            }`}
-          >
-            <div
-              className={`w-2 h-2 rounded-full mr-2 ${
-                session.status === "active" ? "bg-green-300" : "bg-gray-400"
+        <div className="flex flex-col items-end gap-2 min-w-fit">
+          <div className="flex items-center gap-2">
+            {isCurrent && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-800">
+                Seçili
+              </span>
+            )}
+
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${
+                isActive
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-200 dark:border-emerald-800"
+                  : "bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
               }`}
-            ></div>
-            {session.status === "active" ? "Aktif" : "Pasif"}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full mr-2 ${
+                  isActive ? "bg-emerald-500" : "bg-gray-400"
+                }`}
+              ></span>
+              {isActive ? "Aktif" : "Pasif"}
+            </span>
           </div>
 
           {/* Action Buttons - Mobile Optimized */}
-          <div className="flex flex-wrap items-center gap-1 sm:gap-2 bg-white/20 p-1.5 rounded-lg backdrop-blur-sm">
+          <div className="flex flex-wrap items-center gap-1 sm:gap-2">
             {/* Toggle Status Button */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleStatus(session.session_id, session.status);
               }}
-              className={`px-3 sm:px-4 py-2 text-sm font-semibold rounded-lg transition-all min-h-[40px] shadow-md hover:shadow-lg ${
-                session.status === "active"
-                  ? "bg-red-600 text-white hover:bg-red-700 active:bg-red-800"
-                  : "bg-green-600 text-white hover:bg-green-700 active:bg-green-800"
+              className={`px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg transition-colors border ${
+                isActive
+                  ? "bg-white hover:bg-gray-50 text-rose-700 border-rose-200 dark:bg-gray-900 dark:hover:bg-gray-800 dark:text-rose-200 dark:border-rose-900"
+                  : "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700"
               }`}
               title={session.status === "active" ? "Deaktif et" : "Aktif et"}
             >
               <span className="flex items-center gap-1.5 whitespace-nowrap">
                 {session.status === "active" ? (
                   <>
-                    <span className="text-base">🔴</span>
-                    <span className="hidden sm:inline">Deaktif Et</span>
+                    <span className="hidden sm:inline">Pasif Yap</span>
+                    <span className="sm:hidden">Pasif</span>
                   </>
                 ) : (
                   <>
-                    <span className="text-base">🟢</span>
-                    <span className="hidden sm:inline">Aktif Et</span>
+                    <span className="hidden sm:inline">Aktif Yap</span>
+                    <span className="sm:hidden">Aktif</span>
                   </>
                 )}
               </span>
-            </button>
-
-            {/* Recent Interactions Button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenRecent(session.session_id);
-              }}
-              className="px-2 sm:px-3 py-1 text-xs font-medium rounded-md bg-white text-indigo-700 hover:bg-indigo-50 border border-indigo-200 min-h-[32px] whitespace-nowrap"
-              title="Bu oturumun öğrenci sorguları"
-            >
-              👥 <span className="hidden sm:inline">Sorgular</span>
-            </button>
-
-            {/* Export Button */}
-            <button
-              onClick={async (e) => {
-                e.stopPropagation();
-                try {
-                  const blob = await exportSession(session.session_id, "zip");
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `${session.name}.zip`;
-                  document.body.appendChild(a);
-                  a.click();
-                  URL.revokeObjectURL(url);
-                  a.remove();
-                } catch (err) {
-                  // no-op; error banner already handled upstream if needed
-                }
-              }}
-              className="px-2 py-1 text-xs font-medium rounded-md bg-white text-purple-700 hover:bg-purple-50 border border-purple-200 min-h-[32px] whitespace-nowrap"
-              title="Dışa Aktar"
-            >
-              ⬇️ <span className="hidden sm:inline">Export</span>
             </button>
 
             {/* Delete Button */}
@@ -391,7 +357,7 @@ function SessionCard({
                 e.stopPropagation();
                 onDelete(session.session_id, session.name);
               }}
-              className="p-1.5 text-white hover:bg-red-500/80 rounded-md transition-colors min-h-[32px] min-w-[32px]"
+              className="p-1.5 text-rose-700 hover:bg-rose-50 dark:text-rose-200 dark:hover:bg-rose-900/20 rounded-md transition-colors min-h-[32px] min-w-[32px]"
               title="Oturumu sil"
             >
               <svg
@@ -408,24 +374,6 @@ function SessionCard({
                 />
               </svg>
             </button>
-          </div>
-
-          {/* Navigate Indicator */}
-          <div className="flex items-center text-sm text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <span>Ayarları Görüntüle</span>
-            <svg
-              className="w-4 h-4 ml-1"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M17 8l4 4m0 0l-4 4m4-4H3"
-              />
-            </svg>
           </div>
         </div>
       </div>
@@ -903,7 +851,8 @@ export default function HomePage() {
           (a, b) =>
             new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
         );
-        setSelectedSessionId(sortedSessions[0].session_id);
+        const firstActive = sortedSessions.find((s) => s.status === "active");
+        setSelectedSessionId((firstActive || sortedSessions[0]).session_id);
       }
     } catch (e: any) {
       setError(e.message || "Oturumlar yüklenemedi");
@@ -1629,8 +1578,25 @@ export default function HomePage() {
 
     try {
       setError(null);
+      if (newStatus === "active") {
+        const othersToDeactivate = sessions
+          .filter((s) => s.session_id !== sessionId && s.status === "active")
+          .map((s) => s.session_id);
+
+        for (const otherId of othersToDeactivate) {
+          try {
+            await updateSessionStatus(otherId, "inactive");
+          } catch {
+            // ignore; will refresh below
+          }
+        }
+      }
+
       await updateSessionStatus(sessionId, newStatus);
       await refreshSessions();
+      if (newStatus === "active") {
+        setSelectedSessionId(sessionId);
+      }
     } catch (e: any) {
       setError(e.message || "Oturum durumu güncellenirken hata oluştu");
     }
@@ -3020,6 +2986,7 @@ export default function HomePage() {
                         onToggleStatus={handleToggleSessionStatus}
                         onOpenRecent={(id) => openRecentInteractions(id)}
                         onUpdateName={handleUpdateSessionName}
+                        isCurrent={session.session_id === selectedSessionId}
                         index={index}
                       />
                     ))}
@@ -3123,6 +3090,7 @@ export default function HomePage() {
                       sessionPage * SESSIONS_PER_PAGE
                     )
                     .map((session, index) => (
+                      
                       <SessionCard
                         key={session.session_id}
                         session={session}
@@ -3131,7 +3099,8 @@ export default function HomePage() {
                         onToggleStatus={handleToggleSessionStatus}
                         onOpenRecent={(id) => openRecentInteractions(id)}
                         onUpdateName={handleUpdateSessionName}
-                        index={index}
+                        isCurrent={session.session_id === selectedSessionId}
+                        index={(sessionPage - 1) * SESSIONS_PER_PAGE + index}
                       />
                     ))}
                 </div>
