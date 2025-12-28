@@ -1819,6 +1819,44 @@ async def list_all_tests(
         logger.error(f"Error listing tests: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error listing tests: {str(e)}")
 
+
+@router.delete("/delete/{test_id}", summary="Delete Test")
+async def delete_test(test_id: str, request: Request) -> Dict[str, Any]:
+    """Delete a stored test simulation run (SQLite + memory cache)."""
+    from src.api.main import _require_owner_or_admin
+
+    # Try memory first, then database (for auth/session_id)
+    test_data = TEST_RESULTS_STORAGE.get(test_id)
+    if not test_data:
+        test_data = _load_test_from_db(test_id)
+        if test_data:
+            TEST_RESULTS_STORAGE[test_id] = test_data
+
+    if not test_data:
+        raise HTTPException(status_code=404, detail="Test not found")
+
+    # Require authentication/authorization based on owning session
+    _require_owner_or_admin(request, test_data.get("session_id", ""))
+
+    # Prevent deleting running tests
+    if test_data.get("status") == "running":
+        raise HTTPException(status_code=409, detail="Running tests cannot be deleted")
+
+    try:
+        with sqlite3.connect(TEST_DB_PATH) as conn:
+            cur = conn.execute("DELETE FROM test_results WHERE test_id = ?", (test_id,))
+            if cur.rowcount == 0:
+                # If missing in DB but present in memory, still allow clearing memory
+                logger.warning(f"Test {test_id} not found in DB during delete")
+
+        # Remove from memory cache
+        TEST_RESULTS_STORAGE.pop(test_id, None)
+
+        return {"success": True, "testId": test_id}
+    except Exception as e:
+        logger.error(f"Error deleting test {test_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error deleting test: {str(e)}")
+
 @router.post("/stop/{test_id}", summary="Stop Test Simulation")
 async def stop_test_simulation(test_id: str, request: Request) -> Dict[str, Any]:
     """Stop a running test simulation"""

@@ -45,6 +45,7 @@ import {
   Users,
   Award,
   Database,
+  Trash2,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import {
@@ -199,6 +200,9 @@ export default function TestSimulationPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoadingTests, setIsLoadingTests] = useState(false);
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
+  const [isDeletingTest, setIsDeletingTest] = useState(false);
+  const [testHistoryPage, setTestHistoryPage] = useState(1);
+  const TESTS_PER_PAGE = 8;
 
   // UI State
   const [questionText, setQuestionText] = useState("");
@@ -406,6 +410,41 @@ export default function TestSimulationPage() {
       setIsLoadingTests(false);
     }
   };
+
+  const deleteTestById = async (testId: string) => {
+    if (!confirm("Bu testi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.")) {
+      return;
+    }
+
+    try {
+      setIsDeletingTest(true);
+      const response = await fetch(`/api/test-simulation/delete/${testId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const msg = await response.text().catch(() => "");
+        throw new Error(msg || "Test silinemedi");
+      }
+
+      toast.success("Test silindi");
+      if (selectedTestId === testId) {
+        setCurrentTest(null);
+        setSelectedTestId(null);
+      }
+      await loadTestList();
+    } catch (e: any) {
+      toast.error(e?.message || "Test silinemedi");
+    } finally {
+      setIsDeletingTest(false);
+    }
+  };
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil((testList?.length || 0) / TESTS_PER_PAGE));
+    if (testHistoryPage > totalPages) {
+      setTestHistoryPage(totalPages);
+    }
+  }, [testList, testHistoryPage]);
 
   // Load specific test details
   const loadTestDetails = async (testId: string) => {
@@ -1168,73 +1207,128 @@ export default function TestSimulationPage() {
                   <FileText className="h-5 w-5" />
                   Test Geçmişi
                 </div>
-                <Button
-                  onClick={loadTestList}
-                  variant="outline"
-                  size="sm"
-                  disabled={isLoadingTests}
-                >
-                  {isLoadingTests ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    "Yenile"
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={loadTestList}
+                    variant="outline"
+                    size="sm"
+                    disabled={isLoadingTests}
+                  >
+                    {isLoadingTests ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Yenile"
+                    )}
+                  </Button>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  Görüntülenecek Testi Seçin:
-                </label>
-                <select
-                  value={selectedTestId || ""}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      loadTestDetails(e.target.value);
-                    }
-                  }}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Yeni test başlat...</option>
-                  {testList.map((test) => (
-                    <option key={test.testId} value={test.testId}>
-                      {test.testName} -{" "}
-                      {test.status === "completed"
-                        ? "✅ Tamamlandı"
-                        : test.status === "running"
-                        ? "🔄 Çalışıyor"
-                        : test.status === "failed"
-                        ? "❌ Başarısız"
-                        : test.status}{" "}
-                      -{" "}
-                      {new Date(
-                        test.updatedAt || test.endTime || test.startTime
-                      ).toLocaleString("tr-TR")}{" "}
-                      -{" "}
-                      {test.testType === "semantic_similarity_only"
-                        ? "Anlamsal Benzerlik"
-                        : "Standart Test"}
-                    </option>
-                  ))}
-                </select>
-                {selectedTestId && currentTest && (
-                  <div className="mt-2 text-sm text-gray-600">
-                    <span className="font-medium">Seçili Test:</span>{" "}
-                    {currentTest.testName} -{" "}
-                    {currentTest.status === "completed"
-                      ? "Tamamlandı"
-                      : currentTest.status}
-                    {currentTest.testType && (
-                      <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                        {currentTest.testType === "semantic_similarity_only"
-                          ? "Anlamsal Benzerlik Testi"
-                          : "Standart Test"}
-                      </span>
-                    )}
+              {(() => {
+                const totalPages = Math.max(
+                  1,
+                  Math.ceil((testList?.length || 0) / TESTS_PER_PAGE)
+                );
+                const start = (testHistoryPage - 1) * TESTS_PER_PAGE;
+                const pageItems = testList.slice(start, start + TESTS_PER_PAGE);
+
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-gray-600">
+                        {testList.length} kayıt
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={testHistoryPage <= 1}
+                          onClick={() =>
+                            setTestHistoryPage((p) => Math.max(1, p - 1))
+                          }
+                        >
+                          Önceki
+                        </Button>
+                        <div className="text-sm text-gray-600 min-w-[92px] text-center">
+                          {testHistoryPage} / {totalPages}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={testHistoryPage >= totalPages}
+                          onClick={() =>
+                            setTestHistoryPage((p) =>
+                              Math.min(totalPages, p + 1)
+                            )
+                          }
+                        >
+                          Sonraki
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="divide-y rounded-md border border-gray-200 overflow-hidden">
+                      {pageItems.map((test: any) => {
+                        const isSelected = selectedTestId === test.testId;
+                        const when = new Date(
+                          test.updatedAt || test.endTime || test.startTime
+                        ).toLocaleString("tr-TR");
+                        const statusLabel =
+                          test.status === "completed"
+                            ? "✅ Tamamlandı"
+                            : test.status === "running"
+                            ? "🔄 Çalışıyor"
+                            : test.status === "failed"
+                            ? "❌ Başarısız"
+                            : test.status;
+                        const typeLabel =
+                          test.testType === "semantic_similarity_only"
+                            ? "Anlamsal Benzerlik"
+                            : "Standart Test";
+
+                        return (
+                          <div
+                            key={test.testId}
+                            className={`flex items-center justify-between gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer ${
+                              isSelected ? "bg-blue-50" : "bg-white"
+                            }`}
+                            onClick={() => loadTestDetails(test.testId)}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-medium text-gray-900 truncate">
+                                {test.testName}
+                              </div>
+                              <div className="text-xs text-gray-600 truncate">
+                                {statusLabel} • {typeLabel} • {when}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-600 hover:text-red-700"
+                                disabled={isDeletingTest}
+                                title="Sil"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteTestById(test.testId);
+                                }}
+                              >
+                                {isDeletingTest ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </CardContent>
           </Card>
         )}

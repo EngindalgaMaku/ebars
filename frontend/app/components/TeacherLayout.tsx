@@ -87,9 +87,18 @@ const navigationItems: Array<{
     desc: "Soru & Cevap",
     path: "/education-assistant",
   },
+];
+
+const simulationItems: Array<{
+  id: TabType;
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  desc: string;
+  path: string;
+}> = [
   {
     id: "test-simulation",
-    name: "Test Simülasyon",
+    name: "Anlamsal Değerlendirme",
     icon: Brain,
     desc: "Metodoloji Test Sistemi",
     path: "/test-simulation",
@@ -270,54 +279,66 @@ function TeacherLayout({
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navigationItems.map((item) => {
-            const Icon = item.icon;
-            // Only check pathname for specific routes (not for tabs on home page)
-            const isPathMatch =
-              (item.id === "sessions" && pathname?.startsWith("/sessions/")) ||
-              (item.id === "upload" && pathname === "/document-center") ||
-              (item.id === "assistant" &&
-                pathname === "/education-assistant") ||
-              (item.id === "test-simulation" &&
-                pathname === "/test-simulation") ||
-              (item.id === "rag-metrics-test" &&
-                pathname === "/rag-metrics-test");
-            // Use activeTab prop as primary source, pathname only for specific routes
-            const isActive = currentActiveTab === item.id || isPathMatch;
-
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleTabClick(item.id)}
-                className={`
-                  w-full flex items-center gap-3 px-3 py-3 rounded-lg 
-                  transition-all duration-200 
-                  min-h-[44px] touch-manipulation
-                  ${
-                    isActive
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }
-                  ${sidebarCollapsed ? "justify-center" : ""}
-                `}
-                title={sidebarCollapsed ? item.name : undefined}
-              >
-                <Icon className="h-5 w-5 flex-shrink-0" />
-                {!sidebarCollapsed && (
-                  <div className="flex-1 text-left">
-                    <div className="text-sm font-medium">{item.name}</div>
-                    <div
-                      className={`text-xs ${
-                        isActive ? "text-white/80" : "text-slate-400"
-                      }`}
-                    >
-                      {item.desc}
-                    </div>
+          {[{ title: "", items: navigationItems }, { title: "Simülasyonlar", items: simulationItems }].map(
+            (section) => (
+              <div key={section.title || "main"} className="space-y-1">
+                {section.title && !sidebarCollapsed && (
+                  <div className="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    {section.title}
                   </div>
                 )}
-              </button>
-            );
-          })}
+
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  // Only check pathname for specific routes (not for tabs on home page)
+                  const isPathMatch =
+                    (item.id === "sessions" && pathname?.startsWith("/sessions/")) ||
+                    (item.id === "upload" && pathname === "/document-center") ||
+                    (item.id === "assistant" &&
+                      pathname === "/education-assistant") ||
+                    (item.id === "test-simulation" &&
+                      pathname === "/test-simulation") ||
+                    (item.id === "rag-metrics-test" &&
+                      pathname === "/rag-metrics-test");
+                  // Use activeTab prop as primary source, pathname only for specific routes
+                  const isActive = currentActiveTab === item.id || isPathMatch;
+
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => handleTabClick(item.id)}
+                      className={`
+                        w-full flex items-center gap-3 px-3 py-3 rounded-lg 
+                        transition-all duration-200 
+                        min-h-[44px] touch-manipulation
+                        ${
+                          isActive
+                            ? "bg-blue-600 text-white shadow-sm"
+                            : "text-slate-300 hover:text-white hover:bg-slate-800"
+                        }
+                        ${sidebarCollapsed ? "justify-center" : ""}
+                      `}
+                      title={sidebarCollapsed ? item.name : undefined}
+                    >
+                      <Icon className="h-5 w-5 flex-shrink-0" />
+                      {!sidebarCollapsed && (
+                        <div className="flex-1 text-left">
+                          <div className="text-sm font-medium">{item.name}</div>
+                          <div
+                            className={`text-xs ${
+                              isActive ? "text-white/80" : "text-slate-400"
+                            }`}
+                          >
+                            {item.desc}
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          )}
         </nav>
 
         {/* User Profile & Footer */}

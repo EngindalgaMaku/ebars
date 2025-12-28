@@ -2940,25 +2940,6 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-
-            <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-4 sm:p-6 rounded-xl sm:rounded-2xl text-white shadow-lg sm:shadow-xl transform hover:scale-105 transition-all">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-orange-100 text-xs sm:text-sm font-medium truncate">
-                    Öğrenci Soruları
-                  </p>
-                  <p className="text-2xl sm:text-3xl font-bold">
-                    {totalQueries}
-                  </p>
-                  <p className="text-orange-200 text-xs truncate">
-                    Yanıtlanan sorular
-                  </p>
-                </div>
-                <div className="text-3xl sm:text-4xl opacity-80 ml-2 flex-shrink-0">
-                  ❓
-                </div>
-              </div>
-            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
