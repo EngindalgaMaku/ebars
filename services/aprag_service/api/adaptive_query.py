@@ -357,7 +357,10 @@ async def adaptive_query(
                 cacs_applied = True
                 
                 logger.info(f"  → {len(scored_docs)} documents scored, top 3 selected")
-                logger.info(f"  → Top: {top_docs[0].doc_id} (score: {top_docs[0].final_score:.3f})")
+                if top_docs:
+                    logger.info(f"  → Top: {top_docs[0].doc_id} (score: {top_docs[0].final_score:.3f})")
+                else:
+                    logger.warning("  ⚠️ No documents available after scoring (rag_documents empty?)")
         else:
             logger.info("2️⃣ CACS: Disabled, using base scores")
             # Use base scores
