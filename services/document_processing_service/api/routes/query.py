@@ -188,19 +188,24 @@ async def rag_query(request: RAGQueryRequest):
                 logger.warning(f"⚠️ Error getting embedding dimension: {emb_err}")
         
         # Step 3: Get query embeddings
-        # FORCE default model (text-embedding-v4) - ignore collection metadata completely
+        # Prefer request embedding_model, otherwise session rag_settings, otherwise collection metadata.
+        # Fall back to DEFAULT_EMBEDDING_MODEL only if none are available.
         default_model = os.getenv("DEFAULT_EMBEDDING_MODEL", "text-embedding-v4")
-        
-        # Only use request.embedding_model if explicitly provided, otherwise ALWAYS use default
+        preferred_model = (
+            request.embedding_model
+            or session_rag_settings.get("embedding_model")
+            or collection_embedding_model
+            or default_model
+        )
+
         if request.embedding_model:
-            preferred_model = request.embedding_model
             logger.info(f"🔍 Using explicitly requested embedding model: {preferred_model}")
+        elif session_rag_settings.get("embedding_model"):
+            logger.info(f"🔍 Using embedding model from session settings: {preferred_model}")
+        elif collection_embedding_model:
+            logger.info(f"🔍 Using embedding model from collection metadata: {preferred_model}")
         else:
-            # FORCE default model - completely ignore collection metadata
-            preferred_model = default_model
-            logger.info(f"🔍 FORCING default embedding model: {preferred_model} (ignoring collection metadata: {collection_embedding_model})")
-            if collection_dimension:
-                logger.info(f"🔍 Collection dimension: {collection_dimension}D, but using default model: {preferred_model}")
+            logger.info(f"🔍 Falling back to default embedding model: {preferred_model}")
         
         logger.info(f"🔍 Getting query embeddings using model: {preferred_model}")
         query_embeddings = _get_query_embeddings_with_fallback(
