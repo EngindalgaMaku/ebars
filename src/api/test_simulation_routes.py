@@ -50,7 +50,7 @@ try:
         sys.path.insert(0, '/app')
     
     # Try to import AnswerSimilarityEvaluator
-    from simulasyon_testleri.test_answer_similarity import AnswerSimilarityEvaluator
+    from src.simulasyon_testleri.test_answer_similarity import AnswerSimilarityEvaluator
     SIMILARITY_EVALUATOR_AVAILABLE = True
     logger.info("✅ AnswerSimilarityEvaluator import successful")
     
@@ -1166,7 +1166,7 @@ async def start_semantic_similarity_test(
             logger.info(f"Python path: {sys.path[:3]}")  # Log first 3 paths for debugging
             logger.info(f"Looking for simulasyon_testleri in: {project_root}/simulasyon_testleri")
             
-            from simulasyon_testleri.test_semantic_similarity_only import SemanticSimilarityOnlyTest
+            from src.simulasyon_testleri.test_semantic_similarity_only import SemanticSimilarityOnlyTest
             logger.info("✅ SemanticSimilarityOnlyTest imported successfully")
         except ImportError as e:
             logger.error(f"Could not import SemanticSimilarityOnlyTest: {e}")
@@ -1248,7 +1248,7 @@ async def execute_semantic_similarity_test(
         if '/app' not in sys.path:
             sys.path.insert(0, '/app')
         
-        from simulasyon_testleri.test_semantic_similarity_only import SemanticSimilarityOnlyTest
+        from src.simulasyon_testleri.test_semantic_similarity_only import SemanticSimilarityOnlyTest
         
         # Get API gateway URL
         api_url = API_GATEWAY_URL.replace("/api", "")  # Remove /api prefix
