@@ -12,6 +12,8 @@ import httpx
 import os
 from datetime import datetime
 
+from utils.prompt_policy import get_rag_abstain_message_tr
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -175,6 +177,11 @@ async def create_interaction(interaction: InteractionCreate, db: DatabaseManager
     """
     try:
         logger.info(f"Logging interaction for user {interaction.user_id}, session {interaction.session_id}")
+
+        response_text = (interaction.response or "").strip()
+        if not response_text:
+            logger.warning("Empty interaction.response received; using abstain fallback")
+            response_text = get_rag_abstain_message_tr()
         
         # Ensure student profile exists (auto-create if not)
         profile_check = db.execute_query(
@@ -217,7 +224,7 @@ async def create_interaction(interaction: InteractionCreate, db: DatabaseManager
                 interaction.user_id,
                 interaction.session_id,
                 interaction.query,
-                interaction.response,
+                response_text,
                 interaction.personalized_response,
                 interaction.processing_time_ms,
                 interaction.model_used,
