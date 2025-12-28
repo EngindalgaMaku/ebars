@@ -200,6 +200,15 @@ class BilingualPromptManager:
             if isinstance(val, str) and val.strip():
                 return val
         return None
+
+    def _get_overridden_user_prompt(self, language: LanguageCode) -> Optional[str]:
+        overrides = self._load_overrides()
+        pt = overrides.get("rag_user")
+        if isinstance(pt, dict):
+            val = pt.get(language)
+            if isinstance(val, str) and val.strip():
+                return val
+        return None
     
     def get_system_prompt(self, language: LanguageCode, prompt_type: str = 'rag', session_name: str = None) -> str:
         """
@@ -259,7 +268,7 @@ class BilingualPromptManager:
         Returns:
             str: Formatted user prompt
         """
-        template = self.templates.USER_PROMPT_TEMPLATES[language]
+        template = self._get_overridden_user_prompt(language) or self.templates.USER_PROMPT_TEMPLATES[language]
         return template.format(context=context, query=query)
     
     def get_abstain_message(self, language: LanguageCode) -> str:

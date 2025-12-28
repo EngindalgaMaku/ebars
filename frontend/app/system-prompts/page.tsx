@@ -22,6 +22,7 @@ type Lang = "tr" | "en";
 
 type PromptBundle = {
   rag: Record<Lang, string>;
+  rag_user: Record<Lang, string>;
   direct: Record<Lang, string>;
 };
 
@@ -38,7 +39,7 @@ export default function SystemPromptsPage() {
   const hasAccess = isAdmin || isTeacher;
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activeType, setActiveType] = useState<"rag" | "direct">("rag");
+  const [activeType, setActiveType] = useState<"rag" | "rag_user" | "direct">("rag");
   const [activeLang, setActiveLang] = useState<Lang>("tr");
 
   const [defaults, setDefaults] = useState<PromptBundle | null>(null);
@@ -169,7 +170,7 @@ export default function SystemPromptsPage() {
               Prompt Editörü
             </CardTitle>
             <CardDescription>
-              `rag` promptu RAG cevap üretiminde kullanılır. `direct` promptu direkt (genel bilgi) modunda kullanılır.
+              `rag` promptu RAG sistem promptudur. `rag_user` promptu RAG kullanıcı (context+query) şablonudur. `direct` promptu direkt (genel bilgi) modunda kullanılır.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -177,8 +178,9 @@ export default function SystemPromptsPage() {
               <div className="space-y-2">
                 <Label>Prompt Tipi</Label>
                 <Tabs value={activeType} onValueChange={(v) => setActiveType(v as any)}>
-                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="rag">RAG</TabsTrigger>
+                    <TabsTrigger value="rag_user">RAG User</TabsTrigger>
                     <TabsTrigger value="direct">Direct</TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -216,7 +218,19 @@ export default function SystemPromptsPage() {
                 className="min-h-[320px] font-mono text-sm"
               />
               <div className="text-xs text-gray-500">
-                Kullanılabilen placeholder'lar (RAG): <code>{"{session_context}"}</code> ve <code>{"{course_scope_instruction}"}</code>. Bu template'lerde bu format korunmalıdır.
+                {activeType === "rag" ? (
+                  <>
+                    Kullanılabilen placeholder'lar (RAG System): <code>{"{session_context}"}</code> ve <code>{"{course_scope_instruction}"}</code>. Bu template'lerde bu format korunmalıdır.
+                  </>
+                ) : activeType === "rag_user" ? (
+                  <>
+                    Kullanılabilen placeholder'lar (RAG User): <code>{"{context}"}</code> ve <code>{"{query}"}</code>. Bu template'lerde bu format korunmalıdır.
+                  </>
+                ) : (
+                  <>
+                    Direct prompt genel bilgi modunda kullanılır.
+                  </>
+                )}
               </div>
             </div>
           </CardContent>

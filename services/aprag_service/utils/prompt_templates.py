@@ -90,6 +90,15 @@ class BilingualPromptManager:
                 return val
         return None
 
+    def _get_overridden_user_prompt(self, language: LanguageCode) -> Optional[str]:
+        overrides = self._load_overrides()
+        pt = overrides.get("rag_user")
+        if isinstance(pt, dict):
+            val = pt.get(language)
+            if isinstance(val, str) and val.strip():
+                return val
+        return None
+
     def get_system_prompt(self, language: LanguageCode, prompt_type: str = "rag", session_name: str | None = None) -> str:
         overridden = self._get_overridden_system_prompt(language, prompt_type)
         if prompt_type == "direct":
@@ -121,5 +130,5 @@ class BilingualPromptManager:
             )
 
     def get_user_prompt(self, language: LanguageCode, query: str, context: str) -> str:
-        template = self.templates.USER_PROMPT_TEMPLATES[language]
+        template = self._get_overridden_user_prompt(language) or self.templates.USER_PROMPT_TEMPLATES[language]
         return template.format(context=context, query=query)

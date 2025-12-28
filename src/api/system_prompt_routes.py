@@ -41,6 +41,10 @@ def _default_payload() -> Dict[str, Any]:
             "tr": PromptTemplates.SYSTEM_PROMPTS["tr"],
             "en": PromptTemplates.SYSTEM_PROMPTS["en"],
         },
+        "rag_user": {
+            "tr": PromptTemplates.USER_PROMPT_TEMPLATES["tr"],
+            "en": PromptTemplates.USER_PROMPT_TEMPLATES["en"],
+        },
         "direct": {
             "tr": PromptTemplates.DIRECT_SYSTEM_PROMPTS["tr"],
             "en": PromptTemplates.DIRECT_SYSTEM_PROMPTS["en"],
@@ -55,6 +59,10 @@ def _effective_payload(overrides: Dict[str, Any]) -> Dict[str, Any]:
             "tr": overrides.get("rag", {}).get("tr") or defaults["rag"]["tr"],
             "en": overrides.get("rag", {}).get("en") or defaults["rag"]["en"],
         },
+        "rag_user": {
+            "tr": overrides.get("rag_user", {}).get("tr") or defaults["rag_user"]["tr"],
+            "en": overrides.get("rag_user", {}).get("en") or defaults["rag_user"]["en"],
+        },
         "direct": {
             "tr": overrides.get("direct", {}).get("tr") or defaults["direct"]["tr"],
             "en": overrides.get("direct", {}).get("en") or defaults["direct"]["en"],
@@ -65,6 +73,7 @@ def _effective_payload(overrides: Dict[str, Any]) -> Dict[str, Any]:
 
 class SystemPromptsUpdate(BaseModel):
     rag: Dict[str, str]
+    rag_user: Dict[str, str]
     direct: Dict[str, str]
 
 
@@ -93,6 +102,10 @@ async def update_system_prompts(request: Request, body: SystemPromptsUpdate) -> 
         "rag": {
             "tr": (body.rag.get("tr") or "").strip(),
             "en": (body.rag.get("en") or "").strip(),
+        },
+        "rag_user": {
+            "tr": (body.rag_user.get("tr") or "").strip(),
+            "en": (body.rag_user.get("en") or "").strip(),
         },
         "direct": {
             "tr": (body.direct.get("tr") or "").strip(),
