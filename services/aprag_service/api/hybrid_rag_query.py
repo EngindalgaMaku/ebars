@@ -910,31 +910,14 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
                             "filename": "qa_pairs"  # For frontend grouping
                         }
                     })
-            
-            logger.info(f"✅ Final merged_results (no rerank): {len([m for m in merged_results if m.get('source') == 'chunk'])} chunks, {len([m for m in merged_results if m.get('source') == 'knowledge_base'])} KB, {len([m for m in merged_results if m.get('source') == 'qa_pair'])} QA")
-        
-        # Check source scores - get threshold from RAG settings (default: 0.4)
-        if merged_results:
-            # Get min_score_threshold from session RAG settings
-            min_score_threshold = 0.4  # Default
+
+            # Threshold for accepting retrieved sources into answer generation.
+            # Prefer session-level rag_settings override, otherwise default to 0.3 (aligned with document-processing-service).
             try:
-                # Use internal Docker network URL to avoid SSL errors
-                api_gateway_url = get_internal_api_gateway_url(API_GATEWAY_URL)
-                headers = get_forwarded_headers(http_request)
-                headers["X-Internal-Service"] = "true"  # Internal service-to-service call
-                session_response = requests.get(
-                    f"{api_gateway_url}/sessions/{request.session_id}",
-                    headers=headers,
-                    timeout=5
-                )
-                if session_response.status_code == 200:
-                    session_data = session_response.json()
-                    rag_settings = session_data.get('rag_settings', {})
-                    if rag_settings.get('min_score_threshold') is not None:
-                        min_score_threshold = float(rag_settings.get('min_score_threshold', 0.4))
-                        logger.info(f"📊 Using min_score_threshold from RAG settings: {min_score_threshold:.4f}")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not fetch RAG settings for min_score_threshold: {e}, using default: {min_score_threshold}")
+                _mst = session_rag_settings.get("min_score_threshold") if isinstance(session_rag_settings, dict) else None
+                min_score_threshold = float(_mst) if _mst is not None else 0.3
+            except Exception:
+                min_score_threshold = 0.3
             
             # Check both 'score' (similarity), 'final_score', and 'rerank_score' if available
             # Use the highest score for threshold check
