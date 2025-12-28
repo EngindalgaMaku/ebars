@@ -1150,7 +1150,12 @@ async def hybrid_rag_query(request: HybridRAGQueryRequest, http_request: Request
             temperature=request.temperature,
             return_debug=True
         )
-        
+
+        # Safety: Never allow empty answers to propagate to UI/DB logging
+        if not answer or not answer.strip():
+            logger.warning("⚠️ LLM returned empty answer; falling back to abstain message")
+            answer = get_rag_abstain_message_tr()
+
         # Determine confidence
         confidence = "high"
         if classification_confidence < 0.6:
