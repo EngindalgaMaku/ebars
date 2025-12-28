@@ -16,6 +16,7 @@ import {
   Home,
   BarChart3,
   Brain,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -30,7 +31,8 @@ type TabType =
   | "assistant"
   | "query"
   | "test-simulation"
-  | "rag-metrics-test";
+  | "rag-metrics-test"
+  | "system-prompts";
 
 interface TeacherLayoutProps {
   children: React.ReactNode;
@@ -87,6 +89,13 @@ const navigationItems: Array<{
     desc: "Soru & Cevap",
     path: "/education-assistant",
   },
+  {
+    id: "system-prompts",
+    name: "Sistem Promptları",
+    icon: Settings,
+    desc: "Prompt Yönetimi",
+    path: "/system-prompts",
+  },
 ];
 
 const simulationItems: Array<{
@@ -142,6 +151,9 @@ function TeacherLayout({
     if (pathname === "/rag-metrics-test") {
       return "rag-metrics-test";
     }
+    if (pathname === "/system-prompts") {
+      return "system-prompts";
+    }
     // Default to dashboard for home page
     return "dashboard";
   };
@@ -194,6 +206,13 @@ function TeacherLayout({
     if (tabId === "rag-metrics-test") {
       if (pathname !== "/rag-metrics-test") {
         router.push("/rag-metrics-test");
+      }
+      return;
+    }
+
+    if (tabId === "system-prompts") {
+      if (pathname !== "/system-prompts") {
+        router.push("/system-prompts");
       }
       return;
     }
@@ -299,7 +318,8 @@ function TeacherLayout({
                     (item.id === "test-simulation" &&
                       pathname === "/test-simulation") ||
                     (item.id === "rag-metrics-test" &&
-                      pathname === "/rag-metrics-test");
+                      pathname === "/rag-metrics-test") ||
+                    (item.id === "system-prompts" && pathname === "/system-prompts");
                   // Use activeTab prop as primary source, pathname only for specific routes
                   const isActive = currentActiveTab === item.id || isPathMatch;
 

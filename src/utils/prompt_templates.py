@@ -3,8 +3,11 @@ Bilingual prompt templates for the RAG system.
 Provides context-aware prompts in both Turkish and English.
 """
 
-from typing import Literal, Dict, Any
+from typing import Literal, Dict, Any, Optional
 from dataclasses import dataclass
+import json
+from pathlib import Path
+import os
 from src.utils.response_message_handler import get_response_handler
 
 LanguageCode = Literal['tr', 'en']
@@ -164,6 +167,39 @@ class BilingualPromptManager:
     
     def __init__(self):
         self.templates = PromptTemplates()
+        self._override_path = Path("data/system_prompts.json")
+        self._override_mtime: Optional[float] = None
+        self._override_cache: Dict[str, Any] = {}
+
+    def _load_overrides(self) -> Dict[str, Any]:
+        try:
+            if not self._override_path.exists():
+                self._override_mtime = None
+                self._override_cache = {}
+                return {}
+
+            mtime = os.path.getmtime(self._override_path)
+            if self._override_mtime is not None and mtime == self._override_mtime:
+                return self._override_cache
+
+            raw = self._override_path.read_text(encoding="utf-8")
+            data = json.loads(raw) if raw.strip() else {}
+            if not isinstance(data, dict):
+                data = {}
+            self._override_mtime = mtime
+            self._override_cache = data
+            return data
+        except Exception:
+            return {}
+
+    def _get_overridden_system_prompt(self, language: LanguageCode, prompt_type: str) -> Optional[str]:
+        overrides = self._load_overrides()
+        pt = overrides.get(prompt_type)
+        if isinstance(pt, dict):
+            val = pt.get(language)
+            if isinstance(val, str) and val.strip():
+                return val
+        return None
     
     def get_system_prompt(self, language: LanguageCode, prompt_type: str = 'rag', session_name: str = None) -> str:
         """
@@ -177,10 +213,11 @@ class BilingualPromptManager:
         Returns:
             str: System prompt in the specified language
         """
+        overridden = self._get_overridden_system_prompt(language, prompt_type)
         if prompt_type == 'direct':
-            return self.templates.DIRECT_SYSTEM_PROMPTS[language]
+            return overridden or self.templates.DIRECT_SYSTEM_PROMPTS[language]
         else:
-            base_prompt = self.templates.SYSTEM_PROMPTS[language]
+            base_prompt = overridden or self.templates.SYSTEM_PROMPTS[language]
             
             # Add session context if session name is provided
             if session_name and session_name.strip():
