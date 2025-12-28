@@ -4241,7 +4241,20 @@ async def aprag_hybrid_rag_query_proxy(request: Request):
     """Proxy to APRAG service for hybrid RAG query"""
     try:
         body = await request.json()
-        logger.info(f"🔗 APRAG hybrid RAG query for session {body.get('session_id', 'unknown')}")
+        session_id = body.get("session_id", "unknown")
+        user_id = body.get("user_id")
+        query_text = body.get("query")
+        query_len = len(query_text) if isinstance(query_text, str) else None
+        query_preview = (query_text[:80] + "...") if isinstance(query_text, str) and len(query_text) > 80 else (query_text if isinstance(query_text, str) else None)
+
+        logger.info(f"🔗 APRAG hybrid RAG query for session {session_id}")
+        logger.info(
+            "🧾 [APRAG HYBRID QUERY PAYLOAD] "
+            f"user_id={user_id}, query_len={query_len}, query_preview={query_preview!r}, "
+            f"top_k={body.get('top_k')}, use_kb={body.get('use_kb')}, use_qa_pairs={body.get('use_qa_pairs')}, "
+            f"use_crag={body.get('use_crag')}, model={body.get('model')}, embedding_model={body.get('embedding_model')}, "
+            f"max_context_chars={body.get('max_context_chars')}, include_sources={body.get('include_sources')}, include_examples={body.get('include_examples')}"
+        )
         
         response = requests.post(
             f"{APRAG_SERVICE_URL}/api/aprag/hybrid-rag/query",
