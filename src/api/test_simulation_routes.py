@@ -99,6 +99,10 @@ from pathlib import Path
 
 TEST_DB_PATH = Path("data/test_results.db")
 
+# If a test is still marked as running after this threshold, consider it stale.
+# This prevents old crashed/failed background tasks from blocking deletion.
+STALE_RUNNING_TEST_SECONDS = 60 * 60 * 6  # 6 hours
+
 def _init_test_db():
     """Initialize test results database"""
     TEST_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -134,6 +138,44 @@ def _load_test_from_db(test_id: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.warning(f"Failed to load test from DB: {e}")
     return None
+
+
+def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        # Handle common Z suffix
+        cleaned = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(cleaned).replace(tzinfo=None)
+    except Exception:
+        return None
+
+
+def _is_stale_running_test(test_data: Dict[str, Any], updated_at: Optional[str] = None) -> bool:
+    if test_data.get("status") != "running":
+        return False
+
+    now = datetime.utcnow()
+
+    start_dt = _parse_iso_datetime(test_data.get("start_time"))
+    if start_dt and (now - start_dt).total_seconds() > STALE_RUNNING_TEST_SECONDS:
+        return True
+
+    updated_dt = _parse_iso_datetime(updated_at)
+    if updated_dt and (now - updated_dt).total_seconds() > STALE_RUNNING_TEST_SECONDS:
+        return True
+
+    return False
+
+
+def _mark_test_as_timed_out(test_id: str, test_data: Dict[str, Any], reason: str) -> Dict[str, Any]:
+    # Mutate + persist
+    test_data["status"] = "failed"
+    test_data["error"] = reason
+    test_data.setdefault("end_time", datetime.utcnow().isoformat())
+    TEST_RESULTS_STORAGE[test_id] = test_data
+    _save_test_to_db(test_id, test_data)
+    return test_data
 
 # Initialize database on startup
 _init_test_db()
@@ -1792,6 +1834,15 @@ async def list_all_tests(
                 test_id, data_json, created_at, updated_at = row
                 try:
                     test_data = json.loads(data_json)
+
+                    # If the test is stuck in running state for too long, treat it as timed out.
+                    if _is_stale_running_test(test_data, updated_at=updated_at):
+                        test_data = _mark_test_as_timed_out(
+                            test_id,
+                            test_data,
+                            reason="Test timed out (stale running record)"
+                        )
+
                     # Extract key info for list view
                     tests.append({
                         "testId": test_id,
@@ -1838,9 +1889,16 @@ async def delete_test(test_id: str, request: Request) -> Dict[str, Any]:
     # Require authentication/authorization based on owning session
     _require_owner_or_admin(request, test_data.get("session_id", ""))
 
-    # Prevent deleting running tests
+    # Prevent deleting running tests unless they are stale.
     if test_data.get("status") == "running":
-        raise HTTPException(status_code=409, detail="Running tests cannot be deleted")
+        if _is_stale_running_test(test_data):
+            test_data = _mark_test_as_timed_out(
+                test_id,
+                test_data,
+                reason="Test timed out (stale running record)"
+            )
+        else:
+            raise HTTPException(status_code=409, detail="Running tests cannot be deleted")
 
     try:
         with sqlite3.connect(TEST_DB_PATH) as conn:
@@ -1880,6 +1938,10 @@ async def stop_test_simulation(test_id: str, request: Request) -> Dict[str, Any]
     # Mark test as stopped
     test_data["status"] = "stopped"
     test_data["end_time"] = datetime.utcnow().isoformat()
+
+    # Persist stop status
+    TEST_RESULTS_STORAGE[test_id] = test_data
+    _save_test_to_db(test_id, test_data)
     
     return {
         "success": True,
@@ -2531,6 +2593,13 @@ async def execute_full_test_simulation(
         test_data["status"] = "failed"
         test_data["error"] = str(e)
         test_data["end_time"] = datetime.utcnow().isoformat()
+
+        # Persist failure so we don't leave a stale 'running' record in SQLite
+        try:
+            TEST_RESULTS_STORAGE[test_id] = test_data
+            _save_test_to_db(test_id, test_data)
+        except Exception as persist_error:
+            logger.error(f"Failed to persist failed status for test {test_id}: {persist_error}", exc_info=True)
 
 # ===== RESULT PROCESSING FUNCTIONS =====
 

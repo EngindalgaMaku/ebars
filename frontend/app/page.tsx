@@ -161,7 +161,7 @@ function SessionCard({
   const [showRagSettings, setShowRagSettings] = useState(false);
   const isActive = session.status === "active";
   const zebraBg = index % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-900/60";
-  const cardBg = isActive ? "bg-slate-900" : zebraBg;
+  const cardBg = isActive ? "bg-gradient-to-br from-slate-900 to-slate-800" : zebraBg;
   const frame = isActive
     ? "border-slate-900 ring-2 ring-emerald-300 dark:border-emerald-700"
     : "border-gray-200 dark:border-gray-700";
@@ -2883,7 +2883,7 @@ export default function HomePage() {
             </div>
           )}
           {/* Educational Stats Cards - Mobile Optimized */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 pt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 pt-4">
             <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-4 sm:p-6 rounded-xl sm:rounded-2xl text-white shadow-lg sm:shadow-xl transform hover:scale-105 transition-all">
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">

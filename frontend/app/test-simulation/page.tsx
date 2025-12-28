@@ -421,7 +421,16 @@ export default function TestSimulationPage() {
       const response = await fetch(`/api/test-simulation/delete/${testId}`, {
         method: "DELETE",
       });
+
       if (!response.ok) {
+        if (response.status === 409) {
+          toast.error(
+            "Bu test hâlâ çalışıyor görünüyor. Biraz bekleyip tekrar deneyin (çok eskiyse otomatik timeout'a düşecektir)."
+          );
+          await loadTestList();
+          return;
+        }
+
         const msg = await response.text().catch(() => "");
         throw new Error(msg || "Test silinemedi");
       }
@@ -447,7 +456,7 @@ export default function TestSimulationPage() {
   }, [testList, testHistoryPage]);
 
   // Load specific test details
-  const loadTestDetails = async (testId: string) => {
+  async function loadTestDetails(testId: string) {
     try {
       const response = await fetch(`/api/test-simulation/status/${testId}`);
       if (!response.ok) {
@@ -486,7 +495,7 @@ export default function TestSimulationPage() {
     } catch (error) {
       console.error("Error loading test details:", error);
     }
-  };
+  }
 
   useEffect(() => {
     // Load test list when component mounts
