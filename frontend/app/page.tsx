@@ -511,7 +511,8 @@ export default function HomePage() {
     | "assistant"
     | "query"
     | "test-simulation"
-    | "rag-metrics-test";
+    | "rag-metrics-test"
+    | "system-prompts";
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
 
   // Read tab from URL on mount and when URL changes (for navigation from other pages)
@@ -532,6 +533,7 @@ export default function HomePage() {
         "query",
         "test-simulation",
         "rag-metrics-test",
+        "system-prompts",
       ].includes(tabParam)
     ) {
       setActiveTab(tabParam as TabType);
