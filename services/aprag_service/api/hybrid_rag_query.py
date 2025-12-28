@@ -12,11 +12,6 @@ from datetime import datetime
 import requests
 import os
 
-# PHASE 1: Import centralized response message handler and reranker controller
-import sys
-from pathlib import Path
-src_path = Path(__file__).parent.parent.parent.parent / "src"
-sys.path.append(str(src_path))
 from utils.response_message_handler import ResponseMessageHandler
 from utils.reranker_controller import should_prevent_aprag_reranking
 from utils.prompt_templates import BilingualPromptManager
