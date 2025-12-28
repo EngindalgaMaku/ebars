@@ -161,10 +161,14 @@ function SessionCard({
   const [showRagSettings, setShowRagSettings] = useState(false);
   const isActive = session.status === "active";
   const zebraBg = index % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-900/60";
+  const cardBg = isActive ? "bg-slate-900" : zebraBg;
   const frame = isActive
-    ? "border-emerald-300 dark:border-emerald-700 ring-2 ring-emerald-200 dark:ring-emerald-900"
+    ? "border-slate-900 ring-2 ring-emerald-300 dark:border-emerald-700"
     : "border-gray-200 dark:border-gray-700";
-  const inactiveTone = !isActive ? "opacity-70 hover:opacity-100" : "";
+  const inactiveTone = !isActive ? "opacity-75 hover:opacity-100" : "";
+  const titleTone = isActive ? "text-white" : "text-gray-900 dark:text-white";
+  const descTone = isActive ? "text-slate-200" : "text-gray-500 dark:text-gray-400";
+  const metaTone = isActive ? "text-slate-200" : "text-gray-600 dark:text-gray-300";
 
   const handleNameEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -188,7 +192,7 @@ function SessionCard({
 
   return (
     <div
-      className={`relative group ${zebraBg} ${inactiveTone} rounded-xl border ${frame} shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer p-3 sm:p-4`}
+      className={`relative group ${cardBg} ${inactiveTone} rounded-xl border ${frame} shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer p-3 sm:p-4`}
       style={{ animationDelay: `${index * 0.1}s` }}
       onClick={() => onNavigate(session.session_id)}
     >
@@ -232,12 +236,17 @@ function SessionCard({
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <h3 className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white truncate flex-1">
+              <h3 className={`text-sm sm:text-base font-semibold truncate flex-1 ${titleTone}`}
+              >
                 {session.name}
               </h3>
               <button
                 onClick={handleNameEdit}
-                className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded text-gray-700 dark:text-gray-200 font-semibold"
+                className={`opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 text-xs rounded font-semibold ${
+                  isActive
+                    ? "bg-white/10 hover:bg-white/20 text-white"
+                    : "bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                }`}
                 title="İsmi değiştir"
               >
                 ✏️
@@ -245,11 +254,11 @@ function SessionCard({
             </div>
           )}
 
-          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+          <div className={`mt-1 text-xs line-clamp-1 ${descTone}`}>
             {session.description}
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-600 dark:text-gray-300">
+          <div className={`mt-2 flex flex-wrap items-center gap-3 text-xs ${metaTone}`}>
             <div className="flex items-center gap-1.5">
               <DocumentIcon />
               <span>{session.document_count}</span>
@@ -269,7 +278,11 @@ function SessionCard({
                   e.stopPropagation();
                   setShowRagSettings((v) => !v);
                 }}
-                className="ml-auto px-2 py-1 rounded-md text-xs font-medium border border-gray-200 dark:border-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
+                className={`ml-auto px-2 py-1 rounded-md text-xs font-medium border ${
+                  isActive
+                    ? "border-white/20 bg-white/10 hover:bg-white/20 text-white"
+                    : "border-gray-200 dark:border-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
+                }`}
                 title="Oturum ayarlarını göster/gizle"
               >
                 {showRagSettings ? "Ayarları Gizle" : "Ayarlar"}
@@ -279,11 +292,11 @@ function SessionCard({
 
           {/* RAG Settings Info */}
           {session.rag_settings && showRagSettings && (
-            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-              <div className="text-xs text-gray-600 dark:text-gray-300 mb-2 font-semibold">
+            <div className={`mt-3 pt-3 border-t ${isActive ? "border-white/20" : "border-gray-200 dark:border-gray-700"}`}>
+              <div className={`text-xs mb-2 font-semibold ${isActive ? "text-slate-100" : "text-gray-600 dark:text-gray-300"}`}>
                 Oturum Ayarları
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-300">
+              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs ${isActive ? "text-slate-200" : "text-gray-600 dark:text-gray-300"}`}>
                 {session.rag_settings.embedding_model && (
                   <div className="flex items-center gap-1">
                     <span className="opacity-70">📊</span>
