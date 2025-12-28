@@ -395,6 +395,8 @@ def _convert_metadata_to_response(metadata: SessionMetadata) -> SessionResponse:
         "top_k": 5,
         "use_rerank": True,
         "min_score": 0.5,
+        "use_kb": False,
+        "use_qa_pairs": False,
         "max_context_chars": 8000,
         "model": None,
         "chain_type": None,
