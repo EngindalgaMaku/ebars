@@ -210,29 +210,54 @@ async def create_interaction(interaction: InteractionCreate, db: DatabaseManager
         # Prepare metadata as JSON string
         metadata_json = json.dumps(interaction.metadata) if interaction.metadata else None
         
-        # Insert interaction into database
-        query = """
-            INSERT INTO student_interactions 
-            (user_id, session_id, query, original_response, personalized_response,
-             processing_time_ms, model_used, chain_type, sources, metadata)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        
-        interaction_id = db.execute_insert(
-            query,
-            (
-                interaction.user_id,
-                interaction.session_id,
-                interaction.query,
-                response_text,
-                interaction.personalized_response,
-                interaction.processing_time_ms,
-                interaction.model_used,
-                interaction.chain_type,
-                sources_json,
-                metadata_json
-            )
-        )
+        # Insert interaction into database.
+        # DB schema differs across deployments; some have 'response', some have 'original_response', some have both.
+        # There is also a trigger that enforces response column not null/empty.
+        with db.get_connection() as conn:
+            cols = []
+            try:
+                col_rows = conn.execute("PRAGMA table_info(student_interactions)").fetchall()
+                cols = [str(r[1]) for r in col_rows]  # (cid, name, type, notnull, dflt_value, pk)
+            except Exception as schema_err:
+                logger.warning(f"Could not inspect student_interactions schema: {schema_err}")
+
+        has_response_col = "response" in cols
+        has_original_response_col = "original_response" in cols
+
+        insert_cols = ["user_id", "session_id", "query"]
+        insert_vals = [interaction.user_id, interaction.session_id, interaction.query]
+
+        # Always satisfy 'response' if present
+        if has_response_col:
+            insert_cols.append("response")
+            insert_vals.append(response_text)
+
+        # Also fill original_response if present
+        if has_original_response_col:
+            insert_cols.append("original_response")
+            insert_vals.append(response_text)
+
+        insert_cols.extend([
+            "personalized_response",
+            "processing_time_ms",
+            "model_used",
+            "chain_type",
+            "sources",
+            "metadata",
+        ])
+        insert_vals.extend([
+            interaction.personalized_response,
+            interaction.processing_time_ms,
+            interaction.model_used,
+            interaction.chain_type,
+            sources_json,
+            metadata_json,
+        ])
+
+        placeholders = ", ".join(["?"] * len(insert_cols))
+        query = f"INSERT INTO student_interactions ({', '.join(insert_cols)}) VALUES ({placeholders})"
+
+        interaction_id = db.execute_insert(query, tuple(insert_vals))
         
         logger.info(f"Successfully logged interaction {interaction_id} for user {interaction.user_id}")
         
