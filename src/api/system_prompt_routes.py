@@ -70,11 +70,11 @@ class SystemPromptsUpdate(BaseModel):
 
 @router.get("", summary="Get System Prompts")
 async def get_system_prompts(request: Request) -> Dict[str, Any]:
-    from src.api.main import _get_current_user, _is_admin
+    from src.api.main import _get_current_user, _is_admin, _is_teacher
 
     user = _get_current_user(request)
-    if not user or not _is_admin(user):
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not user or not (_is_admin(user) or _is_teacher(user)):
+        raise HTTPException(status_code=403, detail="Teacher or admin access required")
 
     overrides = _read_overrides()
     payload = _effective_payload(overrides)
@@ -83,11 +83,11 @@ async def get_system_prompts(request: Request) -> Dict[str, Any]:
 
 @router.put("", summary="Update System Prompts")
 async def update_system_prompts(request: Request, body: SystemPromptsUpdate) -> Dict[str, Any]:
-    from src.api.main import _get_current_user, _is_admin
+    from src.api.main import _get_current_user, _is_admin, _is_teacher
 
     user = _get_current_user(request)
-    if not user or not _is_admin(user):
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not user or not (_is_admin(user) or _is_teacher(user)):
+        raise HTTPException(status_code=403, detail="Teacher or admin access required")
 
     overrides = {
         "rag": {
@@ -107,11 +107,11 @@ async def update_system_prompts(request: Request, body: SystemPromptsUpdate) -> 
 
 @router.delete("", summary="Reset System Prompts")
 async def reset_system_prompts(request: Request) -> Dict[str, Any]:
-    from src.api.main import _get_current_user, _is_admin
+    from src.api.main import _get_current_user, _is_admin, _is_teacher
 
     user = _get_current_user(request)
-    if not user or not _is_admin(user):
-        raise HTTPException(status_code=403, detail="Admin access required")
+    if not user or not (_is_admin(user) or _is_teacher(user)):
+        raise HTTPException(status_code=403, detail="Teacher or admin access required")
 
     try:
         if PROMPTS_PATH.exists():

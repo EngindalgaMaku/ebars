@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { AUTH_ROLES } from "@/types/auth";
 import {
   LayoutDashboard,
   BookOpen,
@@ -127,6 +128,8 @@ function TeacherLayout({
   onTabChange,
 }: TeacherLayoutProps) {
   const { user, logout } = useAuth();
+  const canManageSystemPrompts =
+    user?.role_name === AUTH_ROLES.ADMIN || user?.role_name === AUTH_ROLES.TEACHER;
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -307,7 +310,12 @@ function TeacherLayout({
                   </div>
                 )}
 
-                {section.items.map((item) => {
+                {section.items
+                  .filter((item) => {
+                    if (item.id === "system-prompts") return canManageSystemPrompts;
+                    return true;
+                  })
+                  .map((item) => {
                   const Icon = item.icon;
                   // Only check pathname for specific routes (not for tabs on home page)
                   const isPathMatch =

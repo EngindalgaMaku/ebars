@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Save, RotateCcw, Wand2 } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { useApi } from "@/hooks/useAuth";
+import { useRoles } from "@/hooks/useAuth";
 
 type Lang = "tr" | "en";
 
@@ -33,6 +34,8 @@ type GetResponse = {
 
 export default function SystemPromptsPage() {
   const api = useApi();
+  const { isAdmin, isTeacher } = useRoles();
+  const hasAccess = isAdmin || isTeacher;
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [activeType, setActiveType] = useState<"rag" | "direct">("rag");
@@ -61,9 +64,10 @@ export default function SystemPromptsPage() {
   };
 
   useEffect(() => {
+    if (!hasAccess) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hasAccess]);
 
   const save = async () => {
     if (!current) return;
@@ -107,6 +111,23 @@ export default function SystemPromptsPage() {
       },
     });
   };
+
+  if (!hasAccess) {
+    return (
+      <TeacherLayout>
+        <div className="p-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Erişim Reddedildi</CardTitle>
+              <CardDescription>
+                Bu sayfa yalnızca <strong>teacher</strong> veya <strong>admin</strong> kullanıcıları içindir.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
+      </TeacherLayout>
+    );
+  }
 
   if (loading || !current || !defaults) {
     return (
