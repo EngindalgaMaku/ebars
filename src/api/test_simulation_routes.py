@@ -1312,7 +1312,7 @@ async def execute_semantic_similarity_test(
         try:
             # Test 1: basicRag (RAG without reranker)
             logger.info("📊 Testing basicRag method...")
-            basic_rag_results = tester.run_test(
+            basic_rag_results = await tester.run_test(
                 questions=questions,
                 session_id=session_id,
                 user_id="test_user",
@@ -1327,7 +1327,7 @@ async def execute_semantic_similarity_test(
             
             # Test 2: eduBars (RAG with reranker)
             logger.info("📊 Testing eduBars method...")
-            edubars_results = tester.run_test(
+            edubars_results = await tester.run_test(
                 questions=questions,
                 session_id=session_id,
                 user_id="test_user",
@@ -1342,7 +1342,7 @@ async def execute_semantic_similarity_test(
             
             # Test 3: llmOnly (no RAG)
             logger.info("📊 Testing llmOnly method...")
-            llm_only_results = tester.run_test(
+            llm_only_results = await tester.run_test(
                 questions=questions,
                 session_id=session_id,
                 user_id="test_user",
