@@ -22,6 +22,14 @@ interface TestResult {
   progress: number;
   startTime: string;
   endTime?: string;
+  executionTime?: {
+    total_seconds?: number;
+    total_minutes?: number;
+    formatted?: string;
+    elapsed_seconds?: number;
+    elapsed_minutes?: number;
+    status?: string;
+  };
   metrics: {
     cosineSimilarity: number;
     avgResponseTime: number;
@@ -132,18 +140,21 @@ export default function MonitoringTab({
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-orange-600">
-                  {currentTest.endTime
-                    ? Math.round(
-                        (new Date(currentTest.endTime).getTime() -
-                          new Date(currentTest.startTime).getTime()) /
-                          1000
-                      )
-                    : Math.round(
-                        (Date.now() -
-                          new Date(currentTest.startTime).getTime()) /
-                          1000
-                      )}
-                  s
+                  {currentTest.executionTime?.formatted
+                    ? currentTest.executionTime.formatted
+                    : currentTest.executionTime?.elapsed_seconds !== undefined
+                      ? `${Math.round(currentTest.executionTime.elapsed_seconds)}s`
+                      : currentTest.endTime
+                        ? `${Math.round(
+                            (new Date(currentTest.endTime).getTime() -
+                              new Date(currentTest.startTime).getTime()) /
+                              1000
+                          )}s`
+                        : `${Math.round(
+                            (Date.now() -
+                              new Date(currentTest.startTime).getTime()) /
+                              1000
+                          )}s`}
                 </div>
                 <div className="text-sm text-gray-500">Geçen Süre</div>
               </div>

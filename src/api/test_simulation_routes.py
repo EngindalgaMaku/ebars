@@ -18,7 +18,7 @@ import time
 import asyncio
 import csv
 import io
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional, Tuple
 from pathlib import Path
 from io import BytesIO
@@ -172,7 +172,32 @@ def _mark_test_as_timed_out(test_id: str, test_data: Dict[str, Any], reason: str
     # Mutate + persist
     test_data["status"] = "failed"
     test_data["error"] = reason
-    test_data.setdefault("end_time", datetime.utcnow().isoformat())
+    test_data.setdefault("end_time", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+    TEST_RESULTS_STORAGE[test_id] = test_data
+    _save_test_to_db(test_id, test_data)
+    return test_data
+
+def _mark_test_as_failed(test_id: str, test_data: Dict[str, Any], reason: str) -> Dict[str, Any]:
+    # Mutate + persist
+    test_data["status"] = "failed"
+    test_data["error"] = reason
+    test_data.setdefault("end_time", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+    TEST_RESULTS_STORAGE[test_id] = test_data
+    _save_test_to_db(test_id, test_data)
+    return test_data
+
+def _mark_test_as_stopped(test_id: str, test_data: Dict[str, Any]) -> Dict[str, Any]:
+    # Mutate + persist
+    test_data["status"] = "stopped"
+    test_data["end_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    TEST_RESULTS_STORAGE[test_id] = test_data
+    _save_test_to_db(test_id, test_data)
+    return test_data
+
+def _mark_test_as_completed(test_id: str, test_data: Dict[str, Any]) -> Dict[str, Any]:
+    # Mutate + persist
+    test_data["status"] = "completed"
+    test_data["end_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     TEST_RESULTS_STORAGE[test_id] = test_data
     _save_test_to_db(test_id, test_data)
     return test_data
@@ -815,6 +840,7 @@ async def start_test_simulation(
         )
         
         # Initialize test progress
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         test_progress = {
             "test_id": test_id,
             "test_name": request_data.testName,
@@ -825,7 +851,7 @@ async def start_test_simulation(
             "total_questions": len(test_questions),
             "current_methodology": request_data.methods[0] if request_data.methods else "eduBars",
             "completed_methodologies": [],
-            "start_time": datetime.utcnow().isoformat(),
+            "start_time": now_iso,
             "estimated_completion": None,
             "current_metrics": {},
             "configuration": config.dict(),
@@ -1005,9 +1031,6 @@ async def single_query_comparison(
             else:
                 initial_sources_count = None
             
-            if initial_sources_count is None:
-                initial_sources_count = len(edubars_result.get("sources", []))
-            
             reranked_sources_count = len(edubars_result.get("sources", []))
             
             if initial_sources_count > 0 and reranked_sources_count == 0:
@@ -1076,7 +1099,7 @@ async def single_query_comparison(
         result = {
             "question": question,
             "session_id": sessionId,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "basic_rag": {
                 "success": basic_rag_result["success"],
                 "response": basic_rag_result.get("response", ""),
@@ -1113,7 +1136,7 @@ async def single_query_comparison(
         return {
             "question": question if question else "N/A",
             "session_id": sessionId if sessionId else "N/A",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "error": True,
             "error_message": str(e),
             "error_traceback": error_traceback,
@@ -1182,6 +1205,7 @@ async def start_semantic_similarity_test(
         test_id = str(uuid.uuid4())
         
         # Initialize test progress
+        now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         test_progress = {
             "test_id": test_id,
             "test_name": f"{request_data.testName} (Semantic Similarity Only)",
@@ -1191,7 +1215,7 @@ async def start_semantic_similarity_test(
             "status": "running",
             "current_question": 0,
             "total_questions": len(request_data.questions),
-            "start_time": datetime.utcnow().isoformat(),
+            "start_time": now_iso,
             "questions": request_data.questions,
             "mode": request_data.methods[0] if request_data.methods else "rag",
             "results": []
@@ -1338,7 +1362,7 @@ async def execute_semantic_similarity_test(
                     "test_type": "semantic_similarity_comparison",
                     "total_questions": len(questions),
                     "results": all_results,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 }
             }
             
@@ -1431,7 +1455,7 @@ async def execute_semantic_similarity_test(
                 # Standard test format
                 test_data["results"] = results if isinstance(results, list) else [results]
             
-            test_data["end_time"] = datetime.utcnow().isoformat()
+            test_data["end_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             test_data["summary"] = results.get("summary", results.get("comparison", {}))
             TEST_RESULTS_STORAGE[test_id] = test_data
             _save_test_to_db(test_id, test_data)
@@ -1464,17 +1488,24 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     # Require authentication to access test results
     _require_owner_or_admin(request, test_data.get("session_id", ""))
     
-    # Calculate progress percentage
-    # Handle semantic similarity tests (no methodologies in configuration)
+    # Calculate progress percentage (real-time)
+    # Prefer current_question + completed_methodologies (updated during execution)
     methodologies = test_data.get("configuration", {}).get("methodologies", [])
     if not methodologies:
-        # For semantic similarity tests, use mode or default to 1
         methodologies = [test_data.get("mode", "rag")]
-    total_operations = test_data["total_questions"] * len(methodologies)
-    current_operations = len(test_data.get("results", []))
-    
+    total_questions = int(test_data.get("total_questions", 0) or 0)
+    total_operations = total_questions * len(methodologies)
+
+    completed_methods = test_data.get("completed_methodologies", []) or []
+    current_question = int(test_data.get("current_question", 0) or 0)
+    results_count = len(test_data.get("results", []) or [])
+
+    completed_ops = (len(completed_methods) * total_questions) + max(0, min(current_question, total_questions))
+    # Fallback: if current_question is not updated, use results_count to avoid stuck progress
+    completed_ops = max(completed_ops, results_count)
+
     if total_operations > 0:
-        progress_percentage = (current_operations / total_operations) * 100
+        progress_percentage = (min(completed_ops, total_operations) / total_operations) * 100
     else:
         progress_percentage = 0.0
     
@@ -1937,7 +1968,7 @@ async def stop_test_simulation(test_id: str, request: Request) -> Dict[str, Any]
     
     # Mark test as stopped
     test_data["status"] = "stopped"
-    test_data["end_time"] = datetime.utcnow().isoformat()
+    test_data["end_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
     # Persist stop status
     TEST_RESULTS_STORAGE[test_id] = test_data
@@ -2427,7 +2458,7 @@ async def execute_full_test_simulation(
                                 # Calculate comprehensive similarity metrics using AnswerSimilarityEvaluator
                                 if SIMILARITY_EVALUATOR_AVAILABLE and AnswerSimilarityEvaluator is not None:
                                     logger.info("🧠 Using AnswerSimilarityEvaluator for comprehensive metrics calculation")
-                                    
+
                                     try:
                                         # Create evaluator instance (use API_GATEWAY_URL as base)
                                         evaluator = AnswerSimilarityEvaluator(api_base_url=API_GATEWAY_URL)
@@ -2475,7 +2506,6 @@ async def execute_full_test_simulation(
                                                 "rouge1": None,     # Not available in fallback
                                                 "rouge2": None,     # Not available in fallback
                                                 "f1Score": None,    # Not available in fallback
-  # Not available in fallback
                                             }
                                             logger.warning(f"   🔄 Using legacy fallback semantic similarity: {answer_quality_similarity}")
                                         else:
@@ -2492,7 +2522,6 @@ async def execute_full_test_simulation(
                                             "rouge1": None,         # Not available without AnswerSimilarityEvaluator
                                             "rouge2": None,         # Not available without AnswerSimilarityEvaluator
                                             "f1Score": None,        # Not available without AnswerSimilarityEvaluator
-  # Not available without AnswerSimilarityEvaluator
                                         }
                                         logger.info(f"   🔄 Using legacy semantic similarity: {answer_quality_similarity}")
                                     else:
@@ -2552,7 +2581,7 @@ async def execute_full_test_simulation(
                             "sources": result["sources"],
                             "metrics": metrics,
                             "config": result.get("config", ""),
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                             "expected_answer": ground_truth  # Include ground truth in results for reference
                         }
                         
@@ -2567,22 +2596,36 @@ async def execute_full_test_simulation(
                     else:
                         logger.error(f"Question {question_id} failed for {methodology}: {result.get('error', 'Unknown error')}")
                     
-                    # Save progress after each batch
-                    _save_test_to_db(test_id, test_data)
+                    # Persist running progress so UI can track live
+                    try:
+                        TEST_RESULTS_STORAGE[test_id] = test_data
+                        _save_test_to_db(test_id, test_data)
+                    except Exception:
+                        pass
                 
                 # Small delay between batches to prevent overwhelming the system
                 await asyncio.sleep(0.5)
             
             # Mark methodology as completed
-            test_data["completed_methodologies"].append(methodology)
+            completed_methods = test_data.get("completed_methodologies") or []
+            if methodology not in completed_methods:
+                completed_methods.append(methodology)
+            test_data["completed_methodologies"] = completed_methods
             logger.info(f"Completed methodology: {methodology}")
+
+            # Persist after finishing each methodology
+            try:
+                TEST_RESULTS_STORAGE[test_id] = test_data
+                _save_test_to_db(test_id, test_data)
+            except Exception:
+                pass
         
         # Store final results - CRITICAL: Save results before marking as completed
         test_data["results"] = all_results
         _save_test_to_db(test_id, test_data)  # Save immediately after storing results
         
         test_data["status"] = "completed"
-        test_data["end_time"] = datetime.utcnow().isoformat()
+        test_data["end_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         _save_test_to_db(test_id, test_data)  # Save again with completed status
         
         logger.info(f"Test simulation {test_id} completed successfully with {len(all_results)} results")
@@ -2592,7 +2635,7 @@ async def execute_full_test_simulation(
         logger.error(f"Test simulation {test_id} failed: {e}")
         test_data["status"] = "failed"
         test_data["error"] = str(e)
-        test_data["end_time"] = datetime.utcnow().isoformat()
+        test_data["end_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         # Persist failure so we don't leave a stale 'running' record in SQLite
         try:
@@ -3005,22 +3048,30 @@ def calculate_execution_time(test_data: Dict[str, Any]) -> Dict[str, Any]:
     """Calculate total execution time"""
     
     try:
-        start_time = datetime.fromisoformat(test_data["start_time"])
+        start_dt = _parse_iso_datetime(test_data.get("start_time"))
         end_time_str = test_data.get("end_time")
+        if not start_dt:
+            return {
+                "status": "error",
+                "error": "start_time is missing or invalid",
+                "start_time": test_data.get("start_time", "unknown")
+            }
         
         if end_time_str:
-            end_time = datetime.fromisoformat(end_time_str)
-            total_seconds = (end_time - start_time).total_seconds()
+            end_dt = _parse_iso_datetime(end_time_str)
+            if not end_dt:
+                end_dt = datetime.now(timezone.utc)
+            total_seconds = (end_dt - start_dt).total_seconds()
             
             # Ensure non-negative duration
             if total_seconds < 0:
                 logger.warning(f"Negative duration detected: {total_seconds}s. Using current time instead.")
-                total_seconds = (datetime.utcnow() - start_time).total_seconds()
+                total_seconds = (datetime.now(timezone.utc) - start_dt).total_seconds()
             
-            # Ensure positive duration
+            # Ensure non-negative duration (final guard)
             if total_seconds < 0:
                 logger.warning(f"Negative duration detected: {total_seconds}s. Using current time instead.")
-                total_seconds = (datetime.utcnow() - start_time).total_seconds()
+                total_seconds = (datetime.now(timezone.utc) - start_dt).total_seconds()
             
             return {
                 "total_seconds": round(max(0, total_seconds), 2),  # Ensure non-negative
@@ -3032,7 +3083,7 @@ def calculate_execution_time(test_data: Dict[str, Any]) -> Dict[str, Any]:
             }
         else:
             # Still running - calculate elapsed time
-            elapsed_seconds = (datetime.utcnow() - datetime.fromisoformat(test_data["start_time"])).total_seconds()
+            elapsed_seconds = (datetime.now(timezone.utc) - start_dt).total_seconds()
             return {
                 "status": "running",
                 "elapsed_seconds": round(elapsed_seconds, 2),

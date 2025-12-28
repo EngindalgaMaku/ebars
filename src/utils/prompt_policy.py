@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import os
 
+try:
+    from utils.prompt_templates import BilingualPromptManager
+except Exception:
+    BilingualPromptManager = None
+
 
 def get_rag_abstain_message_tr() -> str:
     return "Aradığınız bilgi ders dökümanlarında bulunamamıştır."
@@ -13,6 +18,16 @@ def get_rag_abstain_message_en() -> str:
 
 def build_rag_answer_prompt_tr(*, context: str, query: str) -> str:
     style = (os.getenv("RAG_PROMPT_STYLE") or "legacy").strip().lower()
+
+    # Prefer teacher/admin configured prompts if available
+    if BilingualPromptManager is not None:
+        try:
+            pm = BilingualPromptManager()
+            system_prompt = pm.get_system_prompt("tr", "rag")
+            user_prompt = pm.get_user_prompt("tr", query, context)
+            return f"System: {system_prompt}\n\nUser: {user_prompt}"
+        except Exception:
+            pass
 
     # Default: legacy prompt (more permissive, historically stable for Answer Relevancy)
     if style != "direct":
@@ -46,6 +61,16 @@ def build_rag_answer_prompt_tr(*, context: str, query: str) -> str:
 
 def build_rag_answer_prompt_en(*, context: str, query: str) -> str:
     style = (os.getenv("RAG_PROMPT_STYLE") or "legacy").strip().lower()
+
+    # Prefer teacher/admin configured prompts if available
+    if BilingualPromptManager is not None:
+        try:
+            pm = BilingualPromptManager()
+            system_prompt = pm.get_system_prompt("en", "rag")
+            user_prompt = pm.get_user_prompt("en", query, context)
+            return f"System: {system_prompt}\n\nUser: {user_prompt}"
+        except Exception:
+            pass
 
     if style != "direct":
         return (
