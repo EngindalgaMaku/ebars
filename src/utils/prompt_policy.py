@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 try:
-    from utils.prompt_templates import BilingualPromptManager
+    from src.utils.prompt_templates import BilingualPromptManager
 except Exception:
     BilingualPromptManager = None
 
