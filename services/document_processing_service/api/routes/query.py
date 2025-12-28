@@ -362,7 +362,9 @@ async def rag_query(request: RAGQueryRequest):
         if request.skip_llm:
             logger.info(f"⏭️ Skipping LLM generation (skip_llm=True), returning only chunks")
             return RAGQueryResponse(
-                answer="",  # Empty answer when skip_llm=True
+                answer=(
+                    "⏭️ LLM üretimi atlandı (retrieval-only mod)."
+                ),
                 sources=context_docs,  # Return chunks as sources
                 chain_type=chain_type,
             )
