@@ -146,7 +146,10 @@ def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
     try:
         # Handle common Z suffix
         cleaned = value.replace("Z", "+00:00")
-        return datetime.fromisoformat(cleaned).replace(tzinfo=None)
+        dt = datetime.fromisoformat(cleaned)
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
     except Exception:
         return None
 
@@ -155,7 +158,7 @@ def _is_stale_running_test(test_data: Dict[str, Any], updated_at: Optional[str] 
     if test_data.get("status") != "running":
         return False
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     start_dt = _parse_iso_datetime(test_data.get("start_time"))
     if start_dt and (now - start_dt).total_seconds() > STALE_RUNNING_TEST_SECONDS:
@@ -1212,6 +1215,9 @@ async def start_semantic_similarity_test(
             "test_type": "semantic_similarity_only",
             "session_id": request_data.sessionId,
             "session_settings": request_data.sessionSettings,
+            "configuration": {
+                "methodologies": ["basicRag", "eduBars", "llmOnly"],
+            },
             "status": "running",
             "current_question": 0,
             "total_questions": len(request_data.questions),
