@@ -42,6 +42,16 @@ class HybridKnowledgeRetriever:
         self.db = db_manager
         self.qa_similarity_threshold = 0.85  # High similarity for direct answer
         self.kb_usage_threshold = 0.7  # Minimum topic classification confidence
+
+    def _table_exists(self, conn, table_name: str) -> bool:
+        try:
+            row = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (table_name,)
+            ).fetchone()
+            return row is not None
+        except Exception:
+            return False
     
     async def retrieve_for_query(
         self,
@@ -85,14 +95,35 @@ class HybridKnowledgeRetriever:
         # 3. QA PAIRS MATCHING (if high topic confidence)
         qa_matches = []
         if use_qa_pairs and matched_topics and classification_confidence > 0.6:
-            logger.info(f"❓ Checking QA pairs...")
-            qa_matches = await self._match_qa_pairs(query, matched_topics, embedding_model)
-        
+            # Guard: if QA tables are not present (or feature not initialized), skip gracefully
+            try:
+                with self.db.get_connection() as conn:
+                    has_qa_pairs = self._table_exists(conn, "topic_qa_pairs")
+                    has_qa_cache = self._table_exists(conn, "qa_similarity_cache")
+                if not has_qa_pairs:
+                    logger.info("ℹ️ QA pairs requested but topic_qa_pairs table is missing; skipping QA matching")
+                else:
+                    if not has_qa_cache:
+                        logger.info("ℹ️ QA cache table missing; QA matching will run without cache")
+                    logger.info(f"❓ Checking QA pairs...")
+                    qa_matches = await self._match_qa_pairs(query, matched_topics, embedding_model)
+            except Exception as e:
+                logger.warning(f"⚠️ QA pairs requested but unavailable; skipping QA matching ({e})")
+
         # 4. KNOWLEDGE BASE RETRIEVAL
         kb_results = []
         if use_kb and matched_topics and classification_confidence > self.kb_usage_threshold:
-            logger.info(f"📚 Fetching knowledge base...")
-            kb_results = await self._retrieve_knowledge_base(matched_topics)
+            # Guard: if KB table is not present (or feature not initialized), skip gracefully
+            try:
+                with self.db.get_connection() as conn:
+                    has_kb = self._table_exists(conn, "topic_knowledge_base")
+                if not has_kb:
+                    logger.info("ℹ️ Knowledge base requested but topic_knowledge_base table is missing; skipping KB retrieval")
+                else:
+                    logger.info(f"📚 Fetching knowledge base...")
+                    kb_results = await self._retrieve_knowledge_base(matched_topics)
+            except Exception as e:
+                logger.warning(f"⚠️ Knowledge base requested but unavailable; skipping KB retrieval ({e})")
         
         # 5. MERGE AND RANK
         logger.info(f"🔀 Merging results...")
