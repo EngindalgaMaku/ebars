@@ -1425,6 +1425,7 @@ async def execute_semantic_similarity_test(
                             "methodology": methodology,  # basicRag, eduBars, or llmOnly
                             "metrics": {
                                 "semantic_similarity": res.get("semantic_similarity"),
+                                "answer_quality_similarity": res.get("semantic_similarity"),  # For semantic similarity tests, semantic_similarity IS answer_quality (response vs ground truth)
                                 "bleu_score": res.get("bleu_score"),
                                 "rouge_l": res.get("rouge_l"),
                                 "rouge_1": res.get("rouge_1"),
