@@ -1640,9 +1640,12 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                             )
                         ),
                         "avgResponseTime": sum(response_time_values) / len(response_time_values) if response_time_values else 0.0,
-                        # Accuracy: For semantic similarity tests, use semantic similarity. For RAG tests, use cosine similarity.
-                        "accuracy": (avg_semantic * 100 if is_semantic_similarity_test and avg_semantic is not None else 
-                                   (sum(cosine_similarity_values) / len(cosine_similarity_values) * 100 if cosine_similarity_values else 0.0)),
+                        # Accuracy: Use answer quality (semantic similarity vs ground truth) for ALL methods for fair comparison
+                        # This ensures we're comparing the same thing: how well the answer matches ground truth
+                        # For RAG methods, we can also show retrieval quality (cosine similarity) separately
+                        "accuracy": (avg_semantic * 100 if avg_semantic is not None else 
+                                   (sum(answer_quality_values) / len(answer_quality_values) * 100 if answer_quality_values else 
+                                    (sum(cosine_similarity_values) / len(cosine_similarity_values) * 100 if cosine_similarity_values and not is_llm_only_method else 0.0))),
                         "answerQualitySimilarity": sum(answer_quality_values) / len(answer_quality_values) if answer_quality_values else None,  # Answer quality (LLM response vs ground truth)
                         "answerQualityAvailable": len(answer_quality_values),  # Number of questions with ground truth
                         "successfulQueries": len(filtered_metrics),
@@ -2615,18 +2618,31 @@ async def execute_full_test_simulation(
                             elif not result.get("response"):
                                 logger.warning(f"No response available for question {question_id}, similarity metrics will be N/A")
                         
+                        # Calculate accuracy: Use answer quality (semantic similarity vs ground truth) for fair comparison
+                        # This ensures all methods are compared on the same basis: answer quality
+                        # For RAG methods, retrieval quality (cosine similarity) is shown separately
+                        if answer_quality_similarity is not None:
+                            # Use answer quality similarity (semantic similarity vs ground truth) for accuracy - FAIR COMPARISON
+                            accuracy_value = min(answer_quality_similarity * 100, 100)
+                        elif is_llm_only and query_response_similarity > 0:
+                            # LLM Only: Use query-response similarity if ground truth not available
+                            accuracy_value = min(query_response_similarity * 100, 100)
+                        else:
+                            # RAG methods: Use retrieval quality (cosine similarity) if ground truth not available
+                            accuracy_value = min(max_similarity * 100, 100) if max_similarity > 0 else 0.0
+                        
                         metrics = {
                             # Cosine similarity: Only for retrieval-based methods (eduBars, basicRag)
                             # For llmOnly, cosine similarity is N/A (no retrieval performed)
                             "cosine_similarity": None if is_llm_only else avg_similarity,  # N/A for llmOnly, retrieval similarity for others
-                            "max_similarity": max_similarity,  # PRIMARY METRIC: Use this for all comparisons and accuracy
+                            "max_similarity": max_similarity,  # PRIMARY METRIC for retrieval quality (RAG methods only)
                             "context_relevance": context_relevance,
                             "response_time_ms": result["execution_time_ms"],
                             "retrieval_count": len(sources),
-                            "accuracy": min(max_similarity * 100, 100),  # Use max_similarity for accuracy calculation
+                            "accuracy": accuracy_value,  # Use answer quality for fair comparison across all methods
                             "is_llm_only": is_llm_only,  # Flag to indicate this is llmOnly methodology
                             "query_response_similarity": query_response_similarity if is_llm_only else None,  # Only for llmOnly
-                            "answer_quality_similarity": answer_quality_similarity,  # LLM response vs ground truth (if available)
+                            "answer_quality_similarity": answer_quality_similarity,  # LLM response vs ground truth (if available) - PRIMARY for accuracy
                             # COMPREHENSIVE SIMILARITY METRICS - All calculations from AnswerSimilarityEvaluator
                             "similarity": similarity_metrics  # Nested object with all metrics: semanticSimilarity, rouge1, rouge2, f1Score
                         }
