@@ -1495,25 +1495,40 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     _require_owner_or_admin(request, test_data.get("session_id", ""))
     
     # Calculate progress percentage (real-time)
-    # Prefer current_question + completed_methodologies (updated during execution)
-    methodologies = test_data.get("configuration", {}).get("methodologies", [])
-    if not methodologies:
-        methodologies = [test_data.get("mode", "rag")]
-    total_questions = int(test_data.get("total_questions", 0) or 0)
-    total_operations = total_questions * len(methodologies)
-
-    completed_methods = test_data.get("completed_methodologies", []) or []
-    current_question = int(test_data.get("current_question", 0) or 0)
-    results_count = len(test_data.get("results", []) or [])
-
-    completed_ops = (len(completed_methods) * total_questions) + max(0, min(current_question, total_questions))
-    # Fallback: if current_question is not updated, use results_count to avoid stuck progress
-    completed_ops = max(completed_ops, results_count)
-
-    if total_operations > 0:
-        progress_percentage = (min(completed_ops, total_operations) / total_operations) * 100
+    # First check if progress is already calculated and stored
+    if "progress" in test_data and test_data["progress"] is not None:
+        progress_percentage = float(test_data["progress"])
     else:
-        progress_percentage = 0.0
+        # Fallback: calculate from current state
+        methodologies = test_data.get("configuration", {}).get("methodologies", [])
+        if not methodologies:
+            methodologies = [test_data.get("mode", "rag")]
+        total_questions = int(test_data.get("total_questions", 0) or 0)
+        total_operations = total_questions * len(methodologies)
+
+        completed_methods = test_data.get("completed_methodologies", []) or []
+        current_question = int(test_data.get("current_question", 0) or 0)
+        results_count = len(test_data.get("results", []) or [])
+
+        # Calculate completed operations more accurately
+        # Completed methodologies contribute full question count
+        completed_ops = len(completed_methods) * total_questions
+        
+        # Current methodology: add current question progress
+        if len(completed_methods) < len(methodologies):
+            # Still working on current methodology
+            completed_ops += max(0, min(current_question, total_questions))
+        
+        # Fallback: if current_question is not updated, use results_count to avoid stuck progress
+        completed_ops = max(completed_ops, results_count)
+
+        if total_operations > 0:
+            progress_percentage = min((completed_ops / total_operations) * 100, 100.0)
+        else:
+            progress_percentage = 0.0
+        
+        # Store calculated progress for next time
+        test_data["progress"] = progress_percentage
     
     # Calculate metrics and method comparison
     method_comparison = {}
@@ -2320,13 +2335,17 @@ async def execute_full_test_simulation(
         logger.info(f"Session settings: {session_settings}")
         
         # Execute test for each methodology
-        for methodology in config.methodologies:
+        total_questions = len(test_questions)
+        total_methodologies = len(config.methodologies)
+        total_operations = total_questions * total_methodologies
+        completed_operations = 0
+        
+        for methodology_index, methodology in enumerate(config.methodologies):
             test_data["current_methodology"] = methodology
-            logger.info(f"Testing methodology: {methodology}")
+            logger.info(f"Testing methodology: {methodology} ({methodology_index + 1}/{total_methodologies})")
             
             # Process questions in parallel batches for better performance
             BATCH_SIZE = 5  # Process 5 questions in parallel
-            total_questions = len(test_questions)
             
             for batch_start in range(0, total_questions, BATCH_SIZE):
                 batch_end = min(batch_start + BATCH_SIZE, total_questions)
@@ -2357,12 +2376,24 @@ async def execute_full_test_simulation(
                 batch_results = await asyncio.gather(*[task for _, _, _, task in tasks], return_exceptions=True)
                 
                 # Process results
-                for (question_id, question, question_data, _), result in zip(tasks, batch_results):
+                for batch_idx, ((question_id, question, question_data, _), result) in enumerate(zip(tasks, batch_results)):
                     if isinstance(result, Exception):
                         logger.error(f"Question {question_id} failed for {methodology}: {result}")
+                        # Still count as completed operation (even if failed)
+                        completed_operations += 1
                         continue
                     
-                    test_data["current_question"] = question_id
+                    # Update current question index (0-based, but we'll use 1-based for display)
+                    question_index = batch_start + batch_idx
+                    test_data["current_question"] = question_index + 1
+                    completed_operations += 1
+                    
+                    # Update progress immediately after each question
+                    if total_operations > 0:
+                        progress_percentage = min((completed_operations / total_operations) * 100, 100.0)
+                        test_data["progress"] = progress_percentage
+                    else:
+                        test_data["progress"] = 0.0
                     
                     if result["success"]:
                         # Get ground truth answer if available
@@ -2602,11 +2633,12 @@ async def execute_full_test_simulation(
                     else:
                         logger.error(f"Question {question_id} failed for {methodology}: {result.get('error', 'Unknown error')}")
                     
-                    # Persist running progress so UI can track live
+                    # Persist running progress so UI can track live - update after each question
                     try:
                         TEST_RESULTS_STORAGE[test_id] = test_data
                         _save_test_to_db(test_id, test_data)
-                    except Exception:
+                    except Exception as persist_err:
+                        logger.warning(f"Failed to persist progress update: {persist_err}")
                         pass
                 
                 # Small delay between batches to prevent overwhelming the system

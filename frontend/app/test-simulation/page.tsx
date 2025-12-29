@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import TeacherLayout from "../components/TeacherLayout";
 import { getSession, SessionMeta, listSessions } from "@/lib/api";
 import {
@@ -198,6 +198,10 @@ export default function TestSimulationPage() {
   const [testList, setTestList] = useState<any[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Polling interval ref to prevent multiple intervals and ensure cleanup
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isPollingRef = useRef<boolean>(false);
   const [isLoadingTests, setIsLoadingTests] = useState(false);
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
   const [isDeletingTest, setIsDeletingTest] = useState(false);
@@ -839,9 +843,33 @@ export default function TestSimulationPage() {
     }
   };
 
-  // Poll test status from API
+  // Stop polling function
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    isPollingRef.current = false;
+  };
+
+  // Poll test status from API - Fixed to prevent multiple intervals and race conditions
   const pollTestStatus = (testId: string) => {
-    const interval = setInterval(async () => {
+    // Stop any existing polling first
+    stopPolling();
+    
+    // Set polling flag
+    isPollingRef.current = true;
+    
+    // Track the last progress value to detect if progress is going backwards
+    let lastProgress = -1;
+    let progressBackwardsCount = 0;
+    
+    const poll = async () => {
+      // Check if polling should continue
+      if (!isPollingRef.current) {
+        return;
+      }
+      
       try {
         const response = await fetch(`/api/test-simulation/status/${testId}`);
         if (!response.ok) {
@@ -851,24 +879,54 @@ export default function TestSimulationPage() {
 
         const status = await response.json();
 
-        // Debug logging to see what data structure is received
-        console.log("📈 Test Status Update Received:", {
-          status: status.status,
-          progress: status.progress,
-          metrics: status.metrics,
-          methodComparison: status.methodComparison,
-          sampleQuestions: status.questions?.slice(0, 2), // Log first 2 questions for debugging
-        });
+        // Validate progress - should not go backwards
+        const currentProgress = status.progress || 0;
+        if (lastProgress > 0 && currentProgress < lastProgress) {
+          progressBackwardsCount++;
+          console.warn(`⚠️ Progress went backwards: ${lastProgress} -> ${currentProgress} (count: ${progressBackwardsCount})`);
+          
+          // If progress goes backwards multiple times, something is wrong
+          if (progressBackwardsCount > 3) {
+            console.error("❌ Progress going backwards repeatedly - stopping polling");
+            stopPolling();
+            setIsRunning(false);
+            setError("Progress tracking error detected");
+            return;
+          }
+          
+          // Use the last known good progress value
+          status.progress = lastProgress;
+        } else {
+          // Progress is valid, update lastProgress and reset counter
+          lastProgress = currentProgress;
+          progressBackwardsCount = 0;
+        }
 
-        // Update current test with API data
+        // Debug logging (reduced frequency)
+        if (Math.random() < 0.1) { // Log only 10% of updates to reduce console spam
+          console.log("📈 Test Status Update:", {
+            status: status.status,
+            progress: status.progress,
+            currentQuestion: status.currentQuestion,
+            totalQuestions: status.totalQuestions,
+          });
+        }
+
+        // Update current test with API data - use functional update to prevent race conditions
         setCurrentTest((prevTest) => {
-          if (!prevTest) return null;
+          // If no previous test or test ID doesn't match, don't update
+          if (!prevTest || prevTest.testId !== testId) {
+            return prevTest;
+          }
+
+          // Ensure progress only moves forward
+          const safeProgress = Math.max(prevTest.progress || 0, status.progress || 0);
 
           const updatedTest = {
             ...prevTest,
-            progress: status.progress,
+            progress: safeProgress,
             status: status.status,
-            endTime: status.endTime,
+            endTime: status.endTime || prevTest.endTime,
             executionTime: status.executionTime || prevTest.executionTime,
             metrics: status.metrics || prevTest.metrics,
             methodComparison:
@@ -877,25 +935,9 @@ export default function TestSimulationPage() {
               status.benchmarkComparison || prevTest.benchmarkComparison,
             questions: status.questions || prevTest.questions,
             testType: status.testType || prevTest.testType,
-            detailedResultsUrl: status.detailedResultsUrl,
-            detailedResultsAvailable: status.detailedResultsAvailable,
+            detailedResultsUrl: status.detailedResultsUrl || prevTest.detailedResultsUrl,
+            detailedResultsAvailable: status.detailedResultsAvailable ?? prevTest.detailedResultsAvailable,
           };
-
-          // Debug similarity data structure
-          if (status.methodComparison) {
-            console.log("🔍 Method Comparison Similarity Data:", {
-              eduBars: {
-                similarity: status.methodComparison.eduBars?.similarity,
-                answerQualitySimilarity:
-                  status.methodComparison.eduBars?.answerQualitySimilarity,
-              },
-              basicRag: {
-                similarity: status.methodComparison.basicRag?.similarity,
-                answerQualitySimilarity:
-                  status.methodComparison.basicRag?.answerQualitySimilarity,
-              },
-            });
-          }
 
           return updatedTest;
         });
@@ -906,7 +948,7 @@ export default function TestSimulationPage() {
           status.status === "failed" ||
           status.status === "stopped"
         ) {
-          clearInterval(interval);
+          stopPolling();
           setIsRunning(false);
 
           if (status.status === "completed") {
@@ -922,9 +964,33 @@ export default function TestSimulationPage() {
       } catch (error) {
         console.error("Error polling test status:", error);
         // Don't stop polling on error, just log it
+        // But if we get too many errors, stop polling
+        if (error instanceof Error && error.message.includes("fetch")) {
+          // Network error - might be temporary, continue polling
+        }
       }
-    }, 2000); // Poll every 2 seconds
+    };
+    
+    // Initial poll
+    poll();
+    
+    // Set up interval
+    pollingIntervalRef.current = setInterval(poll, 2000); // Poll every 2 seconds
   };
+  
+  // Cleanup polling on component unmount or when test changes
+  useEffect(() => {
+    return () => {
+      stopPolling();
+    };
+  }, []);
+  
+  // Stop polling when currentTest changes to null or different test
+  useEffect(() => {
+    if (!currentTest || currentTest.status === "completed" || currentTest.status === "failed" || currentTest.status === "stopped") {
+      stopPolling();
+    }
+  }, [currentTest?.testId, currentTest?.status]);
 
   const stopTest = async () => {
     if (currentTest) {
