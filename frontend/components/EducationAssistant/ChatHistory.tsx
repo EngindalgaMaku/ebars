@@ -759,7 +759,7 @@ export default function ChatHistory({
                 style={{ scrollBehavior: "smooth" }}
               >
                 {selectedMessage ? (
-                  <div className="max-w-4xl mx-auto">
+                  <div className="w-full">
                     {renderMessage(
                       selectedMessage,
                       selectedMessageTuple?.index ?? 0
