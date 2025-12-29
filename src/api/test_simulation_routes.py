@@ -1580,6 +1580,13 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                 logger.warning(f"Result missing metrics: {result.keys()}")
                 continue
             
+            # Extract semantic_similarity from nested similarity object if needed
+            # metrics_data.similarity.semanticSimilarity -> metrics_data.semantic_similarity for consistency
+            if "semantic_similarity" not in metrics_data and "similarity" in metrics_data:
+                similarity_obj = metrics_data.get("similarity", {})
+                if isinstance(similarity_obj, dict) and "semanticSimilarity" in similarity_obj:
+                    metrics_data["semantic_similarity"] = similarity_obj["semanticSimilarity"]
+            
             if method not in results_by_method:
                 results_by_method[method] = []
             results_by_method[method].append(metrics_data)
@@ -1630,6 +1637,11 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                     avg_rouge_2 = sum(rouge_2_scores) / len(rouge_2_scores) if rouge_2_scores else None
                     avg_f1 = sum(f1_scores) / len(f1_scores) if f1_scores else None
                     
+                    # CRITICAL: For accuracy, ALWAYS use answer_quality_similarity if available (fair comparison)
+                    # avg_semantic comes from similarity_metrics.semanticSimilarity which is the same as answer_quality_similarity
+                    # But we prefer answer_quality_values directly to ensure consistency
+                    avg_answer_quality = sum(answer_quality_values) / len(answer_quality_values) if answer_quality_values else None
+                    
                     method_comparison[method] = {
                         # For llmOnly method, cosineSimilarity is None (no retrieval performed)
                         # For semantic similarity tests, cosineSimilarity should be None (no retrieval)
@@ -1640,11 +1652,11 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                             )
                         ),
                         "avgResponseTime": sum(response_time_values) / len(response_time_values) if response_time_values else 0.0,
-                        # Accuracy: Use answer quality (semantic similarity vs ground truth) for ALL methods for fair comparison
-                        # This ensures we're comparing the same thing: how well the answer matches ground truth
-                        # For RAG methods, we can also show retrieval quality (cosine similarity) separately
-                        "accuracy": (avg_semantic * 100 if avg_semantic is not None else 
-                                   (sum(answer_quality_values) / len(answer_quality_values) * 100 if answer_quality_values else 
+                        # Accuracy: ALWAYS use answer_quality_similarity for ALL methods (fair comparison - same metric for all)
+                        # This ensures we compare how well each method's answer matches ground truth
+                        # avg_semantic is same as answer_quality when ground truth exists, but prefer answer_quality for clarity
+                        "accuracy": (avg_answer_quality * 100 if avg_answer_quality is not None else 
+                                   (avg_semantic * 100 if avg_semantic is not None else 
                                     (sum(cosine_similarity_values) / len(cosine_similarity_values) * 100 if cosine_similarity_values and not is_llm_only_method else 0.0))),
                         "answerQualitySimilarity": sum(answer_quality_values) / len(answer_quality_values) if answer_quality_values else None,  # Answer quality (LLM response vs ground truth)
                         "answerQualityAvailable": len(answer_quality_values),  # Number of questions with ground truth
@@ -1704,11 +1716,20 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                 continue
             
             # Extract metrics from result
+            metrics_obj = None
             if "metrics" in result:
-                all_metrics.append(result["metrics"])
+                metrics_obj = result["metrics"]
             elif "similarity" in result or "cosine_similarity" in result:
                 # Direct metrics object (semantic similarity test format)
-                all_metrics.append(result)
+                metrics_obj = result
+            
+            if metrics_obj:
+                # Extract semantic_similarity from nested similarity object if needed
+                if "semantic_similarity" not in metrics_obj and "similarity" in metrics_obj:
+                    similarity_obj = metrics_obj.get("similarity", {})
+                    if isinstance(similarity_obj, dict) and "semanticSimilarity" in similarity_obj:
+                        metrics_obj["semantic_similarity"] = similarity_obj["semanticSimilarity"]
+                all_metrics.append(metrics_obj)
         
         if all_metrics:
             # Filter out zero similarity results for overall metrics (chart visualization)
