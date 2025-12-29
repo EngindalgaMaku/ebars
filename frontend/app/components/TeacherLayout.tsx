@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import NotificationSystem from "@/components/NotificationSystem";
 
 export type TabType =
   | "dashboard"
@@ -515,23 +514,20 @@ function TeacherLayout({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 lg:px-6 z-30 h-16 flex-shrink-0 m-0">
+        <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 z-30 h-16 flex-shrink-0 m-0 lg:hidden">
           <div className="flex items-center gap-4 flex-1">
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden min-h-[44px] min-w-[44px] touch-manipulation"
+              className="min-h-[44px] min-w-[44px] touch-manipulation"
               onClick={() => setSidebarOpen(true)}
             >
               <Menu className="h-5 w-5" />
             </Button>
           </div>
           <div className="flex items-center gap-2">
-            {/* Notification System - Both Mobile and Desktop */}
-            <NotificationSystem />
-
             {/* User Menu Dropdown - Mobile Header */}
-            <div className="relative lg:hidden">
+            <div className="relative">
               <Button
                 variant="ghost"
                 className="flex items-center gap-2 h-auto p-2 hover:bg-gray-100 dark:hover:bg-gray-700 min-h-[44px] touch-manipulation"
