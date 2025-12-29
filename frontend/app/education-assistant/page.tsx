@@ -131,7 +131,7 @@ function EducationAssistantContent() {
         {/* Header Section */}
         <div className="mb-8">
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
@@ -187,38 +187,6 @@ function EducationAssistantContent() {
                       ? selectedEmbeddingModel.split("/").pop() ||
                         selectedEmbeddingModel
                       : "Seçilmedi"}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-100 rounded-lg">
-                  <svg
-                    className="w-5 h-5 text-orange-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M13 10V3L4 14h7v7l9-11h-7z"
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-600">Rerank Modeli</div>
-                  <div className="text-lg font-bold text-gray-800">
-                    {useDirectLLM
-                      ? "Direkt AI"
-                      : useRerankerService
-                      ? selectedRerankerType === "ms-marco"
-                        ? "gte-rerank-v2 (Alibaba)"
-                        : selectedRerankerType || "Reranker"
-                      : "Standart RAG"}
                   </div>
                 </div>
               </div>

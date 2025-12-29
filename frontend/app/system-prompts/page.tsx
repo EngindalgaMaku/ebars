@@ -10,7 +10,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Loader2, Save, RotateCcw, Wand2 } from "lucide-react";
@@ -39,16 +38,45 @@ export default function SystemPromptsPage() {
   const hasAccess = isAdmin || isTeacher;
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [activeType, setActiveType] = useState<"rag" | "rag_user" | "direct">("rag");
-  const [activeLang, setActiveLang] = useState<Lang>("tr");
 
   const [defaults, setDefaults] = useState<PromptBundle | null>(null);
   const [current, setCurrent] = useState<PromptBundle | null>(null);
+  const [jsonText, setJsonText] = useState<string>("");
+  const [jsonError, setJsonError] = useState<string | null>(null);
 
-  const editorValue = useMemo(() => {
-    if (!current) return "";
-    return current[activeType][activeLang] || "";
-  }, [current, activeType, activeLang]);
+  const formatJson = (val: any) => JSON.stringify(val, null, 2);
+
+  const validatePromptBundle = (obj: any): obj is PromptBundle => {
+    const types = ["rag", "rag_user", "direct"] as const;
+    for (const t of types) {
+      if (!obj || typeof obj !== "object" || typeof obj[t] !== "object") return false;
+      if (typeof obj[t].tr !== "string") return false;
+      if (typeof obj[t].en !== "string") return false;
+    }
+    return true;
+  };
+
+  const parsedJson = useMemo(() => {
+    if (!jsonText.trim()) {
+      setJsonError("JSON boş olamaz");
+      return null;
+    }
+
+    try {
+      const obj = JSON.parse(jsonText);
+      if (!validatePromptBundle(obj)) {
+        setJsonError(
+          "Şema hatası: JSON şu alanları içermeli: rag.tr, rag.en, rag_user.tr, rag_user.en, direct.tr, direct.en"
+        );
+        return null;
+      }
+      setJsonError(null);
+      return obj as PromptBundle;
+    } catch (e: any) {
+      setJsonError(e?.message || "Geçersiz JSON");
+      return null;
+    }
+  }, [jsonText]);
 
   const load = async () => {
     setLoading(true);
@@ -57,6 +85,7 @@ export default function SystemPromptsPage() {
       if (!resp?.success) throw new Error("Promptlar yüklenemedi");
       setDefaults(resp.defaults);
       setCurrent(resp.effective);
+      setJsonText(formatJson(resp.effective));
     } catch (e: any) {
       toast.error(e?.message || "Promptlar yüklenemedi");
     } finally {
@@ -71,13 +100,17 @@ export default function SystemPromptsPage() {
   }, [hasAccess]);
 
   const save = async () => {
-    if (!current) return;
+    if (!parsedJson) {
+      toast.error(jsonError || "Geçersiz JSON");
+      return;
+    }
     setSaving(true);
     try {
-      const resp = await api.put<GetResponse>("/system-prompts", current);
+      const resp = await api.put<GetResponse>("/system-prompts", parsedJson);
       if (!resp?.success) throw new Error("Kaydedilemedi");
       setDefaults(resp.defaults);
       setCurrent(resp.effective);
+      setJsonText(formatJson(resp.effective));
       toast.success("Promptlar kaydedildi");
     } catch (e: any) {
       toast.error(e?.message || "Kaydedilemedi");
@@ -94,6 +127,7 @@ export default function SystemPromptsPage() {
       if (!resp?.success) throw new Error("Sıfırlanamadı");
       setDefaults(resp.defaults);
       setCurrent(resp.effective);
+      setJsonText(formatJson(resp.effective));
       toast.success("Varsayılan promptlara dönüldü");
     } catch (e: any) {
       toast.error(e?.message || "Sıfırlanamadı");
@@ -102,15 +136,22 @@ export default function SystemPromptsPage() {
     }
   };
 
-  const resetCurrentEditorToDefault = () => {
-    if (!defaults || !current) return;
-    setCurrent({
-      ...current,
-      [activeType]: {
-        ...current[activeType],
-        [activeLang]: defaults[activeType][activeLang],
-      },
-    });
+  const loadDefaultsIntoEditor = () => {
+    if (!defaults) return;
+    setJsonText(formatJson(defaults));
+  };
+
+  const loadEffectiveIntoEditor = () => {
+    if (!current) return;
+    setJsonText(formatJson(current));
+  };
+
+  const prettyPrintEditor = () => {
+    if (!parsedJson) {
+      toast.error(jsonError || "Geçersiz JSON");
+      return;
+    }
+    setJsonText(formatJson(parsedJson));
   };
 
   if (!hasAccess) {
@@ -167,71 +208,42 @@ export default function SystemPromptsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Wand2 className="h-5 w-5" />
-              Prompt Editörü
+              Prompt JSON Editörü
             </CardTitle>
             <CardDescription>
-              `rag` promptu RAG sistem promptudur. `rag_user` promptu RAG kullanıcı (context+query) şablonudur. `direct` promptu direkt (genel bilgi) modunda kullanılır.
+              JSON formatında tüm prompt setini düzenleyin. Kaydetmeden önce JSON formatı ve şema doğrulanır.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Prompt Tipi</Label>
-                <Tabs value={activeType} onValueChange={(v) => setActiveType(v as any)}>
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="rag">RAG</TabsTrigger>
-                    <TabsTrigger value="rag_user">RAG User</TabsTrigger>
-                    <TabsTrigger value="direct">Direct</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-              <div className="space-y-2">
-                <Label>Dil</Label>
-                <Tabs value={activeLang} onValueChange={(v) => setActiveLang(v as Lang)}>
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="tr">Türkçe</TabsTrigger>
-                    <TabsTrigger value="en">English</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-            </div>
-
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <Label>Template</Label>
-                <Button variant="outline" size="sm" onClick={resetCurrentEditorToDefault}>
-                  Varsayılanı Yükle
-                </Button>
+                <Label>JSON</Label>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={loadEffectiveIntoEditor}>
+                    Mevcut Değeri Yükle
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={loadDefaultsIntoEditor}>
+                    Varsayılanı Yükle
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={prettyPrintEditor}>
+                    Formatla
+                  </Button>
+                </div>
               </div>
               <Textarea
-                value={editorValue}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setCurrent({
-                    ...current,
-                    [activeType]: {
-                      ...current[activeType],
-                      [activeLang]: val,
-                    },
-                  });
-                }}
-                className="min-h-[320px] font-mono text-sm"
+                value={jsonText}
+                onChange={(e) => setJsonText(e.target.value)}
+                className={`min-h-[420px] font-mono text-sm ${
+                  jsonError ? "border-red-400 focus-visible:ring-red-400" : ""
+                }`}
               />
-              <div className="text-xs text-gray-500">
-                {activeType === "rag" ? (
-                  <>
-                    Kullanılabilen placeholder'lar (RAG System): <code>{"{session_context}"}</code> ve <code>{"{course_scope_instruction}"}</code>. Bu template'lerde bu format korunmalıdır.
-                  </>
-                ) : activeType === "rag_user" ? (
-                  <>
-                    Kullanılabilen placeholder'lar (RAG User): <code>{"{context}"}</code> ve <code>{"{query}"}</code>. Bu template'lerde bu format korunmalıdır.
-                  </>
-                ) : (
-                  <>
-                    Direct prompt genel bilgi modunda kullanılır.
-                  </>
-                )}
-              </div>
+              {jsonError ? (
+                <div className="text-xs text-red-600">{jsonError}</div>
+              ) : (
+                <div className="text-xs text-gray-500">
+                  Placeholder notları: RAG System için <code>{"{session_context}"}</code> ve <code>{"{course_scope_instruction}"}</code>. RAG User için <code>{"{context}"}</code> ve <code>{"{query}"}</code>.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
