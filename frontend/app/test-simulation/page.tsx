@@ -1886,11 +1886,11 @@ export default function TestSimulationPage() {
                         </div>
                       </div>
 
-                      {/* EduBars Results */}
+                      {/* AkıllıRehber Results */}
                       <div className="border rounded-lg p-4 bg-green-50">
                         <h4 className="font-semibold mb-2 flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                          EduBars Full System (Rerankerli)
+                          AkıllıRehber Full System (Rerankerli)
                         </h4>
                         <div className="space-y-2 text-sm">
                           <div>
@@ -2113,7 +2113,7 @@ export default function TestSimulationPage() {
                                 )}
                               </div>
                               <div>
-                                EduBars: {singleQueryResult.edubars_full_system.sources.length} kaynak
+                                AkıllıRehber: {singleQueryResult.edubars_full_system.sources.length} kaynak
                                 {singleQueryResult.analysis.edubars_avg_score !== undefined && (
                                   <span className="ml-2">
                                     (Ortalama: {singleQueryResult.analysis.edubars_avg_score.toFixed(4)})
@@ -2398,7 +2398,7 @@ export default function TestSimulationPage() {
                                   >
                                     <div className="text-sm font-medium text-gray-700 mb-2">
                                       {method === "eduBars"
-                                        ? "EduBars"
+                                        ? "AkıllıRehber"
                                         : method === "basicRag"
                                         ? "Basic RAG"
                                         : method === "llmOnly"
