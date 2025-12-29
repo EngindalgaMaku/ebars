@@ -80,6 +80,51 @@ export default function ChatHistory({
   const messages = isStudent ? studentMessages : chatHistory;
   const isLoading = isStudent ? studentChatLoading : isQuerying;
 
+  const [selectedMessageKey, setSelectedMessageKey] = useState<string | null>(
+    null
+  );
+  const [historySearch, setHistorySearch] = useState("");
+
+  const getMessageKey = (message: any, index: number) =>
+    String(message?.id ?? message?.interactionId ?? index);
+
+  const filteredMessages = messages
+    .map((message: any, index: number) => ({ message, index }))
+    .filter(({ message }) => {
+      const q = String(message?.user ?? "").toLowerCase();
+      const a = String(message?.bot ?? "").toLowerCase();
+      const s = historySearch.trim().toLowerCase();
+      if (!s) return true;
+      return q.includes(s) || a.includes(s);
+    });
+
+  const selectedMessageTuple = filteredMessages.find(
+    ({ message, index }) => getMessageKey(message, index) === selectedMessageKey
+  );
+
+  const selectedMessage = selectedMessageTuple?.message;
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      setSelectedMessageKey(null);
+      return;
+    }
+
+    if (selectedMessageKey == null) {
+      const last = messages[messages.length - 1];
+      setSelectedMessageKey(getMessageKey(last, messages.length - 1));
+      return;
+    }
+
+    const stillExists = messages.some(
+      (m: any, i: number) => getMessageKey(m, i) === selectedMessageKey
+    );
+    if (!stillExists) {
+      const last = messages[messages.length - 1];
+      setSelectedMessageKey(getMessageKey(last, messages.length - 1));
+    }
+  }, [messages, selectedMessageKey]);
+
   // Handle clear chat history with confirmation
   const handleClearHistory = () => {
     if (!clearChatHistory || messages.length === 0) return;
@@ -579,17 +624,11 @@ export default function ChatHistory({
         </div>
       )}
 
-      <div
-        ref={chatContainerRef}
-        id="chat-history-container"
-        className="flex-1 min-h-[50vh] max-h-[70vh] overflow-y-auto bg-gradient-to-b from-indigo-50/40 to-white rounded-xl border border-gray-200 p-4 scroll-smooth"
-        onScroll={handleScroll}
-        style={{ scrollBehavior: "smooth" }}
-      >
+      <div className="flex-1 min-h-[50vh] max-h-[75vh] rounded-xl border border-gray-200 overflow-hidden bg-white">
         {/* Empty State */}
         {messages.length === 0 && !isLoading && (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center py-16">
+          <div className="flex items-center justify-center h-full bg-gradient-to-b from-indigo-50/40 to-white">
+            <div className="text-center py-16 px-6">
               <div className="text-6xl mb-4">🎓</div>
               <h3 className="text-xl font-semibold text-gray-700 mb-2">
                 {isStudent
@@ -605,12 +644,144 @@ export default function ChatHistory({
           </div>
         )}
 
-        {/* Messages - Gemini-style vertical layout (oldest to newest) */}
-        <div className="flex flex-col space-y-6">
-          {messages.map((message, index) => renderMessage(message, index))}
-        </div>
+        {messages.length > 0 && (
+          <div className="h-full grid grid-cols-1 lg:grid-cols-12">
+            {/* History list */}
+            <div className="lg:col-span-4 xl:col-span-3 border-b lg:border-b-0 lg:border-r border-gray-200 bg-gradient-to-b from-gray-50 to-white">
+              <div className="p-3 border-b border-gray-200 bg-white/80 backdrop-blur">
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-semibold text-gray-700">
+                    Geçmiş
+                  </div>
+                  <div className="ml-auto text-xs text-gray-500">
+                    {filteredMessages.length}/{messages.length}
+                  </div>
+                </div>
+                <div className="mt-2 relative">
+                  <input
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    placeholder="Ara (soru/cevap)"
+                    className="w-full px-3 py-2 pr-9 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                    🔎
+                  </div>
+                </div>
+              </div>
 
-        {/* Loading indicator removed - shown in QueryForm instead to avoid duplicate animations */}
+              <div className="max-h-[75vh] overflow-y-auto">
+                {filteredMessages.length === 0 ? (
+                  <div className="p-6 text-center text-sm text-gray-500">
+                    Arama sonucu bulunamadı.
+                  </div>
+                ) : (
+                  <div className="p-2 space-y-2">
+                    {filteredMessages
+                      .slice()
+                      .reverse()
+                      .map(({ message, index }) => {
+                        const key = getMessageKey(message, index);
+                        const isSelected = key === selectedMessageKey;
+                        const question = String(message?.user ?? "").trim();
+                        const answer = String(message?.bot ?? "").trim();
+                        const preview =
+                          answer === "..."
+                            ? "Yanıt hazırlanıyor..."
+                            : answer.replace(/\s+/g, " ").slice(0, 90);
+                        const sourceCount = message?.sources?.length ?? 0;
+
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSelectedMessageKey(key)}
+                            className={`w-full text-left rounded-xl border transition-all px-3 py-3 group focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                              isSelected
+                                ? "border-indigo-300 bg-indigo-50 shadow-sm"
+                                : "border-gray-200 bg-white hover:bg-gray-50"
+                            }`}
+                            title="Görüntülemek için seç"
+                          >
+                            <div className="flex items-start gap-2">
+                              <div className="mt-0.5 text-lg">
+                                {isStudent ? "👨‍🎓" : "👨‍🏫"}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="text-sm font-semibold text-gray-800 truncate">
+                                    {question || "(Boş soru)"}
+                                  </div>
+                                  {message?.timestamp && (
+                                    <div className="text-[11px] text-gray-500 whitespace-nowrap">
+                                      {formatTimestamp(message.timestamp)}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="mt-1 text-xs text-gray-600 overflow-hidden text-ellipsis max-h-10 leading-5">
+                                  {preview || "(Boş cevap)"}
+                                </div>
+                                <div className="mt-2 flex items-center gap-2">
+                                  <span
+                                    className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                                      sourceCount > 0
+                                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                                        : "bg-gray-50 text-gray-600 border-gray-200"
+                                    }`}
+                                  >
+                                    {sourceCount > 0
+                                      ? `${sourceCount} kaynak`
+                                      : "Kaynak yok"}
+                                  </span>
+                                  {message?.durationMs != null && (
+                                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                      {message.durationMs} ms
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Selected content */}
+            <div className="lg:col-span-8 xl:col-span-9 bg-gradient-to-b from-indigo-50/30 to-white">
+              <div
+                ref={chatContainerRef}
+                id="chat-history-container"
+                className="h-full overflow-y-auto p-4 lg:p-6 scroll-smooth"
+                onScroll={handleScroll}
+                style={{ scrollBehavior: "smooth" }}
+              >
+                {selectedMessage ? (
+                  <div className="max-w-4xl mx-auto">
+                    {renderMessage(
+                      selectedMessage,
+                      selectedMessageTuple?.index ?? 0
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center py-16 px-6">
+                      <div className="text-4xl mb-3">🗂️</div>
+                      <div className="text-lg font-semibold text-gray-700">
+                        Kayıt seçin
+                      </div>
+                      <div className="mt-1 text-sm text-gray-500">
+                        Sol taraftan bir soru seçerek detaylarını görüntüleyin.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Scroll to Bottom Button */}
