@@ -1531,15 +1531,20 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         test_data["progress"] = progress_percentage
     
     # Calculate metrics and method comparison
+    # Initialize with empty/default values - will be populated if results exist
     method_comparison = {}
     metrics = {
         "cosineSimilarity": 0,
         "avgResponseTime": 0,
-        "totalQuestions": test_data["total_questions"],
-        "correctAnswers": 0
+        "totalQuestions": test_data.get("total_questions", 0),
+        "correctAnswers": 0,
+        "successfulQueries": 0,
+        "totalQueries": 0
     }
     
-    if test_data.get("results"):
+    # Only calculate if we have results
+    results = test_data.get("results", [])
+    if results and len(results) > 0:
         results_by_method = {}
         for result in test_data["results"]:
             # Handle case where result might be a JSON string
@@ -1681,7 +1686,7 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         # Overall metrics
         # Parse results safely (handle JSON strings)
         all_metrics = []
-        for result in test_data["results"]:
+        for result in results:
             # Handle case where result might be a JSON string
             if isinstance(result, str):
                 try:
@@ -1712,7 +1717,7 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
             # A question is "correct" if at least one methodology has max_similarity > 0.5
             unique_questions = set()
             correct_questions = set()
-            for result in test_data["results"]:
+            for result in results:
                 # Handle case where result might be a JSON string
                 if isinstance(result, str):
                     try:
@@ -1780,10 +1785,9 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     execution_time_info = calculate_execution_time(test_data)
     
     # Prepare per-question results for frontend display
-    all_results = test_data.get("results", [])
     questions_data = {}
     
-    for result in all_results:
+    for result in results:
         # Handle case where result might be a JSON string
         if isinstance(result, str):
             try:
@@ -1833,10 +1837,11 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     # Convert to list sorted by question_id
     questions_list = sorted(questions_data.values(), key=lambda x: x["question_id"])
     
-    return {
+    # Prepare response - ensure all fields are present even if empty
+    response_data = {
         "success": True,
         "testId": test_id,
-        "status": test_data["status"],
+        "status": test_data.get("status", "unknown"),
         "progress": round(progress_percentage, 1),
         "startTime": test_data.get("start_time"),
         "endTime": test_data.get("end_time"),
@@ -1851,8 +1856,20 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         "testType": test_data.get("test_type", "standard"),
         # Link to even more detailed endpoint (with document-level similarity)
         "detailedResultsUrl": f"/api/test-simulation/results/{test_id}/detailed",
-        "detailedResultsAvailable": True
+        "detailedResultsAvailable": len(results) > 0,
+        # Additional debug info
+        "currentQuestion": test_data.get("current_question", 0),
+        "totalQuestions": test_data.get("total_questions", 0),
+        "resultsCount": len(results),
+        "currentMethodology": test_data.get("current_methodology"),
+        "completedMethodologies": test_data.get("completed_methodologies", [])
     }
+    
+    # Log response for debugging (only if running)
+    if test_data.get("status") == "running":
+        logger.debug(f"Status response for {test_id}: progress={progress_percentage:.1f}%, results={len(results)}, methods={list(method_comparison.keys())}")
+    
+    return response_data
 
 @router.get("/list", summary="List All Tests")
 async def list_all_tests(

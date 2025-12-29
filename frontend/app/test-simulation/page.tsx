@@ -860,10 +860,6 @@ export default function TestSimulationPage() {
     // Set polling flag
     isPollingRef.current = true;
     
-    // Track the last progress value to detect if progress is going backwards
-    let lastProgress = -1;
-    let progressBackwardsCount = 0;
-    
     const poll = async () => {
       // Check if polling should continue
       if (!isPollingRef.current) {
@@ -879,34 +875,19 @@ export default function TestSimulationPage() {
 
         const status = await response.json();
 
-        // Validate progress - should not go backwards
-        const currentProgress = status.progress || 0;
-        if (lastProgress > 0 && currentProgress < lastProgress) {
-          progressBackwardsCount++;
-          console.warn(`⚠️ Progress went backwards: ${lastProgress} -> ${currentProgress} (count: ${progressBackwardsCount})`);
-          
-          // If progress goes backwards multiple times, something is wrong
-          if (progressBackwardsCount > 3) {
-            console.error("❌ Progress going backwards repeatedly - stopping polling");
-            stopPolling();
-            setIsRunning(false);
-            setError("Progress tracking error detected");
-            return;
-          }
-          
-          // Use the last known good progress value
-          status.progress = lastProgress;
-        } else {
-          // Progress is valid, update lastProgress and reset counter
-          lastProgress = currentProgress;
-          progressBackwardsCount = 0;
-        }
-
-        // Debug logging (reduced frequency)
-        if (Math.random() < 0.1) { // Log only 10% of updates to reduce console spam
+        // Debug logging (only log when there's actual data or status changes)
+        const hasData = (status.metrics && Object.keys(status.metrics).length > 0) || 
+                       (status.methodComparison && Object.keys(status.methodComparison).length > 0) ||
+                       (status.questions && status.questions.length > 0);
+        
+        if (hasData || Math.random() < 0.2) { // Log 20% of updates or when data is present
           console.log("📈 Test Status Update:", {
             status: status.status,
             progress: status.progress,
+            metricsCount: status.metrics ? Object.keys(status.metrics).length : 0,
+            methodComparisonCount: status.methodComparison ? Object.keys(status.methodComparison).length : 0,
+            questionsCount: status.questions ? status.questions.length : 0,
+            resultsCount: status.resultsCount,
             currentQuestion: status.currentQuestion,
             totalQuestions: status.totalQuestions,
           });
@@ -919,21 +900,29 @@ export default function TestSimulationPage() {
             return prevTest;
           }
 
-          // Ensure progress only moves forward
+          // Ensure progress only moves forward (use max to prevent backwards progress)
           const safeProgress = Math.max(prevTest.progress || 0, status.progress || 0);
 
+          // Always use latest data from API - don't fallback to prevTest if API has data
           const updatedTest = {
             ...prevTest,
             progress: safeProgress,
             status: status.status,
             endTime: status.endTime || prevTest.endTime,
             executionTime: status.executionTime || prevTest.executionTime,
-            metrics: status.metrics || prevTest.metrics,
-            methodComparison:
-              status.methodComparison || prevTest.methodComparison,
-            benchmarkComparison:
-              status.benchmarkComparison || prevTest.benchmarkComparison,
-            questions: status.questions || prevTest.questions,
+            // Always use API data if available, otherwise keep previous
+            metrics: status.metrics && Object.keys(status.metrics).length > 0 
+              ? status.metrics 
+              : prevTest.metrics,
+            methodComparison: status.methodComparison && Object.keys(status.methodComparison).length > 0
+              ? status.methodComparison
+              : prevTest.methodComparison,
+            benchmarkComparison: status.benchmarkComparison
+              ? status.benchmarkComparison
+              : prevTest.benchmarkComparison,
+            questions: status.questions && status.questions.length > 0
+              ? status.questions
+              : prevTest.questions,
             testType: status.testType || prevTest.testType,
             detailedResultsUrl: status.detailedResultsUrl || prevTest.detailedResultsUrl,
             detailedResultsAvailable: status.detailedResultsAvailable ?? prevTest.detailedResultsAvailable,
