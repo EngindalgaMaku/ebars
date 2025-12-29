@@ -926,6 +926,8 @@ export default function TestSimulationPage() {
             testType: status.testType || prevTest.testType,
             detailedResultsUrl: status.detailedResultsUrl || prevTest.detailedResultsUrl,
             detailedResultsAvailable: status.detailedResultsAvailable ?? prevTest.detailedResultsAvailable,
+            // Include error info if available
+            error: (status as any).error || (prevTest as any).error,
           };
 
           return updatedTest;
@@ -2495,8 +2497,19 @@ export default function TestSimulationPage() {
 
           {/* Results Tab */}
           <TabsContent value="results" className="space-y-6">
-            {currentTest && currentTest.status === "completed" ? (
+            {currentTest && (currentTest.status === "completed" || (currentTest.status === "failed" && currentTest.questions && currentTest.questions.length > 0)) ? (
               <div className="space-y-6">
+                {/* Error Alert for Failed Tests with Results */}
+                {currentTest.status === "failed" && currentTest.questions && currentTest.questions.length > 0 && (
+                  <Alert className="border-yellow-200 bg-yellow-50">
+                    <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                    <AlertDescription className="text-yellow-800">
+                      <strong>Uyarı:</strong> Test başarısız olarak işaretlendi ancak sonuçlar mevcut. 
+                      {(currentTest as any).error && ` Hata: ${(currentTest as any).error}`}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
                 {/* Summary Card */}
                 <Card>
                   <CardHeader>
@@ -2504,6 +2517,9 @@ export default function TestSimulationPage() {
                       <CardTitle className="flex items-center gap-2">
                         <Award className="h-5 w-5" />
                         Test Özeti: {currentTest.testName}
+                        {currentTest.status === "failed" && (
+                          <Badge className="bg-yellow-500 ml-2">Başarısız (Sonuçlar Mevcut)</Badge>
+                        )}
                       </CardTitle>
                       <DataExportControls
                         testResult={currentTest}
@@ -3252,7 +3268,7 @@ export default function TestSimulationPage() {
 
           {/* Detailed Results Tab */}
           <TabsContent value="detailed" className="space-y-6">
-            {currentTest && currentTest.status === "completed" ? (
+            {currentTest && (currentTest.status === "completed" || (currentTest.status === "failed" && currentTest.questions && currentTest.questions.length > 0)) ? (
               currentTest.questions && currentTest.questions.length > 0 ? (
                 <div className="space-y-6">
                   {/* Comprehensive Question-by-Question Metrics Table */}

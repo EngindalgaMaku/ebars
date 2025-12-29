@@ -2685,11 +2685,22 @@ async def execute_full_test_simulation(
         
         # Store final results - CRITICAL: Save results before marking as completed
         test_data["results"] = all_results
-        _save_test_to_db(test_id, test_data)  # Save immediately after storing results
         
+        # Mark as completed BEFORE saving to ensure status is correct
         test_data["status"] = "completed"
         test_data["end_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        _save_test_to_db(test_id, test_data)  # Save again with completed status
+        test_data["progress"] = 100.0  # Ensure progress is 100%
+        
+        # Save with completed status - wrap in try/except to prevent status change if save fails
+        try:
+            _save_test_to_db(test_id, test_data)
+            TEST_RESULTS_STORAGE[test_id] = test_data
+        except Exception as save_error:
+            # If save fails, log but don't change status - test actually completed
+            logger.warning(f"Failed to save completed status for test {test_id}: {save_error}")
+            logger.warning(f"Test {test_id} completed successfully but save failed - status remains 'completed'")
+            # Still update memory cache
+            TEST_RESULTS_STORAGE[test_id] = test_data
         
         logger.info(f"Test simulation {test_id} completed successfully with {len(all_results)} results")
         logger.info(f"Test results saved: {len(all_results)} total results stored")
@@ -2700,9 +2711,35 @@ async def execute_full_test_simulation(
         logger.error(f"Test simulation {test_id} failed: {e}")
         logger.error(f"Traceback: {error_traceback}")
         
+        # Check if test was actually completed before the exception
+        # If results exist and test was running, it might have completed
+        test_data = TEST_RESULTS_STORAGE.get(test_id)
+        if not test_data:
+            # Test data doesn't exist - this is a real failure
+            logger.error(f"Test {test_id} failed - no test data found")
+            return
+        
+        # Check if we have results - if yes, test might have completed
+        if "all_results" in locals() and len(all_results) > 0:
+            # Test produced results - check if it was marked as completed
+            if test_data.get("status") == "completed":
+                # Test was already marked as completed - don't change status
+                logger.warning(f"Test {test_id} was already marked as completed - exception occurred after completion")
+                logger.warning(f"Exception: {e} - but test results are preserved")
+                # Just log the error but don't change status
+                test_data["error"] = f"Post-completion error: {str(e)}"
+                test_data["error_traceback"] = error_traceback
+                try:
+                    TEST_RESULTS_STORAGE[test_id] = test_data
+                    _save_test_to_db(test_id, test_data)
+                except:
+                    pass
+                return
+        
+        # Real failure - no results or test didn't complete
         test_data["status"] = "failed"
         test_data["error"] = str(e)
-        test_data["error_traceback"] = error_traceback  # Store full traceback for debugging
+        test_data["error_traceback"] = error_traceback
         test_data["end_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         
         # Save any partial results that were collected before the failure
