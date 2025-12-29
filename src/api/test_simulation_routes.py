@@ -1865,6 +1865,11 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         "completedMethodologies": test_data.get("completed_methodologies", [])
     }
     
+    # Include error info if test failed
+    if test_data.get("status") == "failed":
+        response_data["error"] = test_data.get("error", "Unknown error")
+        response_data["errorTraceback"] = test_data.get("error_traceback")
+    
     # Log response for debugging (only if running)
     if test_data.get("status") == "running":
         logger.debug(f"Status response for {test_id}: progress={progress_percentage:.1f}%, results={len(results)}, methods={list(method_comparison.keys())}")
@@ -2650,6 +2655,9 @@ async def execute_full_test_simulation(
                     else:
                         logger.error(f"Question {question_id} failed for {methodology}: {result.get('error', 'Unknown error')}")
                     
+                    # CRITICAL: Update test_data["results"] in real-time so frontend can see progress
+                    test_data["results"] = all_results.copy()
+                    
                     # Persist running progress so UI can track live - update after each question
                     try:
                         TEST_RESULTS_STORAGE[test_id] = test_data
@@ -2687,11 +2695,20 @@ async def execute_full_test_simulation(
         logger.info(f"Test results saved: {len(all_results)} total results stored")
         
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
         logger.error(f"Test simulation {test_id} failed: {e}")
+        logger.error(f"Traceback: {error_traceback}")
+        
         test_data["status"] = "failed"
         test_data["error"] = str(e)
+        test_data["error_traceback"] = error_traceback  # Store full traceback for debugging
         test_data["end_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
+        
+        # Save any partial results that were collected before the failure
+        if "results" not in test_data or not test_data.get("results"):
+            test_data["results"] = all_results if 'all_results' in locals() else []
+        
         # Persist failure so we don't leave a stale 'running' record in SQLite
         try:
             TEST_RESULTS_STORAGE[test_id] = test_data

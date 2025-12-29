@@ -944,8 +944,13 @@ export default function TestSimulationPage() {
             toast.success("Test tamamlandı!");
             setActiveTab("results");
           } else if (status.status === "failed") {
-            toast.error("Test başarısız!");
-            setError("Test execution failed");
+            const errorMsg = status.error || "Test execution failed";
+            toast.error(`Test başarısız: ${errorMsg}`);
+            setError(errorMsg);
+            // Log full error details to console
+            if (status.errorTraceback) {
+              console.error("Test error traceback:", status.errorTraceback);
+            }
           } else if (status.status === "stopped") {
             toast.info("Test durduruldu");
           }
@@ -2332,11 +2337,12 @@ export default function TestSimulationPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* Overall Metrics */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                         <div className="text-center p-4 bg-blue-50 rounded-lg">
                           <div className="text-lg font-bold text-blue-600">
                             {(
-                              currentTest.metrics.cosineSimilarity || 0
+                              currentTest.metrics?.cosineSimilarity || 0
                             ).toFixed(3)}
                           </div>
                           <div className="text-sm text-gray-600">
@@ -2346,7 +2352,7 @@ export default function TestSimulationPage() {
                         <div className="text-center p-4 bg-orange-50 rounded-lg">
                           <div className="text-lg font-bold text-orange-600">
                             {Math.round(
-                              currentTest.metrics.avgResponseTime || 0
+                              currentTest.metrics?.avgResponseTime || 0
                             )}
                             ms
                           </div>
@@ -2354,7 +2360,113 @@ export default function TestSimulationPage() {
                             Avg Response Time
                           </div>
                         </div>
+                        <div className="text-center p-4 bg-green-50 rounded-lg">
+                          <div className="text-lg font-bold text-green-600">
+                            {currentTest.metrics?.correctAnswers || 0}/
+                            {currentTest.metrics?.totalQuestions || 0}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            Doğru Cevap
+                          </div>
+                        </div>
+                        <div className="text-center p-4 bg-purple-50 rounded-lg">
+                          <div className="text-lg font-bold text-purple-600">
+                            {(currentTest.metrics as any)?.successfulQueries || 0}/
+                            {(currentTest.metrics as any)?.totalQueries || 0}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            Başarılı Sorgu
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Method Comparison - Real-time */}
+                      {currentTest.methodComparison &&
+                        Object.keys(currentTest.methodComparison).length > 0 && (
+                          <div className="border-t pt-4">
+                            <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                              Metot Karşılaştırması
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {Object.entries(currentTest.methodComparison).map(
+                                ([method, data]: [string, any]) => (
+                                  <div
+                                    key={method}
+                                    className="p-3 bg-gray-50 rounded-lg border"
+                                  >
+                                    <div className="text-sm font-medium text-gray-700 mb-2">
+                                      {method === "eduBars"
+                                        ? "EduBars"
+                                        : method === "basicRag"
+                                        ? "Basic RAG"
+                                        : method === "llmOnly"
+                                        ? "LLM Only"
+                                        : method}
+                                    </div>
+                                    <div className="space-y-1 text-xs">
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">
+                                          Similarity:
+                                        </span>
+                                        <span className="font-semibold">
+                                          {data.cosineSimilarity !== null &&
+                                          data.cosineSimilarity !== undefined
+                                            ? data.cosineSimilarity.toFixed(3)
+                                            : data.semanticSimilarity !== null &&
+                                              data.semanticSimilarity !==
+                                                undefined
+                                            ? data.semanticSimilarity.toFixed(3)
+                                            : "N/A"}
+                                        </span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">
+                                          Response Time:
+                                        </span>
+                                        <span className="font-semibold">
+                                          {Math.round(
+                                            data.avgResponseTime || 0
+                                          )}
+                                          ms
+                                        </span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">
+                                          Accuracy:
+                                        </span>
+                                        <span className="font-semibold">
+                                          {data.accuracy?.toFixed(1) || "0.0"}%
+                                        </span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-600">
+                                          Başarılı:
+                                        </span>
+                                        <span className="font-semibold">
+                                          {data.successfulQueries || 0}/
+                                          {data.totalQueries || 0}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      
+                      {/* Debug Info - Only show if no data yet */}
+                      {(!currentTest.methodComparison ||
+                        Object.keys(currentTest.methodComparison).length ===
+                          0) &&
+                        currentTest.status === "running" && (
+                          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <div className="text-sm text-yellow-800">
+                              ⏳ Metrikler henüz hesaplanıyor... Test ilerledikçe
+                              veriler burada görünecek.
+                            </div>
+                          </div>
+                        )}
                     </CardContent>
                   </Card>
                 )}
