@@ -470,18 +470,22 @@ export default function TestSimulationPage() {
       const status = await response.json();
 
       // Convert API response to TestResult format
+      // If test has results/questions, it should be considered completed even if status says otherwise
+      const hasResults = (status.questions && status.questions.length > 0) || (status.resultsCount && status.resultsCount > 0);
+      const finalStatus = hasResults && status.status === "running" ? "completed" : (status.status || "completed");
+      
       const testResult: TestResult = {
         testId: status.testId || testId,
         testName: status.testName || `Test ${testId.substring(0, 8)}`,
-        status: status.status || "completed",
-        progress: status.progress || 100,
+        status: finalStatus,
+        progress: status.progress || (hasResults ? 100 : 0),
         startTime: status.startTime || "",
         endTime: status.endTime,
         executionTime: status.executionTime,
         metrics: status.metrics || {
           cosineSimilarity: 0,
           avgResponseTime: 0,
-          totalQuestions: status.total_questions_in_results || 0,
+          totalQuestions: status.total_questions_in_results || status.totalQuestions || 0,
           correctAnswers: 0,
         },
         methodComparison: status.methodComparison || {
@@ -492,6 +496,8 @@ export default function TestSimulationPage() {
         benchmarkComparison: status.benchmarkComparison || {},
         testType: status.testType,
         questions: status.questions || [],
+        detailedResultsUrl: status.detailedResultsUrl,
+        detailedResultsAvailable: status.detailedResultsAvailable,
       };
 
       setCurrentTest(testResult);
@@ -3229,7 +3235,7 @@ export default function TestSimulationPage() {
                   </Card>
                 )}
               </div>
-            ) : currentTest && currentTest.status === "running" ? (
+            ) : currentTest && currentTest.status === "running" && (!currentTest.questions || currentTest.questions.length === 0) ? (
               <Card>
                 <CardContent className="text-center py-12">
                   <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
@@ -4563,7 +4569,7 @@ export default function TestSimulationPage() {
                   </CardContent>
                 </Card>
               )
-            ) : currentTest && currentTest.status === "running" ? (
+            ) : currentTest && currentTest.status === "running" && (!currentTest.questions || currentTest.questions.length === 0) ? (
               <Card>
                 <CardContent className="text-center py-12">
                   <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
