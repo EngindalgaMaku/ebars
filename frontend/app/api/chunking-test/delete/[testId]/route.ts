@@ -9,12 +9,20 @@ export async function DELETE(
   try {
     const { testId } = params;
 
+    // Get authorization header from request
+    const authHeader = request.headers.get('authorization');
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    if (authHeader) {
+      headers['authorization'] = authHeader;
+    }
+
     // Forward request to backend API gateway
     const response = await fetch(`${API_GATEWAY_URL}/api/chunking-test/delete/${testId}`, {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
     });
 
     if (!response.ok) {

@@ -40,7 +40,7 @@ except ImportError:
 
 # DISABLED: Old semantic chunking - use lightweight system instead
 SEMANTIC_CHUNKING_AVAILABLE = False
-logger.info("ℹ️ Old semantic chunking disabled - using lightweight system")
+logger.info("Old semantic chunking disabled - using lightweight system")
 
 # Create safe fallback function that redirects to lightweight
 def create_semantic_chunks(text, target_size=1000, overlap_ratio=0.1, language="auto", fallback_strategy="lightweight"):
@@ -57,7 +57,7 @@ try:
     from .lightweight_chunker import create_semantic_chunks as create_lightweight_chunks
     from .lightweight_chunker import LightweightSemanticChunker
     LIGHTWEIGHT_CHUNKING_AVAILABLE = True
-    logger.info("✅ Lightweight Turkish chunking system available")
+    logger.info("Lightweight Turkish chunking system available")
 except ImportError:
     logger.warning("⚠️ Lightweight chunking not available - using fallback")
     # Create safe fallback function
@@ -71,7 +71,7 @@ AST_MARKDOWN_AVAILABLE = False
 try:
     from .ast_markdown_parser import ASTMarkdownParser, MarkdownSection
     AST_MARKDOWN_AVAILABLE = True
-    logger.info("✅ AST Markdown parser available")
+    logger.info("AST Markdown parser available")
 except ImportError:
     logger.warning("⚠️ AST Markdown parser not available - using enhanced markdown fallback")
     # Create safe fallback classes
@@ -93,9 +93,18 @@ LLM_MARKDOWN_CHUNKER_AVAILABLE = False
 try:
     from .llm_markdown_chunker import create_llm_markdown_chunks_safe
     LLM_MARKDOWN_CHUNKER_AVAILABLE = True
-    logger.info("✅ LLM markdown chunker available")
+    logger.info("LLM markdown chunker available")
 except ImportError:
     logger.info("ℹ️ LLM markdown chunker not available")
+
+# Import Agentic Reasoning chunker (optional)
+AGENTIC_REASONING_AVAILABLE = False
+try:
+    from .agentic_reasoning_chunker import create_agentic_reasoning_chunks, AgenticChunkingConfig
+    AGENTIC_REASONING_AVAILABLE = True
+    logger.info("✅ Agentic reasoning chunker available")
+except ImportError:
+    logger.info("ℹ️ Agentic reasoning chunker not available")
 
 def _group_units(units: Sequence[str], chunk_size: int, chunk_overlap: int) -> List[str]:
     """Group sentence/paragraph units into chunks close to chunk_size (by characters)."""
@@ -456,7 +465,7 @@ def chunk_text(
     text: str,
     chunk_size: int = None,
     chunk_overlap: int = None,
-    strategy: Literal["char", "paragraph", "sentence", "markdown", "semantic", "hybrid", "lightweight", "llm_markdown"] = "llm_markdown",
+    strategy: Literal["char", "paragraph", "sentence", "markdown", "semantic", "hybrid", "lightweight", "llm_markdown", "agentic_reasoning"] = "llm_markdown",
     language: str = "auto",
     use_embedding_refinement: bool = True,
     use_lightweight_chunker: bool = True,
@@ -473,6 +482,7 @@ def chunk_text(
         chunk_overlap: The desired overlap between consecutive chunks (in characters).
         strategy: Chunking strategy to use:
                   - "llm_markdown": LLM-assisted markdown chunking (DEFAULT, Groq primary + fallback)
+                  - "agentic_reasoning": Agentic reasoning-based semantic chunking with Grok 3 8B
                   - "lightweight": Turkish-optimized lightweight chunker (fallback)
                   - "char": Character-based chunking with word boundaries
                   - "paragraph": Paragraph-based chunking
@@ -633,6 +643,46 @@ def chunk_text(
         # Redirect hybrid strategy to lightweight chunker
         logger.info("⚠️ Redirecting 'hybrid' strategy to 'lightweight' chunker (better performance)")
         return chunk_text(text, chunk_size, chunk_overlap, "lightweight", language, use_embedding_refinement, True, use_llm_post_processing, llm_model_name, model_inference_url)
+    
+    elif strategy == "agentic_reasoning":
+        # Agentic reasoning-based semantic chunking with Grok 3 8B
+        if not AGENTIC_REASONING_AVAILABLE:
+            logger.info("⚠️ Agentic reasoning chunker not available, using lightweight chunker")
+            return chunk_text(text, chunk_size, chunk_overlap, "lightweight", language, use_embedding_refinement, True, use_llm_post_processing, llm_model_name, model_inference_url)
+        
+        try:
+            # Configure agentic reasoning chunker
+            config = AgenticChunkingConfig(
+                target_size=chunk_size,
+                min_size=max(100, chunk_size // 10),
+                max_size=min(1024, chunk_size * 1.2),
+                overlap_ratio=chunk_overlap / chunk_size if chunk_overlap > 0 else 0.2,
+                similarity_threshold=0.75,  # High threshold for semantic coherence
+                language=language if language != "auto" else "tr",
+                use_grok_reasoning=True,
+                enable_caching=True,
+                batch_size=8,
+                model_inference_url=model_inference_url
+            )
+            
+            chunks = create_agentic_reasoning_chunks(
+                text=normalized,
+                config=config,
+                model_inference_url=model_inference_url
+            )
+            
+            if chunks:
+                logger.info(f"✅ Agentic reasoning chunking successful: {len(chunks)} chunks")
+                logger.info("✅ Applied semantic similarity grouping with Grok 3 8B reasoning")
+                return chunks
+            else:
+                logger.warning("⚠️ Agentic reasoning chunking returned no chunks, falling back")
+                return chunk_text(text, chunk_size, chunk_overlap, "lightweight", language, use_embedding_refinement, True, use_llm_post_processing, llm_model_name, model_inference_url)
+                
+        except Exception as e:
+            logger.error(f"❌ Agentic reasoning chunking failed: {e}")
+            logger.info("⚠️ Falling back to lightweight chunker")
+            return chunk_text(text, chunk_size, chunk_overlap, "lightweight", language, use_embedding_refinement, True, use_llm_post_processing, llm_model_name, model_inference_url)
     
     else:
         logger.warning(f"Unknown chunking strategy '{strategy}', falling back to lightweight chunker.")

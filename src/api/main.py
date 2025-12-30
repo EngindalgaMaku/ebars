@@ -60,6 +60,8 @@ from src.api.test_simulation_routes import router as test_simulation_router
 # Import RAGAS evaluation routes
 from src.api.ragas_routes import router as ragas_router
 from src.api.system_prompt_routes import router as system_prompt_router
+# Import chunking test routes
+from src.api.chunking_test_routes import router as chunking_test_router
 
 # CREDENTIALS-COMPATIBLE CORS configuration (no wildcard allowed with credentials)
 logger.info("[API GATEWAY] Setting up CORS with credentials support (no wildcard)")
@@ -115,6 +117,8 @@ app.include_router(test_simulation_router, prefix="/api")
 # Include RAGAS evaluation router
 app.include_router(ragas_router, prefix="/api")
 app.include_router(system_prompt_router, prefix="/api")
+# Include chunking test router
+app.include_router(chunking_test_router, prefix="/api")
 
 # Microservice URLs from environment variables - Google Cloud Run compatible
 # For Docker: use service names (e.g., http://document-processing-service:8080)
