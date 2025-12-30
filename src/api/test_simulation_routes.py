@@ -218,16 +218,16 @@ EKOBOT_BENCHMARKS = {
 
 # Default 30-question test set for methodology testing
 DEFAULT_TEST_QUESTIONS = [
-    # EduBars Specific Questions (10)
-    {"id": 1, "question": "EduBars sisteminin temel çalışma prensibi nedir?", "category": "system", "expected_method": "edubars"},
+    # AkıllıRehber Specific Questions (10)
+    {"id": 1, "question": "AkıllıRehber sisteminin temel çalışma prensibi nedir?", "category": "system", "expected_method": "akıllıRehber"},
     {"id": 2, "question": "İki aşamalı retrieval sisteminin avantajları nelerdir?", "category": "methodology", "expected_method": "two_stage"},
-    {"id": 3, "question": "Embedding modellerinin performans karşılaştırması nasıl yapılır?", "category": "technical", "expected_method": "edubars"},
+    {"id": 3, "question": "Embedding modellerinin performans karşılaştırması nasıl yapılır?", "category": "technical", "expected_method": "akıllıRehber"},
     {"id": 4, "question": "Reranking algoritmasının etkisi nedir?", "category": "methodology", "expected_method": "two_stage"},
-    {"id": 5, "question": "Cosine similarity ölçümünde dikkat edilmesi gereken faktörler?", "category": "metrics", "expected_method": "edubars"},
-    {"id": 6, "question": "Çok dilli destekte hangi stratejiler kullanılır?", "category": "technical", "expected_method": "edubars"},
+    {"id": 5, "question": "Cosine similarity ölçümünde dikkat edilmesi gereken faktörler?", "category": "metrics", "expected_method": "akıllıRehber"},
+    {"id": 6, "question": "Çok dilli destekte hangi stratejiler kullanılır?", "category": "technical", "expected_method": "akıllıRehber"},
     {"id": 7, "question": "Semantic similarity metriğinin hesaplanması nasıl yapılır?", "category": "metrics", "expected_method": "two_stage"},
-    {"id": 8, "question": "Context window optimizasyonu nasıl yapılır?", "category": "technical", "expected_method": "edubars"},
-    {"id": 9, "question": "Semantic chunking stratejilerinin karşılaştırması", "category": "methodology", "expected_method": "edubars"},
+    {"id": 8, "question": "Context window optimizasyonu nasıl yapılır?", "category": "technical", "expected_method": "akıllıRehber"},
+    {"id": 9, "question": "Semantic chunking stratejilerinin karşılaştırması", "category": "methodology", "expected_method": "akıllıRehber"},
     {"id": 10, "question": "Vector store performans optimizasyonu", "category": "technical", "expected_method": "two_stage"},
     
     # General RAG Questions (10)
@@ -243,16 +243,16 @@ DEFAULT_TEST_QUESTIONS = [
     {"id": 20, "question": "Model interpretability nedir?", "category": "general", "expected_method": "single_stage"},
     
     # Edge Cases & Complex Questions (10)
-    {"id": 21, "question": "Çok karmaşık ve uzun bir soru ile sistemin performansını test etmek için bu soruyu kullanıyoruz ki yanıt kalitesi ve süre ölçümü yapalım", "category": "edge_case", "expected_method": "edubars"},
+    {"id": 21, "question": "Çok karmaşık ve uzun bir soru ile sistemin performansını test etmek için bu soruyu kullanıyoruz ki yanıt kalitesi ve süre ölçümü yapalım", "category": "edge_case", "expected_method": "akıllıRehber"},
     {"id": 22, "question": "Kısa soru", "category": "edge_case", "expected_method": "single_model"},
     {"id": 23, "question": "Bu soru hiçbir bağlamda olmayan tamamen alakasız bir konudaki soru", "category": "irrelevant", "expected_method": "none"},
     {"id": 24, "question": "Multiple choice: A) Seçenek 1 B) Seçenek 2 C) Seçenek 3", "category": "edge_case", "expected_method": "single_stage"},
-    {"id": 25, "question": "Türkçe dil desteği ve özel karakterlerle ğüşıöç test sorusu", "category": "language", "expected_method": "edubars"},
+    {"id": 25, "question": "Türkçe dil desteği ve özel karakterlerle ğüşıöç test sorusu", "category": "language", "expected_method": "akıllıRehber"},
     {"id": 26, "question": "Mathematical equation: What is the derivative of x²?", "category": "math", "expected_method": "single_model"},
     {"id": 27, "question": "Code example: def function(): pass - explain this", "category": "code", "expected_method": "single_stage"},
-    {"id": 28, "question": "Numerical data analysis and statistical interpretation", "category": "analytics", "expected_method": "edubars"},
+    {"id": 28, "question": "Numerical data analysis and statistical interpretation", "category": "analytics", "expected_method": "akıllıRehber"},
     {"id": 29, "question": "Historical context and temporal reasoning test", "category": "contextual", "expected_method": "two_stage"},
-    {"id": 30, "question": "Final comprehensive test question combining multiple domains", "category": "comprehensive", "expected_method": "edubars"}
+    {"id": 30, "question": "Final comprehensive test question combining multiple domains", "category": "comprehensive", "expected_method": "akıllıRehber"}
 ]
 
 # ===== REQUEST/RESPONSE MODELS =====
@@ -261,7 +261,7 @@ class TestStartRequest(BaseModel):
     """Test start request model"""
     testName: str = Field(..., description="Name of the test")
     questions: List[str] = Field(..., description="List of questions to test")
-    methods: List[str] = Field(..., description="Test methods: eduBars, basicRag, llmOnly")
+    methods: List[str] = Field(..., description="Test methods: akıllıRehber, basicRag, llmOnly")
     enableBenchmark: bool = Field(default=True, description="Enable EkoBot benchmark comparison")
     exportFormats: List[str] = Field(default=["json", "csv"], description="Export formats")
     sessionId: str = Field(..., description="Session ID for testing")
@@ -273,7 +273,7 @@ class TestConfiguration(BaseModel):
     session_id: str = Field(..., description="Session ID for testing")
     session_settings: Optional[Dict[str, Any]] = Field(default=None, description="Session RAG settings")
     test_questions: Optional[List[str]] = Field(default=None, description="Custom questions")
-    methodologies: List[str] = Field(default=["eduBars", "basicRag", "llmOnly"], description="Test methodologies")
+    methodologies: List[str] = Field(default=["akıllıRehber", "basicRag", "llmOnly"], description="Test methodologies")
     benchmark_comparison: bool = Field(default=True, description="Enable EkoBot benchmark comparison")
     export_format: str = Field(default="json", description="Export format: json, csv")
     
@@ -540,12 +540,12 @@ async def calculate_answer_quality_similarity(llm_response: str, ground_truth: s
 
 # ===== METHODOLOGY EXECUTION FUNCTIONS =====
 
-async def execute_edubars_full_system(session_id: str, question: str, session_settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Execute EduBars Full System (APRAG Personalization DISABLED)"""
+async def execute_akilli_rehber_full_system(session_id: str, question: str, session_settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Execute AkıllıRehber Full System (APRAG Personalization DISABLED)"""
     start_time = time.time()
     
     try:
-        # EduBars Full System: Session model + CRAG + external reranker + retrieval (APRAG disabled)
+        # AkıllıRehber Full System: Session model + CRAG + external reranker + retrieval (APRAG disabled)
         # Call API Gateway's own /rag/query endpoint (which routes to Document Processing Service)
         # Disable SSL verification for internal Docker network calls
         async with httpx.AsyncClient(timeout=120.0, verify=False) as client:
@@ -570,7 +570,7 @@ async def execute_edubars_full_system(session_id: str, question: str, session_se
             if response.status_code == 200:
                 result = response.json()
                 return {
-                    "method": "eduBars",
+                    "method": "akıllıRehber",
                     "response": result.get("answer", ""),
                     "sources": result.get("sources", []),
                     "execution_time_ms": execution_time,
@@ -588,7 +588,7 @@ async def execute_edubars_full_system(session_id: str, question: str, session_se
                 }
             else:
                 return {
-                    "method": "eduBars",
+                    "method": "akıllıRehber",
                     "response": "",
                     "sources": [],
                     "execution_time_ms": execution_time,
@@ -599,7 +599,7 @@ async def execute_edubars_full_system(session_id: str, question: str, session_se
     except Exception as e:
         execution_time = (time.time() - start_time) * 1000
         return {
-            "method": "eduBars",
+            "method": "akıllıRehber",
             "response": "",
             "sources": [],
             "execution_time_ms": execution_time,
@@ -852,7 +852,7 @@ async def start_test_simulation(
             "status": "running",
             "current_question": 0,
             "total_questions": len(test_questions),
-            "current_methodology": request_data.methods[0] if request_data.methods else "eduBars",
+            "current_methodology": request_data.methods[0] if request_data.methods else "akıllıRehber",
             "completed_methodologies": [],
             "start_time": now_iso,
             "estimated_completion": None,
@@ -924,7 +924,7 @@ async def single_query_comparison(
         
         # Her iki sistemi de çalıştır
         basic_rag_result = await execute_basic_rag(sessionId, question, sessionSettings)
-        edubars_result = await execute_edubars_full_system(sessionId, question, sessionSettings)
+        edubars_result = await execute_akilli_rehber_full_system(sessionId, question, sessionSettings)
         
         # Detaylı analiz
         analysis = {
@@ -1216,7 +1216,7 @@ async def start_semantic_similarity_test(
             "session_id": request_data.sessionId,
             "session_settings": request_data.sessionSettings,
             "configuration": {
-                "methodologies": ["basicRag", "eduBars", "llmOnly"],
+                "methodologies": ["basicRag", "akıllıRehber", "llmOnly"],
             },
             "status": "running",
             "current_question": 0,
@@ -1266,7 +1266,7 @@ async def execute_semantic_similarity_test(
 ):
     """
     Execute semantic similarity test in background
-    Tests all 3 methods: basicRag, eduBars, llmOnly
+    Tests all 3 methods: basicRag, akıllıRehber, llmOnly
     """
     try:
         # Import test module
@@ -1308,10 +1308,10 @@ async def execute_semantic_similarity_test(
             test_data["status"] = "running"
             _save_test_to_db(test_id, test_data)
         
-        # Run tests for all 3 methods: basicRag, eduBars, llmOnly
+        # Run tests for all 3 methods: basicRag, akıllıRehber, llmOnly
         logger.info(f"Starting semantic similarity test execution for {test_id}")
         logger.info(f"Questions count: {len(questions)}, Session ID: {session_id}")
-        logger.info(f"Testing 3 methods: basicRag, eduBars, llmOnly")
+        logger.info(f"Testing 3 methods: basicRag, akıllıRehber, llmOnly")
         
         all_results = []
         
@@ -1331,20 +1331,20 @@ async def execute_semantic_similarity_test(
                     all_results.append(res)
                 logger.info(f"✅ basicRag test completed: {len(summary.get('results', []))} results")
             
-            # Test 2: eduBars (RAG with reranker)
-            logger.info("📊 Testing eduBars method...")
-            edubars_results = await tester.run_test(
+            # Test 2: akıllıRehber (RAG with reranker)
+            logger.info("📊 Testing akıllıRehber method...")
+            akilli_rehber_results = await tester.run_test(
                 questions=questions,
                 session_id=session_id,
                 user_id="test_user",
-                mode="eduBars"
+                mode="akıllıRehber"
             )
-            if edubars_results.get("success") and edubars_results.get("summary"):
-                summary = edubars_results.get("summary", {})
+            if akilli_rehber_results.get("success") and akilli_rehber_results.get("summary"):
+                summary = akilli_rehber_results.get("summary", {})
                 for res in summary.get("results", []):
-                    res["methodology"] = "eduBars"  # Add methodology identifier
+                    res["methodology"] = "akıllıRehber"  # Add methodology identifier
                     all_results.append(res)
-                logger.info(f"✅ eduBars test completed: {len(summary.get('results', []))} results")
+                logger.info(f"✅ akıllıRehber test completed: {len(summary.get('results', []))} results")
             
             # Test 3: llmOnly (no RAG)
             logger.info("📊 Testing llmOnly method...")
@@ -1422,7 +1422,7 @@ async def execute_semantic_similarity_test(
                         formatted_result = {
                             "question_id": res.get("question_id"),
                             "question": res.get("question"),
-                            "methodology": methodology,  # basicRag, eduBars, or llmOnly
+                            "methodology": methodology,  # basicRag, akıllıRehber, or llmOnly
                             "metrics": {
                                 "semantic_similarity": res.get("semantic_similarity"),
                                 "answer_quality_similarity": res.get("semantic_similarity"),  # For semantic similarity tests, semantic_similarity IS answer_quality (response vs ground truth)
@@ -1593,16 +1593,26 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
             results_by_method[method].append(metrics_data)
         
         # Calculate averages for each method
-        # Filter out results with similarity = 0 (failed/unsuccessful queries)
+        # CRITICAL FIX: Don't filter out results - count ALL queries as successful if they have a response
+        # The issue was filtering out queries with 0 similarity, but LLM-only queries don't have cosine similarity
         for method, method_metrics in results_by_method.items():
             if method_metrics:
-                # Filter out zero similarity results for chart/visualization
-                # For semantic similarity tests, check semantic_similarity instead of cosine_similarity
+                # Include ALL queries that have any meaningful data
+                # For LLM-only: check if response exists (no retrieval similarity expected)
+                # For RAG methods: check if similarity > 0 OR if response exists (fallback)
                 filtered_metrics = [
-                    m for m in method_metrics 
-                    if m.get("cosine_similarity", 0) > 0 
-                    or m.get("max_similarity", 0) > 0
-                    or (m.get("semantic_similarity") is not None and m.get("semantic_similarity", 0) > 0)
+                    m for m in method_metrics
+                    if (
+                        # LLM-only method: any response is successful
+                        m.get("is_llm_only", False) or
+                        # RAG methods: similarity > 0 (successful retrieval)
+                        m.get("cosine_similarity", 0) > 0 or
+                        m.get("max_similarity", 0) > 0 or
+                        # Semantic similarity available (ground truth comparison)
+                        (m.get("semantic_similarity") is not None and m.get("semantic_similarity", 0) > 0) or
+                        # Fallback: any answer quality similarity
+                        (m.get("answer_quality_similarity") is not None and m.get("answer_quality_similarity", 0) > 0)
+                    )
                 ]
                 
                 if filtered_metrics:
@@ -2476,8 +2486,8 @@ async def execute_full_test_simulation(
                     question_id = question_data["id"]
                     
                     # Execute method based on corrected methodology
-                    if methodology == "eduBars":
-                        task = execute_edubars_full_system(config.session_id, question, session_settings)
+                    if methodology == "akıllıRehber":
+                        task = execute_akilli_rehber_full_system(config.session_id, question, session_settings)
                     elif methodology == "basicRag":
                         task = execute_basic_rag(config.session_id, question, session_settings)
                     elif methodology == "llmOnly":
@@ -2723,7 +2733,7 @@ async def execute_full_test_simulation(
                             accuracy_value = min(max_similarity * 100, 100) if max_similarity > 0 else 0.0
                         
                         metrics = {
-                            # Cosine similarity: Only for retrieval-based methods (eduBars, basicRag)
+                            # Cosine similarity: Only for retrieval-based methods (akıllıRehber, basicRag)
                             # For llmOnly, cosine similarity is N/A (no retrieval performed)
                             "cosine_similarity": None if is_llm_only else avg_similarity,  # N/A for llmOnly, retrieval similarity for others
                             "max_similarity": max_similarity,  # PRIMARY METRIC for retrieval quality (RAG methods only)
@@ -3047,15 +3057,15 @@ def generate_excel_export(test_data: Dict[str, Any]) -> BytesIO:
                 "question_id": question_id,
                 "question": question_text,
                 "basicRag": "",
-                "eduBars": "",
+                "akıllıRehber": "",
                 "llmOnly": ""
             }
         
         # Map methodology to column
         if methodology == "basicRag":
             questions_dict[question_id]["basicRag"] = response
-        elif methodology == "eduBars":
-            questions_dict[question_id]["eduBars"] = response
+        elif methodology == "akıllıRehber":
+            questions_dict[question_id]["akıllıRehber"] = response
         elif methodology == "llmOnly":
             questions_dict[question_id]["llmOnly"] = response
     
@@ -3074,8 +3084,8 @@ def generate_excel_export(test_data: Dict[str, Any]) -> BytesIO:
         # Standart RAG (basicRag)
         ws.cell(row=row_idx, column=3, value=q_data["basicRag"]).alignment = row_alignment
         
-        # RAG+Ranking (eduBars)
-        ws.cell(row=row_idx, column=4, value=q_data["eduBars"]).alignment = row_alignment
+        # RAG+Ranking (akıllıRehber)
+        ws.cell(row=row_idx, column=4, value=q_data["akıllıRehber"]).alignment = row_alignment
         
         # LLM-only
         ws.cell(row=row_idx, column=5, value=q_data["llmOnly"]).alignment = row_alignment

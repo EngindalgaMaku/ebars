@@ -142,7 +142,7 @@ interface TestResult {
     answerQualityAvailable?: number; // Number of questions with ground truth
   };
   methodComparison: {
-    eduBars?: MethodResults;
+    akıllıRehber?: MethodResults;
     basicRag?: MethodResults;
     llmOnly?: MethodResults;
   };
@@ -189,7 +189,7 @@ export default function TestSimulationPage() {
   const [config, setConfig] = useState<TestConfig>({
     testName: "",
     numQuestions: 30,
-    testMethods: ["eduBars", "basicRag"],
+    testMethods: ["akıllıRehber", "basicRag"],
     includeManualQuestions: false,
     customQuestions: [],
     customExpectedAnswers: {},
@@ -500,7 +500,7 @@ export default function TestSimulationPage() {
           correctAnswers: 0,
         },
         methodComparison: status.methodComparison || {
-          eduBars: {} as MethodResults,
+          akıllıRehber: {} as MethodResults,
           basicRag: {} as MethodResults,
           llmOnly: {} as MethodResults,
         },
@@ -631,7 +631,7 @@ export default function TestSimulationPage() {
           correctAnswers: 0,
         },
         methodComparison: {
-          eduBars: {
+          akıllıRehber: {
             cosineSimilarity: 0,
             avgResponseTime: 0,
             accuracy: 0,
@@ -816,7 +816,7 @@ export default function TestSimulationPage() {
           correctAnswers: 0,
         },
         methodComparison: {
-          eduBars: {
+          akıllıRehber: {
             cosineSimilarity: 0,
             avgResponseTime: 0,
             accuracy: 0,
@@ -1129,15 +1129,24 @@ export default function TestSimulationPage() {
         const csvData = [
           ["Metric", "Akıllı Rehber", "Basic RAG", "LLM Only", "Benchmark"],
           [
-            "Cosine Similarity",
+            "Semantic Similarity",
             (
-              currentTest.methodComparison.eduBars?.cosineSimilarity || 0
+              getSimilarityValue(
+                currentTest.methodComparison.akıllıRehber,
+                "semanticSimilarity"
+              ) || 0
             ).toFixed(3),
             (
-              currentTest.methodComparison.basicRag?.cosineSimilarity || 0
+              getSimilarityValue(
+                currentTest.methodComparison.basicRag,
+                "semanticSimilarity"
+              ) || 0
             ).toFixed(3),
             (
-              currentTest.methodComparison.llmOnly?.cosineSimilarity || 0
+              getSimilarityValue(
+                currentTest.methodComparison.llmOnly,
+                "semanticSimilarity"
+              ) || 0
             ).toFixed(3),
             (
               currentTest.benchmarkComparison?.ekoBot?.cosineSimilarity || 0
@@ -1147,7 +1156,7 @@ export default function TestSimulationPage() {
             "Semantic Similarity",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars,
+                currentTest.methodComparison.akıllıRehber,
                 "semanticSimilarity"
               ) || 0
             ).toFixed(3),
@@ -1169,7 +1178,7 @@ export default function TestSimulationPage() {
             "BLEU",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars,
+                currentTest.methodComparison.akıllıRehber,
                 "bleuScore"
               ) || 0
             ).toFixed(3),
@@ -1191,7 +1200,7 @@ export default function TestSimulationPage() {
             "ROUGE-L",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars,
+                currentTest.methodComparison.akıllıRehber,
                 "rougeL"
               ) || 0
             ).toFixed(3),
@@ -1213,7 +1222,7 @@ export default function TestSimulationPage() {
             "F1 (Token)",
             (
               getSimilarityValue(
-                currentTest.methodComparison.eduBars,
+                currentTest.methodComparison.akıllıRehber,
                 "f1Score"
               ) || 0
             ).toFixed(3),
@@ -1234,7 +1243,7 @@ export default function TestSimulationPage() {
           [
             "Avg Response Time (ms)",
             (
-              currentTest.methodComparison.eduBars?.avgResponseTime || 0
+              currentTest.methodComparison.akıllıRehber?.avgResponseTime || 0
             ).toFixed(0),
             (
               currentTest.methodComparison.basicRag?.avgResponseTime || 0
@@ -1246,7 +1255,7 @@ export default function TestSimulationPage() {
           ],
           [
             "Accuracy (%)",
-            (currentTest.methodComparison.eduBars?.accuracy || 0).toFixed(1),
+            (currentTest.methodComparison.akıllıRehber?.accuracy || 0).toFixed(1),
             (currentTest.methodComparison.basicRag?.accuracy || 0).toFixed(1),
             (currentTest.methodComparison.llmOnly?.accuracy || 0).toFixed(1),
             "N/A",
@@ -1526,7 +1535,7 @@ export default function TestSimulationPage() {
                     <div className="space-y-2">
                       {[
                         {
-                          id: "eduBars",
+                          id: "akıllıRehber",
                           label:
                             "AkıllıRehber (RAG + ReRanker Kombinasyonu) (APRAG Kişiselleştirme KAPALI)",
                         },
@@ -2472,7 +2481,7 @@ export default function TestSimulationPage() {
                                 .map(([method, data]: [string, any]) => {
                                   const getMethodConfig = (method: string) => {
                                     const configs = {
-                                      eduBars: {
+                                      akıllıRehber: {
                                         name: "AkıllıRehber (RAG+Reranker)",
                                         color: "bg-blue-500",
                                         bgColor: "bg-blue-50",
@@ -2494,7 +2503,7 @@ export default function TestSimulationPage() {
                                         textColor: "text-orange-700"
                                       }
                                     };
-                                    return configs[method as keyof typeof configs] || configs.eduBars;
+                                    return configs[method as keyof typeof configs] || configs.akıllıRehber;
                                   };
 
                                   const methodConfig = getMethodConfig(method);
@@ -2521,9 +2530,16 @@ export default function TestSimulationPage() {
                                           <div className="flex justify-between">
                                             <span className="text-gray-600">Cosine Similarity:</span>
                                             <span className="font-semibold">
-                                              {data.cosineSimilarity !== null && data.cosineSimilarity !== undefined
-                                                ? data.cosineSimilarity.toFixed(3)
-                                                : "Hesaplanıyor..."}
+                                              {(() => {
+                                                const semanticSim = getSimilarityValue(data, "semanticSimilarity");
+                                                if (semanticSim !== null && semanticSim !== undefined) {
+                                                  return semanticSim.toFixed(3);
+                                                }
+                                                if (data.cosineSimilarity !== null && data.cosineSimilarity !== undefined) {
+                                                  return data.cosineSimilarity.toFixed(3);
+                                                }
+                                                return "Hesaplanıyor...";
+                                              })()}
                                             </span>
                                           </div>
                                         )}
@@ -2754,7 +2770,7 @@ export default function TestSimulationPage() {
                           {Object.entries(currentTest.methodComparison).map(
                             ([method, results]) => {
                               const methodNames: Record<string, string> = {
-                                eduBars:
+                                akıllıRehber:
                                   "AkıllıRehber(RAG +ReRanker Kombinasyonu)",
                                 basicRag: "Akıllı Rehber(Sadece Rag)",
                                 llmOnly: "Sadece LLM",
@@ -2866,7 +2882,7 @@ export default function TestSimulationPage() {
                               .map(([method, results]) => ({
                                 name:
                                   {
-                                    eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                    akıllıRehber: "AkıllıRehber(RAG +ReRanker)",
                                     basicRag: "Akıllı Rehber(Sadece Rag)",
                                     llmOnly: "Sadece LLM",
                                   }[method] || method,
@@ -2934,7 +2950,7 @@ export default function TestSimulationPage() {
                               .map(([method, results]) => ({
                                 name:
                                   {
-                                    eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                    akıllıRehber: "AkıllıRehber(RAG +ReRanker)",
                                     basicRag: "Akıllı Rehber(Sadece Rag)",
                                     llmOnly: "Sadece LLM",
                                   }[method] || method,
@@ -3003,7 +3019,7 @@ export default function TestSimulationPage() {
                               .reduce((acc, [method, results]) => {
                                 let value = 0;
                                 if (metric === "cosine")
-                                  value = results.cosineSimilarity * 100;
+                                  value = (getSimilarityValue(results, "semanticSimilarity") || results.cosineSimilarity) * 100;
                                 else if (metric === "accuracy")
                                   value = results.accuracy;
                                 else if (metric === "speed")
@@ -3014,7 +3030,7 @@ export default function TestSimulationPage() {
 
                                 const methodName =
                                   {
-                                    eduBars: "AkıllıRehber",
+                                    akıllıRehber: "AkıllıRehber",
                                     singleModel: "TekModel",
                                     twoStageRetrieval: "İkiAşama",
                                     singleStageRetrieval: "TekAşama",
@@ -3040,7 +3056,7 @@ export default function TestSimulationPage() {
                           {config.testMethods.map((method, index) => {
                             const methodName =
                               {
-                                eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                akıllıRehber: "AkıllıRehber(RAG +ReRanker)",
                                 basicRag: "Akıllı Rehber(Sadece Rag)",
                                 llmOnly: "SadeceLLM",
                               }[method] || method;
@@ -3247,7 +3263,7 @@ export default function TestSimulationPage() {
                               Object.entries(question.methodologies).map(
                                 ([method, results]) => {
                                   const methodNames: Record<string, string> = {
-                                    eduBars: "AkıllıRehber(RAG +ReRanker)",
+                                    akıllıRehber: "AkıllıRehber(RAG +ReRanker)",
                                     basicRag: "Akıllı Rehber(Sadece Rag)",
                                     llmOnly: "Sadece LLM",
                                   };
@@ -3288,7 +3304,7 @@ export default function TestSimulationPage() {
                                         <Badge
                                           variant="outline"
                                           className={`text-xs ${
-                                            method === "eduBars"
+                                            method === "akıllıRehber"
                                               ? "border-blue-500 text-blue-700"
                                               : method === "basicRag"
                                               ? "border-green-500 text-green-700"
@@ -3395,7 +3411,7 @@ export default function TestSimulationPage() {
                               {Object.entries(question.methodologies).map(
                                 ([method, results]) => {
                                   const methodNames: Record<string, string> = {
-                                    eduBars:
+                                    akıllıRehber:
                                       "AkıllıRehber (RAG + ReRanker Kombinasyonu)",
                                     basicRag: "AkıllıRehber (Sadece RAG)",
                                     llmOnly: "Sadece LLM",
