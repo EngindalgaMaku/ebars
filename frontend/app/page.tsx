@@ -78,7 +78,7 @@ import EnhancedDocumentUploadModal from "@/components/EnhancedDocumentUploadModa
 import LogoutButton from "@/components/LogoutButton";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import TeacherLayout from "@/app/components/TeacherLayout";
+import TeacherLayout, { TabType } from "@/app/components/TeacherLayout";
 import RecommendationPanel from "@/components/RecommendationPanel";
 import TopicProgressCard from "@/components/TopicProgressCard";
 import TopicAnalyticsDashboard from "@/components/TopicAnalyticsDashboard";
@@ -502,17 +502,7 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [sessionPage, setSessionPage] = useState(1);
   const SESSIONS_PER_PAGE = 5;
-  type TabType =
-    | "dashboard"
-    | "sessions"
-    | "upload"
-    | "analytics"
-    | "modules"
-    | "assistant"
-    | "query"
-    | "test-simulation"
-    | "rag-metrics-test"
-    | "system-prompts";
+  // Import TabType from TeacherLayout instead of defining it locally
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
 
   // Read tab from URL on mount and when URL changes (for navigation from other pages)
@@ -533,6 +523,7 @@ export default function HomePage() {
         "query",
         "test-simulation",
         "rag-metrics-test",
+        "chunking-new-strategy-test",
         "system-prompts",
       ].includes(tabParam)
     ) {

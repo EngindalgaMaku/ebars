@@ -193,13 +193,13 @@ Some more text
         chunker = AgenticReasoningChunker(fallback_config)
         
         # Mock slow processing
-        original_method = chunker.similarity_analyzer.analyze_similarity
+        original_method = chunker.similarity_analyzer.analyze_paragraph_similarity
         def slow_method(*args, **kwargs):
             import time
             time.sleep(0.1)  # Simulate slow processing
             return original_method(*args, **kwargs)
         
-        with patch.object(chunker.similarity_analyzer, 'analyze_similarity', side_effect=slow_method):
+        with patch.object(chunker.similarity_analyzer, 'analyze_paragraph_similarity', side_effect=slow_method):
             chunks = chunker.create_chunks(text=sample_text)
             
             # Should still complete successfully
@@ -246,8 +246,8 @@ Some more text
         chunker = AgenticReasoningChunker(fallback_config)
         
         # Mock multiple system failures
-        with patch.object(chunker.grok_engine, 'analyze_boundary', side_effect=Exception("Grok failed")), \
-             patch.object(chunker.similarity_analyzer, 'get_embeddings', side_effect=Exception("Embeddings failed")):
+        with patch.object(chunker.grok_engine, 'detect_semantic_boundaries', side_effect=Exception("Grok failed")), \
+             patch.object(chunker.similarity_analyzer, 'analyze_paragraph_similarity', side_effect=Exception("Embeddings failed")):
             
             chunks = chunker.create_chunks(
                 text=sample_text,
@@ -320,8 +320,16 @@ class TestErrorRecovery:
         
         chunker = AgenticReasoningChunker(recovery_config)
         
-        # Mock quality validation failure
-        with patch.object(chunker, '_validate_chunk_quality', return_value=False):
+        # Mock quality validation failure - the method returns a dict with 'passed': False
+        mock_validation_result = {
+            'overall_score': 0.3,
+            'passed': False,
+            'metrics': {},
+            'issues': ['Low quality chunk'],
+            'recommendations': ['Improve chunk quality']
+        }
+        
+        with patch.object(chunker.validator, 'validate_chunk_quality', return_value=mock_validation_result):
             chunks = chunker.create_chunks(text=text)
             
             # Should still create chunks with basic validation
@@ -397,7 +405,7 @@ Sonuç bölümü tüm bilgileri özetler ve genel değerlendirme yapar.
             try:
                 # Randomly inject failures
                 if i % 2 == 0:
-                    with patch.object(chunker.grok_engine, 'analyze_boundary', side_effect=Exception("Random failure")):
+                    with patch.object(chunker.grok_engine, 'detect_semantic_boundaries', side_effect=Exception("Random failure")):
                         chunks = chunker.create_chunks(text=text)
                 else:
                     chunks = chunker.create_chunks(text=text)
