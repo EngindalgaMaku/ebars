@@ -1,0 +1,21 @@
+{
+  "test_question": "Selçuklularda meliklerin (şehzadelerin) eğitiminden sorumlu olan tecrübeli devlet adamına ne ad verilir?",
+  "session_id": "test_reranker_comparison",
+  "timestamp": "2025-12-17T08:42:04.984451",
+  "basic_rag": {
+    "method": "basicRag",
+    "response": "",
+    "sources": [],
+    "execution_time_ms": 69.75746154785156,
+    "success": false,
+    "error": "[SSL] record layer failure (_ssl.c:1016)"
+  },
+  "edubars_full_system": {
+    "method": "eduBars",
+    "response": "",
+    "sources": [],
+    "execution_time_ms": 50.21381378173828,
+    "success": false,
+    "error": "[SSL] record layer failure (_ssl.c:1016)"
+  }
+}

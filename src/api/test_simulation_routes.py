@@ -1739,7 +1739,7 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
             filtered_all_metrics = [m for m in all_metrics if m.get("is_llm_only", False) or m.get("max_similarity", 0) > 0]
             
             # Count correct answers per unique question (not per methodology)
-            # A question is "correct" if at least one methodology has max_similarity > 0.5
+            # A question is "correct" if semantic similarity > 0.5 (ground truth comparison) OR max_similarity > 0.5 (retrieval quality)
             unique_questions = set()
             correct_questions = set()
             for result in results:
@@ -1757,12 +1757,24 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                 question_id = result.get("question_id")
                 if question_id:
                     unique_questions.add(question_id)
-                    # Use max_similarity for correct answer determination
+                    # Use semantic similarity (ground truth) if available, otherwise use max_similarity (retrieval quality)
                     metrics_data = result.get("metrics", {})
                     if not isinstance(metrics_data, dict):
                         # If metrics is not a dict, try to get from result directly
                         metrics_data = result if ("similarity" in result or "cosine_similarity" in result) else {}
-                    if metrics_data.get("max_similarity", 0) > 0.5:
+                    
+                    # Check semantic similarity first (ground truth comparison - most accurate)
+                    similarity_obj = metrics_data.get("similarity", {})
+                    semantic_sim = None
+                    if isinstance(similarity_obj, dict):
+                        semantic_sim = similarity_obj.get("semanticSimilarity")
+                    if semantic_sim is None:
+                        semantic_sim = metrics_data.get("answer_quality_similarity")
+                    
+                    # Use semantic similarity if available, otherwise fall back to max_similarity
+                    if semantic_sim is not None and semantic_sim > 0.5:
+                        correct_questions.add(question_id)
+                    elif metrics_data.get("max_similarity", 0) > 0.5:
                         correct_questions.add(question_id)
             
             # Calculate metrics from filtered (successful) queries only
@@ -1775,35 +1787,77 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
                     "avgResponseTime": sum(m["response_time_ms"] for m in filtered_all_metrics) / len(filtered_all_metrics),
                     "answerQualitySimilarity": sum(answer_quality_values) / len(answer_quality_values) if answer_quality_values else None,  # Answer quality (LLM response vs ground truth)
                     "answerQualityAvailable": len(answer_quality_values),  # Number of questions with ground truth
-                    "totalQuestions": test_data["total_questions"],
-                    "correctAnswers": len(correct_questions),  # Unique questions with max_similarity > 0.5
+                    "totalQuestions": test_data.get("total_questions", len(unique_questions) if unique_questions else 0),
+                    "correctAnswers": len(correct_questions),  # Unique questions with semantic similarity > 0.5 or max_similarity > 0.5
                     "successfulQueries": len(filtered_all_metrics),
                     "totalQueries": len(all_metrics)
                 }
             else:
-                # All queries failed
+                # All queries failed - but still count unique questions
+                unique_questions = set()
+                for result in results:
+                    if isinstance(result, str):
+                        try:
+                            result = json.loads(result)
+                        except (json.JSONDecodeError, TypeError):
+                            continue
+                    if not isinstance(result, dict):
+                        continue
+                    question_id = result.get("question_id")
+                    if question_id:
+                        unique_questions.add(question_id)
+                
                 metrics = {
                     "cosineSimilarity": 0.0,
                     "avgResponseTime": 0.0,
                     "answerQualitySimilarity": None,
                     "answerQualityAvailable": 0,
-                    "totalQuestions": test_data["total_questions"],
+                    "totalQuestions": test_data.get("total_questions", len(unique_questions) if unique_questions else 0),
                     "correctAnswers": 0,
                     "successfulQueries": 0,
                     "totalQueries": len(all_metrics)
                 }
     
-    # Benchmark comparison (using filtered metrics - similarity > 0)
+    # Benchmark comparison - Use semantic similarity if available, otherwise use cosine similarity
+    # Calculate average semantic similarity from all results
+    semantic_similarity_values = []
+    for result in results:
+        if isinstance(result, str):
+            try:
+                result = json.loads(result)
+            except (json.JSONDecodeError, TypeError):
+                continue
+        if not isinstance(result, dict):
+            continue
+        metrics_data = result.get("metrics", {})
+        if not isinstance(metrics_data, dict):
+            continue
+        similarity_obj = metrics_data.get("similarity", {})
+        if isinstance(similarity_obj, dict):
+            semantic_sim = similarity_obj.get("semanticSimilarity")
+            if semantic_sim is not None:
+                semantic_similarity_values.append(semantic_sim)
+        # Fallback to answer_quality_similarity if semanticSimilarity not available
+        if not semantic_similarity_values:
+            answer_quality = metrics_data.get("answer_quality_similarity")
+            if answer_quality is not None:
+                semantic_similarity_values.append(answer_quality)
+    
+    avg_semantic_similarity = sum(semantic_similarity_values) / len(semantic_similarity_values) if semantic_similarity_values else None
+    
+    # Use semantic similarity for benchmark comparison if available, otherwise use cosine similarity
+    current_metric_value = avg_semantic_similarity if avg_semantic_similarity is not None else metrics.get("cosineSimilarity", 0.0)
+    
     benchmark_comparison = {
         "ekoBot": {
             "cosineSimilarity": EKOBOT_BENCHMARKS["cosine_similarity"],
             "label": "EkoBot Referans"
         },
         "current": {
-            "cosineSimilarity": metrics["cosineSimilarity"],  # Already filtered (similarity > 0)
+            "cosineSimilarity": current_metric_value,  # Use semantic similarity if available, otherwise cosine similarity
             "label": "Mevcut Test (Başarılı Sorgular)"
         },
-        "note": "Grafiklerde similarity > 0 olan başarılı sorgular gösterilmektedir"
+        "note": "Semantic similarity (ground truth) kullanılıyor" if avg_semantic_similarity is not None else "Cosine similarity (retrieval quality) kullanılıyor"
     }
     
     # Calculate execution time
@@ -2123,11 +2177,13 @@ async def get_test_results(test_id: str, format: str = "json", request: Request 
                 methodology = result.get("methodology", "")
                 metrics = result.get("metrics", {})
                 sources = result.get("sources", [])
+                expected_answer = result.get("expected_answer")  # Get expected answer from result
                 
                 if question_id not in questions_data:
                     questions_data[question_id] = {
                         "question_id": question_id,
                         "question": question_text,
+                        "expected_answer": expected_answer,  # Include expected_answer in question data
                         "methodologies": {}
                     }
                 
@@ -2143,6 +2199,8 @@ async def get_test_results(test_id: str, format: str = "json", request: Request 
                     })
                 
                 # Add methodology-specific results with ALL details
+                # For semantic similarity tests, include similarity metrics
+                similarity_metrics = metrics.get("similarity", {})
                 questions_data[question_id]["methodologies"][methodology] = {
                     "response": result.get("response", ""),
                     "response_length": len(result.get("response", "")),
@@ -2155,7 +2213,16 @@ async def get_test_results(test_id: str, format: str = "json", request: Request 
                     "sources": source_details,  # ALL retrieved documents with details
                     "sources_count": len(sources),
                     "config": result.get("config", ""),
-                    "timestamp": result.get("timestamp")
+                    "timestamp": result.get("timestamp"),
+                    # Semantic similarity metrics
+                    "similarity": similarity_metrics if similarity_metrics else {
+                        "semanticSimilarity": metrics.get("semantic_similarity"),
+                        "bleuScore": metrics.get("bleu_score"),
+                        "rougeL": metrics.get("rouge_l"),
+                        "rouge1": metrics.get("rouge_1"),
+                        "rouge2": metrics.get("rouge_2"),
+                        "f1Score": metrics.get("f1_score")
+                    }
                 }
             
             # Convert to list sorted by question_id

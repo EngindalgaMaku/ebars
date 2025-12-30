@@ -231,11 +231,13 @@ export default function ResultsTab({
             <div>
               <div className="text-sm text-gray-500">Başarı Oranı</div>
               <div className="text-lg font-semibold">
-                {(
-                  (currentTest.metrics.correctAnswers /
-                    currentTest.metrics.totalQuestions) *
-                  100
-                ).toFixed(1)}
+                {currentTest.metrics.totalQuestions > 0
+                  ? (
+                      (currentTest.metrics.correctAnswers /
+                        currentTest.metrics.totalQuestions) *
+                      100
+                    ).toFixed(1)
+                  : "0.0"}
                 %
               </div>
             </div>
@@ -674,89 +676,6 @@ export default function ResultsTab({
         </Card>
       </div>
 
-      {/* Benchmark Comparison */}
-      {config.enableBenchmark && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5" />
-              Benchmark Karşılaştırması
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {currentTest.benchmarkComparison ? (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="text-center p-6 bg-blue-50 rounded-lg">
-                    <div className="text-3xl font-bold text-blue-600 mb-2">
-                      {currentTest.benchmarkComparison.ekoBot.cosineSimilarity.toFixed(
-                        3
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-600 mb-1">
-                      EkoBot Referans
-                    </div>
-                  </div>
-                  <div className="text-center p-6 bg-green-50 rounded-lg">
-                    <div className="text-3xl font-bold text-green-600 mb-2">
-                      {currentTest.benchmarkComparison.current.cosineSimilarity.toFixed(
-                        3
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-600 mb-1">
-                      Mevcut Test
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-center">
-                    {currentTest.benchmarkComparison.current.cosineSimilarity >=
-                    currentTest.benchmarkComparison.ekoBot.cosineSimilarity ? (
-                      <div className="flex items-center gap-2 text-green-600">
-                        <CheckCircle className="h-5 w-5" />
-                        <span className="font-medium">
-                          Benchmark'ı{" "}
-                          {(
-                            ((currentTest.benchmarkComparison.current
-                              .cosineSimilarity -
-                              currentTest.benchmarkComparison.ekoBot
-                                .cosineSimilarity) /
-                              currentTest.benchmarkComparison.ekoBot
-                                .cosineSimilarity) *
-                            100
-                          ).toFixed(1)}
-                          % geçti
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-orange-600">
-                        <AlertTriangle className="h-5 w-5" />
-                        <span className="font-medium">
-                          Benchmark'ın{" "}
-                          {(
-                            ((currentTest.benchmarkComparison.ekoBot
-                              .cosineSimilarity -
-                              currentTest.benchmarkComparison.current
-                                .cosineSimilarity) /
-                              currentTest.benchmarkComparison.ekoBot
-                                .cosineSimilarity) *
-                            100
-                          ).toFixed(1)}
-                          % altında
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                Benchmark karşılaştırması mevcut değil
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
