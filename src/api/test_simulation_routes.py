@@ -2687,9 +2687,11 @@ async def execute_full_test_simulation(
                         
                         # Log message: show appropriate metric for each methodology
                         if is_llm_only:
-                            logger.info(f"Question {question_id} completed ({methodology}): Query-Response Similarity={metrics['cosine_similarity']:.3f}, Time={metrics['response_time_ms']:.0f}ms")
+                            cosine_val = metrics.get('cosine_similarity') or 0.0
+                            logger.info(f"Question {question_id} completed ({methodology}): Query-Response Similarity={cosine_val:.3f}, Time={metrics.get('response_time_ms', 0):.0f}ms")
                         else:
-                            logger.info(f"Question {question_id} completed: Cosine={metrics['cosine_similarity']:.3f}, Time={metrics['response_time_ms']:.0f}ms")
+                            cosine_val = metrics.get('cosine_similarity') or 0.0
+                            logger.info(f"Question {question_id} completed: Cosine={cosine_val:.3f}, Time={metrics.get('response_time_ms', 0):.0f}ms")
                     else:
                         logger.error(f"Question {question_id} failed for {methodology}: {result.get('error', 'Unknown error')}")
                     

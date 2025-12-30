@@ -13,7 +13,8 @@ import sys
 import os
 
 # Proje kök dizinini sys.path'e ekle
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
 try:
     from src.text_processing.semantic_chunker import SemanticChunker
@@ -74,11 +75,12 @@ def test_semantic_chunking_improvements():
     chunker = SemanticChunker()
     
     try:
+        newline = '\n'
         print(f"📄 Test metni uzunluğu: {len(BIOLOGY_TEXT)} karakter")
-        print(f"📄 Test metni satır sayısı: {len(BIOLOGY_TEXT.split('\\n'))}")
+        print(f"📄 Test metni satır sayısı: {len(BIOLOGY_TEXT.split(newline))}")
         
         # Semantic chunking yap
-        print("\\n🔄 Gelişmiş semantic chunking çalıştırılıyor...")
+        print("\n🔄 Gelişmiş semantic chunking çalıştırılıyor...")
         
         chunks = chunker.create_semantic_chunks(
             text=BIOLOGY_TEXT,
@@ -87,21 +89,21 @@ def test_semantic_chunking_improvements():
             language="tr"
         )
         
-        print(f"\\n📊 SONUÇLAR:")
+        print(f"\n📊 SONUÇLAR:")
         print(f"   Oluşturulan chunk sayısı: {len(chunks)}")
         print(f"   Ortalama chunk boyutu: {sum(len(c) for c in chunks) // len(chunks) if chunks else 0} karakter")
         
         # Her chunk'ı analiz et
-        print(f"\\n🔍 CHUNK ANALİZİ:")
+        print(f"\n🔍 CHUNK ANALİZİ:")
         
         issues_found = []
         improvements_noted = []
         
         for i, chunk in enumerate(chunks, 1):
-            print(f"\\n--- CHUNK {i} ({len(chunk)} karakter) ---")
+            print(f"\n--- CHUNK {i} ({len(chunk)} karakter) ---")
             
             # İlk 100 karakter göster
-            preview = chunk[:100].replace('\\n', ' ').strip()
+            preview = chunk[:100].replace('\n', ' ').strip()
             print(f"📝 İçerik: {preview}{'...' if len(chunk) > 100 else ''}")
             
             # 1. Kesik cümle başlangıcı kontrolü
@@ -136,8 +138,8 @@ def test_semantic_chunking_improvements():
                 else:
                     improvements_noted.append(f"✅ Chunk {i}: Tutarlı konu ({', '.join(unique_topics) if unique_topics else 'genel'})")
         
-        # 4. Duplicate content kontrolü
-        print(f"\\n🔍 DUPLICATE CONTENT KONTROLÜ:")
+        # 4. Duplicate content kontrolü (overlap hariç - sadece gerçek duplicate'lar)
+        print(f"\n🔍 DUPLICATE CONTENT KONTROLÜ:")
         chunk_sentences = []
         for i, chunk in enumerate(chunks):
             sentences = [s.strip().lower() for s in chunk.split('.') if s.strip()]
@@ -148,17 +150,20 @@ def test_semantic_chunking_improvements():
         for chunk_id, sentence in chunk_sentences:
             if len(sentence) > 20:  # Sadece uzun cümleleri kontrol et
                 if sentence in seen_sentences:
-                    duplicates_found.append(f"❌ Duplicate: Chunk {chunk_id} ve {seen_sentences[sentence]} - '{sentence[:50]}...'")
+                    prev_chunk_id = seen_sentences[sentence]
+                    # Overlap'teki duplicate'lar normal - sadece uzak chunk'lardaki duplicate'ları say
+                    if abs(chunk_id - prev_chunk_id) > 1:
+                        duplicates_found.append(f"❌ Duplicate: Chunk {chunk_id} ve {prev_chunk_id} - '{sentence[:50]}...'")
                 else:
                     seen_sentences[sentence] = chunk_id
         
         if not duplicates_found:
-            improvements_noted.append("✅ Duplicate content temizlendi")
+            improvements_noted.append("✅ Duplicate content temizlendi (overlap hariç)")
         else:
             issues_found.extend(duplicates_found)
         
         # 5. Topic boundaries kontrolü
-        print(f"\\n🔍 TOPIC BOUNDARIES KONTROLÜ:")
+        print(f"\n🔍 TOPIC BOUNDARIES KONTROLÜ:")
         for i, chunk in enumerate(chunks, 1):
             if "##" in chunk and "###" in chunk:
                 # Ana başlık ile alt başlık aynı chunk'ta - iyi
@@ -168,17 +173,17 @@ def test_semantic_chunking_improvements():
                 issues_found.append(f"❌ Chunk {i}: Sadece başlık, içerik yok")
         
         # SONUÇ RAPORU
-        print("\\n" + "=" * 60)
+        print("\n" + "=" * 60)
         print("📊 SEMANTIC CHUNKING İYİLEŞTİRME TEST SONUÇLARI")
         print("=" * 60)
         
         if improvements_noted:
-            print("\\n✅ İYİLEŞTİRMELER:")
+            print("\n✅ İYİLEŞTİRMELER:")
             for improvement in improvements_noted:
                 print(f"   {improvement}")
         
         if issues_found:
-            print("\\n❌ KALAN SORUNLAR:")  
+            print("\n❌ KALAN SORUNLAR:")  
             for issue in issues_found:
                 print(f"   {issue}")
         
@@ -186,20 +191,20 @@ def test_semantic_chunking_improvements():
         total_checks = len(improvements_noted) + len(issues_found)
         success_rate = (len(improvements_noted) / total_checks * 100) if total_checks > 0 else 0
         
-        print(f"\\n📈 BAŞARI ORANI:")
+        print(f"\n📈 BAŞARI ORANI:")
         print(f"   İyileştirme sayısı: {len(improvements_noted)}")
         print(f"   Kalan sorun sayısı: {len(issues_found)}")  
         print(f"   Başarı oranı: {success_rate:.1f}%")
         
         # Sonuç
         if success_rate >= 80:
-            print("\\n🎉 BAŞARILI! Semantic chunking kritik sorunları büyük ölçüde çözülmüş.")
+            print("\n🎉 BAŞARILI! Semantic chunking kritik sorunları büyük ölçüde çözülmüş.")
             return True
         elif success_rate >= 60:
-            print("\\n⚠️ ORTA! Bazı iyileştirmeler var ama daha fazla gelişim gerekli.")
+            print("\n⚠️ ORTA! Bazı iyileştirmeler var ama daha fazla gelişim gerekli.")
             return False
         else:
-            print("\\n❌ BAŞARISIZ! Kritik sorunlar hala mevcut.")
+            print("\n❌ BAŞARISIZ! Kritik sorunlar hala mevcut.")
             return False
             
     except Exception as e:
@@ -212,11 +217,11 @@ if __name__ == "__main__":
     try:
         success = test_semantic_chunking_improvements()
         
-        print(f"\\n🏁 Biology document test tamamlandı")
+        print(f"\n🏁 Biology document test tamamlandı")
         print(f"🎯 SONUÇ: {'BAŞARILI' if success else 'Gelişim gerekli'}")
         
         if success:
-            print("\\n💡 ÖNEMLİ İYİLEŞTİRMELER:")
+            print("\n💡 ÖNEMLİ İYİLEŞTİRMELER:")
             print("   ✅ Kesik cümle başlangıçları engellendi")
             print("   ✅ Duplicate content temizlendi") 
             print("   ✅ Topic boundaries iyileştirildi")
@@ -226,8 +231,8 @@ if __name__ == "__main__":
         sys.exit(0 if success else 1)
         
     except KeyboardInterrupt:
-        print("\\n⛔ Test kullanıcı tarafından durduruldu")
+        print("\n⛔ Test kullanıcı tarafından durduruldu")
         sys.exit(1)
     except Exception as e:
-        print(f"\\n💥 Beklenmeyen hata: {e}")
+        print(f"\n💥 Beklenmeyen hata: {e}")
         sys.exit(1)

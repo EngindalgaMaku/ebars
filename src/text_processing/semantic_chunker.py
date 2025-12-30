@@ -127,6 +127,30 @@ class AdvancedSemanticChunker:
         # Disable all ML-based features
         self.embedding_model = None
         
+        # Sentence boundary patterns for different languages
+        self.sentence_boundary_patterns = {
+            'tr': re.compile(r'([.!?…]+)\s+(?=[A-ZÇĞIİÖŞÜ])'),
+            'en': re.compile(r'([.!?]+)\s+(?=[A-Z])'),
+            'general': re.compile(r'([.!?]+)\s+(?=[A-Z])')
+        }
+        
+        # Turkish abbreviations that should not trigger sentence breaks
+        self.turkish_abbreviations = {
+            'Dr.', 'Prof.', 'Doç.', 'Yrd.', 'Yrd.Doç.', 'Doç.Dr.',
+            'vs.', 'vd.', 'vb.', 'örn.', 'yak.', 'yakl.', 'krş.', 'bkz.',
+            'cm.', 'km.', 'gr.', 'kg.', 'lt.', 'ml.', 'm.', 'mm.',
+            'Ltd.', 'A.Ş.', 'Ltd.Şti.', 'Koop.', 'der.', 'yay.',
+            'No.', 'nr.', 'sy.', 'sh.', 'ss.', 'st.',
+            'Tel.', 'Fax.', 'www.', 'http.', 'https.',
+            'TL.', 'YTL.'
+        }
+        
+        # Turkish sentence starters pattern
+        self.turkish_sentence_starters = re.compile(
+            r'^(Bu|Şu|O|Bunlar|Şunlar|Onlar|Böyle|Şöyle|Öyle|Ancak|Fakat|Ama|Lakin|Ayrıca|Dahası|Sonuç olarak|Bu nedenle)\s+',
+            re.IGNORECASE
+        )
+        
         self.logger.info("✅ Using lightweight fallback mode without ML dependencies")
             
     def _initialize_embedding_model(self, model_name: str):
