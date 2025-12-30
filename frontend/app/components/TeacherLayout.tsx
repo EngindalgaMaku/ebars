@@ -32,6 +32,7 @@ export type TabType =
   | "query"
   | "test-simulation"
   | "rag-metrics-test"
+  | "chunking-new-strategy-test"
   | "system-prompts";
 
 export interface TeacherLayoutProps {
@@ -119,6 +120,13 @@ const simulationItems: Array<{
     desc: "RAGAS Değerlendirme",
     path: "/rag-metrics-test",
   },
+  {
+    id: "chunking-new-strategy-test",
+    name: "Agentic Chunking Test",
+    icon: Settings,
+    desc: "Akıllı Chunking Stratejisi",
+    path: "/teacher/chunking-new-strategy-test",
+  },
 ];
 
 function TeacherLayout({
@@ -152,6 +160,9 @@ function TeacherLayout({
     }
     if (pathname === "/rag-metrics-test") {
       return "rag-metrics-test";
+    }
+    if (pathname === "/teacher/chunking-new-strategy-test") {
+      return "chunking-new-strategy-test";
     }
     if (pathname === "/system-prompts") {
       return "system-prompts";
@@ -208,6 +219,14 @@ function TeacherLayout({
     if (tabId === "rag-metrics-test") {
       if (pathname !== "/rag-metrics-test") {
         router.push("/rag-metrics-test");
+      }
+      return;
+    }
+
+    // Special handling for chunking-new-strategy-test tab - redirect to chunking test page
+    if (tabId === "chunking-new-strategy-test") {
+      if (pathname !== "/teacher/chunking-new-strategy-test") {
+        router.push("/teacher/chunking-new-strategy-test");
       }
       return;
     }
@@ -326,6 +345,8 @@ function TeacherLayout({
                       pathname === "/test-simulation") ||
                     (item.id === "rag-metrics-test" &&
                       pathname === "/rag-metrics-test") ||
+                    (item.id === "chunking-new-strategy-test" &&
+                      pathname === "/teacher/chunking-new-strategy-test") ||
                     (item.id === "system-prompts" && pathname === "/system-prompts");
                   // Use activeTab prop as primary source, pathname only for specific routes
                   const isActive = currentActiveTab === item.id || isPathMatch;

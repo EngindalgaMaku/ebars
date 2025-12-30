@@ -1,0 +1,412 @@
+"use client";
+
+import React, { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Eye, 
+  EyeOff, 
+  Layers, 
+  BarChart3, 
+  Zap,
+  Info,
+  ChevronDown,
+  ChevronRight
+} from "lucide-react";
+
+interface ChunkData {
+  id: string;
+  content: string;
+  startIndex: number;
+  endIndex: number;
+  size: number;
+  semanticScore?: number;
+  boundaryType?: "natural" | "forced" | "semantic";
+  reasoning?: string;
+}
+
+interface ChunkVisualizationProps {
+  chunks: ChunkData[];
+  originalText: string;
+  strategy: string;
+  showMetrics?: boolean;
+}
+
+const ChunkVisualization: React.FC<ChunkVisualizationProps> = ({
+  chunks,
+  originalText,
+  strategy,
+  showMetrics = true,
+}) => {
+  const [viewMode, setViewMode] = useState<"text" | "blocks" | "metrics">("text");
+  const [selectedChunk, setSelectedChunk] = useState<string | null>(null);
+  const [showReasoningDetails, setShowReasoningDetails] = useState<Record<string, boolean>>({});
+
+  const getChunkColor = (index: number, boundaryType?: string) => {
+    const baseColors = [
+      "bg-red-100 border-red-500 text-red-900",
+      "bg-blue-100 border-blue-500 text-blue-900",
+      "bg-green-100 border-green-500 text-green-900",
+      "bg-yellow-100 border-yellow-500 text-yellow-900",
+      "bg-purple-100 border-purple-500 text-purple-900",
+      "bg-pink-100 border-pink-500 text-pink-900",
+      "bg-indigo-100 border-indigo-500 text-indigo-900",
+      "bg-orange-100 border-orange-500 text-orange-900",
+    ];
+
+    let colorClass = baseColors[index % baseColors.length];
+
+    // Add special styling for boundary types
+    if (boundaryType === "semantic") {
+      colorClass += " ring-2 ring-green-300";
+    } else if (boundaryType === "forced") {
+      colorClass += " ring-2 ring-red-300";
+    }
+
+    return colorClass;
+  };
+
+  const toggleReasoningDetails = (chunkId: string) => {
+    setShowReasoningDetails(prev => ({
+      ...prev,
+      [chunkId]: !prev[chunkId]
+    }));
+  };
+
+  const calculateMetrics = () => {
+    if (chunks.length === 0) return null;
+
+    const sizes = chunks.map(c => c.size);
+    const avgSize = sizes.reduce((a, b) => a + b, 0) / sizes.length;
+    const variance = sizes.reduce((acc, size) => acc + Math.pow(size - avgSize, 2), 0) / sizes.length;
+    const stdDev = Math.sqrt(variance);
+    
+    const semanticScores = chunks.filter(c => c.semanticScore).map(c => c.semanticScore!);
+    const avgSemanticScore = semanticScores.length > 0 
+      ? semanticScores.reduce((a, b) => a + b, 0) / semanticScores.length 
+      : 0;
+
+    return {
+      totalChunks: chunks.length,
+      avgSize: Math.round(avgSize),
+      stdDev: Math.round(stdDev),
+      minSize: Math.min(...sizes),
+      maxSize: Math.max(...sizes),
+      avgSemanticScore: avgSemanticScore,
+      naturalBoundaries: chunks.filter(c => c.boundaryType === "natural").length,
+      semanticBoundaries: chunks.filter(c => c.boundaryType === "semantic").length,
+      forcedBoundaries: chunks.filter(c => c.boundaryType === "forced").length,
+    };
+  };
+
+  const metrics = calculateMetrics();
+
+  return (
+    <div className="space-y-6">
+      {/* Controls */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === "text" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("text")}
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            Metin Görünümü
+          </Button>
+          <Button
+            variant={viewMode === "blocks" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("blocks")}
+          >
+            <Layers className="h-4 w-4 mr-2" />
+            Blok Görünümü
+          </Button>
+          {showMetrics && (
+            <Button
+              variant={viewMode === "metrics" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("metrics")}
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Metrikler
+            </Button>
+          )}
+        </div>
+        <Badge variant="outline" className="text-sm">
+          {strategy} Stratejisi - {chunks.length} Chunk
+        </Badge>
+      </div>
+
+      {/* Text View */}
+      {viewMode === "text" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Chunk Sınırları Görselleştirmesi
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-gray-600 mb-4">
+              Her renk farklı bir chunk'ı temsil eder. Chunk sınırları renkli kenarlıklarla gösterilir.
+            </div>
+            <div className="border rounded-lg p-4 bg-gray-50 max-h-96 overflow-y-auto">
+              <div className="text-sm leading-relaxed space-y-1">
+                {chunks.map((chunk, index) => (
+                  <span
+                    key={chunk.id}
+                    className={`inline-block p-2 m-1 rounded border-l-4 cursor-pointer transition-all hover:shadow-md ${getChunkColor(index, chunk.boundaryType)} ${
+                      selectedChunk === chunk.id ? "ring-2 ring-blue-400 shadow-lg" : ""
+                    }`}
+                    title={`Chunk ${index + 1}: ${chunk.size} karakter${chunk.semanticScore ? ` - Skor: ${chunk.semanticScore.toFixed(3)}` : ""}`}
+                    onClick={() => setSelectedChunk(selectedChunk === chunk.id ? null : chunk.id)}
+                  >
+                    {chunk.content}
+                    {chunk.boundaryType && (
+                      <div className="text-xs mt-1 opacity-75">
+                        {chunk.boundaryType === "semantic" && "🧠 Semantik"}
+                        {chunk.boundaryType === "natural" && "📝 Doğal"}
+                        {chunk.boundaryType === "forced" && "✂️ Zorlanmış"}
+                      </div>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Block View */}
+      {viewMode === "blocks" && (
+        <div className="space-y-4">
+          {chunks.map((chunk, index) => (
+            <Card key={chunk.id} className="transition-all hover:shadow-md">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">Chunk #{index + 1}</Badge>
+                    <div className="text-sm text-gray-500">
+                      {chunk.size} karakter
+                    </div>
+                    {chunk.boundaryType && (
+                      <Badge 
+                        variant={chunk.boundaryType === "semantic" ? "default" : "secondary"}
+                        className="text-xs"
+                      >
+                        {chunk.boundaryType === "semantic" && "🧠 Semantik"}
+                        {chunk.boundaryType === "natural" && "📝 Doğal"}
+                        {chunk.boundaryType === "forced" && "✂️ Zorlanmış"}
+                      </Badge>
+                    )}
+                    {chunk.semanticScore && (
+                      <Badge variant="outline" className="text-xs">
+                        Skor: {chunk.semanticScore.toFixed(3)}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded border-l-4" 
+                     style={{ borderLeftColor: getChunkColor(index).includes('red') ? '#ef4444' : 
+                                               getChunkColor(index).includes('blue') ? '#3b82f6' :
+                                               getChunkColor(index).includes('green') ? '#10b981' :
+                                               getChunkColor(index).includes('yellow') ? '#f59e0b' :
+                                               getChunkColor(index).includes('purple') ? '#8b5cf6' :
+                                               getChunkColor(index).includes('pink') ? '#ec4899' : '#6366f1' }}>
+                  {chunk.content.length > 300 ? (
+                    <>
+                      {chunk.content.substring(0, 300)}
+                      <button 
+                        className="text-blue-600 hover:text-blue-800 ml-2"
+                        onClick={() => setSelectedChunk(selectedChunk === chunk.id ? null : chunk.id)}
+                      >
+                        {selectedChunk === chunk.id ? "Daha az göster" : "Devamını göster..."}
+                      </button>
+                      {selectedChunk === chunk.id && (
+                        <div className="mt-2 pt-2 border-t border-gray-200">
+                          {chunk.content.substring(300)}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    chunk.content
+                  )}
+                </div>
+                
+                {chunk.reasoning && (
+                  <div className="text-xs bg-blue-50 border border-blue-200 rounded p-3">
+                    <button
+                      className="flex items-center gap-1 text-blue-700 font-medium hover:text-blue-900"
+                      onClick={() => toggleReasoningDetails(chunk.id)}
+                    >
+                      {showReasoningDetails[chunk.id] ? (
+                        <ChevronDown className="h-3 w-3" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3" />
+                      )}
+                      <Zap className="h-3 w-3" />
+                      LLM Reasoning
+                    </button>
+                    {showReasoningDetails[chunk.id] && (
+                      <div className="mt-2 text-blue-800">
+                        {chunk.reasoning}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Metrics View */}
+      {viewMode === "metrics" && metrics && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Basic Metrics */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BarChart3 className="h-5 w-5" />
+                Temel Metrikler
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Toplam Chunk:</span>
+                <span className="font-semibold">{metrics.totalChunks}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Ortalama Boyut:</span>
+                <span className="font-semibold">{metrics.avgSize} karakter</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Standart Sapma:</span>
+                <span className="font-semibold">{metrics.stdDev}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Min/Max Boyut:</span>
+                <span className="font-semibold">{metrics.minSize} / {metrics.maxSize}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Boundary Types */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Layers className="h-5 w-5" />
+                Sınır Türleri
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600 flex items-center gap-1">
+                  🧠 Semantik:
+                </span>
+                <span className="font-semibold">{metrics.semanticBoundaries}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600 flex items-center gap-1">
+                  📝 Doğal:
+                </span>
+                <span className="font-semibold">{metrics.naturalBoundaries}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600 flex items-center gap-1">
+                  ✂️ Zorlanmış:
+                </span>
+                <span className="font-semibold">{metrics.forcedBoundaries}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quality Metrics */}
+          {metrics.avgSemanticScore > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Zap className="h-5 w-5" />
+                  Kalite Metrikleri
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Ortalama Semantik Skor:</span>
+                  <span className="font-semibold">{metrics.avgSemanticScore.toFixed(3)}</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full" 
+                    style={{ width: `${metrics.avgSemanticScore * 100}%` }}
+                  ></div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Selected Chunk Details */}
+      {selectedChunk && viewMode === "text" && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Info className="h-5 w-5" />
+              Seçili Chunk Detayları
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const chunk = chunks.find(c => c.id === selectedChunk);
+              if (!chunk) return null;
+              
+              return (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Boyut:</span>
+                      <span className="ml-2 font-semibold">{chunk.size} karakter</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Pozisyon:</span>
+                      <span className="ml-2 font-semibold">{chunk.startIndex} - {chunk.endIndex}</span>
+                    </div>
+                    {chunk.semanticScore && (
+                      <div>
+                        <span className="text-gray-600">Semantik Skor:</span>
+                        <span className="ml-2 font-semibold">{chunk.semanticScore.toFixed(3)}</span>
+                      </div>
+                    )}
+                    {chunk.boundaryType && (
+                      <div>
+                        <span className="text-gray-600">Sınır Türü:</span>
+                        <span className="ml-2 font-semibold">
+                          {chunk.boundaryType === "semantic" && "🧠 Semantik"}
+                          {chunk.boundaryType === "natural" && "📝 Doğal"}
+                          {chunk.boundaryType === "forced" && "✂️ Zorlanmış"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {chunk.reasoning && (
+                    <div className="mt-4 p-3 bg-white rounded border">
+                      <div className="text-sm font-medium text-gray-700 mb-2">LLM Reasoning:</div>
+                      <div className="text-sm text-gray-600">{chunk.reasoning}</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default ChunkVisualization;
