@@ -2611,13 +2611,6 @@ export default function TestSimulationPage() {
                           <tr className="border-b">
                             <th className="text-left p-2">Metod</th>
                             <th className="text-center p-2">
-                              Cosine Similarity
-                            </th>
-                            <th className="text-center p-2">
-                              Avg Response (ms)
-                            </th>
-                            <th className="text-center p-2">Accuracy (%)</th>
-                            <th className="text-center p-2">
                               Semantic Similarity (Cevap-Ground Truth)
                             </th>
                           </tr>
@@ -2641,161 +2634,33 @@ export default function TestSimulationPage() {
                                     {methodNames[method]}
                                   </td>
                                   <td className="p-2 text-center">
-                                    <span
-                                      className={`font-medium ${
-                                        results.cosineSimilarity >= 0.85
-                                          ? "text-green-600"
-                                          : results.cosineSimilarity >= 0.75
-                                          ? "text-yellow-600"
-                                          : "text-red-600"
-                                      }`}
-                                    >
-                                      {results.cosineSimilarity !== null &&
-                                      results.cosineSimilarity !== undefined
-                                        ? results.cosineSimilarity.toFixed(3)
-                                        : "N/A"}
-                                    </span>
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    <span
-                                      className={`font-medium ${
-                                        results.avgResponseTime <= 1000
-                                          ? "text-green-600"
-                                          : results.avgResponseTime <= 1500
-                                          ? "text-yellow-600"
-                                          : "text-red-600"
-                                      }`}
-                                    >
-                                      {results.avgResponseTime !== null &&
-                                      results.avgResponseTime !== undefined
-                                        ? Math.round(results.avgResponseTime)
-                                        : "N/A"}
-                                    </span>
-                                  </td>
-                                  <td className="p-2 text-center">
-                                    <span
-                                      className={`font-medium ${
-                                        results.accuracy >= 85
-                                          ? "text-green-600"
-                                          : results.accuracy >= 75
-                                          ? "text-yellow-600"
-                                          : "text-red-600"
-                                      }`}
-                                    >
-                                      {results.accuracy !== null &&
-                                      results.accuracy !== undefined
-                                        ? `${results.accuracy.toFixed(1)}%`
-                                        : "N/A"}
-                                    </span>
-                                  </td>
-                                  <td className="p-2 text-center">
                                     <div className="text-xs space-y-1">
                                       {(() => {
                                         const semantic = getSimilarityValue(
                                           results,
                                           "semanticSimilarity"
                                         );
-                                        const bleu = getSimilarityValue(
-                                          results,
-                                          "bleuScore"
-                                        );
-                                        const rougeL = getSimilarityValue(
-                                          results,
-                                          "rougeL"
-                                        );
-                                        const f1 = getSimilarityValue(
-                                          results,
-                                          "f1Score"
-                                        );
 
-                                        if (
-                                          semantic === null &&
-                                          bleu === null &&
-                                          rougeL === null &&
-                                          f1 === null
-                                        ) {
+                                        if (semantic === null || semantic === undefined) {
                                           return (
                                             <span className="text-gray-500 italic">
-                                              Ground truth gerekli
+                                              N/A
                                             </span>
                                           );
                                         }
 
                                         return (
-                                          <>
-                                            {semantic !== null && (
-                                              <div>
-                                                <span className="font-medium text-blue-600">
-                                                  S:
-                                                </span>{" "}
-                                                <span
-                                                  className={`${
-                                                    semantic >= 0.7
-                                                      ? "text-green-600"
-                                                      : semantic >= 0.5
-                                                      ? "text-yellow-600"
-                                                      : "text-red-600"
-                                                  }`}
-                                                >
-                                                  {semantic.toFixed(3)}
-                                                </span>
-                                              </div>
-                                            )}
-                                            {bleu !== null && (
-                                              <div>
-                                                <span className="font-medium text-green-600">
-                                                  B:
-                                                </span>{" "}
-                                                <span
-                                                  className={`${
-                                                    bleu >= 0.7
-                                                      ? "text-green-600"
-                                                      : bleu >= 0.5
-                                                      ? "text-yellow-600"
-                                                      : "text-red-600"
-                                                  }`}
-                                                >
-                                                  {bleu.toFixed(3)}
-                                                </span>
-                                              </div>
-                                            )}
-                                            {rougeL !== null && (
-                                              <div>
-                                                <span className="font-medium text-orange-600">
-                                                  R:
-                                                </span>{" "}
-                                                <span
-                                                  className={`${
-                                                    rougeL >= 0.7
-                                                      ? "text-green-600"
-                                                      : rougeL >= 0.5
-                                                      ? "text-yellow-600"
-                                                      : "text-red-600"
-                                                  }`}
-                                                >
-                                                  {rougeL.toFixed(3)}
-                                                </span>
-                                              </div>
-                                            )}
-                                            {f1 !== null && (
-                                              <div>
-                                                <span className="font-medium text-purple-600">
-                                                  F1:
-                                                </span>{" "}
-                                                <span
-                                                  className={`${
-                                                    f1 >= 0.7
-                                                      ? "text-green-600"
-                                                      : f1 >= 0.5
-                                                      ? "text-yellow-600"
-                                                      : "text-red-600"
-                                                  }`}
-                                                >
-                                                  {f1.toFixed(3)}
-                                                </span>
-                                              </div>
-                                            )}
-                                          </>
+                                          <span
+                                            className={`font-medium ${
+                                              semantic >= 0.7
+                                                ? "text-green-600"
+                                                : semantic >= 0.5
+                                                ? "text-yellow-600"
+                                                : "text-red-600"
+                                            }`}
+                                          >
+                                            S: {semantic.toFixed(3)}
+                                          </span>
                                         );
                                       })()}
                                     </div>

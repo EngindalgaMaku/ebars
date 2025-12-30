@@ -250,19 +250,8 @@ export default function ResultsTab({
               <thead>
                 <tr className="border-b">
                   <th className="text-left p-2">Metod</th>
-                  {/* Show retrieval metrics only for standard tests, not semantic similarity tests */}
-                  {currentTest.testType !== "semantic_similarity_only" && (
-                    <>
-                      <th className="text-center p-2">Cosine Similarity</th>
-                      <th className="text-center p-2">Avg Response (ms)</th>
-                      <th className="text-center p-2">Accuracy (%)</th>
-                    </>
-                  )}
-                  {/* Semantic similarity metrics */}
-                  <th className="text-center p-2">Semantic Similarity</th>
-                  <th className="text-center p-2">BLEU</th>
-                  <th className="text-center p-2">ROUGE-L</th>
-                  <th className="text-center p-2">F1 Score</th>
+                  {/* Only Semantic Similarity (Ground Truth) */}
+                  <th className="text-center p-2">Semantic Similarity (Cevap-Ground Truth)</th>
                 </tr>
               </thead>
               <tbody>
@@ -272,60 +261,7 @@ export default function ResultsTab({
                       <td className="p-2 font-medium">
                         {methodNames[method] || method}
                       </td>
-                      {/* Show retrieval metrics only for standard tests */}
-                      {currentTest.testType !== "semantic_similarity_only" && (
-                        <>
-                          <td className="p-2 text-center">
-                            <span
-                              className={`font-medium ${
-                                (results.cosineSimilarity ?? 0) >= 0.85
-                                  ? "text-green-600"
-                                  : (results.cosineSimilarity ?? 0) >= 0.75
-                                  ? "text-yellow-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {results.cosineSimilarity !== null &&
-                              results.cosineSimilarity !== undefined
-                                ? results.cosineSimilarity.toFixed(3)
-                                : "N/A"}
-                            </span>
-                          </td>
-                          <td className="p-2 text-center">
-                            <span
-                              className={`font-medium ${
-                                (results.avgResponseTime ?? 0) <= 1000
-                                  ? "text-green-600"
-                                  : (results.avgResponseTime ?? 0) <= 1500
-                                  ? "text-yellow-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {results.avgResponseTime !== null &&
-                              results.avgResponseTime !== undefined
-                                ? Math.round(results.avgResponseTime)
-                                : "N/A"}
-                            </span>
-                          </td>
-                          <td className="p-2 text-center">
-                            <span
-                              className={`font-medium ${
-                                (results.accuracy ?? 0) >= 85
-                                  ? "text-green-600"
-                                  : (results.accuracy ?? 0) >= 75
-                                  ? "text-yellow-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {results.accuracy !== null &&
-                              results.accuracy !== undefined
-                                ? `${results.accuracy.toFixed(1)}%`
-                                : "N/A"}
-                            </span>
-                          </td>
-                        </>
-                      )}
-                      {/* Semantic similarity metrics */}
+                      {/* Only Semantic Similarity (Ground Truth) */}
                       <td className="p-2 text-center">
                         {(() => {
                           const semantic = getSimilarityValue(
@@ -334,14 +270,14 @@ export default function ResultsTab({
                           );
                           if (semantic === null || semantic === undefined) {
                             return (
-                              <span className="text-gray-500 italic text-xs">
+                              <span className="text-gray-500 italic">
                                 N/A
                               </span>
                             );
                           }
                           return (
                             <span
-                              className={`font-medium text-xs ${
+                              className={`font-medium ${
                                 semantic >= 0.7
                                   ? "text-green-600"
                                   : semantic >= 0.5
@@ -349,76 +285,7 @@ export default function ResultsTab({
                                   : "text-red-600"
                               }`}
                             >
-                              {semantic.toFixed(3)}
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td className="p-2 text-center">
-                        {(() => {
-                          const bleu = getSimilarityValue(results, "bleuScore");
-                          if (bleu === null || bleu === undefined) {
-                            return (
-                              <span className="text-gray-500 text-xs">N/A</span>
-                            );
-                          }
-                          return (
-                            <span
-                              className={`font-medium text-xs ${
-                                bleu >= 0.7
-                                  ? "text-green-600"
-                                  : bleu >= 0.5
-                                  ? "text-yellow-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {bleu.toFixed(3)}
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td className="p-2 text-center">
-                        {(() => {
-                          const rouge = getSimilarityValue(results, "rougeL");
-                          if (rouge === null || rouge === undefined) {
-                            return (
-                              <span className="text-gray-500 text-xs">N/A</span>
-                            );
-                          }
-                          return (
-                            <span
-                              className={`font-medium text-xs ${
-                                rouge >= 0.7
-                                  ? "text-green-600"
-                                  : rouge >= 0.5
-                                  ? "text-yellow-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {rouge.toFixed(3)}
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td className="p-2 text-center">
-                        {(() => {
-                          const f1 = getSimilarityValue(results, "f1Score");
-                          if (f1 === null || f1 === undefined) {
-                            return (
-                              <span className="text-gray-500 text-xs">N/A</span>
-                            );
-                          }
-                          return (
-                            <span
-                              className={`font-medium text-xs ${
-                                f1 >= 0.7
-                                  ? "text-green-600"
-                                  : f1 >= 0.5
-                                  ? "text-yellow-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {f1.toFixed(3)}
+                              S: {semantic.toFixed(3)}
                             </span>
                           );
                         })()}
