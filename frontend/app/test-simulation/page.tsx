@@ -916,22 +916,11 @@ export default function TestSimulationPage() {
           // Ensure progress only moves forward (use max to prevent backwards progress)
           const safeProgress = Math.max(prevTest.progress || 0, status.progress || 0);
 
-          // Check if test should be considered completed even if status says "running"
-          const hasResults = (status.questions && status.questions.length > 0) || (status.resultsCount && status.resultsCount > 0);
-          const hasEndTime = status.endTime && status.endTime.length > 0;
-          const isProgressComplete = safeProgress >= 100;
-          
-          // Determine final status: if test has endTime, progress 100%, or results, consider it completed
-          let finalStatus = status.status || "completed";
-          if (hasEndTime || isProgressComplete || (hasResults && status.status === "running")) {
-            finalStatus = "completed";
-          }
-
           // Always use latest data from API - don't fallback to prevTest if API has data
           const updatedTest = {
             ...prevTest,
             progress: safeProgress,
-            status: finalStatus,
+            status: status.status,
             endTime: status.endTime || prevTest.endTime,
             executionTime: status.executionTime || prevTest.executionTime,
             // Always use API data if available, otherwise keep previous
@@ -957,23 +946,16 @@ export default function TestSimulationPage() {
           return updatedTest;
         });
 
-        // Check if test should be considered completed
-        const hasResults = (status.questions && status.questions.length > 0) || (status.resultsCount && status.resultsCount > 0);
-        const hasEndTime = status.endTime && status.endTime.length > 0;
-        const isProgressComplete = status.progress >= 100;
-        const isActuallyCompleted = hasEndTime || isProgressComplete || (hasResults && status.status === "running");
-        const actualStatus = isActuallyCompleted ? "completed" : (status.status || "running");
-
         // If test is completed or failed, stop polling
         if (
-          actualStatus === "completed" ||
+          status.status === "completed" ||
           status.status === "failed" ||
           status.status === "stopped"
         ) {
           stopPolling();
           setIsRunning(false);
 
-          if (actualStatus === "completed") {
+          if (status.status === "completed") {
             toast.success("Test tamamlandı!");
             setActiveTab("results");
           } else if (status.status === "failed") {
@@ -2609,13 +2591,11 @@ export default function TestSimulationPage() {
                           Başarı Oranı
                         </div>
                         <div className="text-lg font-semibold">
-                          {currentTest.metrics.totalQuestions > 0
-                            ? (
-                                (currentTest.metrics.correctAnswers /
-                                  currentTest.metrics.totalQuestions) *
-                                100
-                              ).toFixed(1)
-                            : "0.0"}
+                          {(
+                            (currentTest.metrics.correctAnswers /
+                              currentTest.metrics.totalQuestions) *
+                            100
+                          ).toFixed(1)}
                           %
                         </div>
                       </div>
@@ -2973,73 +2953,134 @@ export default function TestSimulationPage() {
                   </CardContent>
                 </Card>
 
-              </div>
-            ) : (() => {
-              // Check if test should be considered completed
-              const hasResults = (currentTest.questions && currentTest.questions.length > 0) || 
-                               (currentTest.methodComparison && Object.keys(currentTest.methodComparison).length > 0);
-              const hasEndTime = currentTest.endTime && currentTest.endTime.length > 0;
-              const isProgressComplete = currentTest.progress >= 100;
-              const isActuallyCompleted = currentTest.status === "completed" || 
-                                         hasEndTime || 
-                                         isProgressComplete || 
-                                         (hasResults && currentTest.status === "running");
-              
-              if (currentTest.status === "running" && !isActuallyCompleted) {
-                return (
+                {/* Benchmark Comparison */}
+                {config.enableBenchmark && (
                   <Card>
-                    <CardContent className="text-center py-12">
-                      <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">
-                        Test Devam Ediyor
-                      </h3>
-                      <p className="text-gray-500 mb-4">
-                        Sonuçları görmek için testin tamamlanmasını bekleyin.
-                      </p>
-                      <div className="text-sm text-gray-400">
-                        İlerleme: {Math.round(currentTest.progress)}%
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Target className="h-5 w-5" />
+                          Benchmark Karşılaştırması
+                        </div>
+                        <ChartExportControls
+                          chartId="benchmark-comparison-chart"
+                          chartTitle="Benchmark Karşılaştırması"
+                          variant="compact"
+                          showLabels={false}
+                        />
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div id="benchmark-comparison-chart">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="text-center p-6 bg-blue-50 rounded-lg">
+                            <div className="text-3xl font-bold text-blue-600 mb-2">
+                              {currentTest.benchmarkComparison.ekoBot.cosineSimilarity.toFixed(
+                                3
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600 mb-1">
+                              EkoBot Referans
+                            </div>
+                          </div>
+                          <div className="text-center p-6 bg-green-50 rounded-lg">
+                            <div className="text-3xl font-bold text-green-600 mb-2">
+                              {currentTest.benchmarkComparison.current.cosineSimilarity.toFixed(
+                                3
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600 mb-1">
+                              Mevcut Test
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                          <div className="flex items-center justify-center">
+                            {currentTest.benchmarkComparison.current
+                              .cosineSimilarity >=
+                            currentTest.benchmarkComparison.ekoBot
+                              .cosineSimilarity ? (
+                              <div className="flex items-center gap-2 text-green-600">
+                                <CheckCircle className="h-5 w-5" />
+                                <span className="font-medium">
+                                  Benchmark'i{" "}
+                                  {(
+                                    ((currentTest.benchmarkComparison.current
+                                      .cosineSimilarity -
+                                      currentTest.benchmarkComparison.ekoBot
+                                        .cosineSimilarity) /
+                                      currentTest.benchmarkComparison.ekoBot
+                                        .cosineSimilarity) *
+                                    100
+                                  ).toFixed(1)}
+                                  % geçti
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 text-orange-600">
+                                <AlertTriangle className="h-5 w-5" />
+                                <span className="font-medium">
+                                  Benchmark'in{" "}
+                                  {(
+                                    ((currentTest.benchmarkComparison.ekoBot
+                                      .cosineSimilarity -
+                                      currentTest.benchmarkComparison.current
+                                        .cosineSimilarity) /
+                                      currentTest.benchmarkComparison.ekoBot
+                                        .cosineSimilarity) *
+                                    100
+                                  ).toFixed(1)}
+                                  % altında
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
-                );
-              }
-              return (
-                <Card>
-                  <CardContent className="text-center py-12">
-                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      Henüz Sonuç Yok
-                    </h3>
-                    <p className="text-gray-500 mb-4">
-                      Sonuçları görmek için önce bir test başlatın ve tamamlayın.
-                    </p>
-                    <Button
-                      onClick={() => setActiveTab("configuration")}
-                      variant="outline"
-                    >
-                      Test Başlat
-                      <ChevronRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })()}
+                )}
+              </div>
+            ) : currentTest && currentTest.status === "running" && (!currentTest.questions || currentTest.questions.length === 0) ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Test Devam Ediyor
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    Sonuçları görmek için testin tamamlanmasını bekleyin.
+                  </p>
+                  <div className="text-sm text-gray-400">
+                    İlerleme: {Math.round(currentTest.progress)}%
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Henüz Sonuç Yok
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    Sonuçları görmek için önce bir test başlatın ve tamamlayın.
+                  </p>
+                  <Button
+                    onClick={() => setActiveTab("configuration")}
+                    variant="outline"
+                  >
+                    Test Başlat
+                    <ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Detailed Results Tab */}
           <TabsContent value="detailed" className="space-y-6">
-            {currentTest && (() => {
-              // Check if test should be considered completed
-              const hasResults = (currentTest.questions && currentTest.questions.length > 0) || 
-                               (currentTest.methodComparison && Object.keys(currentTest.methodComparison).length > 0);
-              const hasEndTime = currentTest.endTime && currentTest.endTime.length > 0;
-              const isProgressComplete = currentTest.progress >= 100;
-              const isActuallyCompleted = currentTest.status === "completed" || 
-                                         hasEndTime || 
-                                         isProgressComplete || 
-                                         (hasResults && currentTest.status === "running");
-              return isActuallyCompleted || (currentTest.status === "failed" && currentTest.questions && currentTest.questions.length > 0);
-            })() ? (
+            {currentTest && (currentTest.status === "completed" || (currentTest.status === "failed" && currentTest.questions && currentTest.questions.length > 0)) ? (
               currentTest.questions && currentTest.questions.length > 0 ? (
                 <div className="space-y-6">
                   {/* Comprehensive Question-by-Question Metrics Table */}
@@ -3339,55 +3380,40 @@ export default function TestSimulationPage() {
                   </CardContent>
                 </Card>
               )
-            ) : (() => {
-              // Check if test should be considered completed
-              const hasResults = (currentTest.questions && currentTest.questions.length > 0) || 
-                               (currentTest.methodComparison && Object.keys(currentTest.methodComparison).length > 0);
-              const hasEndTime = currentTest.endTime && currentTest.endTime.length > 0;
-              const isProgressComplete = currentTest.progress >= 100;
-              const isActuallyCompleted = currentTest.status === "completed" || 
-                                         hasEndTime || 
-                                         isProgressComplete || 
-                                         (hasResults && currentTest.status === "running");
-              
-              if (currentTest.status === "running" && !isActuallyCompleted) {
-                return (
-                  <Card>
-                    <CardContent className="text-center py-12">
-                      <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">
-                        Test Devam Ediyor
-                      </h3>
-                      <p className="text-gray-500 mb-4">
-                        Detaylı sonuçları görmek için testin tamamlanmasını
-                        bekleyin.
-                      </p>
-                    </CardContent>
-                  </Card>
-                );
-              }
-              return (
-                <Card>
-                  <CardContent className="text-center py-12">
-                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      Henüz Detaylı Sonuç Yok
-                    </h3>
-                    <p className="text-gray-500 mb-4">
-                      Detaylı sonuçları görmek için önce bir test başlatın ve
-                      tamamlayın.
-                    </p>
-                    <Button
-                      onClick={() => setActiveTab("configuration")}
-                      variant="outline"
-                    >
-                      Test Başlat
-                      <ChevronRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })()
+            ) : currentTest && currentTest.status === "running" && (!currentTest.questions || currentTest.questions.length === 0) ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Test Devam Ediyor
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    Detaylı sonuçları görmek için testin tamamlanmasını
+                    bekleyin.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Henüz Detaylı Sonuç Yok
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    Detaylı sonuçları görmek için önce bir test başlatın ve
+                    tamamlayın.
+                  </p>
+                  <Button
+                    onClick={() => setActiveTab("configuration")}
+                    variant="outline"
+                  >
+                    Test Başlat
+                    <ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
