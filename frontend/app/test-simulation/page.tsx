@@ -153,6 +153,10 @@ interface TestResult {
   questions?: QuestionDetail[]; // Detailed per-question results
   detailedResultsUrl?: string;
   detailedResultsAvailable?: boolean;
+  // Additional tracking fields
+  currentQuestion?: number;
+  totalQuestions?: number;
+  error?: string;
 }
 
 interface MethodResults {
@@ -865,13 +869,16 @@ export default function TestSimulationPage() {
     isPollingRef.current = false;
   };
 
-  // Poll test status from API - Fixed to prevent multiple intervals and race conditions
+  // Poll test status from API - Enhanced with better error handling and progress tracking
   const pollTestStatus = (testId: string) => {
     // Stop any existing polling first
     stopPolling();
     
     // Set polling flag
     isPollingRef.current = true;
+    
+    let errorCount = 0;
+    const maxErrors = 5;
     
     const poll = async () => {
       // Check if polling should continue
@@ -882,27 +889,35 @@ export default function TestSimulationPage() {
       try {
         const response = await fetch(`/api/test-simulation/status/${testId}`);
         if (!response.ok) {
-          console.error("Failed to fetch test status");
+          console.error(`Failed to fetch test status: ${response.status}`);
+          errorCount++;
+          if (errorCount >= maxErrors) {
+            console.error("Too many polling errors, stopping polling");
+            stopPolling();
+            setError("Test durumu alınamıyor - çok fazla hata");
+          }
           return;
         }
 
+        // Reset error count on successful response
+        errorCount = 0;
         const status = await response.json();
 
-        // Debug logging (only log when there's actual data or status changes)
-        const hasData = (status.metrics && Object.keys(status.metrics).length > 0) || 
+        // Enhanced debug logging
+        const hasData = (status.metrics && Object.keys(status.metrics).length > 0) ||
                        (status.methodComparison && Object.keys(status.methodComparison).length > 0) ||
                        (status.questions && status.questions.length > 0);
         
-        if (hasData || Math.random() < 0.2) { // Log 20% of updates or when data is present
+        if (hasData || status.progress > 0) {
           console.log("📈 Test Status Update:", {
+            testId: testId,
             status: status.status,
             progress: status.progress,
-            metricsCount: status.metrics ? Object.keys(status.metrics).length : 0,
-            methodComparisonCount: status.methodComparison ? Object.keys(status.methodComparison).length : 0,
-            questionsCount: status.questions ? status.questions.length : 0,
-            resultsCount: status.resultsCount,
             currentQuestion: status.currentQuestion,
             totalQuestions: status.totalQuestions,
+            methodsCount: status.methodComparison ? Object.keys(status.methodComparison).length : 0,
+            questionsCount: status.questions ? status.questions.length : 0,
+            hasMetrics: !!(status.metrics && Object.keys(status.metrics).length > 0)
           });
         }
 
@@ -916,24 +931,24 @@ export default function TestSimulationPage() {
           // Ensure progress only moves forward (use max to prevent backwards progress)
           const safeProgress = Math.max(prevTest.progress || 0, status.progress || 0);
 
-          // Always use latest data from API - don't fallback to prevTest if API has data
+          // Enhanced data merging - preserve existing data if API doesn't have it
           const updatedTest = {
             ...prevTest,
             progress: safeProgress,
-            status: status.status,
+            status: status.status || prevTest.status,
             endTime: status.endTime || prevTest.endTime,
             executionTime: status.executionTime || prevTest.executionTime,
-            // Always use API data if available, otherwise keep previous
-            metrics: status.metrics && Object.keys(status.metrics).length > 0 
-              ? status.metrics 
+            // Merge metrics - use API data if available and non-empty
+            metrics: (status.metrics && Object.keys(status.metrics).length > 0)
+              ? { ...prevTest.metrics, ...status.metrics }
               : prevTest.metrics,
-            methodComparison: status.methodComparison && Object.keys(status.methodComparison).length > 0
-              ? status.methodComparison
+            // Merge method comparison - preserve existing data and add new data
+            methodComparison: (status.methodComparison && Object.keys(status.methodComparison).length > 0)
+              ? { ...prevTest.methodComparison, ...status.methodComparison }
               : prevTest.methodComparison,
-            benchmarkComparison: status.benchmarkComparison
-              ? status.benchmarkComparison
-              : prevTest.benchmarkComparison,
-            questions: status.questions && status.questions.length > 0
+            benchmarkComparison: status.benchmarkComparison || prevTest.benchmarkComparison,
+            // Questions - use API data if available and non-empty
+            questions: (status.questions && status.questions.length > 0)
               ? status.questions
               : prevTest.questions,
             testType: status.testType || prevTest.testType,
@@ -941,6 +956,9 @@ export default function TestSimulationPage() {
             detailedResultsAvailable: status.detailedResultsAvailable ?? prevTest.detailedResultsAvailable,
             // Include error info if available
             error: (status as any).error || (prevTest as any).error,
+            // Add current question tracking
+            currentQuestion: status.currentQuestion || prevTest.currentQuestion,
+            totalQuestions: status.totalQuestions || prevTest.totalQuestions,
           };
 
           return updatedTest;
@@ -958,6 +976,8 @@ export default function TestSimulationPage() {
           if (status.status === "completed") {
             toast.success("Test tamamlandı!");
             setActiveTab("results");
+            // Reload test list to show updated status
+            setTimeout(() => loadTestList(), 1000);
           } else if (status.status === "failed") {
             const errorMsg = status.error || "Test execution failed";
             toast.error(`Test başarısız: ${errorMsg}`);
@@ -966,16 +986,24 @@ export default function TestSimulationPage() {
             if (status.errorTraceback) {
               console.error("Test error traceback:", status.errorTraceback);
             }
+            // Reload test list to show failed status
+            setTimeout(() => loadTestList(), 1000);
           } else if (status.status === "stopped") {
             toast.info("Test durduruldu");
+            // Reload test list to show stopped status
+            setTimeout(() => loadTestList(), 1000);
           }
         }
       } catch (error) {
         console.error("Error polling test status:", error);
-        // Don't stop polling on error, just log it
-        // But if we get too many errors, stop polling
-        if (error instanceof Error && error.message.includes("fetch")) {
-          // Network error - might be temporary, continue polling
+        errorCount++;
+        
+        // Stop polling after too many consecutive errors
+        if (errorCount >= maxErrors) {
+          console.error("Too many polling errors, stopping polling");
+          stopPolling();
+          setError("Test durumu alınamıyor - bağlantı sorunu");
+          setIsRunning(false);
         }
       }
     };
@@ -983,8 +1011,8 @@ export default function TestSimulationPage() {
     // Initial poll
     poll();
     
-    // Set up interval
-    pollingIntervalRef.current = setInterval(poll, 2000); // Poll every 2 seconds
+    // Set up interval - slightly faster polling for better UX
+    pollingIntervalRef.current = setInterval(poll, 1500); // Poll every 1.5 seconds
   };
   
   // Cleanup polling on component unmount or when test changes
@@ -2276,7 +2304,7 @@ export default function TestSimulationPage() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
                         <div className="text-center">
                           <div className="text-2xl font-bold text-blue-600">
-                            {currentTest.metrics.totalQuestions}
+                            {currentTest.totalQuestions || currentTest.metrics.totalQuestions}
                           </div>
                           <div className="text-sm text-gray-500">
                             Toplam Soru
@@ -2321,6 +2349,42 @@ export default function TestSimulationPage() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Enhanced Progress Information */}
+                      {currentTest.status === "running" && (
+                        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="text-sm text-blue-800">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="font-medium">Test İlerlemesi:</span>
+                              <span className="text-xs">
+                                {currentTest.currentQuestion || 0} / {currentTest.totalQuestions || currentTest.metrics.totalQuestions} soru
+                              </span>
+                            </div>
+                            {currentTest.currentQuestion && currentTest.totalQuestions && (
+                              <div className="w-full bg-blue-200 rounded-full h-2 mb-2">
+                                <div
+                                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                  style={{
+                                    width: `${Math.min(100, (currentTest.currentQuestion / currentTest.totalQuestions) * 100)}%`
+                                  }}
+                                ></div>
+                              </div>
+                            )}
+                            <div className="text-xs space-y-1">
+                              {Object.keys(currentTest.methodComparison || {}).length > 0 && (
+                                <div>
+                                  <strong>Aktif Metodlar:</strong> {Object.keys(currentTest.methodComparison).join(", ")}
+                                </div>
+                              )}
+                              {currentTest.questions && currentTest.questions.length > 0 && (
+                                <div>
+                                  <strong>Tamamlanan Sorular:</strong> {currentTest.questions.length}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="flex items-center gap-2 pt-4 border-t">
                         {isRunning && (
@@ -2400,72 +2464,136 @@ export default function TestSimulationPage() {
                         Object.keys(currentTest.methodComparison).length > 0 && (
                           <div className="border-t pt-4">
                             <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                              Metot Karşılaştırması
+                              Metot Karşılaştırması (Gerçek Zamanlı)
                             </h4>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              {Object.entries(currentTest.methodComparison).map(
-                                ([method, data]: [string, any]) => (
-                                  <div
-                                    key={method}
-                                    className="p-3 bg-gray-50 rounded-lg border"
-                                  >
-                                    <div className="text-sm font-medium text-gray-700 mb-2">
-                                      {method === "eduBars"
-                                        ? "AkıllıRehber"
-                                        : method === "basicRag"
-                                        ? "Basic RAG"
-                                        : method === "llmOnly"
-                                        ? "LLM Only"
-                                        : method}
+                              {Object.entries(currentTest.methodComparison)
+                                .filter(([method]) => config.testMethods.includes(method))
+                                .map(([method, data]: [string, any]) => {
+                                  const getMethodConfig = (method: string) => {
+                                    const configs = {
+                                      eduBars: {
+                                        name: "AkıllıRehber (RAG+Reranker)",
+                                        color: "bg-blue-500",
+                                        bgColor: "bg-blue-50",
+                                        borderColor: "border-blue-200",
+                                        textColor: "text-blue-700"
+                                      },
+                                      basicRag: {
+                                        name: "AkıllıRehber (Sadece RAG)",
+                                        color: "bg-green-500",
+                                        bgColor: "bg-green-50",
+                                        borderColor: "border-green-200",
+                                        textColor: "text-green-700"
+                                      },
+                                      llmOnly: {
+                                        name: "Sadece LLM",
+                                        color: "bg-orange-500",
+                                        bgColor: "bg-orange-50",
+                                        borderColor: "border-orange-200",
+                                        textColor: "text-orange-700"
+                                      }
+                                    };
+                                    return configs[method as keyof typeof configs] || configs.eduBars;
+                                  };
+
+                                  const methodConfig = getMethodConfig(method);
+                                  const isLlmOnly = method === 'llmOnly';
+                                  
+                                  return (
+                                    <div
+                                      key={method}
+                                      className={`p-3 rounded-lg border-2 ${methodConfig.bgColor} ${methodConfig.borderColor}`}
+                                    >
+                                      <div className={`text-sm font-medium mb-2 flex items-center justify-between ${methodConfig.textColor}`}>
+                                        <div className="flex items-center gap-2">
+                                          <div className={`w-3 h-3 rounded-full ${methodConfig.color}`}></div>
+                                          {methodConfig.name}
+                                        </div>
+                                        {isLlmOnly && (
+                                          <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                                            No Retrieval
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="space-y-1 text-xs">
+                                        {!isLlmOnly && (
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-600">Cosine Similarity:</span>
+                                            <span className="font-semibold">
+                                              {data.cosineSimilarity !== null && data.cosineSimilarity !== undefined
+                                                ? data.cosineSimilarity.toFixed(3)
+                                                : "Hesaplanıyor..."}
+                                            </span>
+                                          </div>
+                                        )}
+                                        
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-600">Response Time:</span>
+                                          <span className="font-semibold">
+                                            {data.avgResponseTime !== undefined && data.avgResponseTime !== null
+                                              ? `${Math.round(data.avgResponseTime)}ms`
+                                              : "Hesaplanıyor..."}
+                                          </span>
+                                        </div>
+                                        
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-600">Accuracy:</span>
+                                          <span className="font-semibold">
+                                            {data.accuracy !== undefined && data.accuracy !== null
+                                              ? `${data.accuracy.toFixed(1)}%`
+                                              : "Hesaplanıyor..."}
+                                          </span>
+                                        </div>
+                                        
+                                        {data.answerQualitySimilarity !== null && data.answerQualitySimilarity !== undefined && (
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-600">Answer Quality:</span>
+                                            <span className="font-semibold text-blue-600">
+                                              {data.answerQualitySimilarity.toFixed(3)}
+                                            </span>
+                                          </div>
+                                        )}
+                                        
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-600">Başarılı Sorgu:</span>
+                                          <span className="font-semibold">
+                                            {data.questionsAnswered || 0}/{data.totalQuestions || currentTest.metrics.totalQuestions || 0}
+                                          </span>
+                                        </div>
+                                        
+                                        {data.answerQualityAvailable > 0 && (
+                                          <div className="text-xs text-blue-600 mt-1">
+                                            Ground Truth: {data.answerQualityAvailable} soru
+                                          </div>
+                                        )}
+                                        
+                                        {isLlmOnly && (
+                                          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                                            <div className="flex items-center space-x-1">
+                                              <span>⚡</span>
+                                              <span>Bu metod retrieval kullanmaz</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                        
+                                        {/* Method Status Indicator */}
+                                        <div className="mt-2 pt-2 border-t border-gray-100">
+                                          <div className="flex items-center justify-between text-xs">
+                                            <span className="text-gray-500">Durum:</span>
+                                            <span className={`px-2 py-1 rounded-full ${
+                                              (data.questionsAnswered || 0) > 0
+                                                ? 'bg-green-100 text-green-800'
+                                                : 'bg-gray-100 text-gray-600'
+                                            }`}>
+                                              {(data.questionsAnswered || 0) > 0 ? 'Aktif' : 'Bekliyor'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
                                     </div>
-                                    <div className="space-y-1 text-xs">
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-600">
-                                          Similarity:
-                                        </span>
-                                        <span className="font-semibold">
-                                          {data.cosineSimilarity !== null &&
-                                          data.cosineSimilarity !== undefined
-                                            ? data.cosineSimilarity.toFixed(3)
-                                            : data.semanticSimilarity !== null &&
-                                              data.semanticSimilarity !==
-                                                undefined
-                                            ? data.semanticSimilarity.toFixed(3)
-                                            : "N/A"}
-                                        </span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-600">
-                                          Response Time:
-                                        </span>
-                                        <span className="font-semibold">
-                                          {Math.round(
-                                            data.avgResponseTime || 0
-                                          )}
-                                          ms
-                                        </span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-600">
-                                          Accuracy:
-                                        </span>
-                                        <span className="font-semibold">
-                                          {data.accuracy?.toFixed(1) || "0.0"}%
-                                        </span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-600">
-                                          Başarılı:
-                                        </span>
-                                        <span className="font-semibold">
-                                          {data.successfulQueries || 0}/
-                                          {data.totalQueries || 0}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              )}
+                                  );
+                                })}
                             </div>
                           </div>
                         )}
