@@ -472,7 +472,14 @@ export default function TestSimulationPage() {
       // Convert API response to TestResult format
       // If test has results/questions, it should be considered completed even if status says otherwise
       const hasResults = (status.questions && status.questions.length > 0) || (status.resultsCount && status.resultsCount > 0);
-      const finalStatus = hasResults && status.status === "running" ? "completed" : (status.status || "completed");
+      const hasEndTime = status.endTime && status.endTime.length > 0;
+      const isProgressComplete = status.progress >= 100;
+      
+      // Determine final status: if test has endTime, progress 100%, or results, consider it completed
+      let finalStatus = status.status || "completed";
+      if (hasEndTime || isProgressComplete || (hasResults && status.status === "running")) {
+        finalStatus = "completed";
+      }
       
       const testResult: TestResult = {
         testId: status.testId || testId,

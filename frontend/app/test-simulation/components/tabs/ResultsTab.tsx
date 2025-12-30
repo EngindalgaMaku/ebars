@@ -128,7 +128,19 @@ export default function ResultsTab({
     );
   }
 
-  if (currentTest.status === "running") {
+  // Check if test has results even if status is "running"
+  const hasResults = (currentTest.questions && currentTest.questions.length > 0) || 
+                     (currentTest.methodComparison && Object.keys(currentTest.methodComparison).length > 0);
+  const hasEndTime = currentTest.endTime && currentTest.endTime.length > 0;
+  const isProgressComplete = currentTest.progress >= 100;
+  
+  // If test has results, endTime, or progress is 100%, consider it completed
+  const isActuallyCompleted = currentTest.status === "completed" || 
+                               hasEndTime || 
+                               isProgressComplete || 
+                               (hasResults && currentTest.status === "running");
+
+  if (currentTest.status === "running" && !isActuallyCompleted) {
     return (
       <Card>
         <CardContent className="text-center py-12">
@@ -147,7 +159,7 @@ export default function ResultsTab({
     );
   }
 
-  if (currentTest.status !== "completed") {
+  if (!isActuallyCompleted && currentTest.status !== "completed") {
     return (
       <Card>
         <CardContent className="text-center py-12">
