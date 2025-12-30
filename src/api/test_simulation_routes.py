@@ -1830,11 +1830,13 @@ async def get_test_status(test_id: str, request: Request) -> Dict[str, Any]:
         question_text = result.get("question", "")
         methodology = result.get("methodology", "")
         metrics = result.get("metrics", {})
+        expected_answer = result.get("expected_answer")  # Get expected answer from result
         
         if question_id not in questions_data:
             questions_data[question_id] = {
                 "question_id": question_id,
                 "question": question_text,
+                "expected_answer": expected_answer,  # Include expected_answer in question data
                 "methodologies": {}
             }
         
