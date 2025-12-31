@@ -30,7 +30,24 @@ import hashlib
 import time
 import gc
 import threading
-import psutil
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    # Create a mock psutil for fallback
+    class MockProcess:
+        def memory_info(self):
+            class MemInfo:
+                rss = 100 * 1024 * 1024  # 100MB default
+            return MemInfo()
+    
+    class MockPsutil:
+        def Process(self):
+            return MockProcess()
+    
+    psutil = MockPsutil()
+
 import numpy as np
 import requests
 from typing import List, Dict, Optional, Tuple, Union, Set, Any
