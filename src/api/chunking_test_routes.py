@@ -22,6 +22,13 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 
+# Initialize logger with enhanced formatting FIRST
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Import real authentication functions from main.py
 try:
     from src.api.main import _get_current_user, _is_teacher, _is_admin
@@ -32,17 +39,12 @@ except ImportError as e:
     def _get_current_user(request):
         logger.warning("⚠️ [AUTH] Using fallback authentication - no real auth available")
         return {"id": "fallback_admin", "role": "admin", "username": "fallback_user"}
+    
     def _is_teacher(user):
         return True
+    
     def _is_admin(user):
         return True
-
-# Initialize logger with enhanced formatting
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 # Chunking Test Router
 router = APIRouter(prefix="/chunking-test", tags=["Chunking Test"])
