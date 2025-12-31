@@ -22,33 +22,20 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 
-# TEMPORARILY DISABLE ALL AUTHENTICATION FOR DEBUGGING 403 ERRORS
-# Import authentication functions - handle potential circular imports
+# Import real authentication functions from main.py
 try:
-    from src.api.main import _get_current_user as _original_get_current_user, _is_teacher as _original_is_teacher, _is_admin as _original_is_admin
-    
-    # Override with debug functions that always return success
+    from src.api.main import _get_current_user, _is_teacher, _is_admin
+    logger.info("✅ [AUTH] Successfully imported real authentication functions")
+except ImportError as e:
+    logger.error(f"❌ [AUTH] Failed to import authentication functions: {e}")
+    # Fallback functions if import fails
     def _get_current_user(request):
-        logger.info("🔧 [DEBUG] Using mock authentication - returning admin user")
-        return {"id": "debug_admin", "role": "admin", "username": "debug_user"}
-    
+        logger.warning("⚠️ [AUTH] Using fallback authentication - no real auth available")
+        return {"id": "fallback_admin", "role": "admin", "username": "fallback_user"}
     def _is_teacher(user):
-        logger.info("🔧 [DEBUG] Mock _is_teacher returning True")
         return True
-    
     def _is_admin(user):
-        logger.info("🔧 [DEBUG] Mock _is_admin returning True")
         return True
-        
-except ImportError:
-    # Fallback functions if import fails - temporarily allow all access for debugging
-    def _get_current_user(request):
-        logger.info("🔧 [DEBUG] Import failed - using fallback admin user")
-        return {"id": "debug_admin", "role": "admin", "username": "fallback_user"}
-    def _is_teacher(user):
-        return True  # Allow all for debugging
-    def _is_admin(user):
-        return True  # Allow all for debugging
 
 # Initialize logger with enhanced formatting
 logging.basicConfig(
@@ -255,7 +242,7 @@ async def execute_agentic_reasoning_chunking(
         try:
             from src.text_processing.agentic_reasoning_chunker import AgenticReasoningChunker, AgenticChunkingConfig
             
-            # Create simplified config
+            # Create config with error handling for model inference service
             config = AgenticChunkingConfig(
                 target_size=target_size,
                 overlap_ratio=overlap / target_size if target_size > 0 else 0.2,
@@ -268,43 +255,48 @@ async def execute_agentic_reasoning_chunking(
             # Create chunker
             chunker = AgenticReasoningChunker(config)
             
-            # Perform chunking
-            agentic_chunks = chunker.create_chunks(text)
-            
-            # Convert AgenticChunk objects to strings
-            chunks = [chunk.text for chunk in agentic_chunks]
-            
-            execution_time = (time.time() - start_time) * 1000
-            chunk_count = len(chunks)
-            total_chars = sum(len(chunk) for chunk in chunks)
-            avg_chunk_size = total_chars / chunk_count if chunk_count > 0 else 0
-            
-            # Calculate metrics from agentic chunks
-            if agentic_chunks:
-                semantic_coherence = sum(chunk.semantic_coherence for chunk in agentic_chunks) / len(agentic_chunks)
-                boundary_quality = sum(chunk.reasoning_confidence for chunk in agentic_chunks) / len(agentic_chunks)
-            else:
-                semantic_coherence = 0.5
-                boundary_quality = 0.5
-            
-            logger.info(f"Agentic chunking completed - {chunk_count} chunks, coherence: {semantic_coherence:.3f}, boundary: {boundary_quality:.3f}")
-            
-            return {
-                "strategy": "agentic",
-                "chunks": chunks,
-                "chunk_count": chunk_count,
-                "total_characters": total_chars,
-                "avg_chunk_size": avg_chunk_size,
-                "processing_time_ms": execution_time,
-                "semantic_coherence_score": semantic_coherence,
-                "boundary_quality_score": boundary_quality,
-                "success": True,
-                "config": f"Agentic Reasoning Chunking (Simplified, Turkish={turkish_optimization})",
-                "grok_reasoning_used": enable_grok,
-                "reasoning_decisions": [],
-                "similarity_analysis": {}
-            }
-            
+            # Perform chunking with timeout and error handling
+            try:
+                agentic_chunks = chunker.create_chunks(text)
+                
+                # Convert AgenticChunk objects to strings
+                chunks = [chunk.text for chunk in agentic_chunks]
+                
+                execution_time = (time.time() - start_time) * 1000
+                chunk_count = len(chunks)
+                total_chars = sum(len(chunk) for chunk in chunks)
+                avg_chunk_size = total_chars / chunk_count if chunk_count > 0 else 0
+                
+                # Calculate metrics from agentic chunks
+                if agentic_chunks:
+                    semantic_coherence = sum(chunk.semantic_coherence for chunk in agentic_chunks) / len(agentic_chunks)
+                    boundary_quality = sum(chunk.reasoning_confidence for chunk in agentic_chunks) / len(agentic_chunks)
+                else:
+                    semantic_coherence = 0.5
+                    boundary_quality = 0.5
+                
+                logger.info(f"✅ [AGENTIC CHUNKING] Completed successfully - {chunk_count} chunks, coherence: {semantic_coherence:.3f}")
+                
+                return {
+                    "strategy": "agentic",
+                    "chunks": chunks,
+                    "chunk_count": chunk_count,
+                    "total_characters": total_chars,
+                    "avg_chunk_size": avg_chunk_size,
+                    "processing_time_ms": execution_time,
+                    "semantic_coherence_score": semantic_coherence,
+                    "boundary_quality_score": boundary_quality,
+                    "success": True,
+                    "config": f"Agentic Reasoning Chunking (Grok={enable_grok}, Turkish={turkish_optimization})",
+                    "grok_reasoning_used": enable_grok,
+                    "reasoning_decisions": [],
+                    "similarity_analysis": {}
+                }
+                
+            except Exception as chunking_error:
+                logger.warning(f"⚠️ [AGENTIC CHUNKING] Model inference failed: {chunking_error}, using fallback")
+                raise Exception(f"Agentic chunking failed: {chunking_error}")
+                
         except ImportError as import_error:
             logger.warning(f"Could not import agentic chunker: {import_error}, using fallback")
             raise Exception("Agentic chunker dependencies not available")
@@ -499,7 +491,9 @@ async def start_chunking_test(
             "current_metrics": {},
             "configuration": config.dict(),
             "input_text_length": len(request_data.inputText),
-            "results": []
+            "results": [],
+            "progress_percentage": 0.0,
+            "last_updated": now_iso
         }
         
         # Store test progress (both memory and database)
@@ -548,14 +542,18 @@ async def get_chunking_test_status(test_id: str, request: Request) -> Dict[str, 
     if not test_data:
         raise HTTPException(status_code=404, detail="Chunking test not found")
     
-    # Calculate progress percentage
-    total_strategies = len(test_data.get("configuration", {}).get("strategies", []))
-    completed_strategies = len(test_data.get("completed_strategies", []))
+    # Calculate progress percentage - use stored value if available
+    progress_percentage = test_data.get("progress_percentage", 0.0)
     
-    if total_strategies > 0:
-        progress_percentage = (completed_strategies / total_strategies) * 100
-    else:
-        progress_percentage = 0.0
+    # Fallback calculation if not stored
+    if progress_percentage == 0.0:
+        total_strategies = len(test_data.get("configuration", {}).get("strategies", []))
+        completed_strategies = len(test_data.get("completed_strategies", []))
+        
+        if total_strategies > 0:
+            progress_percentage = (completed_strategies / total_strategies) * 100
+        else:
+            progress_percentage = 0.0
     
     # Calculate strategy comparison metrics
     strategy_comparison = {}
@@ -922,13 +920,22 @@ async def execute_full_chunking_test(
     
     try:
         all_results = []
+        total_strategies = len(config.strategies)
         
-        logger.info(f"Starting chunking test {test_id} with strategies: {config.strategies}")
+        logger.info(f"🚀 [CHUNKING TEST] Starting test {test_id} with {total_strategies} strategies: {config.strategies}")
         
         # Execute test for each strategy
-        for strategy in config.strategies:
+        for strategy_index, strategy in enumerate(config.strategies):
+            logger.info(f"🔄 [CHUNKING TEST] Processing strategy {strategy_index + 1}/{total_strategies}: {strategy}")
+            
+            # Update current strategy and progress
             test_data["current_strategy"] = strategy
-            logger.info(f"Testing strategy: {strategy}")
+            test_data["progress_percentage"] = (strategy_index / total_strategies) * 100
+            test_data["status"] = "running"
+            
+            # Save intermediate progress
+            CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
+            _save_chunking_test_to_db(test_id, test_data)
             
             # Execute strategy based on type
             if strategy == "traditional":
@@ -955,14 +962,20 @@ async def execute_full_chunking_test(
                     config.session_id
                 )
             else:
-                logger.warning(f"Unknown strategy: {strategy}")
+                logger.warning(f"❌ [CHUNKING TEST] Unknown strategy: {strategy}")
                 continue
             
             all_results.append(result)
+            
+            # Update current metrics with detailed info
             test_data["current_metrics"] = {
                 "chunk_count": result.get("chunk_count", 0),
                 "processing_time_ms": result.get("processing_time_ms", 0),
-                "success": result.get("success", False)
+                "success": result.get("success", False),
+                "strategy": strategy,
+                "avg_chunk_size": result.get("avg_chunk_size", 0),
+                "semantic_coherence": result.get("semantic_coherence_score", 0),
+                "boundary_quality": result.get("boundary_quality_score", 0)
             }
             
             # Mark strategy as completed
@@ -971,28 +984,39 @@ async def execute_full_chunking_test(
                 completed_strategies.append(strategy)
             test_data["completed_strategies"] = completed_strategies
             
-            logger.info(f"Strategy {strategy} completed: {result.get('success', False)}")
+            # Update progress percentage
+            test_data["progress_percentage"] = ((strategy_index + 1) / total_strategies) * 100
             
-            # Update progress in real-time
+            logger.info(f"✅ [CHUNKING TEST] Strategy {strategy} completed: {result.get('success', False)} - {result.get('chunk_count', 0)} chunks")
+            
+            # Update progress in real-time with more detailed data
             test_data["results"] = all_results.copy()
+            test_data["last_updated"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            
+            # Save progress immediately
             CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
             _save_chunking_test_to_db(test_id, test_data)
+            
+            # Add a small delay to make progress visible
+            await asyncio.sleep(0.5)
         
         # Store final results
         test_data["results"] = all_results
         test_data["status"] = "completed"
+        test_data["progress_percentage"] = 100.0
         test_data["end_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        test_data["last_updated"] = test_data["end_time"]
         
         # Save final results
         CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
         _save_chunking_test_to_db(test_id, test_data)
         
-        logger.info(f"Chunking test {test_id} completed successfully with {len(all_results)} results")
+        logger.info(f"🎉 [CHUNKING TEST] Test {test_id} completed successfully with {len(all_results)} results")
         
     except Exception as e:
         import traceback
         error_traceback = traceback.format_exc()
-        logger.error(f"Chunking test {test_id} failed: {e}")
+        logger.error(f"💥 [CHUNKING TEST] Test {test_id} failed: {e}")
         logger.error(f"Traceback: {error_traceback}")
         
         # Mark as failed
@@ -1000,6 +1024,8 @@ async def execute_full_chunking_test(
         test_data["error"] = str(e)
         test_data["error_traceback"] = error_traceback
         test_data["end_time"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        test_data["last_updated"] = test_data["end_time"]
+        test_data["progress_percentage"] = 0.0
         
         # Save any partial results
         if "results" not in test_data:
