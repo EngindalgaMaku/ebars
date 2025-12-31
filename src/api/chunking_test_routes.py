@@ -244,12 +244,13 @@ async def execute_agentic_reasoning_chunking(
         try:
             from src.text_processing.agentic_reasoning_chunker import AgenticReasoningChunker, AgenticChunkingConfig
             
-            # Create config with error handling for model inference service
+            # Create config using model inference service like LLM chunking
             config = AgenticChunkingConfig(
                 target_size=target_size,
                 overlap_ratio=overlap / target_size if target_size > 0 else 0.2,
                 use_grok_reasoning=enable_grok,
                 model_inference_url=MODEL_INFERENCE_URL,
+                grok_model_name="llama-3.1-8b-instant",  # Use Llama 3.1 8B instead of Grok
                 enable_caching=False,  # Disable caching for simplicity
                 enable_quality_validation=False  # Disable validation for speed
             )
@@ -388,14 +389,14 @@ async def execute_llm_markdown_chunking(
         # Import LLM markdown chunker
         from src.text_processing.llm_markdown_chunker import create_llm_markdown_chunks_safe
         
-        # Perform LLM-based chunking with Grok support
+        # Perform LLM-based chunking with model inference service
         chunks = create_llm_markdown_chunks_safe(
             markdown_text=text,
             target_size=target_size,
             overlap=overlap,
             model_inference_url=MODEL_INFERENCE_URL,
-            llm_model_name="grok-3-8b",  # Use Grok 3 8B as primary
-            fallback_model_name="llama-3.1-8b-instant",  # Fallback model
+            llm_model_name="llama-3.1-8b-instant",  # Use Llama 3.1 8B
+            fallback_model_name="llama-3.1-8b-instant",  # Same fallback
             concurrency=4
         )
         
@@ -548,8 +549,8 @@ async def get_chunking_test_status(test_id: str, request: Request) -> Dict[str, 
     progress_percentage = test_data.get("progress_percentage", 0.0)
     
     # Fallback calculation if not stored
+    total_strategies = len(test_data.get("configuration", {}).get("strategies", []))
     if progress_percentage == 0.0:
-        total_strategies = len(test_data.get("configuration", {}).get("strategies", []))
         completed_strategies = len(test_data.get("completed_strategies", []))
         
         if total_strategies > 0:
