@@ -1,0 +1,68 @@
+# SSH Configuration for VS Code Remote Development
+
+# RAG Education Assistant Project
+
+# Production Server Configuration
+
+Host ebars-prod
+HostName ebars.kodleon.com
+User root
+Port 22
+IdentityFile ~/.ssh/id_rsa
+ServerAliveInterval 60
+ServerAliveCountMax 3
+ForwardAgent yes
+RemoteForward 52698 localhost:52698
+
+# VS Code Server will be installed in ~/ebars/.vscode-server
+
+# Development Server Configuration (same server, different alias)
+
+Host ebars-dev
+HostName ebars.kodleon.com
+User root
+Port 22
+IdentityFile ~/.ssh/id_rsa
+ServerAliveInterval 60
+ServerAliveCountMax 3
+ForwardAgent yes
+RemoteForward 52698 localhost:52698
+
+# Local Development with Docker (if using Docker Desktop with SSH)
+
+Host ebars-local
+HostName localhost
+User root
+Port 2222
+IdentityFile ~/.ssh/id_rsa_ebars
+StrictHostKeyChecking no
+UserKnownHostsFile /dev/null
+RemoteCommand cd /workspace
+
+# Common settings for all ebars hosts
+
+Host ebars-\* # Keep connections alive
+TCPKeepAlive yes
+ServerAliveInterval 60
+ServerAliveCountMax 3
+
+    # Security settings
+    StrictHostKeyChecking ask
+    HashKnownHosts yes
+
+    # Performance optimizations
+    Compression yes
+    ControlMaster auto
+    ControlPath ~/.ssh/sockets/%r@%h-%p
+    ControlPersist 600
+
+    # VS Code specific settings
+    ForwardAgent yes
+    # Port forwarding for development servers
+    LocalForward 3000 localhost:3000
+    LocalForward 8000 localhost:8000
+    LocalForward 8006 localhost:8006
+
+    # Environment variables
+    SendEnv LANG LC_*
+    SendEnv TERM

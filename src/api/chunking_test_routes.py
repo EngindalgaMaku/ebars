@@ -22,6 +22,18 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel, Field
 
+# Import authentication functions - handle potential circular imports
+try:
+    from src.api.main import _get_current_user, _is_teacher, _is_admin
+except ImportError:
+    # Fallback functions if import fails
+    def _get_current_user(request):
+        return None
+    def _is_teacher(user):
+        return False
+    def _is_admin(user):
+        return False
+
 # Initialize logger with enhanced formatting
 logging.basicConfig(
     level=logging.INFO,
@@ -365,8 +377,6 @@ async def start_chunking_test(
     """
     Start a comprehensive chunking strategy comparison test with JSON data
     """
-    from src.api.main import _get_current_user, _is_teacher, _is_admin
-    
     # Enhanced logging for debugging - JSON REQUEST
     logger.info(f"🔍 [CHUNKING TEST START] JSON request received")
     logger.info(f"🔍 [CHUNKING TEST START] Test Name: {request_data.testName}")
@@ -439,8 +449,6 @@ async def start_chunking_test(
 @router.get("/status/{test_id}", summary="Get Chunking Test Status")
 async def get_chunking_test_status(test_id: str, request: Request) -> Dict[str, Any]:
     """Get current status of running chunking test"""
-    from src.api.main import _get_current_user, _is_teacher, _is_admin
-    
     # Basic authentication check
     current_user = _get_current_user(request)
     if not (_is_teacher(current_user) or _is_admin(current_user)):
@@ -499,8 +507,6 @@ async def get_chunking_test_status(test_id: str, request: Request) -> Dict[str, 
 @router.get("/list", summary="List All Chunking Tests")
 async def list_chunking_tests(request: Request) -> Dict[str, Any]:
     """List all chunking test results"""
-    from src.api.main import _get_current_user, _is_teacher, _is_admin
-    
     # Basic authentication check
     current_user = _get_current_user(request)
     if not (_is_teacher(current_user) or _is_admin(current_user)):
@@ -549,8 +555,6 @@ async def list_chunking_tests(request: Request) -> Dict[str, Any]:
 @router.delete("/delete/{test_id}", summary="Delete Chunking Test")
 async def delete_chunking_test(test_id: str, request: Request) -> Dict[str, Any]:
     """Delete a stored chunking test"""
-    from src.api.main import _get_current_user, _is_teacher, _is_admin
-    
     # Basic authentication check
     current_user = _get_current_user(request)
     if not (_is_teacher(current_user) or _is_admin(current_user)):
@@ -585,8 +589,6 @@ async def delete_chunking_test(test_id: str, request: Request) -> Dict[str, Any]
 @router.post("/stop/{test_id}", summary="Stop Chunking Test")
 async def stop_chunking_test(test_id: str, request: Request) -> Dict[str, Any]:
     """Stop a running chunking test"""
-    from src.api.main import _get_current_user, _is_teacher, _is_admin
-    
     # Basic authentication check
     current_user = _get_current_user(request)
     if not (_is_teacher(current_user) or _is_admin(current_user)):
@@ -620,8 +622,6 @@ async def stop_chunking_test(test_id: str, request: Request) -> Dict[str, Any]:
 @router.get("/results/{test_id}", summary="Get Chunking Test Results")
 async def get_chunking_test_results(test_id: str, format: str = "json", request: Request = None) -> Dict[str, Any]:
     """Get comprehensive chunking test results with strategy comparison"""
-    from src.api.main import _get_current_user, _is_teacher, _is_admin
-    
     # Basic authentication check
     if request:
         current_user = _get_current_user(request)

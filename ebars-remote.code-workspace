@@ -1,0 +1,315 @@
+{
+    "folders": [
+        {
+            "name": "RAG Education Assistant",
+            "uri": "vscode-remote://ssh-remote+ebars-prod/root/ebars"
+        }
+    ],
+    "settings": {
+        // Remote-SSH Configuration
+        "remote.SSH.configFile": ".vscode/ssh_config",
+        "remote.SSH.showLoginTerminal": true,
+        "remote.SSH.enableDynamicForwarding": true,
+        "remote.SSH.enableRemoteCommand": true,
+        
+        // Terminal Configuration
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.profiles.linux": {
+            "bash": {
+                "path": "/bin/bash",
+                "args": ["-l"]
+            },
+            "zsh": {
+                "path": "/bin/zsh",
+                "args": ["-l"]
+            }
+        },
+        "terminal.integrated.cwd": "/root/ebars",
+        
+        // Python Configuration
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.terminal.activateEnvironment": true,
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": true,
+        "python.formatting.provider": "black",
+        "python.linting.flake8Enabled": true,
+        
+        // TypeScript/JavaScript Configuration
+        "typescript.preferences.includePackageJsonAutoImports": "auto",
+        "javascript.preferences.includePackageJsonAutoImports": "auto",
+        "typescript.updateImportsOnFileMove.enabled": "always",
+        
+        // Editor Configuration
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit",
+            "source.fixAll.eslint": "explicit"
+        },
+        "editor.rulers": [80, 120],
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        
+        // File Watcher Exclusions (Performance)
+        "files.watcherExclude": {
+            "**/node_modules/**": true,
+            "**/.git/**": true,
+            "**/data/**": true,
+            "**/logs/**": true,
+            "**/__pycache__/**": true,
+            "**/.pytest_cache/**": true,
+            "**/visualization_output/**": true,
+            "**/migrations/**": true,
+            "**/.vscode-server/**": true
+        },
+        
+        // Search Exclusions
+        "search.exclude": {
+            "**/node_modules": true,
+            "**/data": true,
+            "**/logs": true,
+            "**/__pycache__": true,
+            "**/.pytest_cache": true,
+            "**/visualization_output": true,
+            "**/.vscode-server": true
+        },
+        
+        // Git Configuration
+        "git.enableSmartCommit": true,
+        "git.confirmSync": false,
+        "git.autofetch": true,
+        "git.defaultCloneDirectory": "/root",
+        
+        // Docker Configuration
+        "docker.host": "unix:///var/run/docker.sock",
+        
+        // Port Forwarding
+        "remote.portsAttributes": {
+            "3000": {
+                "label": "Frontend (Next.js)",
+                "onAutoForward": "notify"
+            },
+            "8000": {
+                "label": "API Gateway",
+                "onAutoForward": "notify"
+            },
+            "8006": {
+                "label": "Auth Service",
+                "onAutoForward": "notify"
+            },
+            "8001": {
+                "label": "Document Processing",
+                "onAutoForward": "silent"
+            },
+            "8002": {
+                "label": "APRAG Service",
+                "onAutoForward": "silent"
+            },
+            "8003": {
+                "label": "Model Inference",
+                "onAutoForward": "silent"
+            },
+            "8004": {
+                "label": "RAGAS Service",
+                "onAutoForward": "silent"
+            }
+        },
+        
+        // Extension Settings
+        "extensions.autoUpdate": false,
+        "extensions.autoCheckUpdates": false,
+        
+        // Tailwind CSS
+        "tailwindCSS.includeLanguages": {
+            "typescript": "javascript",
+            "typescriptreact": "javascript"
+        },
+        
+        // ESLint
+        "eslint.workingDirectories": ["frontend"],
+        "eslint.format.enable": true,
+        
+        // Prettier
+        "prettier.configPath": "frontend/.prettierrc",
+        
+        // File Associations
+        "files.associations": {
+            "*.env.*": "properties",
+            "docker-compose*.yml": "dockercompose",
+            "Dockerfile*": "dockerfile"
+        }
+    },
+    "extensions": {
+        "recommendations": [
+            // Remote Development
+            "ms-vscode-remote.remote-ssh",
+            "ms-vscode-remote.remote-ssh-edit",
+            "ms-vscode-remote.remote-containers",
+            "ms-vscode-remote.vscode-remote-extensionpack",
+            
+            // Python Development
+            "ms-python.python",
+            "ms-python.flake8",
+            "ms-python.black-formatter",
+            "ms-python.pylint",
+            
+            // JavaScript/TypeScript Development
+            "ms-vscode.vscode-typescript-next",
+            "dbaeumer.vscode-eslint",
+            "esbenp.prettier-vscode",
+            
+            // React/Next.js Development
+            "bradlc.vscode-tailwindcss",
+            "ms-vscode.vscode-json",
+            
+            // Docker
+            "ms-azuretools.vscode-docker",
+            
+            // Git
+            "eamodio.gitlens",
+            
+            // Utilities
+            "ms-vscode.makefile-tools",
+            "redhat.vscode-yaml",
+            "ms-vscode.powershell",
+            
+            // Markdown
+            "yzhang.markdown-all-in-one",
+            
+            // Theme (Optional)
+            "GitHub.github-vscode-theme"
+        ]
+    },
+    "tasks": {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "Deploy Production",
+                "type": "shell",
+                "command": "./scripts/deploy-prod.sh",
+                "group": "build",
+                "presentation": {
+                    "echo": true,
+                    "reveal": "always",
+                    "focus": false,
+                    "panel": "shared"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "Quick Deploy",
+                "type": "shell",
+                "command": "./scripts/quick-deploy.sh",
+                "group": "build",
+                "presentation": {
+                    "echo": true,
+                    "reveal": "always",
+                    "focus": false,
+                    "panel": "shared"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "View Logs",
+                "type": "shell",
+                "command": "docker-compose -f docker-compose.prod.yml logs -f",
+                "group": "test",
+                "presentation": {
+                    "echo": true,
+                    "reveal": "always",
+                    "focus": true,
+                    "panel": "dedicated"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "Check Services Status",
+                "type": "shell",
+                "command": "docker-compose -f docker-compose.prod.yml ps",
+                "group": "test",
+                "presentation": {
+                    "echo": true,
+                    "reveal": "always",
+                    "focus": false,
+                    "panel": "shared"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "Stop All Services",
+                "type": "shell",
+                "command": "docker-compose -f docker-compose.prod.yml down",
+                "group": "build",
+                "presentation": {
+                    "echo": true,
+                    "reveal": "always",
+                    "focus": false,
+                    "panel": "shared"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "Frontend Development",
+                "type": "shell",
+                "command": "npm run dev",
+                "options": {
+                    "cwd": "${workspaceFolder}/frontend"
+                },
+                "group": "build",
+                "presentation": {
+                    "echo": true,
+                    "reveal": "always",
+                    "focus": false,
+                    "panel": "dedicated"
+                },
+                "problemMatcher": []
+            },
+            {
+                "label": "Install Frontend Dependencies",
+                "type": "shell",
+                "command": "npm install",
+                "options": {
+                    "cwd": "${workspaceFolder}/frontend"
+                },
+                "group": "build",
+                "presentation": {
+                    "echo": true,
+                    "reveal": "always",
+                    "focus": false,
+                    "panel": "shared"
+                },
+                "problemMatcher": []
+            }
+        ]
+    },
+    "launch": {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Python: FastAPI",
+                "type": "python",
+                "request": "launch",
+                "program": "${workspaceFolder}/src/api/main.py",
+                "console": "integratedTerminal",
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PYTHONPATH": "${workspaceFolder}/src"
+                }
+            },
+            {
+                "name": "Debug Tests",
+                "type": "python",
+                "request": "launch",
+                "module": "pytest",
+                "args": [
+                    "${workspaceFolder}/tests",
+                    "-v"
+                ],
+                "console": "integratedTerminal",
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "PYTHONPATH": "${workspaceFolder}/src"
+                }
+            }
+        ]
+    }
+}

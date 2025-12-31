@@ -1,0 +1,51 @@
+{
+  "SSH - EBARS Sunucu": {
+    "prefix": "ssh-ebars",
+    "body": [
+      "ssh ebars-kodleon"
+    ],
+    "description": "EBARS sunucusuna SSH bağlantısı"
+  },
+  "SSH - RAG3 Sunucu": {
+    "prefix": "ssh-rag3",
+    "body": [
+      "ssh rag3-server"
+    ],
+    "description": "RAG3 sunucusuna SSH bağlantısı"
+  },
+  "APRAG Logları (Production)": {
+    "prefix": "aprag-logs",
+    "body": [
+      "docker compose -f docker-compose.prod.yml logs -f aprag-service"
+    ],
+    "description": "APRAG Service loglarını görüntüle (production)"
+  },
+  "APRAG Logları (Son 100)": {
+    "prefix": "aprag-logs-tail",
+    "body": [
+      "docker compose -f docker-compose.prod.yml logs --tail 100 aprag-service"
+    ],
+    "description": "APRAG Service son 100 satır log"
+  },
+  "Docker Compose Up (Production)": {
+    "prefix": "dc-up-prod",
+    "body": [
+      "docker compose -f docker-compose.prod.yml --env-file .env.production up -d frontend api-gateway aprag-service model-inference-service"
+    ],
+    "description": "Production servisleri başlat"
+  },
+  "Docker Compose Build (Production)": {
+    "prefix": "dc-build-prod",
+    "body": [
+      "docker compose -f docker-compose.prod.yml --env-file .env.production build --no-cache frontend api-gateway aprag-service model-inference-service"
+    ],
+    "description": "Production servisleri build et (no-cache)"
+  },
+  "Docker Compose Logs (Tümü)": {
+    "prefix": "dc-logs",
+    "body": [
+      "docker compose -f docker-compose.prod.yml logs -f"
+    ],
+    "description": "Tüm servislerin loglarını görüntüle"
+  }
+}
