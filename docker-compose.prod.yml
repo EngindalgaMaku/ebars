@@ -48,7 +48,7 @@ services:
       - session_data:/app/sessions
       - markdown_data:/app/data/markdown
       - database_data:/app/data
-    command: python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 5
+    command: python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 3
     depends_on:
       auth-service:
         condition: service_healthy
@@ -132,7 +132,7 @@ services:
     volumes:
       - database_data:/app/data
       - ./services/auth_service/database/migrations:/app/migrations:ro
-    command: python -m uvicorn main:app --host 0.0.0.0 --port 8007 --workers 3
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8007 --workers 2
     depends_on:
       auth-service:
         condition: service_healthy
@@ -196,7 +196,7 @@ services:
       start_period: 60s
     command: >
       sh -c "/app/init-db.sh &&
-             python -m uvicorn main:app --host 0.0.0.0 --port 8006 --workers 3"
+             python -m uvicorn main:app --host 0.0.0.0 --port 8006 --workers 2"
     restart: unless-stopped
     networks:
       - rag-network
@@ -220,6 +220,13 @@ services:
     restart: unless-stopped
     networks:
       - rag-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 1G    # 7.5GB'den 1GB'ye düşür
+        reservations:
+          memory: 256M
 
   document-processing-service:
     build:
@@ -248,7 +255,7 @@ services:
       - GROQ_API_KEY=${GROQ_API_KEY}
     volumes:
       - session_data:/app/sessions
-    command: python -m uvicorn main_new:app --host 0.0.0.0 --port 8080 --workers 4
+    command: python -m uvicorn main_new:app --host 0.0.0.0 --port 8080 --workers 3
     restart: unless-stopped
     networks:
       - rag-network

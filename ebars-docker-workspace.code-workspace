@@ -1,0 +1,173 @@
+{
+  "folders": [
+    {
+      "name": "🏠 Root",
+      "path": "."
+    },
+    {
+      "name": "🚀 Frontend",
+      "path": "./frontend"
+    },
+    {
+      "name": "🔧 API Gateway",
+      "path": "./src"
+    },
+    {
+      "name": "🔐 Auth Service",
+      "path": "./services/auth_service"
+    },
+    {
+      "name": "📄 Document Processing",
+      "path": "./services/document_processing_service"
+    },
+    {
+      "name": "🧠 Model Inference",
+      "path": "./services/model_inference_service"
+    },
+    {
+      "name": "📊 APRAG Service",
+      "path": "./services/aprag_service"
+    },
+    {
+      "name": "📈 Evaluation Service",
+      "path": "./services/evaluation_service"
+    },
+    {
+      "name": "🔄 Reranker Service",
+      "path": "./services/reranker_service"
+    },
+    {
+      "name": "🐳 Docker Configs",
+      "path": "./deploy"
+    }
+  ],
+  "settings": {
+    "// Workspace-specific settings": "Override global settings for this project",
+    
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/.next": true,
+      "**/out": true,
+      "**/__pycache__": true,
+      "**/*.pyc": true,
+      "**/venv": true,
+      "**/.venv": true,
+      "**/data": true,
+      "**/logs": true,
+      "**/backup_*": true
+    },
+    
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/dist": true,
+      "**/build": true,
+      "**/.next": true,
+      "**/out": true,
+      "**/__pycache__": true,
+      "**/venv": true,
+      "**/.venv": true,
+      "**/data": true,
+      "**/logs": true,
+      "**/backup_*": true
+    },
+    
+    "// Multi-root workspace settings": {
+      "python.defaultInterpreterPath": "/usr/bin/python3",
+      "python.terminal.activateEnvironment": false,
+      "eslint.workingDirectories": [
+        "frontend"
+      ],
+      "typescript.preferences.includePackageJsonAutoImports": "auto"
+    },
+    
+    "// Docker integration": {
+      "docker.defaultRegistryPath": "",
+      "docker.showStartPage": false,
+      "docker.commands.compose": "docker-compose",
+      "docker.commands.composeParallel": true,
+      "docker.dockerPath": "docker",
+      "docker.composeCommand": "docker-compose"
+    },
+    
+    "// Terminal configuration": {
+      "terminal.integrated.defaultProfile.linux": "bash",
+      "terminal.integrated.cwd": "${workspaceFolder}",
+      "terminal.integrated.env.linux": {
+        "COMPOSE_PROJECT_NAME": "rag-education-assistant",
+        "DOCKER_BUILDKIT": "1",
+        "COMPOSE_DOCKER_CLI_BUILD": "1"
+      }
+    },
+    
+    "// Git configuration": {
+      "git.autofetch": true,
+      "git.enableSmartCommit": true,
+      "git.confirmSync": false,
+      "git.postCommitCommand": "none",
+      "git.showPushSuccessNotification": true,
+      "git.detectSubmodules": false
+    }
+  },
+  
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "🚀 Quick Start: Production Environment",
+        "type": "shell",
+        "command": "docker-compose",
+        "args": ["-f", "docker-compose.prod.yml", "up", "-d"],
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        },
+        "presentation": {
+          "echo": true,
+          "reveal": "always",
+          "focus": false,
+          "panel": "shared",
+          "showReuseMessage": true,
+          "clear": false
+        },
+        "problemMatcher": [],
+        "detail": "Start all services in production mode",
+        "runOptions": {
+          "runOn": "folderOpen"
+        }
+      }
+    ]
+  },
+  
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "🚀 Debug: Full Stack Development",
+        "type": "node",
+        "request": "attach",
+        "port": 9229,
+        "address": "localhost",
+        "localRoot": "${workspaceFolder}/frontend",
+        "remoteRoot": "/app",
+        "protocol": "inspector",
+        "restart": true,
+        "sourceMaps": true,
+        "skipFiles": [
+          "<node_internals>/**"
+        ]
+      }
+    ]
+  },
+  
+  "extensions": {
+    "recommendations": [
+      "ms-azuretools.vscode-docker",
+      "ms-vscode-remote.remote-containers",
+      "eamodio.gitlens",
+      "ms-python.python",
+      "bradlc.vscode-tailwindcss",
+      "esbenp.prettier-vscode",
+      "dbaeumer.vscode-eslint"
+    ]
+  }
+}

@@ -1,0 +1,257 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "🐳 Docker: Start Development Environment",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "up", "-d"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "detail": "Start all services in development mode with hot reload"
+    },
+    {
+      "label": "🐳 Docker: Stop All Services",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "down"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "detail": "Stop all running Docker services"
+    },
+    {
+      "label": "🐳 Docker: Restart Services",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "restart"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "detail": "Restart all Docker services"
+    },
+    {
+      "label": "🐳 Docker: View Logs (All Services)",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "logs", "-f"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated"
+      },
+      "problemMatcher": [],
+      "detail": "Follow logs from all services"
+    },
+    {
+      "label": "🐳 Docker: View Frontend Logs",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "logs", "-f", "frontend"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated"
+      },
+      "problemMatcher": [],
+      "detail": "Follow frontend service logs"
+    },
+    {
+      "label": "🐳 Docker: View API Gateway Logs",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "logs", "-f", "api-gateway"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated"
+      },
+      "problemMatcher": [],
+      "detail": "Follow API Gateway service logs"
+    },
+    {
+      "label": "🐳 Docker: Rebuild Services",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "up", "-d", "--build"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "detail": "Rebuild and start all services"
+    },
+    {
+      "label": "🐳 Docker: Clean Up (Remove Containers & Images)",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "down", "--rmi", "all", "--volumes", "--remove-orphans"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "detail": "Stop services and remove containers, images, and volumes"
+    },
+    {
+      "label": "🚀 Frontend: Install Dependencies",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "exec", "frontend", "npm", "install"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "detail": "Install npm dependencies in frontend container"
+    },
+    {
+      "label": "🚀 Frontend: Run Lint",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "exec", "frontend", "npm", "run", "lint"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": ["$eslint-stylish"],
+      "detail": "Run ESLint on frontend code"
+    },
+    {
+      "label": "🐍 Python: Run Tests",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "exec", "api-gateway", "python", "-m", "pytest"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "detail": "Run Python tests in API Gateway container"
+    },
+    {
+      "label": "📦 Git: Add, Commit & Push",
+      "type": "shell",
+      "command": "${workspaceFolder}/.vscode/scripts/git-auto-push.sh",
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "detail": "Automatically add, commit, and push changes to Git"
+    },
+    {
+      "label": "📦 Git: Quick Commit & Push",
+      "type": "shell",
+      "command": "${workspaceFolder}/.vscode/scripts/git-quick-push.sh",
+      "args": ["${input:commitMessage}"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "detail": "Quick commit with custom message and push"
+    },
+    {
+      "label": "🔍 Docker: Service Status",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "ps"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": [],
+      "detail": "Show status of all Docker services"
+    },
+    {
+      "label": "🔧 Docker: Execute Shell in Frontend",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "exec", "frontend", "/bin/sh"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated"
+      },
+      "problemMatcher": [],
+      "detail": "Open shell in frontend container"
+    },
+    {
+      "label": "🔧 Docker: Execute Shell in API Gateway",
+      "type": "shell",
+      "command": "docker-compose",
+      "args": ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "exec", "api-gateway", "/bin/bash"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated"
+      },
+      "problemMatcher": [],
+      "detail": "Open shell in API Gateway container"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "commitMessage",
+      "description": "Enter commit message",
+      "default": "feat: development updates",
+      "type": "promptString"
+    }
+  ]
+}

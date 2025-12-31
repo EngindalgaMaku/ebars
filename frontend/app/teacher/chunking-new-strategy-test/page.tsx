@@ -248,27 +248,27 @@ export default function ChunkingNewStrategyTestPage() {
       setIsRunning(true);
       setError(null);
 
-      const formData = new FormData();
-      formData.append("file", config.file);
-      formData.append("testName", config.testName);
-      formData.append("strategy", config.strategy);
-      formData.append("config", JSON.stringify({
-        chunkSize: config.chunkSize,
-        chunkOverlap: config.chunkOverlap,
-        similarityThreshold: config.similarityThreshold,
-        llmReasoningWeight: config.llmReasoningWeight,
-        maxChunkSize: config.maxChunkSize,
-        minChunkSize: config.minChunkSize,
-        useSemanticBoundaries: config.useSemanticBoundaries,
-        enableContextualMerging: config.enableContextualMerging,
-        enableQualityMetrics: config.enableQualityMetrics,
-        enableVisualization: config.enableVisualization,
-        exportFormat: config.exportFormat,
-      }));
+      // Read file content as text
+      const fileText = await config.file.text();
+
+      // Create JSON request body
+      const requestBody = {
+        testName: config.testName,
+        inputText: fileText,
+        strategies: config.strategy === "comparison" ? ["traditional", "agentic"] : [config.strategy],
+        targetChunkSize: config.chunkSize,
+        overlapSize: config.chunkOverlap,
+        enableGrokReasoning: config.llmReasoningWeight > 0,
+        turkishOptimization: true,
+        sessionId: null
+      };
 
       const response = await fetch("/api/chunking-test/start", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {

@@ -1,0 +1,143 @@
+# Docker Compose Optimizasyonu - Kaynak Kullanımını Azaltmak İçin
+# docker-compose.override.yml olarak kullanılabilir
+
+version: '3.8'
+
+services:
+  # Marker API - En yüksek CPU kullanımı (%82)
+  marker-api:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'  # CPU kullanımını sınırla
+          memory: 512M # Bellek sınırı
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+    restart: unless-stopped
+
+  # API Gateway - Yüksek bellek kullanımı (380MB)
+  api-gateway:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G    # 2G'den 1G'ye düşür
+        reservations:
+          cpus: '0.3'
+          memory: 512M
+    # Worker sayısını azalt
+    command: python -m uvicorn src.api.main:app --host 0.0.0.0 --port ${API_GATEWAY_PORT:-8000} --workers 3
+
+  # Document Processing Service
+  document-processing-service:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'   # 2.0'dan 1.5'e düşür
+          memory: 2G    # 4G'den 2G'ye düşür
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    # Worker sayısını azalt
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8080 --workers 4
+
+  # Model Inference Service
+  model-inference-service:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'   # 2.0'dan 1.0'a düşür
+          memory: 2G    # 3G'den 2G'ye düşür
+        reservations:
+          cpus: '0.3'
+          memory: 1G
+    # Worker sayısını azalt
+    command: >
+      sh -c "echo 'Using external Ollama at ${OLLAMA_HOST}' &&
+             uvicorn main:app --host 0.0.0.0 --port ${MODEL_INFERENCE_PORT:-8002} --workers 4"
+
+  # APRAG Service
+  aprag-service:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.8'
+          memory: 1G    # 2G'den 1G'ye düşür
+        reservations:
+          cpus: '0.2'
+          memory: 512M
+    # Worker sayısını azalt
+    command: python -m uvicorn main:app --host 0.0.0.0 --port ${APRAG_SERVICE_PORT:-8007} --workers 2
+
+  # Reranker Service
+  reranker-service:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'   # 1.5'den 0.5'e düşür
+          memory: 1G    # 2G'den 1G'ye düşür
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+    # Worker sayısını azalt
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8008 --workers 2
+
+  # RAGAS Service
+  ragas-service:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G    # 2G'den 1G'ye düşür
+        reservations:
+          cpus: '0.2'
+          memory: 512M
+
+  # Auth Service
+  auth-service:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M  # 1G'den 512M'ye düşür
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    # Worker sayısını azalt
+    command: >
+      sh -c "/app/init-db.sh &&
+             python -m uvicorn main:app --host 0.0.0.0 --port $$PORT --workers 2"
+
+  # DocStrange Service - Çok fazla bellek kullanıyor (7.5GB → 1GB)
+  docstrange-service:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 1G    # 7.564GiB'den 1GB'ye düşür
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+
+  # ChromaDB - Minimum kaynak
+  chromadb-service:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 512M  # 2G'den 512M'ye düşür
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+
+  # Frontend
+  frontend:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M  # 1G'den 512M'ye düşür
+        reservations:
+          cpus: '0.2'
+          memory: 256M

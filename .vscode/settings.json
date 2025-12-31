@@ -1,0 +1,124 @@
+{
+  "// Docker Development Optimizations": "Settings optimized for Docker-based development",
+  
+  "// File Watching & Performance": {
+    "files.watcherExclude": {
+      "**/node_modules/**": true,
+      "**/.git/objects/**": true,
+      "**/.git/subtree-cache/**": true,
+      "**/dist/**": true,
+      "**/build/**": true,
+      "**/.next/**": true,
+      "**/out/**": true,
+      "**/__pycache__/**": true,
+      "**/*.pyc": true,
+      "**/venv/**": true,
+      "**/.venv/**": true,
+      "**/data/**": true,
+      "**/logs/**": true,
+      "**/backup_*/**": true
+    },
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/dist": true,
+      "**/build": true,
+      "**/.next": true,
+      "**/out": true,
+      "**/__pycache__": true,
+      "**/venv": true,
+      "**/.venv": true,
+      "**/data": true,
+      "**/logs": true,
+      "**/backup_*": true
+    },
+    "files.exclude": {
+      "**/__pycache__": true,
+      "**/*.pyc": true,
+      "**/node_modules": true,
+      "**/.next": true,
+      "**/out": true
+    }
+  },
+
+  "// Docker Integration": {
+    "docker.defaultRegistryPath": "",
+    "docker.showStartPage": false,
+    "docker.commands.build": "docker build",
+    "docker.commands.compose": "docker-compose",
+    "docker.commands.composeParallel": true
+  },
+
+  "// Terminal Configuration": {
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "terminal.integrated.cwd": "${workspaceFolder}",
+    "terminal.integrated.env.linux": {
+      "COMPOSE_PROJECT_NAME": "rag-education-assistant"
+    }
+  },
+
+  "// Language Specific Settings": {
+    "python.defaultInterpreterPath": "/usr/bin/python3",
+    "python.terminal.activateEnvironment": false,
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "python.formatting.provider": "black",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.typeCheckingMode": "basic"
+  },
+
+  "// TypeScript/JavaScript Settings": {
+    "typescript.preferences.importModuleSpecifier": "relative",
+    "javascript.preferences.importModuleSpecifier": "relative",
+    "typescript.updateImportsOnFileMove.enabled": "always",
+    "javascript.updateImportsOnFileMove.enabled": "always",
+    "eslint.workingDirectories": ["frontend"],
+    "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"]
+  },
+
+  "// Editor Settings": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": true,
+      "source.organizeImports": true
+    },
+    "editor.rulers": [80, 120],
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": true
+  },
+
+  "// Git Integration": {
+    "git.autofetch": true,
+    "git.enableSmartCommit": true,
+    "git.confirmSync": false,
+    "git.postCommitCommand": "none",
+    "git.showPushSuccessNotification": true
+  },
+
+  "// File Associations": {
+    "files.associations": {
+      "docker-compose*.yml": "dockercompose",
+      "docker-compose*.yaml": "dockercompose",
+      "Dockerfile*": "dockerfile",
+      ".env*": "properties"
+    }
+  },
+
+  "// Auto Save": {
+    "files.autoSave": "onFocusChange",
+    "files.autoSaveDelay": 1000
+  },
+
+  "// Breadcrumbs": {
+    "breadcrumbs.enabled": true,
+    "breadcrumbs.showFiles": true,
+    "breadcrumbs.showModules": true
+  },
+
+  "// Explorer": {
+    "explorer.confirmDelete": false,
+    "explorer.confirmDragAndDrop": false,
+    "explorer.compactFolders": false
+  }
+}

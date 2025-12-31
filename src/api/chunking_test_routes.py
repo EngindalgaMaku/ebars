@@ -15,17 +15,12 @@ import os
 import uuid
 import time
 import asyncio
-import traceback
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from pathlib import Path
-from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel, Field
-import requests
-import httpx
 
 # Initialize logger with enhanced formatting
 logging.basicConfig(
@@ -363,19 +358,29 @@ async def execute_llm_markdown_chunking(
 
 @router.post("/start", summary="Start Chunking Test")
 async def start_chunking_test(
-    request_data: ChunkingTestStartRequest,
     background_tasks: BackgroundTasks,
-    request: Request
+    request_data: ChunkingTestStartRequest,
+    request: Request = None
 ) -> Dict[str, Any]:
     """
-    Start a comprehensive chunking strategy comparison test
+    Start a comprehensive chunking strategy comparison test with JSON data
     """
     from src.api.main import _get_current_user, _is_teacher, _is_admin
     
+    # Enhanced logging for debugging - JSON REQUEST
+    logger.info(f"🔍 [CHUNKING TEST START] JSON request received")
+    logger.info(f"🔍 [CHUNKING TEST START] Test Name: {request_data.testName}")
+    logger.info(f"🔍 [CHUNKING TEST START] Strategies: {request_data.strategies}")
+    logger.info(f"🔍 [CHUNKING TEST START] Input text length: {len(request_data.inputText)}")
+    
     # Basic authentication check
-    current_user = _get_current_user(request)
-    if not (_is_teacher(current_user) or _is_admin(current_user)):
-        raise HTTPException(status_code=403, detail="Teacher or admin access required")
+    if request:
+        current_user = _get_current_user(request)
+        logger.info(f"🔍 [CHUNKING TEST START] Current user: {current_user}")
+        
+        if not (_is_teacher(current_user) or _is_admin(current_user)):
+            logger.warning(f"🔍 [CHUNKING TEST START] Access denied for user: {current_user}")
+            raise HTTPException(status_code=403, detail="Teacher or admin access required")
     
     try:
         # Generate unique test ID

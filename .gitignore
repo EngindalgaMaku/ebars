@@ -74,11 +74,16 @@ id_rsa.pub
 
 # IDE specific files
 .idea/
-.vscode/
+# .vscode/ - Allow VS Code configuration for Docker development
 .cursorrules
 *.swp
 *.swo
 .DS_Store
+
+# VS Code specific ignores (keep configuration, ignore user-specific files)
+.vscode/settings.json.user
+.vscode/launch.json.user
+.vscode/tasks.json.user
 
 # Logs
 logs

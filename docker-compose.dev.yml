@@ -19,7 +19,7 @@ services:
       - session_data:/app/sessions
       - markdown_data:/app/data/markdown
       - database_data:/app/data
-    command: python -m uvicorn src.api.main:app --host 0.0.0.0 --port ${API_GATEWAY_PORT:-8000} --reload --workers 2
+    command: python -m uvicorn src.api.main:app --host 0.0.0.0 --port ${API_GATEWAY_PORT:-8000} --reload --workers 1
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${API_GATEWAY_PORT:-8000}/health"]
       interval: 30s
@@ -91,7 +91,7 @@ services:
       - ./services/aprag_service:/app
       - database_data:/app/data
       - ./services/auth_service/database/migrations:/app/migrations:ro
-    command: python -m uvicorn main:app --host 0.0.0.0 --port ${APRAG_SERVICE_PORT:-8007} --reload --workers 2
+    command: python -m uvicorn main:app --host 0.0.0.0 --port ${APRAG_SERVICE_PORT:-8007} --reload --workers 1
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8007/health').read()"]
       interval: 30s
@@ -115,7 +115,7 @@ services:
       - ollama_cache:/root/.ollama
     command: >
       sh -c "echo 'Using external Ollama at ${OLLAMA_HOST}' &&
-             uvicorn main:app --host 0.0.0.0 --port ${MODEL_INFERENCE_PORT:-8002} --reload --workers 2"
+             uvicorn main:app --host 0.0.0.0 --port ${MODEL_INFERENCE_PORT:-8002} --reload --workers 1"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:{MODEL_INFERENCE_PORT:-8002}/health').read()"]
 
@@ -185,8 +185,19 @@ services:
     command: sh -c "npm install && npm run dev"
 
   # ============================================
-  # HARİCİ SERVİSLER - Değişiklik yok
+  # HARİCİ SERVİSLER - Kaynak Optimizasyonu
   # ============================================
-  # chromadb-service, marker-api, docstrange-service, reranker-service
+  
+  # DocStrange Service - Kaynak limiti ekle (7.5GB → 1GB)
+  docstrange-service:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          memory: 256M
+  
+  # chromadb-service, marker-api, reranker-service
   # Bunlar için volume mount gerekmez, olduğu gibi kalır
   # (docker-compose.yml'deki ayarlar kullanılır)

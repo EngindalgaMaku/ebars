@@ -1,0 +1,79 @@
+{
+  "recommendations": [
+    // Docker & Container Development
+    "ms-azuretools.vscode-docker",
+    "ms-vscode-remote.remote-containers",
+    "ms-vscode-remote.remote-ssh",
+    
+    // Git & Version Control
+    "eamodio.gitlens",
+    "mhutchie.git-graph",
+    "donjayamanne.githistory",
+    "github.vscode-pull-request-github",
+    
+    // Python Development
+    "ms-python.python",
+    "ms-python.flake8",
+    "ms-python.black-formatter",
+    "ms-python.isort",
+    "ms-python.pylint",
+    "ms-toolsai.jupyter",
+    
+    // JavaScript/TypeScript/React Development
+    "bradlc.vscode-tailwindcss",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "ms-vscode.vscode-typescript-next",
+    "formulahendry.auto-rename-tag",
+    "christian-kohler.path-intellisense",
+    "ms-vscode.vscode-json",
+    
+    // Next.js Specific
+    "PulkitGangwar.nextjs-snippets",
+    "bradlc.vscode-tailwindcss",
+    
+    // Database & Data
+    "mtxr.sqltools",
+    "qwtel.sqlite-viewer",
+    
+    // YAML & Configuration Files
+    "redhat.vscode-yaml",
+    "ms-kubernetes-tools.vscode-kubernetes-tools",
+    
+    // Productivity & UI
+    "ms-vscode.vscode-icons",
+    "PKief.material-icon-theme",
+    "zhuangtongfa.Material-theme",
+    "aaron-bond.better-comments",
+    "streetsidesoftware.code-spell-checker",
+    "wayou.vscode-todo-highlight",
+    
+    // API Development & Testing
+    "humao.rest-client",
+    "rangav.vscode-thunder-client",
+    
+    // Markdown & Documentation
+    "yzhang.markdown-all-in-one",
+    "shd101wyy.markdown-preview-enhanced",
+    
+    // Environment & Configuration
+    "mikestead.dotenv",
+    "ms-vscode.makefile-tools",
+    
+    // Code Quality & Analysis
+    "SonarSource.sonarlint-vscode",
+    "ms-vscode.hexeditor",
+    
+    // Terminal & Shell
+    "ms-vscode.powershell",
+    
+    // Utilities
+    "formulahendry.code-runner",
+    "ms-vscode.live-server",
+    "ritwickdey.LiveServer"
+  ],
+  "unwantedRecommendations": [
+    "ms-python.anaconda-extension-pack",
+    "ms-toolsai.vscode-ai"
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "🐳 Debug: Frontend (Next.js in Docker)",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "address": "localhost",
+      "localRoot": "${workspaceFolder}/frontend",
+      "remoteRoot": "/app",
+      "protocol": "inspector",
+      "restart": true,
+      "sourceMaps": true,
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "preLaunchTask": "🐳 Docker: Start Development Environment"
+    },
+    {
+      "name": "🐍 Debug: API Gateway (Python in Docker)",
+      "type": "python",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5678
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}/src",
+          "remoteRoot": "/app/src"
+        }
+      ],
+      "justMyCode": false,
+      "preLaunchTask": "🐳 Docker: Start Development Environment"
+    },
+    {
+      "name": "🔍 Debug: Document Processing Service",
+      "type": "python",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5679
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}/services/document_processing_service",
+          "remoteRoot": "/app"
+        }
+      ],
+      "justMyCode": false
+    },
+    {
+      "name": "🔐 Debug: Auth Service",
+      "type": "python",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5680
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}/services/auth_service",
+          "remoteRoot": "/app"
+        }
+      ],
+      "justMyCode": false
+    },
+    {
+      "name": "🧠 Debug: Model Inference Service",
+      "type": "python",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5681
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}/services/model_inference_service",
+          "remoteRoot": "/app"
+        }
+      ],
+      "justMyCode": false
+    },
+    {
+      "name": "🌐 Open Frontend in Browser",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/open-cli",
+      "args": ["http://localhost:3000"],
+      "console": "integratedTerminal",
+      "preLaunchTask": "🐳 Docker: Start Development Environment"
+    },
+    {
+      "name": "🔧 Open API Documentation",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/open-cli",
+      "args": ["http://localhost:8000/docs"],
+      "console": "integratedTerminal",
+      "preLaunchTask": "🐳 Docker: Start Development Environment"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "🚀 Debug: Full Stack (Frontend + API)",
+      "configurations": [
+        "🐳 Debug: Frontend (Next.js in Docker)",
+        "🐍 Debug: API Gateway (Python in Docker)"
+      ],
+      "stopAll": true,
+      "preLaunchTask": "🐳 Docker: Start Development Environment"
+    },
+    {
+      "name": "🔍 Debug: All Python Services",
+      "configurations": [
+        "🐍 Debug: API Gateway (Python in Docker)",
+        "🔍 Debug: Document Processing Service",
+        "🔐 Debug: Auth Service",
+        "🧠 Debug: Model Inference Service"
+      ],
+      "stopAll": true,
+      "preLaunchTask": "🐳 Docker: Start Development Environment"
+    }
+  ]
+}
