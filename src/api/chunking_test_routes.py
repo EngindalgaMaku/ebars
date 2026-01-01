@@ -1000,8 +1000,8 @@ async def get_chunking_test_results(test_id: str, format: str = "json", request:
         logger.error(f"Failed to get chunking test results: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get chunking test results: {str(e)}")
 
-@router.get("/export/{test_id}", summary="Export Chunking Test Results as Markdown")
-async def export_chunking_test_markdown(test_id: str, request: Request = None) -> Dict[str, Any]:
+@router.get("/export-pdf/{test_id}", summary="Export Chunking Test Results as PDF")
+async def export_chunking_test_pdf(test_id: str, request: Request = None) -> Dict[str, Any]:
     """Export chunking test results as Markdown academic report"""
     # Basic authentication check
     if request:
