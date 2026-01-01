@@ -1000,6 +1000,47 @@ async def get_chunking_test_results(test_id: str, format: str = "json", request:
         logger.error(f"Failed to get chunking test results: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get chunking test results: {str(e)}")
 
+@router.get("/export/{test_id}", summary="Export Chunking Test Results as Markdown")
+async def export_chunking_test_markdown(test_id: str, request: Request = None) -> Dict[str, Any]:
+    """Export chunking test results as Markdown academic report"""
+    # Basic authentication check
+    if request:
+        current_user = _get_current_user(request)
+        logger.info(f"🔍 [CHUNKING EXPORT] Current user: {current_user}")
+        
+        if not (_is_teacher(current_user) or _is_admin(current_user)):
+            raise HTTPException(status_code=403, detail="Teacher or admin access required")
+        
+        logger.info(f"🔍 [CHUNKING EXPORT] Authentication successful - access granted")
+    
+    # Try memory first, then database
+    test_data = CHUNKING_TEST_RESULTS_STORAGE.get(test_id)
+    if not test_data:
+        test_data = _load_chunking_test_from_db(test_id)
+        if test_data:
+            CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
+    
+    if not test_data:
+        raise HTTPException(status_code=404, detail="Chunking test not found")
+    
+    try:
+        from src.utils.academic_report_generator import generate_chunking_academic_report
+        
+        # Generate academic report
+        markdown_report = generate_chunking_academic_report(test_data)
+        
+        return {
+            "success": True,
+            "test_id": test_id,
+            "format": "markdown",
+            "report": markdown_report,
+            "filename": f"chunking_test_report_{test_id[:8]}.md"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to export chunking test: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to export chunking test: {str(e)}")
+
 # ===== BACKGROUND TASK FUNCTIONS =====
 
 async def execute_full_chunking_test(
