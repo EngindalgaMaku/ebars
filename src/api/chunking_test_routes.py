@@ -37,17 +37,28 @@ def _get_current_user(request: Request) -> Optional[Dict[str, Any]]:
     try:
         auth_header = request.headers.get("Authorization")
         if not auth_header:
+            logger.info(f"🔍 [AUTH] No Authorization header found")
             return None
         
         # Get AUTH_SERVICE_URL from environment
         AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8006')
         
+        logger.info(f"🔍 [AUTH] Calling auth service: {AUTH_SERVICE_URL}/auth/me")
+        logger.info(f"🔍 [AUTH] Authorization header: {auth_header[:20]}...")
+        
         resp = requests.get(f"{AUTH_SERVICE_URL}/auth/me", headers={"Authorization": auth_header}, timeout=10)
+        
+        logger.info(f"🔍 [AUTH] Auth service response: {resp.status_code}")
+        
         if resp.status_code == 200:
-            return resp.json()
-        return None
+            user_data = resp.json()
+            logger.info(f"🔍 [AUTH] User authenticated: {user_data.get('username', 'unknown')}")
+            return user_data
+        else:
+            logger.warning(f"🔍 [AUTH] Auth service returned {resp.status_code}: {resp.text}")
+            return None
     except Exception as e:
-        logger.warning(f"Auth user fetch failed: {e}")
+        logger.warning(f"🔍 [AUTH] Auth user fetch failed: {e}")
         return None
 
 def _get_role_name(user: Optional[Dict[str, Any]]) -> str:
@@ -1026,7 +1037,7 @@ async def execute_full_chunking_test(
                     config.overlap_size,
                     config.session_id
                 )
-            elif strategy == "agentic":
+            elif strategy == "agentic" or strategy == "agentic_reasoning":
                 result = await execute_agentic_reasoning_chunking(
                     config.input_text,
                     config.target_chunk_size,

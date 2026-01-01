@@ -690,6 +690,9 @@ async def generate_response(request: GenerationRequest):
                 # Add JSON mode if requested (Groq supports it for some models)
                 if request.json_mode or request.response_format:
                     request_params["response_format"] = request.response_format or {"type": "json_object"}
+                    # Groq API requires "json" keyword in prompt when using JSON mode
+                    if "json" not in prompt.lower():
+                        request_params["messages"][1]["content"] = f"{prompt}\n\nPlease respond in JSON format."
                 
                 chat_completion = groq_client.chat.completions.create(**request_params)
                 response_content = chat_completion.choices[0].message.content or ""

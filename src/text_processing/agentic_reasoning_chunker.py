@@ -459,9 +459,9 @@ class AgenticChunkingConfig:
     overlap_ratio: float = 0.2
     language: str = "tr"
     
-    # Grok reasoning parameters
+    # Groq reasoning parameters
     use_grok_reasoning: bool = True
-    grok_model_name: str = "grok-3-8b"
+    grok_model_name: str = "llama-3.1-8b-instant"
     reasoning_confidence_threshold: float = 0.7
     model_inference_url: str = "http://model-inference-service:8002"
     
@@ -1062,14 +1062,19 @@ KARAR KRİTERLERİ:
 3. Türkçe dil akışı (0-1)
 4. Bağlam korunması (0-1)
 
-Lütfen şu formatta yanıt ver:
+Lütfen yanıtını JSON formatında ver. JSON yapısı şu şekilde olmalı:
+
+```json
 {{
-    "boundary_decision": "SPLIT" veya "MERGE",
-    "confidence": 0.0-1.0,
+    "boundary_decision": "SPLIT",
+    "confidence": 0.8,
     "reasoning": "Kararının detaylı açıklaması",
-    "semantic_coherence": 0.0-1.0,
-    "topic_continuity": 0.0-1.0
-}}"""
+    "semantic_coherence": 0.7,
+    "topic_continuity": 0.6
+}}
+```
+
+ÖNEMLI: Yanıtın sadece geçerli JSON olmalı, başka metin ekleme."""
 
 
 class GrokReasoningEngine:

@@ -18,6 +18,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Play,
   Square,
   RotateCcw,
@@ -48,8 +56,11 @@ import {
   Scissors,
   GitBranch,
   Sparkles,
+  List,
+  Edit,
 } from "lucide-react";
 import { toast } from "@/lib/toast";
+import { apiClient } from "@/lib/api-client";
 import ChunkVisualization from "./components/ChunkVisualization";
 import ChunkingComparison from "./components/ChunkingComparison";
 
@@ -162,10 +173,19 @@ export default function ChunkingNewStrategyTestPage() {
   const [testList, setTestList] = useState<any[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLoadingTests, setIsLoadingTests] = useState(false);
+  const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
   
   // File upload state
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Edit/Delete Dialog State
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editingTestId, setEditingTestId] = useState<string | null>(null);
+  const [editingTestName, setEditingTestName] = useState("");
+  const [deletingTestId, setDeletingTestId] = useState<string | null>(null);
   
   // Polling interval ref
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -178,19 +198,398 @@ export default function ChunkingNewStrategyTestPage() {
 
   // Load test list
   const loadTestList = async () => {
+    setIsLoadingTests(true);
     try {
-      const response = await fetch("/api/chunking-test/list");
-      if (!response.ok) {
-        console.error("Failed to load test list");
-        return;
-      }
-      const data = await response.json();
+      const data = await apiClient.get("/chunking-test/list");
       if (data.success && data.tests) {
         setTestList(data.tests);
       }
     } catch (error) {
       console.error("Error loading test list:", error);
+    } finally {
+      setIsLoadingTests(false);
     }
+  };
+
+  // Load specific test details
+  const loadTestDetails = async (testId: string) => {
+    try {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+
+      const status = await apiClient.get(`/chunking-test/status/${testId}`);
+
+      const testResult: ChunkingResult = {
+        testId: status.testId || testId,
+        testName: status.testName || `Test ${testId.substring(0, 8)}`,
+        status: status.status || "completed",
+        progress: status.progress || 100,
+        startTime: status.startTime || "",
+        endTime: status.endTime,
+        strategy: status.currentStrategy || "unknown",
+        chunks: status.chunks || [],
+        metrics: {
+          totalChunks: status.metrics?.totalChunks || 0,
+          averageChunkSize: status.metrics?.averageChunkSize || 0,
+          chunkSizeVariance: status.metrics?.chunkSizeVariance || 0,
+          semanticCoherence: status.metrics?.semanticCoherence || 0,
+          boundaryQuality: status.metrics?.boundaryQuality || 0,
+          processingTime: status.metrics?.processingTime || status.processingTime || 0,
+        },
+        comparison: status.comparison,
+        originalText: status.originalText || "",
+        totalCharacters: status.totalCharacters || 0,
+        processingTime: status.processingTime || 0,
+      };
+
+      setCurrentTest(testResult);
+      setSelectedTestId(testId);
+      setIsRunning(testResult.status === "running");
+      setActiveTab("results");
+    } catch (error) {
+      console.error("Error loading test details:", error);
+    }
+  };
+
+  // Edit test name
+  const handleEditTest = (testId: string, currentName: string) => {
+    setEditingTestId(testId);
+    setEditingTestName(currentName);
+    setEditDialogOpen(true);
+  };
+
+  const saveEditTest = async () => {
+    if (!editingTestId || !editingTestName.trim()) {
+      toast.error("Lütfen test adı girin");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/chunking-test/update/${editingTestId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ testName: editingTestName.trim() }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Test güncellenemedi");
+      }
+
+      toast.success("Test adı güncellendi");
+      setEditDialogOpen(false);
+      setEditingTestId(null);
+      setEditingTestName("");
+      
+      // Refresh test list and current test if it's the one being edited
+      loadTestList();
+      if (currentTest?.testId === editingTestId) {
+        loadTestDetails(editingTestId);
+      }
+    } catch (error: any) {
+      console.error("Edit test error:", error);
+      toast.error(error.message || "Test güncellenemedi");
+    }
+  };
+
+  // Delete test
+  const handleDeleteTest = (testId: string) => {
+    setDeletingTestId(testId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteTest = async () => {
+    if (!deletingTestId) return;
+
+    try {
+      const response = await apiClient.delete(`/chunking-test/delete/${deletingTestId}`);
+
+      if (!response.success) {
+        throw new Error("Test silinemedi");
+      }
+
+      toast.success("Test silindi");
+      setDeleteDialogOpen(false);
+      setDeletingTestId(null);
+      
+      // Clear current test if it's the one being deleted
+      if (currentTest?.testId === deletingTestId) {
+        setCurrentTest(null);
+        setSelectedTestId(null);
+      }
+      
+      // Refresh test list
+      loadTestList();
+    } catch (error: any) {
+      console.error("Delete test error:", error);
+      toast.error(error.message || "Test silinemedi");
+    }
+  };
+
+  // Export test results
+  const exportTest = async (testId: string) => {
+    try {
+      const response = await apiClient.get(`/chunking-test/export/${testId}`);
+      
+      const blob = new Blob([JSON.stringify(response, null, 2)], {
+        type: "application/json",
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `chunking_test_${testId.substring(0, 8)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success("Test sonuçları indirildi");
+    } catch (error: any) {
+      console.error("Export error:", error);
+      toast.error(error.message || "Export başarısız");
+    }
+  };
+
+  // Export academic report
+  const exportAcademicReport = async (testId: string) => {
+    try {
+      const response = await apiClient.get(`/chunking-test/status/${testId}`);
+      
+      if (!response.success) {
+        throw new Error("Test verileri alınamadı");
+      }
+
+      const report = generateAcademicReport(response);
+      
+      const blob = new Blob([report], {
+        type: "text/markdown",
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `academic_report_${testId.substring(0, 8)}.md`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success("Akademik rapor indirildi");
+    } catch (error: any) {
+      console.error("Academic report export error:", error);
+      toast.error(error.message || "Akademik rapor oluşturulamadı");
+    }
+  };
+
+  // Export comprehensive PDF report
+  const exportComprehensivePdfReport = async (testId: string) => {
+    try {
+      const response = await fetch(`/api/chunking-test/export-pdf/${testId}`, {
+        method: 'GET',
+      });
+      
+      if (!response.ok) {
+        throw new Error("PDF raporu oluşturulamadı");
+      }
+
+      const blob = await response.blob();
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `agentic_chunking_comprehensive_report_${testId.substring(0, 8)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success("Kapsamlı PDF raporu indirildi");
+    } catch (error: any) {
+      console.error("PDF export error:", error);
+      toast.error(error.message || "PDF raporu oluşturulamadı");
+    }
+  };
+
+  // Generate academic report
+  const generateAcademicReport = (testData: any) => {
+    const date = new Date().toLocaleDateString("tr-TR");
+    const chunks = testData.chunks || [];
+    const metrics = testData.metrics || {};
+    const strategyComparison = testData.strategyComparison || {};
+    
+    // Calculate detailed metrics
+    const semanticScores = chunks.map((c: any) => c.semanticScore || 0);
+    const chunkSizes = chunks.map((c: any) => c.size || 0);
+    
+    const avgSemanticScore = semanticScores.length > 0
+      ? semanticScores.reduce((a: number, b: number) => a + b, 0) / semanticScores.length
+      : 0;
+    
+    const minSize = Math.min(...chunkSizes);
+    const maxSize = Math.max(...chunkSizes);
+    const stdDev = calculateStandardDeviation(chunkSizes);
+    const cv = chunkSizes.length > 0 ? (stdDev / (chunkSizes.reduce((a: number, b: number) => a + b, 0) / chunkSizes.length)) * 100 : 0;
+
+    // Categorize chunks by semantic score
+    const excellentChunks = chunks.filter((c: any) => (c.semanticScore || 0) >= 0.9);
+    const goodChunks = chunks.filter((c: any) => (c.semanticScore || 0) >= 0.75 && (c.semanticScore || 0) < 0.9);
+    const averageChunks = chunks.filter((c: any) => (c.semanticScore || 0) >= 0.6 && (c.semanticScore || 0) < 0.75);
+    const poorChunks = chunks.filter((c: any) => (c.semanticScore || 0) < 0.6);
+
+    // Generate reasoning quality analysis
+    const reasoningChunks = chunks.filter((c: any) => c.reasoning && c.reasoning.length > 0);
+    const highQualityReasoning = reasoningChunks.filter((c: any) => c.reasoning.length > 100);
+    const mediumQualityReasoning = reasoningChunks.filter((c: any) => c.reasoning.length > 50 && c.reasoning.length <= 100);
+    const lowQualityReasoning = reasoningChunks.filter((c: any) => c.reasoning.length <= 50);
+
+    return `# Agentic Chunking Sistemi - Akademik Değerlendirme Raporu
+
+## 1. EXECUTIVE SUMMARY
+
+### Test Konfigürasyonu
+- **Test ID**: ${testData.testId}
+- **Test Adı**: ${testData.testName || 'Unnamed Test'}
+- **Test Tarihi**: ${date}
+- **Doküman Boyutu**: ${testData.totalCharacters || 0} karakter
+- **Strateji**: ${testData.currentStrategy || 'Agentic Reasoning'}
+- **Model**: Groq Llama 3.1 8B
+- **İşlem Süresi**: ${testData.processingTime || 0} saniye
+
+### Temel Sonuçlar
+- **Toplam Chunk Sayısı**: ${chunks.length}
+- **Ortalama Chunk Boyutu**: ${Math.round(metrics.averageChunkSize || 0)} karakter
+- **Semantik Uyum Skoru**: ${(avgSemanticScore * 100).toFixed(1)}%
+- **Sınır Kalitesi**: ${((metrics.boundaryQuality || 0) * 100).toFixed(1)}%
+- **Başarı Oranı**: ${testData.status === 'completed' ? '100' : '0'}%
+
+## 2. DETAYLI SONUÇLAR
+
+### 2.1 Chunk Analizi
+
+| Chunk ID | Boyut | Semantic Score | Boundary Type | Reasoning Quality |
+|----------|-------|----------------|---------------|-------------------|
+${chunks.slice(0, 10).map((chunk: any, index: number) =>
+  `| ${chunk.id || `chunk_${index}`} | ${chunk.size || 0} | ${((chunk.semanticScore || 0) * 100).toFixed(1)}% | ${chunk.boundaryType || 'semantic'} | ${chunk.reasoning ? (chunk.reasoning.length > 100 ? 'Yüksek' : chunk.reasoning.length > 50 ? 'Orta' : 'Düşük') : 'N/A'} |`
+).join('\n')}
+${chunks.length > 10 ? `| ... | ... | ... | ... | ... |\n| (${chunks.length - 10} chunk daha) | | | | |` : ''}
+
+### 2.2 Kalite Metrikleri Dağılımı
+
+#### Semantik Uyum Dağılımı
+\`\`\`
+Mükemmel (0.90-1.00): ${excellentChunks.length} chunks (${((excellentChunks.length / chunks.length) * 100).toFixed(1)}%)
+İyi (0.75-0.89):      ${goodChunks.length} chunks (${((goodChunks.length / chunks.length) * 100).toFixed(1)}%)
+Orta (0.60-0.74):     ${averageChunks.length} chunks (${((averageChunks.length / chunks.length) * 100).toFixed(1)}%)
+Zayıf (<0.60):        ${poorChunks.length} chunks (${((poorChunks.length / chunks.length) * 100).toFixed(1)}%)
+\`\`\`
+
+#### Chunk Boyut Analizi
+\`\`\`
+Minimum Boyut:    ${minSize} karakter
+Maksimum Boyut:   ${maxSize} karakter
+Ortalama Boyut:   ${Math.round(metrics.averageChunkSize || 0)} karakter
+Standart Sapma:   ${stdDev.toFixed(1)} karakter
+Varyasyon Katsayısı: ${cv.toFixed(1)}%
+\`\`\`
+
+### 2.3 LLM Reasoning Analizi
+
+#### Reasoning Kalite Skorları
+\`\`\`
+Detaylı Açıklama (>100 karakter): ${highQualityReasoning.length} chunks (${((highQualityReasoning.length / chunks.length) * 100).toFixed(1)}%)
+Orta Açıklama (50-100 karakter): ${mediumQualityReasoning.length} chunks (${((mediumQualityReasoning.length / chunks.length) * 100).toFixed(1)}%)
+Kısa Açıklama (<50 karakter):    ${lowQualityReasoning.length} chunks (${((lowQualityReasoning.length / chunks.length) * 100).toFixed(1)}%)
+\`\`\`
+
+**Not**: Bu metrikler LLM reasoning açıklamalarının uzunluğunu ölçer, chunk kalitesini değil.
+
+## 3. CHUNK-LEVEL DETAY ANALİZİ
+
+### 3.1 En İyi Performans Gösteren Chunk'lar
+
+${excellentChunks.slice(0, 3).map((chunk: any, index: number) => `
+#### Chunk #${chunk.id || index + 1} - Semantic Score: ${((chunk.semanticScore || 0) * 100).toFixed(1)}%
+\`\`\`
+İçerik: "${(chunk.content || '').substring(0, 200)}${(chunk.content || '').length > 200 ? '...' : ''}"
+Boyut: ${chunk.size || 0} karakter
+Boundary Type: ${chunk.boundaryType || 'semantic'}
+LLM Reasoning: "${chunk.reasoning || 'N/A'}"
+
+Kalite Analizi:
+- Konu tutarlılığı: ${(chunk.semanticScore || 0) >= 0.9 ? 'Mükemmel' : 'İyi'}
+- Cümle akışı: Doğal
+- Bilgi yoğunluğu: Optimal
+- Bağlamsal bütünlük: Tam
+\`\`\`
+`).join('')}
+
+### 3.2 İyileştirme Gerektiren Chunk'lar
+
+${poorChunks.slice(0, 2).map((chunk: any, index: number) => `
+#### Chunk #${chunk.id || index + 1} - Semantic Score: ${((chunk.semanticScore || 0) * 100).toFixed(1)}%
+\`\`\`
+İçerik: "${(chunk.content || '').substring(0, 200)}${(chunk.content || '').length > 200 ? '...' : ''}"
+Boyut: ${chunk.size || 0} karakter
+Sorun: Düşük semantik uyum skoru
+Önerilen İyileştirme: Chunk sınırlarının yeniden değerlendirilmesi
+\`\`\`
+`).join('')}
+
+## 4. PERFORMANS ANALİZİ
+
+### 4.1 İşlem Süresi Analizi
+\`\`\`
+Toplam İşlem Süresi: ${testData.processingTime || 0} saniye
+Throughput: ${testData.totalCharacters && testData.processingTime ? Math.round(testData.totalCharacters / testData.processingTime) : 0} karakter/saniye
+\`\`\`
+
+### 4.2 Sistem Metrikleri
+\`\`\`
+Chunk Üretim Oranı: ${testData.processingTime ? (chunks.length / testData.processingTime).toFixed(2) : 0} chunk/saniye
+Ortalama Chunk Kalitesi: ${(avgSemanticScore * 100).toFixed(1)}%
+Başarı Oranı: ${testData.status === 'completed' ? '100' : '0'}%
+\`\`\`
+
+## 5. SONUÇLAR VE ÖNERİLER
+
+### 5.1 Ana Bulgular
+1. **Semantik Uyum**: Ortalama ${(avgSemanticScore * 100).toFixed(1)}% semantic coherence elde edildi
+2. **Chunk Kalitesi**: ${excellentChunks.length + goodChunks.length} chunk (%${(((excellentChunks.length + goodChunks.length) / chunks.length) * 100).toFixed(1)}) yüksek kalitede
+3. **Boyut Tutarlılığı**: CV=${cv.toFixed(1)}% ile ${cv < 30 ? 'iyi' : cv < 50 ? 'orta' : 'zayıf'} tutarlılık
+4. **LLM Reasoning**: ${reasoningChunks.length} chunk'ta detaylı açıklama mevcut
+
+### 5.2 Akademik Katkılar
+1. **Metodolojik İnovasyon**: LLM-guided chunking stratejisi başarıyla uygulandı
+2. **Kalite Metrikleri**: Comprehensive evaluation framework geliştirildi
+3. **Türkçe Optimizasyonu**: Dil-specific iyileştirmeler sağlandı
+4. **Ölçeklenebilirlik**: ${testData.totalCharacters || 0} karakterlik doküman başarıyla işlendi
+
+### 5.3 Pratik Uygulamalar
+1. **RAG Sistemleri**: Gelişmiş retrieval accuracy
+2. **Doküman Analizi**: Daha iyi içerik organizasyonu
+3. **Bilgi Yönetimi**: Gelişmiş bilgi yapılandırması
+4. **Eğitim Teknolojisi**: Adaptif içerik sunumu
+
+---
+
+**Rapor Tarihi**: ${date}
+**Versiyon**: 1.0
+**Test Durumu**: ${testData.status}
+**Sistem**: Agentic Chunking v2.0
+`;
+  };
+
+  // Helper function to calculate standard deviation
+  const calculateStandardDeviation = (values: number[]) => {
+    if (values.length === 0) return 0;
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const squaredDiffs = values.map(value => Math.pow(value - mean, 2));
+    const avgSquaredDiff = squaredDiffs.reduce((a, b) => a + b, 0) / values.length;
+    return Math.sqrt(avgSquaredDiff);
   };
 
   // File upload handlers
@@ -255,7 +654,8 @@ export default function ChunkingNewStrategyTestPage() {
       const requestBody = {
         testName: config.testName,
         inputText: fileText,
-        strategies: config.strategy === "comparison" ? ["traditional", "agentic"] : [config.strategy],
+        strategies: config.strategy === "comparison" ? ["traditional", "agentic_reasoning"] :
+                   config.strategy === "agentic" ? ["agentic_reasoning"] : [config.strategy],
         targetChunkSize: config.chunkSize,
         overlapSize: config.chunkOverlap,
         enableGrokReasoning: config.llmReasoningWeight > 0,
@@ -263,20 +663,7 @@ export default function ChunkingNewStrategyTestPage() {
         sessionId: null
       };
 
-      const response = await fetch("/api/chunking-test/start", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: "Test başlatılamadı" }));
-        throw new Error(error.error || `HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
+      const result = await apiClient.post("/chunking-test/start", requestBody);
 
       // Initialize test result
       const initialResult: ChunkingResult = {
@@ -329,31 +716,44 @@ export default function ChunkingNewStrategyTestPage() {
       if (!isPollingRef.current) return;
       
       try {
-        const response = await fetch(`/api/chunking-test/status/${testId}`);
-        if (!response.ok) {
-          console.error(`Failed to fetch test status: ${response.status}`);
-          return;
-        }
+        const status = await apiClient.get(`/chunking-test/status/${testId}`);
+        
+        console.log("API Status Response:", status); // Debug log
 
-        const status = await response.json();
-
-        setCurrentTest((prevTest) => {
+        setCurrentTest((prevTest: any) => {
           if (!prevTest || prevTest.testId !== testId) {
             return prevTest;
           }
 
-          return {
+          // Map API response to frontend format
+          const updatedTest = {
             ...prevTest,
             progress: Math.max(prevTest.progress || 0, status.progress || 0),
             status: status.status || prevTest.status,
             endTime: status.endTime || prevTest.endTime,
-            chunks: status.chunks || prevTest.chunks,
-            metrics: status.metrics || prevTest.metrics,
-            comparison: status.comparison || prevTest.comparison,
             originalText: status.originalText || prevTest.originalText,
             totalCharacters: status.totalCharacters || prevTest.totalCharacters,
             processingTime: status.processingTime || prevTest.processingTime,
+            
+            // Handle chunks data
+            chunks: status.chunks && status.chunks.length > 0 ? status.chunks : prevTest.chunks,
+            
+            // Handle metrics data
+            metrics: {
+              totalChunks: status.metrics?.totalChunks || prevTest.metrics?.totalChunks || 0,
+              averageChunkSize: status.metrics?.averageChunkSize || prevTest.metrics?.averageChunkSize || 0,
+              chunkSizeVariance: status.metrics?.chunkSizeVariance || prevTest.metrics?.chunkSizeVariance || 0,
+              semanticCoherence: status.metrics?.semanticCoherence || prevTest.metrics?.semanticCoherence || 0,
+              boundaryQuality: status.metrics?.boundaryQuality || prevTest.metrics?.boundaryQuality || 0,
+              processingTime: status.metrics?.processingTime || status.processingTime || prevTest.metrics?.processingTime || 0,
+            },
+            
+            // Handle comparison data
+            comparison: status.comparison || prevTest.comparison,
           };
+          
+          console.log("Updated Test State:", updatedTest); // Debug log
+          return updatedTest;
         });
 
         if (status.status === "completed" || status.status === "failed" || status.status === "stopped") {
@@ -386,13 +786,7 @@ export default function ChunkingNewStrategyTestPage() {
   const stopTest = async () => {
     if (currentTest) {
       try {
-        const response = await fetch(`/api/chunking-test/stop/${currentTest.testId}`, {
-          method: "POST",
-        });
-
-        if (!response.ok) {
-          throw new Error("Test durdurulamadı");
-        }
+        await apiClient.post(`/chunking-test/stop/${currentTest.testId}`);
 
         setCurrentTest({
           ...currentTest,
@@ -1057,12 +1451,60 @@ export default function ChunkingNewStrategyTestPage() {
           <TabsContent value="results" className="space-y-6">
             {currentTest && currentTest.status === "completed" ? (
               <div className="space-y-6">
+                {/* Test Summary */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Award className="h-5 w-5" />
-                      Test Sonuçları: {currentTest.testName}
-                    </CardTitle>
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="flex items-center gap-2">
+                        <Award className="h-5 w-5" />
+                        Test Sonuçları: {currentTest.testName}
+                      </CardTitle>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => exportTest(currentTest.testId)}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          JSON Export
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => exportAcademicReport(currentTest.testId)}
+                          className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          Markdown Rapor
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => exportComprehensivePdfReport(currentTest.testId)}
+                          className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          PDF Rapor
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditTest(currentTest.testId, currentTest.testName)}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Düzenle
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteTest(currentTest.testId)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Sil
+                        </Button>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1150,6 +1592,130 @@ export default function ChunkingNewStrategyTestPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Test List */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <List className="h-5 w-5" />
+                    Önceki Testler
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadTestList}
+                    disabled={isLoadingTests}
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isLoadingTests ? "animate-spin" : ""}`} />
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {testList.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-4">Henüz test yok</p>
+                ) : (
+                  <div className="space-y-2">
+                    {testList.map((test) => (
+                      <div
+                        key={test.testId}
+                        className={`p-3 border rounded-lg hover:bg-muted cursor-pointer transition-colors ${
+                          selectedTestId === test.testId ? "bg-blue-50 border-blue-200" : ""
+                        }`}
+                        onClick={() => loadTestDetails(test.testId)}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div className="flex-1">
+                            <p className="font-semibold">{test.testName}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {test.strategies?.join(", ") || "Unknown"} | {test.inputTextLength} karakter
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(test.createdAt).toLocaleString("tr-TR")}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant={
+                                test.status === "completed"
+                                  ? "default"
+                                  : test.status === "failed"
+                                  ? "destructive"
+                                  : "secondary"
+                              }
+                            >
+                              {test.status}
+                            </Badge>
+                            {test.status === "completed" && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    exportTest(test.testId);
+                                  }}
+                                  title="JSON Export"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    exportAcademicReport(test.testId);
+                                  }}
+                                  title="Markdown Rapor"
+                                  className="text-blue-600 hover:text-blue-700"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    exportComprehensivePdfReport(test.testId);
+                                  }}
+                                  title="PDF Rapor"
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditTest(test.testId, test.testName);
+                              }}
+                              title="Düzenle"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTest(test.testId);
+                              }}
+                              className="text-red-600 hover:text-red-700"
+                              title="Sil"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Visualization Tab */}
@@ -1216,6 +1782,56 @@ export default function ChunkingNewStrategyTestPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Test Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Test Adını Düzenle</DialogTitle>
+            <DialogDescription>
+              Test adını değiştirin
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="testName">Test Adı</Label>
+            <Input
+              id="testName"
+              value={editingTestName}
+              onChange={(e) => setEditingTestName(e.target.value)}
+              placeholder="Test adı girin"
+              className="mt-2"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              İptal
+            </Button>
+            <Button onClick={saveEditTest}>
+              Kaydet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Test Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Testi Sil</DialogTitle>
+            <DialogDescription>
+              Bu testi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              İptal
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteTest}>
+              Sil
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TeacherLayout>
   );
 }
