@@ -24,6 +24,104 @@ def generate_chunking_academic_report(test_data: Dict[str, Any]) -> str:
         configuration = test_data.get("configuration", {})
         results = test_data.get("results", [])
         
+        # Check if test is still running or failed
+        if status == "running":
+            return f"""# Agentic Chunking Test Report - IN PROGRESS
+
+## Test Status: RUNNING
+
+**Test ID:** `{test_id}`
+**Test Name:** {test_name}
+**Status:** Test is currently running...
+
+### Current Progress
+- Test started at: {start_time}
+- Current status: {status}
+- Strategies to test: {', '.join(configuration.get('strategies', []))}
+
+**Please wait for the test to complete before generating the full academic report.**
+
+---
+*Report generated while test was still in progress*
+"""
+        
+        if status == "failed":
+            error_msg = test_data.get("error", "Unknown error")
+            return f"""# Agentic Chunking Test Report - FAILED
+
+## Test Status: FAILED
+
+**Test ID:** `{test_id}`
+**Test Name:** {test_name}
+**Status:** Test failed during execution
+
+### Error Information
+- Error: {error_msg}
+- Test started at: {start_time}
+- Failed at: {end_time or 'Unknown'}
+
+### Possible Causes
+1. **Model Inference Service**: Connection issues with Groq/LLM service
+2. **Agentic Chunker**: Import or configuration errors
+3. **Text Processing**: Issues with input text processing
+4. **System Resources**: Memory or timeout issues
+
+### Recommendations
+1. Check model inference service connectivity
+2. Verify agentic chunker dependencies
+3. Review input text format and size
+4. Check system logs for detailed error information
+
+---
+*Report generated for failed test*
+"""
+        
+        # Check if we have any successful results
+        successful_results = [r for r in results if r.get("success", False)]
+        if not successful_results:
+            return f"""# Agentic Chunking Test Report - NO RESULTS
+
+## Test Status: COMPLETED BUT NO SUCCESSFUL RESULTS
+
+**Test ID:** `{test_id}`
+**Test Name:** {test_name}
+**Status:** {status}
+
+### Test Information
+- Test started at: {start_time}
+- Test ended at: {end_time}
+- Strategies attempted: {', '.join(configuration.get('strategies', []))}
+- Results count: {len(results)}
+
+### Issue Analysis
+All chunking strategies failed to produce results. This indicates:
+
+1. **Text Processing Issues**: Input text may be malformed or empty
+2. **Model Service Problems**: LLM/embedding services may be unavailable
+3. **Configuration Errors**: Invalid chunking parameters
+4. **System Dependencies**: Missing required libraries or services
+
+### Failed Strategies
+"""
+            
+            for result in results:
+                strategy = result.get("strategy", "unknown")
+                error = result.get("error", "No error details")
+                return f"""
+- **{strategy.title()}**: {error}"""
+            
+            return """
+
+### Recommendations
+1. Verify input text is valid and non-empty
+2. Check model inference service status
+3. Review chunking configuration parameters
+4. Examine system logs for detailed error information
+
+---
+*Report generated for test with no successful results*
+"""
+        
         # Calculate execution time
         execution_time = "N/A"
         if start_time and end_time:
