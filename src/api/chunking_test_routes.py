@@ -29,22 +29,41 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Import real authentication functions from main.py
-try:
-    from src.api.main import _get_current_user, _is_teacher, _is_admin
-    logger.info("✅ [AUTH] Successfully imported real authentication functions")
-except ImportError as e:
-    logger.error(f"❌ [AUTH] Failed to import authentication functions: {e}")
-    # Fallback functions if import fails
-    def _get_current_user(request):
-        logger.warning("⚠️ [AUTH] Using fallback authentication - no real auth available")
-        return {"id": "fallback_admin", "role": "admin", "username": "fallback_user"}
-    
-    def _is_teacher(user):
-        return True
-    
-    def _is_admin(user):
-        return True
+# Authentication functions - avoid circular import by implementing directly
+import requests
+
+def _get_current_user(request: Request) -> Optional[Dict[str, Any]]:
+    """Get current user from Auth Service using the incoming Authorization header"""
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header:
+            return None
+        
+        # Get AUTH_SERVICE_URL from environment
+        AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8006')
+        
+        resp = requests.get(f"{AUTH_SERVICE_URL}/auth/me", headers={"Authorization": auth_header}, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+        return None
+    except Exception as e:
+        logger.warning(f"Auth user fetch failed: {e}")
+        return None
+
+def _get_role_name(user: Optional[Dict[str, Any]]) -> str:
+    """Get role name from user object"""
+    if not user:
+        return ""
+    role = user.get("role_name") or user.get("role") or ""
+    return str(role).lower()
+
+def _is_admin(user: Optional[Dict[str, Any]]) -> bool:
+    """Check if user is admin"""
+    return _get_role_name(user) in {"admin", "superadmin"}
+
+def _is_teacher(user: Optional[Dict[str, Any]]) -> bool:
+    """Check if user is teacher"""
+    return _get_role_name(user) in {"teacher", "ogretmen", "instructor"}
 
 # Chunking Test Router
 router = APIRouter(prefix="/chunking-test", tags=["Chunking Test"])
@@ -262,7 +281,7 @@ async def execute_agentic_reasoning_chunking(
             try:
                 agentic_chunks = chunker.create_chunks(text)
                 
-                # Convert AgenticChunk objects to strings
+                # Convert AgenticChunk objects to strings for backward compatibility
                 chunks = [chunk.text for chunk in agentic_chunks]
                 
                 execution_time = (time.time() - start_time) * 1000
@@ -278,11 +297,70 @@ async def execute_agentic_reasoning_chunking(
                     semantic_coherence = 0.5
                     boundary_quality = 0.5
                 
+                # Extract detailed reasoning information for visualization
+                detailed_chunks = []
+                reasoning_decisions = []
+                similarity_analysis = {}
+                
+                for i, chunk in enumerate(agentic_chunks):
+                    # Detailed chunk information
+                    chunk_reasoning = []
+                    for bd in chunk.boundary_decisions:
+                        chunk_reasoning.append({
+                            "decision": bd.decision,
+                            "confidence": bd.confidence,
+                            "reasoning": bd.reasoning,
+                            "semantic_coherence": bd.semantic_coherence,
+                            "topic_continuity": bd.topic_continuity,
+                            "metadata": bd.metadata
+                        })
+                    
+                    detailed_chunks.append({
+                        "id": i,
+                        "text": chunk.text,
+                        "start_index": chunk.start_index,
+                        "end_index": chunk.end_index,
+                        "word_count": chunk.word_count,
+                        "sentence_count": chunk.sentence_count,
+                        "paragraph_count": chunk.paragraph_count,
+                        "has_header": chunk.has_header,
+                        "quality_score": chunk.quality_score,
+                        "semantic_coherence": chunk.semantic_coherence,
+                        "topic_consistency": chunk.topic_consistency,
+                        "reasoning_confidence": chunk.reasoning_confidence,
+                        "issues": chunk.issues,
+                        "metadata": chunk.metadata,
+                        "boundary_decisions": chunk_reasoning,
+                        "reasoning_summary": {
+                            "total_decisions": len(chunk.boundary_decisions),
+                            "split_decisions": len([bd for bd in chunk.boundary_decisions if bd.decision == "SPLIT"]),
+                            "merge_decisions": len([bd for bd in chunk.boundary_decisions if bd.decision == "MERGE"]),
+                            "avg_confidence": sum(bd.confidence for bd in chunk.boundary_decisions) / len(chunk.boundary_decisions) if chunk.boundary_decisions else 0,
+                            "reasoning_methods": list(set(bd.metadata.get('decision_method', 'unknown') for bd in chunk.boundary_decisions if bd.metadata))
+                        }
+                    })
+                    
+                    # Collect all reasoning decisions
+                    reasoning_decisions.extend(chunk_reasoning)
+                
+                # Calculate similarity analysis summary
+                if reasoning_decisions:
+                    similarity_analysis = {
+                        "total_boundary_decisions": len(reasoning_decisions),
+                        "split_ratio": len([rd for rd in reasoning_decisions if rd["decision"] == "SPLIT"]) / len(reasoning_decisions),
+                        "avg_confidence": sum(rd["confidence"] for rd in reasoning_decisions) / len(reasoning_decisions),
+                        "avg_semantic_coherence": sum(rd["semantic_coherence"] for rd in reasoning_decisions) / len(reasoning_decisions),
+                        "avg_topic_continuity": sum(rd["topic_continuity"] for rd in reasoning_decisions) / len(reasoning_decisions),
+                        "reasoning_methods": list(set(rd["metadata"].get("decision_method", "unknown") for rd in reasoning_decisions if rd.get("metadata")))
+                    }
+                
                 logger.info(f"✅ [AGENTIC CHUNKING] Completed successfully - {chunk_count} chunks, coherence: {semantic_coherence:.3f}")
+                logger.info(f"📊 [AGENTIC REASONING] {len(reasoning_decisions)} boundary decisions, {similarity_analysis.get('split_ratio', 0):.2f} split ratio")
                 
                 return {
                     "strategy": "agentic",
-                    "chunks": chunks,
+                    "chunks": chunks,  # For backward compatibility
+                    "detailed_chunks": detailed_chunks,  # NEW: Detailed chunk information with reasoning
                     "chunk_count": chunk_count,
                     "total_characters": total_chars,
                     "avg_chunk_size": avg_chunk_size,
@@ -292,8 +370,8 @@ async def execute_agentic_reasoning_chunking(
                     "success": True,
                     "config": f"Agentic Reasoning Chunking (Grok={enable_grok}, Turkish={turkish_optimization})",
                     "grok_reasoning_used": enable_grok,
-                    "reasoning_decisions": [],
-                    "similarity_analysis": {}
+                    "reasoning_decisions": reasoning_decisions,  # NEW: All reasoning decisions
+                    "similarity_analysis": similarity_analysis  # NEW: Similarity analysis summary
                 }
                 
             except Exception as chunking_error:
@@ -1036,3 +1114,197 @@ async def execute_full_chunking_test(
         
         CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
         _save_chunking_test_to_db(test_id, test_data)
+
+@router.get("/reasoning-analysis/{test_id}", summary="Get Detailed Reasoning Analysis")
+async def get_reasoning_analysis(test_id: str, request: Request = None) -> Dict[str, Any]:
+    """Get detailed reasoning analysis for agentic chunking visualization"""
+    # Basic authentication check
+    if request:
+        current_user = _get_current_user(request)
+        logger.info(f"🔍 [REASONING ANALYSIS] Current user: {current_user}")
+        
+        if not (_is_teacher(current_user) or _is_admin(current_user)):
+            raise HTTPException(status_code=403, detail="Teacher or admin access required")
+        
+        logger.info(f"🔍 [REASONING ANALYSIS] Authentication successful - access granted")
+    
+    # Try memory first, then database
+    test_data = CHUNKING_TEST_RESULTS_STORAGE.get(test_id)
+    if not test_data:
+        test_data = _load_chunking_test_from_db(test_id)
+        if test_data:
+            CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
+    
+    if not test_data:
+        raise HTTPException(status_code=404, detail="Chunking test not found")
+    
+    try:
+        results = test_data.get("results", [])
+        
+        # Find agentic reasoning result
+        agentic_result = None
+        for result in results:
+            if result.get("strategy") == "agentic" and result.get("success", False):
+                agentic_result = result
+                break
+        
+        if not agentic_result:
+            return {
+                "success": False,
+                "message": "No successful agentic reasoning result found",
+                "test_id": test_id
+            }
+        
+        # Extract detailed reasoning information
+        detailed_chunks = agentic_result.get("detailed_chunks", [])
+        reasoning_decisions = agentic_result.get("reasoning_decisions", [])
+        similarity_analysis = agentic_result.get("similarity_analysis", {})
+        
+        # Create decision timeline for visualization
+        decision_timeline = []
+        for i, decision in enumerate(reasoning_decisions):
+            decision_timeline.append({
+                "id": i,
+                "timestamp": i,  # Sequential order
+                "decision": decision.get("decision", "UNKNOWN"),
+                "confidence": decision.get("confidence", 0),
+                "reasoning": decision.get("reasoning", "No reasoning provided"),
+                "semantic_coherence": decision.get("semantic_coherence", 0),
+                "topic_continuity": decision.get("topic_continuity", 0),
+                "metadata": decision.get("metadata", {}),
+                "decision_method": decision.get("metadata", {}).get("decision_method", "unknown")
+            })
+        
+        # Calculate semantic metrics analysis
+        semantic_metrics = {
+            "coherence_distribution": {},
+            "topic_continuity_distribution": {},
+            "confidence_distribution": {},
+            "decision_type_distribution": {}
+        }
+        
+        if reasoning_decisions:
+            # Coherence distribution
+            coherence_ranges = {"low": 0, "medium": 0, "high": 0}
+            topic_ranges = {"low": 0, "medium": 0, "high": 0}
+            confidence_ranges = {"low": 0, "medium": 0, "high": 0}
+            decision_types = {"SPLIT": 0, "MERGE": 0, "UNKNOWN": 0}
+            
+            for decision in reasoning_decisions:
+                # Coherence
+                coherence = decision.get("semantic_coherence", 0)
+                if coherence < 0.4:
+                    coherence_ranges["low"] += 1
+                elif coherence < 0.7:
+                    coherence_ranges["medium"] += 1
+                else:
+                    coherence_ranges["high"] += 1
+                
+                # Topic continuity
+                topic = decision.get("topic_continuity", 0)
+                if topic < 0.4:
+                    topic_ranges["low"] += 1
+                elif topic < 0.7:
+                    topic_ranges["medium"] += 1
+                else:
+                    topic_ranges["high"] += 1
+                
+                # Confidence
+                confidence = decision.get("confidence", 0)
+                if confidence < 0.4:
+                    confidence_ranges["low"] += 1
+                elif confidence < 0.7:
+                    confidence_ranges["medium"] += 1
+                else:
+                    confidence_ranges["high"] += 1
+                
+                # Decision types
+                decision_type = decision.get("decision", "UNKNOWN")
+                decision_types[decision_type] = decision_types.get(decision_type, 0) + 1
+            
+            semantic_metrics = {
+                "coherence_distribution": coherence_ranges,
+                "topic_continuity_distribution": topic_ranges,
+                "confidence_distribution": confidence_ranges,
+                "decision_type_distribution": decision_types
+            }
+        
+        # Chunk quality analysis
+        chunk_quality_analysis = []
+        for chunk in detailed_chunks:
+            issues = chunk.get("issues", [])
+            quality_score = chunk.get("quality_score", 0)
+            
+            # Determine quality level and recommendations
+            quality_level = "high" if quality_score > 0.7 else "medium" if quality_score > 0.4 else "low"
+            recommendations = []
+            
+            if quality_score < 0.5:
+                recommendations.append("Consider merging with adjacent chunks")
+            if chunk.get("word_count", 0) < 50:
+                recommendations.append("Chunk may be too small for meaningful content")
+            if len(issues) > 2:
+                recommendations.append("Multiple quality issues detected")
+            if chunk.get("semantic_coherence", 0) < 0.4:
+                recommendations.append("Low semantic coherence - review content boundaries")
+            
+            chunk_quality_analysis.append({
+                "chunk_id": chunk.get("id", 0),
+                "quality_score": quality_score,
+                "quality_level": quality_level,
+                "issues": issues,
+                "recommendations": recommendations,
+                "word_count": chunk.get("word_count", 0),
+                "has_header": chunk.get("has_header", False),
+                "semantic_coherence": chunk.get("semantic_coherence", 0),
+                "reasoning_confidence": chunk.get("reasoning_confidence", 0)
+            })
+        
+        # Performance insights
+        performance_insights = {
+            "total_boundary_decisions": len(reasoning_decisions),
+            "split_merge_ratio": similarity_analysis.get("split_ratio", 0),
+            "average_confidence": similarity_analysis.get("avg_confidence", 0),
+            "reasoning_methods_used": similarity_analysis.get("reasoning_methods", []),
+            "processing_time_ms": agentic_result.get("processing_time_ms", 0),
+            "chunks_created": len(detailed_chunks),
+            "average_chunk_quality": sum(chunk.get("quality_score", 0) for chunk in detailed_chunks) / len(detailed_chunks) if detailed_chunks else 0
+        }
+        
+        # Visualization data for charts
+        visualization_data = {
+            "confidence_over_time": [{"x": i, "y": d.get("confidence", 0)} for i, d in enumerate(reasoning_decisions)],
+            "coherence_over_time": [{"x": i, "y": d.get("semantic_coherence", 0)} for i, d in enumerate(reasoning_decisions)],
+            "decision_distribution": [
+                {"label": "Split", "value": len([d for d in reasoning_decisions if d.get("decision") == "SPLIT"])},
+                {"label": "Merge", "value": len([d for d in reasoning_decisions if d.get("decision") == "MERGE"])}
+            ],
+            "chunk_size_distribution": [{"x": i, "y": len(chunk.get("text", ""))} for i, chunk in enumerate(detailed_chunks)]
+        }
+        
+        logger.info(f"📊 [REASONING ANALYSIS] Generated analysis for {len(detailed_chunks)} chunks, {len(reasoning_decisions)} decisions")
+        
+        return {
+            "success": True,
+            "test_id": test_id,
+            "analysis": {
+                "decision_timeline": decision_timeline,
+                "semantic_metrics": semantic_metrics,
+                "chunk_quality_analysis": chunk_quality_analysis,
+                "performance_insights": performance_insights,
+                "visualization_data": visualization_data,
+                "detailed_chunks": detailed_chunks,
+                "similarity_analysis": similarity_analysis
+            },
+            "summary": {
+                "total_chunks": len(detailed_chunks),
+                "total_decisions": len(reasoning_decisions),
+                "average_confidence": performance_insights["average_confidence"],
+                "average_chunk_quality": performance_insights["average_chunk_quality"],
+                "processing_time_ms": performance_insights["processing_time_ms"]
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get reasoning analysis: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get reasoning analysis: {str(e)}")

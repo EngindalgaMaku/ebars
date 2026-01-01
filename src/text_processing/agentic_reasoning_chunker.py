@@ -1074,7 +1074,7 @@ Lütfen şu formatta yanıt ver:
 
 class GrokReasoningEngine:
     """
-    Grok 3 8B integration for intelligent semantic boundary detection.
+    Groq API Llama 3.1 8B integration for intelligent semantic boundary detection.
     
     Uses the model inference service to make contextually aware decisions
     about chunk boundaries based on semantic analysis.
@@ -1207,13 +1207,15 @@ class GrokReasoningEngine:
         return f"grok_boundary:{hashlib.md5(context_str.encode()).hexdigest()}"
     
     def _call_model_inference_service(self, prompt: str) -> str:
-        """Call the model inference service for Grok reasoning."""
+        """Call the model inference service for Groq API Llama 3.1 8B reasoning."""
         try:
             request_data = {
                 "prompt": prompt,
-                "model": self.model_name,
+                "model": self.model_name,  # Should be "llama-3.1-8b-instant" for Groq API
                 "temperature": 0.3,  # Lower temperature for more consistent reasoning
-                "max_tokens": 500
+                "max_tokens": 500,
+                "json_mode": True,  # Enable JSON mode like LLM chunker
+                "response_format": {"type": "json_object"}  # Ensure JSON response
             }
             
             response = requests.post(
@@ -1396,10 +1398,11 @@ class SemanticSimilarityAnalyzer:
         # Use batch processor for optimized similarity calculation
         return self.batch_processor.process_similarities_batch(embeddings)
     
-    def _cluster_similar_paragraphs(self, paragraphs: List[ProcessedParagraph], 
+    def _cluster_similar_paragraphs(self, paragraphs: List[ProcessedParagraph],
                                    similarity_matrix: np.ndarray) -> List[SimilarityGroup]:
         """
-        Advanced clustering that respects document structure and Turkish language patterns.
+        Advanced clustering that respects document structure, Turkish language patterns,
+        and preserves header-content relationships.
         """
         if similarity_matrix.size == 0:
             # Fallback: each paragraph is its own group
@@ -1426,20 +1429,49 @@ class SemanticSimilarityAnalyzer:
             )
             visited.add(i)
             
-            # Find similar paragraphs within proximity window
-            proximity_window = self._calculate_proximity_window(paragraph)
+            # ENHANCED: Header-content relationship preservation
+            if paragraph.paragraph_type == 'HEADER':
+                # Headers should aggressively group with following content
+                proximity_window = self._calculate_proximity_window(paragraph) + 3
+                
+                # Look ahead for content paragraphs to group with this header
+                for j in range(i + 1, min(len(paragraphs), i + proximity_window + 1)):
+                    if j in visited:
+                        continue
+                    
+                    next_para = paragraphs[j]
+                    
+                    # Stop if we hit another header of same or higher level
+                    if (next_para.paragraph_type == 'HEADER' and
+                        next_para.metadata.get('section_level', 0) <= paragraph.metadata.get('section_level', 0)):
+                        break
+                    
+                    # Group content paragraphs with header
+                    if next_para.paragraph_type in ['TEXT', 'LIST']:
+                        current_group.paragraphs.append(next_para)
+                        visited.add(j)
+                        logger.debug(f"Grouped {next_para.paragraph_type} with HEADER: {paragraph.text[:50]}...")
+                    
+                    # Stop after collecting sufficient content (min 300 chars)
+                    total_content = sum(len(p.text) for p in current_group.paragraphs if p.paragraph_type != 'HEADER')
+                    if total_content >= 300:
+                        break
             
-            for j in range(max(0, i - proximity_window), 
-                          min(len(paragraphs), i + proximity_window + 1)):
-                if j in visited or j == i:
-                    continue
+            else:
+                # Regular proximity-based grouping for non-headers
+                proximity_window = self._calculate_proximity_window(paragraph)
                 
-                similarity = similarity_matrix[i, j]
-                
-                # Check if paragraphs should be grouped
-                if self._should_group_paragraphs(paragraph, paragraphs[j], similarity):
-                    current_group.paragraphs.append(paragraphs[j])
-                    visited.add(j)
+                for j in range(max(0, i - proximity_window),
+                              min(len(paragraphs), i + proximity_window + 1)):
+                    if j in visited or j == i:
+                        continue
+                    
+                    similarity = similarity_matrix[i, j]
+                    
+                    # Enhanced grouping logic with header awareness
+                    if self._should_group_paragraphs_enhanced(paragraph, paragraphs[j], similarity):
+                        current_group.paragraphs.append(paragraphs[j])
+                        visited.add(j)
             
             # Calculate group metrics
             current_group.avg_similarity = self._calculate_group_similarity(current_group, similarity_matrix)
@@ -1461,22 +1493,36 @@ class SemanticSimilarityAnalyzer:
         
         return base_window
     
-    def _should_group_paragraphs(self, para1: ProcessedParagraph, para2: ProcessedParagraph, 
-                                similarity: float) -> bool:
-        """Determine if two paragraphs should be grouped together."""
-        # Similarity threshold check
+    def _should_group_paragraphs_enhanced(self, para1: ProcessedParagraph, para2: ProcessedParagraph,
+                                         similarity: float) -> bool:
+        """Enhanced paragraph grouping logic with header-content awareness."""
+        # Basic similarity threshold check
         if similarity < self.config.similarity_threshold:
             return False
         
+        # CRITICAL: Header-content relationship preservation
+        if para1.paragraph_type == 'HEADER' and para2.paragraph_type in ['TEXT', 'LIST']:
+            # Headers should group with following content even with lower similarity
+            return similarity > (self.config.similarity_threshold * 0.6)
+        
+        if para2.paragraph_type == 'HEADER' and para1.paragraph_type in ['TEXT', 'LIST']:
+            # Content should not easily group with following headers
+            return similarity > (self.config.similarity_threshold * 1.3)
+        
         # Same section context preference
         if para1.section_context == para2.section_context:
-            return similarity > (self.config.similarity_threshold * 0.8)  # Lower threshold for same section
+            return similarity > (self.config.similarity_threshold * 0.8)
         
-        # Different paragraph types are less likely to group
+        # Different paragraph types are less likely to group (except header-content)
         if para1.paragraph_type != para2.paragraph_type:
-            return similarity > (self.config.similarity_threshold * 1.2)  # Higher threshold for different types
+            return similarity > (self.config.similarity_threshold * 1.2)
         
         return True
+    
+    def _should_group_paragraphs(self, para1: ProcessedParagraph, para2: ProcessedParagraph,
+                                similarity: float) -> bool:
+        """Legacy method - redirects to enhanced version."""
+        return self._should_group_paragraphs_enhanced(para1, para2, similarity)
     
     def _calculate_group_similarity(self, group: SimilarityGroup, 
                                    similarity_matrix: np.ndarray) -> float:
@@ -1980,7 +2026,7 @@ class BoundaryDetectionAlgorithm:
         return 0.9 + (linguistic_similarity * 0.2)
     
     def _analyze_enhanced_structural_boundaries(self, paragraph_groups: List[SimilarityGroup]) -> List[float]:
-        """Enhanced structural analysis with Turkish educational patterns."""
+        """Enhanced structural analysis with Turkish educational patterns and header-content preservation."""
         scores = []
         
         for i in range(len(paragraph_groups) - 1):
@@ -1989,35 +2035,68 @@ class BoundaryDetectionAlgorithm:
             
             score = 0.5  # Base score
             
-            # Enhanced header transition analysis
+            # CRITICAL: Header-content relationship preservation
             current_has_header = any(p.paragraph_type == 'HEADER' for p in current_group.paragraphs)
             next_has_header = any(p.paragraph_type == 'HEADER' for p in next_group.paragraphs)
             
-            if next_has_header:
-                # Analyze header level for boundary strength
-                header_levels = [p.metadata.get('section_level', 0) for p in next_group.paragraphs
-                               if p.paragraph_type == 'HEADER']
-                if header_levels:
-                    max_level = max(header_levels)
-                    # Higher level headers (1, 2) suggest stronger boundaries
-                    score += 0.4 if max_level <= 2 else 0.2
+            # If current group has header but very little content, strongly favor merging with next
+            if current_has_header:
+                content_paragraphs = [p for p in current_group.paragraphs if p.paragraph_type != 'HEADER']
+                total_content_length = sum(len(p.text) for p in content_paragraphs)
+                
+                # If header has insufficient content (less than 200 chars), strongly merge with next
+                if total_content_length < 200:
+                    score -= 0.6  # Strong merge signal
+                    logger.debug(f"Header with insufficient content detected, favoring merge: {total_content_length} chars")
+                
+                # If next group starts with header, this suggests natural boundary
+                elif next_has_header:
+                    header_levels = [p.metadata.get('section_level', 0) for p in next_group.paragraphs
+                                   if p.paragraph_type == 'HEADER']
+                    if header_levels:
+                        max_level = max(header_levels)
+                        # Higher level headers (1, 2) suggest stronger boundaries
+                        score += 0.4 if max_level <= 2 else 0.2
+            
+            # If next group starts with header but current has no header, check content sufficiency
+            elif next_has_header:
+                current_content_length = sum(len(p.text) for p in current_group.paragraphs)
+                
+                # If current group has sufficient content, allow split
+                if current_content_length >= 300:
+                    header_levels = [p.metadata.get('section_level', 0) for p in next_group.paragraphs
+                                   if p.paragraph_type == 'HEADER']
+                    if header_levels:
+                        max_level = max(header_levels)
+                        score += 0.3 if max_level <= 2 else 0.15
+                else:
+                    # Insufficient content, favor merge
+                    score -= 0.2
             
             # Turkish educational structure patterns
             educational_transition = self._detect_educational_structure_transition(current_group, next_group)
             score += educational_transition * 0.3
             
-            # Paragraph type diversity analysis
+            # Enhanced paragraph type analysis with header-content awareness
             current_types = set(p.paragraph_type for p in current_group.paragraphs)
             next_types = set(p.paragraph_type for p in next_group.paragraphs)
             
+            # Special handling for header-text combinations
+            if 'HEADER' in current_types and 'TEXT' in next_types:
+                # Header followed by text should usually stay together
+                score -= 0.3
+            elif 'TEXT' in current_types and 'HEADER' in next_types:
+                # Text followed by header suggests natural boundary
+                score += 0.2
+            
             type_diversity = len(current_types.union(next_types)) / max(1, len(current_types) + len(next_types))
-            score += type_diversity * 0.2
+            score += type_diversity * 0.15  # Reduced weight
             
             # List and enumeration pattern analysis
             list_transition = self._detect_list_transition_pattern(current_group, next_group)
             score += list_transition * 0.1
             
-            scores.append(min(1.0, score))
+            scores.append(min(1.0, max(0.0, score)))  # Ensure score is between 0 and 1
         
         return scores
     
