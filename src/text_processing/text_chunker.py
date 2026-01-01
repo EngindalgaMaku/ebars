@@ -103,8 +103,25 @@ try:
     from .agentic_reasoning_chunker import create_agentic_reasoning_chunks, AgenticChunkingConfig
     AGENTIC_REASONING_AVAILABLE = True
     logger.info("✅ Agentic reasoning chunker available")
-except ImportError:
-    logger.info("ℹ️ Agentic reasoning chunker not available")
+except ImportError as e:
+    logger.warning(f"⚠️ Agentic reasoning chunker not available: {e}")
+    # Create fallback functions
+    def create_agentic_reasoning_chunks(text, config=None, model_inference_url=None):
+        logger.info("Using lightweight chunker as fallback for agentic reasoning")
+        from .lightweight_chunker import create_semantic_chunks
+        return create_semantic_chunks(text, target_size=config.target_size if config else 1000)
+    
+    class AgenticChunkingConfig:
+        def __init__(self, **kwargs):
+            self.target_size = kwargs.get('target_size', 1000)
+            self.min_size = kwargs.get('min_size', 100)
+            self.max_size = kwargs.get('max_size', 1024)
+            self.overlap_ratio = kwargs.get('overlap_ratio', 0.2)
+            self.language = kwargs.get('language', 'tr')
+            self.use_grok_reasoning = kwargs.get('use_grok_reasoning', True)
+            self.enable_caching = kwargs.get('enable_caching', True)
+            self.batch_size = kwargs.get('batch_size', 8)
+            self.model_inference_url = kwargs.get('model_inference_url', "http://model-inference-service:8002")
 
 def _group_units(units: Sequence[str], chunk_size: int, chunk_overlap: int) -> List[str]:
     """Group sentence/paragraph units into chunks close to chunk_size (by characters)."""
