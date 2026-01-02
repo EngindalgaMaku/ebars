@@ -7,10 +7,10 @@ const API_GATEWAY_URL =
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { testId: string } }
+  { params }: { params: Promise<{ testId: string }> }
 ) {
   try {
-    const { testId } = params;
+    const { testId } = await params;
 
     // Forward auth headers/cookies so behavior matches direct /api rewrite proxying.
     const forwardedHeaders: Record<string, string> = {};

@@ -4,10 +4,10 @@ const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL || "http://local
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { testId: string } }
+  { params }: { params: Promise<{ testId: string }> }
 ) {
   try {
-    const { testId } = params;
+    const { testId } = await params;
     const { searchParams } = new URL(request.url);
     const format = searchParams.get("format") || "json";
 

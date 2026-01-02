@@ -3,37 +3,16 @@
 const nextConfig = {
   reactStrictMode: process.env.NODE_ENV === "production", // Only in production
   output: "standalone",
-  // Optimize memory usage
-  swcMinify: true,
-  experimental: {
-    // Force include client-side export dependencies in standalone build
-    outputFileTracingIncludes: {
-      "/": [
-        "./node_modules/html2canvas/**/*",
-        "./node_modules/jspdf/**/*",
-        "./node_modules/file-saver/**/*",
-        "./node_modules/xlsx/**/*",
-      ],
-    },
-  },
-  // Reduce memory usage in development
-  webpack: (config, { dev, isServer }) => {
-    // Fix path alias resolution
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@': require('path').resolve(__dirname),
-    };
-    
-    if (dev && !isServer) {
-      // Reduce memory usage in dev mode
-      config.optimization = {
-        ...config.optimization,
-        removeAvailableModules: false,
-        removeEmptyChunks: false,
-        splitChunks: false,
-      };
-    }
-    return config;
+  // Turbopack configuration for Next.js 16
+  turbopack: {},
+  // Force include client-side export dependencies in standalone build
+  outputFileTracingIncludes: {
+    "/": [
+      "./node_modules/html2canvas/**/*",
+      "./node_modules/jspdf/**/*",
+      "./node_modules/file-saver/**/*",
+      "./node_modules/xlsx/**/*",
+    ],
   },
   // Ensure proper handling of environment variables in production
   env: {

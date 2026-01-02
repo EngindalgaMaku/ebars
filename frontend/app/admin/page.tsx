@@ -8,11 +8,11 @@ import ModernDashboard from "./components/ModernDashboard";
 
 export default function AdminPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, isLoading } = useAuth();
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
-    if (loading) return;
+    if (isLoading) return;
 
     if (!user) {
       router.push("/login");
@@ -26,9 +26,9 @@ export default function AdminPage() {
     }
 
     setIsAuthorized(true);
-  }, [user, loading, router]);
+  }, [user, isLoading, router]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
