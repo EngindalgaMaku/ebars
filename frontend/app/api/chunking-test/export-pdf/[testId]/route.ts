@@ -10,23 +10,82 @@ export async function GET(
   try {
     const { testId } = params;
 
-    // Get test data from backend
-    const response = await fetch(`${API_GATEWAY_URL}/api/chunking-test/status/${testId}`, {
+    // Forward the Authorization header from the original request
+    const authHeader = request.headers.get("authorization");
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    if (authHeader) {
+      headers["authorization"] = authHeader;
+    }
+
+    // Get PDF report directly from backend export endpoint
+    const response = await fetch(`${API_GATEWAY_URL}/api/chunking-test/export-pdf/${testId}`, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
     });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: "Backend error" }));
       return NextResponse.json(
-        { error: error.error || "Test verileri alınamadı" },
+        { error: error.error || "PDF raporu alınamadı" },
         { status: response.status }
       );
     }
 
-    const testData = await response.json();
+    const backendResponse = await response.json();
+    
+    // Check if backend returned markdown report
+    if (backendResponse.success && backendResponse.report) {
+      // Convert markdown to HTML for PDF generation
+      const reportHtml = convertMarkdownToHtml(backendResponse.report);
+      
+      // Generate PDF using Puppeteer
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      
+      const page = await browser.newPage();
+      await page.setContent(reportHtml, { waitUntil: 'networkidle0' });
+      
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '20mm',
+          right: '15mm',
+          bottom: '20mm',
+          left: '15mm'
+        }
+      });
+      
+      await browser.close();
+
+      return new NextResponse(pdfBuffer, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${backendResponse.filename || `chunking_report_${testId.substring(0, 8)}.pdf`}"`
+        }
+      });
+    }
+    
+    // Fallback: Get test data and generate HTML report
+    const statusResponse = await fetch(`${API_GATEWAY_URL}/api/chunking-test/status/${testId}`, {
+      method: "GET",
+      headers,
+    });
+
+    if (!statusResponse.ok) {
+      const error = await statusResponse.json().catch(() => ({ error: "Backend error" }));
+      return NextResponse.json(
+        { error: error.error || "Test verileri alınamadı" },
+        { status: statusResponse.status }
+      );
+    }
+
+    const testData = await statusResponse.json();
     
     // Generate comprehensive academic report HTML
     const reportHtml = generateComprehensiveAcademicReportHtml(testData);
@@ -686,6 +745,92 @@ Processing Efficiency = total_characters / processing_time_seconds
         <p><strong>Sistem:</strong> Agentic Chunking v2.0 | <strong>Hazırlayan:</strong> Agentic Chunking Research Team</p>
         <p>Bu rapor otomatik olarak oluşturulmuştur ve akademik araştırma amaçlı kullanım için tasarlanmıştır.</p>
     </div>
+</body>
+</html>
+  `;
+}
+
+function convertMarkdownToHtml(markdown: string): string {
+  // Simple markdown to HTML conversion for PDF generation
+  return `
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Chunking Academic Report</title>
+    <style>
+        body {
+            font-family: 'Times New Roman', serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+        }
+        
+        h1 { color: #1e40af; font-size: 24px; border-bottom: 3px solid #2563eb; padding-bottom: 10px; }
+        h2 { color: #1e40af; font-size: 18px; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; }
+        h3 { color: #374151; font-size: 16px; }
+        h4 { color: #4b5563; font-size: 14px; }
+        
+        .code-block {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 12px;
+        }
+        
+        table th, table td {
+            border: 1px solid #e2e8f0;
+            padding: 8px;
+            text-align: left;
+        }
+        
+        table th {
+            background: #f1f5f9;
+            font-weight: bold;
+            color: #374151;
+        }
+        
+        table tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        
+        .page-break {
+            page-break-before: always;
+        }
+    </style>
+</head>
+<body>
+${markdown
+  .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+  .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+  .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+  .replace(/^#### (.*$)/gm, '<h4>$1</h4>')
+  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+  .replace(/\*(.*?)\*/g, '<em>$1</em>')
+  .replace(/`([^`]+)`/g, '<code>$1</code>')
+  .replace(/```([^```]+)```/g, '<div class="code-block">$1</div>')
+  .replace(/\n\n/g, '</p><p>')
+  .replace(/^\| (.+) \|$/gm, (match) => {
+    const cells = match.split('|').slice(1, -1).map(cell => cell.trim());
+    return '<tr>' + cells.map(cell => `<td>${cell}</td>`).join('') + '</tr>';
+  })
+  .replace(/\n/g, '<br>')
+}
 </body>
 </html>
   `;

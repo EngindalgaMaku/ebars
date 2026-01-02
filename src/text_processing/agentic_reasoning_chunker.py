@@ -89,7 +89,7 @@ except ImportError:
             return None
         
         def get_model_inference_url():
-            return "http://model-inference-service:8002"
+            return "http://65.109.230.236:8002"
         
         def get_config():
             class Config:
@@ -463,7 +463,7 @@ class AgenticChunkingConfig:
     use_grok_reasoning: bool = True
     grok_model_name: str = "llama-3.1-8b-instant"
     reasoning_confidence_threshold: float = 0.7
-    model_inference_url: str = "http://model-inference-service:8002"
+    model_inference_url: str = "http://65.109.230.236:8002"
     
     # Semantic analysis parameters
     embedding_model: str = "nomic-embed-text"
@@ -1038,7 +1038,7 @@ class TurkishReasoningPrompts:
     """
     
     def create_boundary_detection_prompt(self, context: ReasoningContext) -> str:
-        """Create a boundary detection prompt optimized for Turkish content."""
+        """Create a boundary detection prompt optimized for Turkish content with enhanced list structure awareness."""
         context_data = context.to_prompt_context()
         
         return f"""Sen Türkçe metin analizi konusunda uzman bir yapay zeka asistanısın.
@@ -1049,28 +1049,41 @@ Grup 1: {context_data['current_summary']}
 Grup 2: {context_data['next_summary']}
 Bölüm Yolu: {context_data['section_path']}
 
+KRİTİK KURAL - LİSTE YAPILARI:
+- a), b), c) gibi sıralı liste öğeleri ASLA farklı chunk'lara ayrılmamalı
+- 1), 2), 3) gibi numaralı liste öğeleri birlikte kalmalı
+- "Birinci", "İkinci", "Üçüncü" gibi sıralı ifadeler aynı chunk'ta olmalı
+- Alt başlıklar (a, b, c) ana başlıkla birlikte kalmalı
+- Eğer Grup 1 "a)" ile bitiyorsa ve Grup 2 "b)" ile başlıyorsa, MUTLAKA MERGE karar ver
+
 KONU GEÇİŞİ GÖSTERGELERİ:
-- Yeni bir ana konu başlangıcı
-- Farklı kavramsal alan
+- Yeni bir ana konu başlangıcı (ama liste devamı değilse)
+- Farklı kavramsal alan (liste yapısı dışında)
 - Zaman/mekan değişimi
 - Sebep-sonuç ilişkisi değişimi
-- Başlık değişimi
+- Başlık değişimi (ama alt liste öğeleri değilse)
 
 KARAR KRİTERLERİ:
-1. Anlamsal tutarlılık (0-1)
-2. Konu sürekliliği (0-1)
-3. Türkçe dil akışı (0-1)
-4. Bağlam korunması (0-1)
+1. Liste yapısı sürekliliği (EN ÖNEMLİ - 0-1)
+2. Anlamsal tutarlılık (0-1)
+3. Konu sürekliliği (0-1)
+4. Türkçe dil akışı (0-1)
+5. Bağlam korunması (0-1)
+
+ÖZEL DURUMLAR:
+- Eğer içerikte "a)", "b)", "c)" veya "1)", "2)", "3)" gibi sıralı öğeler varsa, bunlar MUTLAKA aynı chunk'ta kalmalı
+- "Mayoz I Evreleri: a) Çekirdek bölünmesi" ve "b) Sitoplazma bölünmesi" gibi durumlar ASLA ayrılmamalı
+- Eğitim materyallerinde liste öğeleri her zaman birlikte tutulmalı
 
 Lütfen yanıtını JSON formatında ver. JSON yapısı şu şekilde olmalı:
 
 ```json
 {{
-    "boundary_decision": "SPLIT",
-    "confidence": 0.8,
-    "reasoning": "Kararının detaylı açıklaması",
-    "semantic_coherence": 0.7,
-    "topic_continuity": 0.6
+    "boundary_decision": "MERGE",
+    "confidence": 0.9,
+    "reasoning": "Kararının detaylı açıklaması - özellikle liste yapısı analizi",
+    "semantic_coherence": 0.8,
+    "topic_continuity": 0.9
 }}
 ```
 
@@ -1436,8 +1449,8 @@ class SemanticSimilarityAnalyzer:
             
             # ENHANCED: Header-content relationship preservation
             if paragraph.paragraph_type == 'HEADER':
-                # Headers should aggressively group with following content
-                proximity_window = self._calculate_proximity_window(paragraph) + 3
+                # Headers should VERY aggressively group with following content
+                proximity_window = min(len(paragraphs) - i - 1, 10)  # Look ahead up to 10 paragraphs
                 
                 # Look ahead for content paragraphs to group with this header
                 for j in range(i + 1, min(len(paragraphs), i + proximity_window + 1)):
@@ -1446,20 +1459,37 @@ class SemanticSimilarityAnalyzer:
                     
                     next_para = paragraphs[j]
                     
-                    # Stop if we hit another header of same or higher level
+                    # CRITICAL: Only stop for headers of HIGHER level (smaller number)
                     if (next_para.paragraph_type == 'HEADER' and
-                        next_para.metadata.get('section_level', 0) <= paragraph.metadata.get('section_level', 0)):
+                        next_para.metadata.get('section_level', 6) < paragraph.metadata.get('section_level', 6)):
                         break
                     
-                    # Group content paragraphs with header
-                    if next_para.paragraph_type in ['TEXT', 'LIST']:
+                    # Group ALL content types with header (very aggressive)
+                    if next_para.paragraph_type in ['TEXT', 'LIST', 'TABLE', 'CODE']:
                         current_group.paragraphs.append(next_para)
                         visited.add(j)
                         logger.debug(f"Grouped {next_para.paragraph_type} with HEADER: {paragraph.text[:50]}...")
                     
-                    # Stop after collecting sufficient content (min 300 chars)
+                    # Also group lower-level headers with this header
+                    elif (next_para.paragraph_type == 'HEADER' and
+                          next_para.metadata.get('section_level', 6) > paragraph.metadata.get('section_level', 6)):
+                        current_group.paragraphs.append(next_para)
+                        visited.add(j)
+                        logger.debug(f"Grouped sub-HEADER with main HEADER: {paragraph.text[:50]}...")
+                    
+                    # Continue collecting until we have substantial content
                     total_content = sum(len(p.text) for p in current_group.paragraphs if p.paragraph_type != 'HEADER')
-                    if total_content >= 300:
+                    
+                    # Don't stop until we have meaningful content
+                    if total_content >= 200:  # Minimum meaningful content
+                        # But continue if we haven't hit a major boundary
+                        if j - i < 6:  # Keep collecting nearby content
+                            continue
+                        else:
+                            break
+                    
+                    # Emergency brake - don't go too far
+                    if j - i > 12:
                         break
             
             else:
@@ -2031,7 +2061,7 @@ class BoundaryDetectionAlgorithm:
         return 0.9 + (linguistic_similarity * 0.2)
     
     def _analyze_enhanced_structural_boundaries(self, paragraph_groups: List[SimilarityGroup]) -> List[float]:
-        """Enhanced structural analysis with Turkish educational patterns and header-content preservation."""
+        """Enhanced structural analysis with Turkish educational patterns, header-content preservation, and CRITICAL list structure detection."""
         scores = []
         
         for i in range(len(paragraph_groups) - 1):
@@ -2040,43 +2070,79 @@ class BoundaryDetectionAlgorithm:
             
             score = 0.5  # Base score
             
-            # CRITICAL: Header-content relationship preservation
+            # CRITICAL NEW RULE: List structure continuity detection
+            list_continuity_penalty = self._detect_list_structure_break(current_group, next_group)
+            if list_continuity_penalty > 0:
+                score -= list_continuity_penalty  # Strong merge signal for list continuity
+                logger.debug(f"CRITICAL: List structure break detected, applying penalty: {list_continuity_penalty}")
+            
+            # CRITICAL FIX: Enhanced Header-content relationship preservation
             current_has_header = any(p.paragraph_type == 'HEADER' for p in current_group.paragraphs)
             next_has_header = any(p.paragraph_type == 'HEADER' for p in next_group.paragraphs)
             
-            # If current group has header but very little content, strongly favor merging with next
+            # RULE 1: Headers must ALWAYS be followed by their content
             if current_has_header:
                 content_paragraphs = [p for p in current_group.paragraphs if p.paragraph_type != 'HEADER']
                 total_content_length = sum(len(p.text) for p in content_paragraphs)
                 
-                # If header has insufficient content (less than 200 chars), strongly merge with next
-                if total_content_length < 200:
-                    score -= 0.6  # Strong merge signal
-                    logger.debug(f"Header with insufficient content detected, favoring merge: {total_content_length} chars")
+                # If header has NO content or very little content, FORCE merge with next
+                if total_content_length < 50:  # Very strict threshold for empty headers
+                    score -= 0.9  # Extremely strong merge signal
+                    logger.debug(f"CRITICAL: Header without content detected, forcing merge: {total_content_length} chars")
                 
-                # If next group starts with header, this suggests natural boundary
+                # If header has minimal content, still prefer merge unless next is higher level header
+                elif total_content_length < 150:
+                    if next_has_header:
+                        current_header_level = min([p.metadata.get('section_level', 6) for p in current_group.paragraphs
+                                                  if p.paragraph_type == 'HEADER'], default=6)
+                        next_header_level = min([p.metadata.get('section_level', 6) for p in next_group.paragraphs
+                                               if p.paragraph_type == 'HEADER'], default=6)
+                        
+                        # Only split if next header is higher level (smaller number)
+                        if next_header_level < current_header_level:
+                            score += 0.2  # Weak split signal
+                        else:
+                            score -= 0.7  # Strong merge signal
+                    else:
+                        score -= 0.6  # Merge with following content
+                
+                # If header has sufficient content, check next group
                 elif next_has_header:
-                    header_levels = [p.metadata.get('section_level', 0) for p in next_group.paragraphs
-                                   if p.paragraph_type == 'HEADER']
-                    if header_levels:
-                        max_level = max(header_levels)
-                        # Higher level headers (1, 2) suggest stronger boundaries
-                        score += 0.4 if max_level <= 2 else 0.2
+                    current_header_level = min([p.metadata.get('section_level', 6) for p in current_group.paragraphs
+                                              if p.paragraph_type == 'HEADER'], default=6)
+                    next_header_level = min([p.metadata.get('section_level', 6) for p in next_group.paragraphs
+                                           if p.paragraph_type == 'HEADER'], default=6)
+                    
+                    # Split only if next header is same or higher level AND current has good content
+                    if next_header_level <= current_header_level and total_content_length >= 200:
+                        score += 0.3
+                    else:
+                        # Merge to keep header with more content
+                        score -= 0.3
             
-            # If next group starts with header but current has no header, check content sufficiency
+            # RULE 2: Content without header should merge with following header if content is insufficient
             elif next_has_header:
                 current_content_length = sum(len(p.text) for p in current_group.paragraphs)
                 
-                # If current group has sufficient content, allow split
-                if current_content_length >= 300:
-                    header_levels = [p.metadata.get('section_level', 0) for p in next_group.paragraphs
-                                   if p.paragraph_type == 'HEADER']
-                    if header_levels:
-                        max_level = max(header_levels)
-                        score += 0.3 if max_level <= 2 else 0.15
-                else:
-                    # Insufficient content, favor merge
-                    score -= 0.2
+                # If current content is very short, merge with next header
+                if current_content_length < 100:
+                    score -= 0.7  # Strong merge signal
+                    logger.debug(f"Short content before header, merging: {current_content_length} chars")
+                # If current content is moderate, still prefer merge unless it's a major header
+                elif current_content_length < 250:
+                    next_header_level = min([p.metadata.get('section_level', 6) for p in next_group.paragraphs
+                                           if p.paragraph_type == 'HEADER'], default=6)
+                    # Only split for major headers (level 1-2)
+                    if next_header_level <= 2:
+                        score += 0.2
+                    else:
+                        score -= 0.4  # Merge with minor headers
+                # If current content is sufficient, allow natural boundary
+                elif current_content_length >= 250:
+                    next_header_level = min([p.metadata.get('section_level', 6) for p in next_group.paragraphs
+                                           if p.paragraph_type == 'HEADER'], default=6)
+                    # Higher level headers create stronger boundaries
+                    score += 0.5 if next_header_level <= 2 else 0.3
             
             # Turkish educational structure patterns
             educational_transition = self._detect_educational_structure_transition(current_group, next_group)
@@ -2341,6 +2407,139 @@ class BoundaryDetectionAlgorithm:
         }
         
         return transition_scores.get((current_type, next_type), 0.3)
+    
+    def _detect_list_structure_break(self, current_group: SimilarityGroup, next_group: SimilarityGroup) -> float:
+        """CRITICAL: Detect if splitting would break list structure continuity - COMPREHENSIVE VERSION."""
+        if not (current_group.paragraphs and next_group.paragraphs):
+            return 0.0
+        
+        # Get text from end of current group and start of next group
+        current_text = ""
+        next_text = ""
+        
+        if current_group.paragraphs:
+            current_text = current_group.paragraphs[-1].text.strip().lower()
+        
+        if next_group.paragraphs:
+            next_text = next_group.paragraphs[0].text.strip().lower()
+        
+        # CRITICAL PATTERNS: Sequential list items that must stay together
+        import re
+        
+        # Pattern 1: COMPREHENSIVE alphabetical sequences (a-z)
+        alphabet_letters = 'abcdefghijklmnopqrstuvwxyz'
+        for i in range(len(alphabet_letters) - 1):
+            current_letter = alphabet_letters[i]
+            next_letter = alphabet_letters[i + 1]
+            
+            # Check for current) -> next) pattern
+            current_pattern = rf'\b{current_letter}\)\s*[^)]*$'
+            next_pattern = rf'^\s*{next_letter}\)'
+            
+            if re.search(current_pattern, current_text) and re.search(next_pattern, next_text):
+                logger.warning(f"CRITICAL: Detected {current_letter}) -> {next_letter}) list break - FORCING MERGE")
+                return 0.95  # Very strong merge signal
+        
+        # Pattern 2: COMPREHENSIVE numerical sequences (1-50)
+        for i in range(1, 50):  # Support up to 50 items
+            current_num = str(i)
+            next_num = str(i + 1)
+            
+            # Check for current) -> next) pattern
+            current_pattern = rf'\b{current_num}\)\s*[^)]*$'
+            next_pattern = rf'^\s*{next_num}\)'
+            
+            if re.search(current_pattern, current_text) and re.search(next_pattern, next_text):
+                logger.warning(f"CRITICAL: Detected {current_num}) -> {next_num}) list break - FORCING MERGE")
+                return 0.95
+        
+        # Pattern 3: Roman numerals (I, II, III, IV, V, etc.)
+        roman_numerals = [
+            ('i', 'ii'), ('ii', 'iii'), ('iii', 'iv'), ('iv', 'v'),
+            ('v', 'vi'), ('vi', 'vii'), ('vii', 'viii'), ('viii', 'ix'), ('ix', 'x')
+        ]
+        
+        for current_roman, next_roman in roman_numerals:
+            current_pattern = rf'\b{current_roman}\)\s*[^)]*$'
+            next_pattern = rf'^\s*{next_roman}\)'
+            
+            if re.search(current_pattern, current_text) and re.search(next_pattern, next_text):
+                logger.warning(f"CRITICAL: Detected {current_roman}) -> {next_roman}) Roman numeral break - FORCING MERGE")
+                return 0.95
+        
+        # Pattern 4: Turkish ordinal sequences (comprehensive)
+        turkish_ordinals = [
+            (r'\bbirinci\b', r'\bikinci\b'),
+            (r'\bikinci\b', r'\büçüncü\b'),
+            (r'\büçüncü\b', r'\bdördüncü\b'),
+            (r'\bdördüncü\b', r'\bbeşinci\b'),
+            (r'\bbeşinci\b', r'\baltıncı\b'),
+            (r'\baltıncı\b', r'\byedinci\b'),
+            (r'\byedinci\b', r'\bsekizinci\b'),
+            (r'\bsekizinci\b', r'\bdokuzuncu\b'),
+            (r'\bdokuzuncu\b', r'\bonuncu\b'),
+            (r'\bilk\b', r'\bikinci\b'),
+            (r'\bikinci\b', r'\bson\b'),
+            (r'\bilk\b', r'\bson\b')
+        ]
+        
+        for first_pattern, second_pattern in turkish_ordinals:
+            if re.search(first_pattern, current_text) and re.search(second_pattern, next_text):
+                logger.warning(f"CRITICAL: Detected Turkish ordinal sequence break - FORCING MERGE")
+                return 0.9
+        
+        # Pattern 5: Educational content sequences (Mayoz example and more)
+        educational_sequences = [
+            (r'çekirdek bölünmesi', r'sitoplazma bölünmesi'),
+            (r'profaz', r'metafaz'),
+            (r'metafaz', r'anafaz'),
+            (r'anafaz', r'telofaz'),
+            (r'mayoz i', r'mayoz ii'),
+            (r'mitoz', r'mayoz'),
+            (r'g1 evresi', r's evresi'),
+            (r's evresi', r'g2 evresi'),
+            (r'g2 evresi', r'm evresi')
+        ]
+        
+        for first_pattern, second_pattern in educational_sequences:
+            if re.search(first_pattern, current_text) and re.search(second_pattern, next_text):
+                logger.warning(f"CRITICAL: Detected educational sequence break - FORCING MERGE")
+                return 0.85
+        
+        # Pattern 6: Generic enumeration patterns (comprehensive)
+        enumeration_patterns = [
+            # Colon followed by enumeration
+            (r':\s*$', r'^\s*[a-z]\)'),
+            (r':\s*$', r'^\s*\d+\)'),
+            (r':\s*$', r'^\s*[ivx]+\)'),
+            # "Şunlar" followed by enumeration
+            (r'\bşunlar\b.*:\s*$', r'^\s*[a-z]\)'),
+            (r'\bşunlar\b.*:\s*$', r'^\s*\d+\)'),
+            # "Bunlar" followed by enumeration
+            (r'\bbunlar\b.*:\s*$', r'^\s*[a-z]\)'),
+            (r'\bbunlar\b.*:\s*$', r'^\s*\d+\)'),
+            # "Aşağıdaki" followed by enumeration
+            (r'\başağıdaki\b.*:\s*$', r'^\s*[a-z]\)'),
+            (r'\başağıdaki\b.*:\s*$', r'^\s*\d+\)'),
+        ]
+        
+        for current_pattern, next_pattern in enumeration_patterns:
+            if re.search(current_pattern, current_text) and re.search(next_pattern, next_text):
+                logger.warning("CRITICAL: Detected enumeration introduction -> list item break - FORCING MERGE")
+                return 0.8
+        
+        # Pattern 7: Bullet point sequences
+        bullet_patterns = [
+            (r'^\s*[-*•]\s', r'^\s*[-*•]\s'),  # Bullet followed by bullet
+            (r'^\s*[-*•]\s.*$', r'^\s*[-*•]\s'),  # End with bullet, start with bullet
+        ]
+        
+        for current_pattern, next_pattern in bullet_patterns:
+            if re.search(current_pattern, current_text) and re.search(next_pattern, next_text):
+                logger.warning("CRITICAL: Detected bullet point sequence break - FORCING MERGE")
+                return 0.7
+        
+        return 0.0  # No list structure break detected
     
     def _detect_list_transition_pattern(self, current_group: SimilarityGroup,
                                       next_group: SimilarityGroup) -> float:
@@ -2725,7 +2924,7 @@ class AgenticReasoningChunker:
     
     def _create_chunks_from_boundaries(self, similarity_groups: List[SimilarityGroup],
                                      boundaries: List[ChunkBoundary]) -> List[AgenticChunk]:
-        """Create chunks based on boundary decisions."""
+        """Create chunks based on boundary decisions with header-content preservation."""
         if not similarity_groups:
             return []
         
@@ -2762,7 +2961,75 @@ class AgenticReasoningChunker:
                 current_chunk_groups = []
                 current_boundary_decisions = []
         
-        return chunks
+        # CRITICAL FIX: Post-process to merge header-only chunks with following chunks
+        return self._merge_header_only_chunks(chunks)
+    
+    def _merge_header_only_chunks(self, chunks: List[AgenticChunk]) -> List[AgenticChunk]:
+        """Merge header-only chunks with following chunks to preserve header-content relationships."""
+        if not chunks:
+            return chunks
+        
+        logger.info(f"🔧 Starting header-only chunk merging for {len(chunks)} chunks")
+        
+        merged_chunks = []
+        i = 0
+        merge_count = 0
+        
+        while i < len(chunks):
+            current_chunk = chunks[i]
+            
+            # Check if current chunk is header-only (very short and has header)
+            is_header_only = (
+                current_chunk.has_header and
+                len(current_chunk.text.strip()) < 100 and
+                current_chunk.text.count('\n') <= 2  # Very few lines
+            )
+            
+            newline_count = current_chunk.text.count('\n')
+            logger.debug(f"Chunk {i}: length={len(current_chunk.text)}, has_header={current_chunk.has_header}, "
+                        f"lines={newline_count}, is_header_only={is_header_only}")
+            
+            if is_header_only and i + 1 < len(chunks):
+                # Merge with next chunk
+                next_chunk = chunks[i + 1]
+                
+                # Combine texts with proper spacing
+                combined_text = current_chunk.text.strip() + '\n\n' + next_chunk.text.strip()
+                
+                # Create merged chunk with combined properties
+                merged_chunk = AgenticChunk(
+                    text=combined_text,
+                    start_index=current_chunk.start_index,
+                    end_index=next_chunk.end_index,
+                    paragraph_count=current_chunk.paragraph_count + next_chunk.paragraph_count,
+                    sentence_count=current_chunk.sentence_count + next_chunk.sentence_count,
+                    word_count=len(combined_text.split()),
+                    has_header=True,  # Always true since we're merging a header
+                    quality_score=max(current_chunk.quality_score, next_chunk.quality_score),
+                    semantic_coherence=(current_chunk.semantic_coherence + next_chunk.semantic_coherence) / 2,
+                    topic_consistency=(current_chunk.topic_consistency + next_chunk.topic_consistency) / 2,
+                    reasoning_confidence=(current_chunk.reasoning_confidence + next_chunk.reasoning_confidence) / 2,
+                    boundary_decisions=current_chunk.boundary_decisions + next_chunk.boundary_decisions,
+                    issues=[],  # Clear issues since we're fixing the problem
+                    metadata={
+                        **current_chunk.metadata,
+                        **next_chunk.metadata,
+                        'merged_header_only': True,
+                        'original_chunks': 2
+                    }
+                )
+                
+                merged_chunks.append(merged_chunk)
+                merge_count += 1
+                logger.info(f"✅ Merged header-only chunk '{current_chunk.text[:30]}...' with following content")
+                i += 2  # Skip both chunks
+            else:
+                # Keep chunk as is
+                merged_chunks.append(current_chunk)
+                i += 1
+        
+        logger.info(f"🔧 Header merging completed: {merge_count} merges, {len(merged_chunks)} final chunks")
+        return merged_chunks
     
     def _create_chunk_from_groups(self, groups: List[SimilarityGroup],
                                 boundary_decisions: List[BoundaryDecision]) -> Optional[AgenticChunk]:
@@ -2781,12 +3048,44 @@ class AgenticReasoningChunker:
         # Sort paragraphs by position to maintain order
         all_paragraphs.sort(key=lambda p: p.position)
         
-        # Combine text with proper spacing
+        # CRITICAL FIX: Preserve original text structure and content
         chunk_text_parts = []
         for paragraph in all_paragraphs:
-            chunk_text_parts.append(paragraph.text.strip())
+            # Preserve original paragraph text without modification
+            original_text = paragraph.text.strip()
+            if original_text:  # Only add non-empty paragraphs
+                chunk_text_parts.append(original_text)
         
+        # Join with double newlines to preserve markdown structure
         chunk_text = '\n\n'.join(chunk_text_parts)
+        
+        # CRITICAL: Ensure no content is lost or corrupted
+        if not chunk_text.strip():
+            logger.error("Empty chunk created - this should never happen")
+            return None
+        
+        # ENHANCED: Filter out meaningless separators and standalone punctuation
+        chunk_text = chunk_text.strip()
+        
+        # Skip chunks that are just separators or meaningless content
+        meaningless_patterns = [
+            r'^-{3,}$',  # Just dashes
+            r'^={3,}$',  # Just equals
+            r'^_{3,}$',  # Just underscores
+            r'^\*{3,}$', # Just asterisks
+            r'^[^\w\s]{1,10}$',  # Just punctuation/symbols
+        ]
+        
+        import re
+        for pattern in meaningless_patterns:
+            if re.match(pattern, chunk_text):
+                logger.warning(f"Meaningless chunk detected: '{chunk_text}' - skipping")
+                return None
+        
+        # Skip very short chunks that don't contain meaningful content
+        if len(chunk_text) < 20 and not any(char.isalnum() for char in chunk_text):
+            logger.warning(f"Too short or no alphanumeric content: '{chunk_text}' - skipping")
+            return None
         
         # Calculate chunk metrics
         start_index = min(p.position for p in all_paragraphs)

@@ -123,7 +123,7 @@ const nextConfig = {
           )[0]
         : process.env.NEXT_PUBLIC_API_HOST ||
           process.env.API_GATEWAY_HOST ||
-          (isDocker ? "api-gateway" : "localhost");
+          (isDocker ? "api-gateway-prod" : "localhost");
 
       const apiGatewayPort = process.env.API_GATEWAY_INTERNAL_URL
         ? process.env.API_GATEWAY_INTERNAL_URL.replace("http://", "").split(
@@ -169,7 +169,7 @@ const nextConfig = {
             ":"
           )[0]
         : process.env.AUTH_SERVICE_HOST ||
-          (isDocker ? "auth-service" : "localhost");
+          (isDocker ? "auth-service-prod" : "localhost");
 
       const authServicePort = process.env.AUTH_SERVICE_INTERNAL_URL
         ? process.env.AUTH_SERVICE_INTERNAL_URL.replace("http://", "").split(

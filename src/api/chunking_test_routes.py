@@ -40,8 +40,8 @@ def _get_current_user(request: Request) -> Optional[Dict[str, Any]]:
             logger.info(f"🔍 [AUTH] No Authorization header found")
             return None
         
-        # Get AUTH_SERVICE_URL from environment
-        AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8006')
+        # Get AUTH_SERVICE_URL from environment - use IP for Docker network issues
+        AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://172.18.0.3:8006')
         
         logger.info(f"🔍 [AUTH] Calling auth service: {AUTH_SERVICE_URL}/auth/me")
         logger.info(f"🔍 [AUTH] Authorization header: {auth_header[:20]}...")
@@ -716,7 +716,7 @@ async def get_chunking_test_status(test_id: str, request: Request) -> Dict[str, 
                 "chunkSizeVariance": 0,  # Calculate if needed
                 "semanticCoherence": total_coherence / successful_results,
                 "boundaryQuality": total_boundary / successful_results,
-                "processingTime": total_processing_time / 1000  # Convert to seconds
+                "processingTime": round(total_processing_time / 1000, 2)  # Convert to seconds
             }
     
     # Create comparison data if we have multiple strategies
@@ -736,7 +736,7 @@ async def get_chunking_test_status(test_id: str, request: Request) -> Dict[str, 
                         "chunkSizeVariance": 0,
                         "semanticCoherence": traditional_result.get("semantic_coherence_score", 0),
                         "boundaryQuality": traditional_result.get("boundary_quality_score", 0),
-                        "processingTime": traditional_result.get("processing_time_ms", 0) / 1000
+                        "processingTime": round(traditional_result.get("processing_time_ms", 0) / 1000, 2)
                     }
                 },
                 "agentic": {
@@ -748,7 +748,7 @@ async def get_chunking_test_status(test_id: str, request: Request) -> Dict[str, 
                         "chunkSizeVariance": 0,
                         "semanticCoherence": agentic_result.get("semantic_coherence_score", 0),
                         "boundaryQuality": agentic_result.get("boundary_quality_score", 0),
-                        "processingTime": agentic_result.get("processing_time_ms", 0) / 1000
+                        "processingTime": round(agentic_result.get("processing_time_ms", 0) / 1000, 2)
                     }
                 }
             }
@@ -1001,8 +1001,16 @@ async def get_chunking_test_results(test_id: str, format: str = "json", request:
         raise HTTPException(status_code=500, detail=f"Failed to get chunking test results: {str(e)}")
 
 @router.get("/export-pdf/{test_id}", summary="Export Chunking Test Results as PDF")
-async def export_chunking_test_pdf(test_id: str, request: Request = None) -> Dict[str, Any]:
-    """Export chunking test results as Markdown academic report"""
+async def export_chunking_test_pdf(test_id: str, request: Request = None):
+    """Export chunking test results as PDF file using ReportLab"""
+    from fastapi.responses import Response
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    from io import BytesIO
+    
     # Basic authentication check
     if request:
         current_user = _get_current_user(request)
@@ -1024,22 +1032,131 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None) -> Dic
         raise HTTPException(status_code=404, detail="Chunking test not found")
     
     try:
-        from src.utils.academic_report_generator import generate_chunking_academic_report
+        # Create PDF buffer
+        buffer = BytesIO()
         
-        # Generate academic report
-        markdown_report = generate_chunking_academic_report(test_data)
+        # Create PDF document
+        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
         
-        return {
-            "success": True,
-            "test_id": test_id,
-            "format": "markdown",
-            "report": markdown_report,
-            "filename": f"chunking_test_report_{test_id[:8]}.md"
-        }
+        # Get styles
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            spaceAfter=30,
+            textColor=colors.HexColor('#1e40af')
+        )
+        
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontSize=14,
+            spaceAfter=12,
+            textColor=colors.HexColor('#1e40af')
+        )
+        
+        # Build PDF content
+        story = []
+        
+        # Title
+        story.append(Paragraph("Agentic Chunking Sistemi - Akademik Değerlendirme Raporu", title_style))
+        story.append(Spacer(1, 12))
+        
+        # Test info
+        story.append(Paragraph(f"Test ID: {test_id}", styles['Normal']))
+        story.append(Paragraph(f"Test Adı: {test_data.get('test_name', 'Unnamed Test')}", styles['Normal']))
+        story.append(Paragraph(f"Durum: {test_data.get('status', 'unknown')}", styles['Normal']))
+        story.append(Spacer(1, 12))
+        
+        # Results summary
+        results = test_data.get('results', [])
+        if results:
+            story.append(Paragraph("Sonuçlar Özeti", heading_style))
+            
+            # Create results table
+            table_data = [['Strateji', 'Chunk Sayısı', 'Ortalama Boyut', 'Semantic Coherence', 'Başarı']]
+            
+            for result in results:
+                table_data.append([
+                    result.get('strategy', 'Unknown'),
+                    str(result.get('chunk_count', 0)),
+                    f"{result.get('avg_chunk_size', 0):.0f}",
+                    f"{result.get('semantic_coherence_score', 0):.2f}",
+                    'Evet' if result.get('success', False) else 'Hayır'
+                ])
+            
+            table = Table(table_data)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(table)
+            story.append(Spacer(1, 12))
+            
+            # Chunk details
+            for i, result in enumerate(results):
+                if result.get('success', False):
+                    story.append(Paragraph(f"{result.get('strategy', 'Unknown')} Stratejisi Detayları", heading_style))
+                    
+                    chunks = result.get('chunks', [])
+                    story.append(Paragraph(f"Toplam {len(chunks)} chunk oluşturuldu.", styles['Normal']))
+                    
+                    # Show first few chunks as examples
+                    for j, chunk in enumerate(chunks[:3]):
+                        story.append(Paragraph(f"Chunk {j+1}:", styles['Heading3']))
+                        # Truncate long chunks
+                        chunk_text = chunk[:200] + "..." if len(chunk) > 200 else chunk
+                        story.append(Paragraph(chunk_text, styles['Normal']))
+                        story.append(Spacer(1, 6))
+                    
+                    if len(chunks) > 3:
+                        story.append(Paragraph(f"... ve {len(chunks) - 3} chunk daha", styles['Italic']))
+                    
+                    story.append(Spacer(1, 12))
+        
+        # Build PDF
+        doc.build(story)
+        
+        # Get PDF bytes
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        
+        # Return PDF as response
+        filename = f"chunking_test_report_{test_id[:8]}.pdf"
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
         
     except Exception as e:
-        logger.error(f"Failed to export chunking test: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to export chunking test: {str(e)}")
+        logger.error(f"Failed to export chunking test as PDF: {e}")
+        # Fallback to markdown JSON for frontend to handle
+        try:
+            from src.utils.academic_report_generator import generate_chunking_academic_report
+            markdown_report = generate_chunking_academic_report(test_data)
+            
+            return {
+                "success": True,
+                "test_id": test_id,
+                "format": "markdown",
+                "report": markdown_report,
+                "filename": f"chunking_test_report_{test_id[:8]}.md"
+            }
+        except Exception as fallback_error:
+            logger.error(f"Fallback also failed: {fallback_error}")
+            raise HTTPException(status_code=500, detail=f"Failed to export chunking test: {str(e)}")
 
 # ===== BACKGROUND TASK FUNCTIONS =====
 

@@ -388,29 +388,31 @@ export default function ChunkingNewStrategyTestPage() {
   // Export comprehensive PDF report
   const exportComprehensivePdfReport = async (testId: string) => {
     try {
-      const response = await fetch(`/api/chunking-test/export-pdf/${testId}`, {
-        method: 'GET',
-      });
+      const response = await apiClient.get(`/chunking-test/export-pdf/${testId}`);
       
-      if (!response.ok) {
+      if (!response.success) {
         throw new Error("PDF raporu oluşturulamadı");
       }
 
-      const blob = await response.blob();
+      // Create markdown file from the response
+      const markdownContent = response.report || "Rapor içeriği bulunamadı";
+      const blob = new Blob([markdownContent], {
+        type: "text/markdown",
+      });
       
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `agentic_chunking_comprehensive_report_${testId.substring(0, 8)}.pdf`;
+      a.download = response.filename || `agentic_chunking_report_${testId.substring(0, 8)}.md`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
-      toast.success("Kapsamlı PDF raporu indirildi");
+      toast.success("Kapsamlı akademik rapor indirildi");
     } catch (error: any) {
       console.error("PDF export error:", error);
-      toast.error(error.message || "PDF raporu oluşturulamadı");
+      toast.error(error.message || "Rapor oluşturulamadı");
     }
   };
 
