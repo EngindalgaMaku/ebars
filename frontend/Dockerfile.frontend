@@ -22,13 +22,38 @@ ENV NEXT_PUBLIC_DEMO_MODE=${NEXT_PUBLIC_DEMO_MODE}
 
 # Install deps
 COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* .npmrc* ./
-RUN if [ -f package-lock.json ]; then npm ci; \
-    elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --frozen-lockfile; \
-    elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
-    else npm install; fi
+
+# Configure npm for better performance and reliability
+RUN npm config set fetch-timeout 300000 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-retries 5 && \
+    npm config set progress false && \
+    npm config set loglevel warn && \
+    npm config set audit false && \
+    npm config set fund false
+
+# Install dependencies with fallback strategy
+RUN if [ -f package-lock.json ]; then \
+        npm ci --prefer-offline --no-audit --no-fund || \
+        (npm cache clean --force && npm ci --no-audit --no-fund); \
+    elif [ -f pnpm-lock.yaml ]; then \
+        corepack enable && pnpm install --frozen-lockfile --prefer-offline || \
+        (pnpm store prune && pnpm install --frozen-lockfile); \
+    elif [ -f yarn.lock ]; then \
+        yarn install --frozen-lockfile --prefer-offline || \
+        (yarn cache clean && yarn install --frozen-lockfile); \
+    else \
+        npm install --prefer-offline --no-audit --no-fund || \
+        (npm cache clean --force && npm install --no-audit --no-fund); \
+    fi
 
 # Copy source and build - ensure all files are copied
 COPY . .
+
+# Debug: List directory structure to verify files are copied correctly
+RUN ls -la && ls -la components/ && ls -la lib/ && ls -la contexts/
+
 # Clear Next.js cache and build without cache
 RUN rm -rf .next
 RUN npm run build

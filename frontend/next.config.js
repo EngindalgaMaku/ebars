@@ -18,6 +18,12 @@ const nextConfig = {
   },
   // Reduce memory usage in development
   webpack: (config, { dev, isServer }) => {
+    // Fix path alias resolution
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': require('path').resolve(__dirname),
+    };
+    
     if (dev && !isServer) {
       // Reduce memory usage in dev mode
       config.optimization = {

@@ -1000,17 +1000,9 @@ async def get_chunking_test_results(test_id: str, format: str = "json", request:
         logger.error(f"Failed to get chunking test results: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get chunking test results: {str(e)}")
 
-@router.get("/export-pdf/{test_id}", summary="Export Chunking Test Results as PDF")
-async def export_chunking_test_pdf(test_id: str, request: Request = None):
-    """Export chunking test results as PDF file using ReportLab"""
-    from fastapi.responses import Response
-    from reportlab.lib.pagesizes import A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import inch
-    from reportlab.lib import colors
-    from io import BytesIO
-    
+@router.get("/export/{test_id}", summary="Export Chunking Test Results")
+async def export_chunking_test_results(test_id: str, format: str = "json", request: Request = None):
+    """Export chunking test results in specified format (JSON, CSV, or Excel)"""
     # Basic authentication check
     if request:
         current_user = _get_current_user(request)
@@ -1031,7 +1023,115 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
     if not test_data:
         raise HTTPException(status_code=404, detail="Chunking test not found")
     
+    # For Excel format, return StreamingResponse directly
+    if format.lower() == "excel" or format.lower() == "xlsx":
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill
+            from io import BytesIO
+            
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Chunking Test Results"
+            
+            # Header row with styling
+            header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            header_font = Font(bold=True, color="FFFFFF", size=12)
+            header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            
+            # Write headers
+            headers = ["Test ID", "Strategy", "Chunk Count", "Avg Chunk Size", "Processing Time (ms)", "Semantic Coherence", "Boundary Quality", "Success"]
+            for col_idx, header in enumerate(headers, start=1):
+                cell = ws.cell(row=1, column=col_idx, value=header)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = header_alignment
+            
+            # Write data rows
+            row_alignment = Alignment(vertical="top", wrap_text=True)
+            results = test_data.get("results", [])
+            for row_idx, result in enumerate(results, start=2):
+                ws.cell(row=row_idx, column=1, value=test_id).alignment = row_alignment
+                ws.cell(row=row_idx, column=2, value=result.get("strategy", "")).alignment = row_alignment
+                ws.cell(row=row_idx, column=3, value=result.get("chunk_count", 0)).alignment = row_alignment
+                ws.cell(row=row_idx, column=4, value=result.get("avg_chunk_size", 0)).alignment = row_alignment
+                ws.cell(row=row_idx, column=5, value=result.get("processing_time_ms", 0)).alignment = row_alignment
+                ws.cell(row=row_idx, column=6, value=result.get("semantic_coherence_score", 0)).alignment = row_alignment
+                ws.cell(row=row_idx, column=7, value=result.get("boundary_quality_score", 0)).alignment = row_alignment
+                ws.cell(row=row_idx, column=8, value="Yes" if result.get("success", False) else "No").alignment = row_alignment
+            
+            # Set column widths
+            for col in range(1, 9):
+                ws.column_dimensions[chr(64 + col)].width = 15
+            
+            # Save to BytesIO
+            output = BytesIO()
+            wb.save(output)
+            output.seek(0)
+            
+            filename = f"chunking_test_results_{test_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            from fastapi.responses import StreamingResponse
+            return StreamingResponse(
+                BytesIO(output.read()),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename={filename}"}
+            )
+        except ImportError:
+            logger.error("openpyxl not installed. Please install it: pip install openpyxl")
+            raise HTTPException(status_code=500, detail="Excel export requires openpyxl library")
+        except Exception as e:
+            logger.error(f"Excel export failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Excel export failed: {str(e)}")
+    
+    # For other formats, delegate to existing results endpoint
+    return await get_chunking_test_results(test_id, format, request)
+
+@router.get("/export-pdf/{test_id}", summary="Export Chunking Test Results as PDF")
+async def export_chunking_test_pdf(test_id: str, request: Request = None):
+    """Export chunking test results as PDF file using ReportLab"""
+    logger.info(f"📄 [PDF EXPORT] Starting PDF export for test_id: {test_id}")
+    
+    from fastapi.responses import Response
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.lib import colors
+    from io import BytesIO
+    
+    # Basic authentication check
+    if request:
+        current_user = _get_current_user(request)
+        logger.info(f"🔍 [CHUNKING EXPORT] Current user: {current_user}")
+        
+        if not (_is_teacher(current_user) or _is_admin(current_user)):
+            logger.error(f"❌ [PDF EXPORT] Access denied for user: {current_user}")
+            raise HTTPException(status_code=403, detail="Teacher or admin access required")
+        
+        logger.info(f"🔍 [CHUNKING EXPORT] Authentication successful - access granted")
+    
+    # Try memory first, then database
+    logger.info(f"📄 [PDF EXPORT] Loading test data for {test_id}")
+    test_data = CHUNKING_TEST_RESULTS_STORAGE.get(test_id)
+    if not test_data:
+        test_data = _load_chunking_test_from_db(test_id)
+        if test_data:
+            CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
+            logger.info(f"📄 [PDF EXPORT] Test data loaded from database")
+        else:
+            logger.error(f"❌ [PDF EXPORT] Test data not found for {test_id}")
+    else:
+        logger.info(f"📄 [PDF EXPORT] Test data loaded from memory")
+    
+    if not test_data:
+        logger.error(f"❌ [PDF EXPORT] Test not found: {test_id}")
+        raise HTTPException(status_code=404, detail="Chunking test not found")
+    
+    logger.info(f"📄 [PDF EXPORT] Test data status: {test_data.get('status', 'unknown')}")
+    logger.info(f"📄 [PDF EXPORT] Results count: {len(test_data.get('results', []))}")
+    
     try:
+        logger.info(f"📄 [PDF EXPORT] Creating PDF buffer and document")
         # Create PDF buffer
         buffer = BytesIO()
         
@@ -1056,6 +1156,7 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
             textColor=colors.HexColor('#1e40af')
         )
         
+        logger.info(f"📄 [PDF EXPORT] Building PDF content")
         # Build PDF content
         story = []
         
@@ -1071,6 +1172,8 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
         
         # Results summary
         results = test_data.get('results', [])
+        logger.info(f"📄 [PDF EXPORT] Processing {len(results)} results")
+        
         if results:
             story.append(Paragraph("Sonuçlar Özeti", heading_style))
             
@@ -1121,13 +1224,19 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
                         story.append(Paragraph(f"... ve {len(chunks) - 3} chunk daha", styles['Italic']))
                     
                     story.append(Spacer(1, 12))
+        else:
+            logger.warning(f"⚠️ [PDF EXPORT] No results found for test {test_id}")
+            story.append(Paragraph("Henüz sonuç bulunmuyor.", styles['Normal']))
         
+        logger.info(f"📄 [PDF EXPORT] Building PDF document")
         # Build PDF
         doc.build(story)
         
         # Get PDF bytes
         pdf_bytes = buffer.getvalue()
         buffer.close()
+        
+        logger.info(f"✅ [PDF EXPORT] PDF created successfully, size: {len(pdf_bytes)} bytes")
         
         # Return PDF as response
         filename = f"chunking_test_report_{test_id[:8]}.pdf"
@@ -1141,12 +1250,14 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
         )
         
     except Exception as e:
-        logger.error(f"Failed to export chunking test as PDF: {e}")
+        logger.error(f"❌ [PDF EXPORT] Failed to export chunking test as PDF: {e}", exc_info=True)
         # Fallback to markdown JSON for frontend to handle
         try:
+            logger.info(f"📄 [PDF EXPORT] Attempting fallback to markdown report")
             from src.utils.academic_report_generator import generate_chunking_academic_report
             markdown_report = generate_chunking_academic_report(test_data)
             
+            logger.info(f"✅ [PDF EXPORT] Fallback markdown report generated")
             return {
                 "success": True,
                 "test_id": test_id,
@@ -1155,7 +1266,7 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
                 "filename": f"chunking_test_report_{test_id[:8]}.md"
             }
         except Exception as fallback_error:
-            logger.error(f"Fallback also failed: {fallback_error}")
+            logger.error(f"❌ [PDF EXPORT] Fallback also failed: {fallback_error}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to export chunking test: {str(e)}")
 
 # ===== BACKGROUND TASK FUNCTIONS =====
