@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request, File, Form, UploadFile
 from pydantic import BaseModel, Field
 
 # Initialize logger with enhanced formatting FIRST
@@ -37,28 +37,28 @@ def _get_current_user(request: Request) -> Optional[Dict[str, Any]]:
     try:
         auth_header = request.headers.get("Authorization")
         if not auth_header:
-            logger.info(f"🔍 [AUTH] No Authorization header found")
+            logger.info(f" [AUTH] No Authorization header found")
             return None
         
         # Get AUTH_SERVICE_URL from environment - use IP for Docker network issues
         AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://172.18.0.3:8006')
         
-        logger.info(f"🔍 [AUTH] Calling auth service: {AUTH_SERVICE_URL}/auth/me")
-        logger.info(f"🔍 [AUTH] Authorization header: {auth_header[:20]}...")
+        logger.info(f" [AUTH] Calling auth service: {AUTH_SERVICE_URL}/auth/me")
+        logger.info(f" [AUTH] Authorization header: {auth_header[:20]}...")
         
         resp = requests.get(f"{AUTH_SERVICE_URL}/auth/me", headers={"Authorization": auth_header}, timeout=10)
         
-        logger.info(f"🔍 [AUTH] Auth service response: {resp.status_code}")
+        logger.info(f" [AUTH] Auth service response: {resp.status_code}")
         
         if resp.status_code == 200:
             user_data = resp.json()
-            logger.info(f"🔍 [AUTH] User authenticated: {user_data.get('username', 'unknown')}")
+            logger.info(f" [AUTH] User authenticated: {user_data.get('username', 'unknown')}")
             return user_data
         else:
-            logger.warning(f"🔍 [AUTH] Auth service returned {resp.status_code}: {resp.text}")
+            logger.warning(f" [AUTH] Auth service returned {resp.status_code}: {resp.text}")
             return None
     except Exception as e:
-        logger.warning(f"🔍 [AUTH] Auth user fetch failed: {e}")
+        logger.warning(f" [AUTH] Auth user fetch failed: {e}")
         return None
 
 def _get_role_name(user: Optional[Dict[str, Any]]) -> str:
@@ -365,8 +365,8 @@ async def execute_agentic_reasoning_chunking(
                         "reasoning_methods": list(set(rd["metadata"].get("decision_method", "unknown") for rd in reasoning_decisions if rd.get("metadata")))
                     }
                 
-                logger.info(f"✅ [AGENTIC CHUNKING] Completed successfully - {chunk_count} chunks, coherence: {semantic_coherence:.3f}")
-                logger.info(f"📊 [AGENTIC REASONING] {len(reasoning_decisions)} boundary decisions, {similarity_analysis.get('split_ratio', 0):.2f} split ratio")
+                logger.info(f" Agentic chunking completed - {chunk_count} chunks, coherence: {semantic_coherence:.3f}")
+                logger.info(f" Agentic reasoning - {len(reasoning_decisions)} boundary decisions, {similarity_analysis.get('split_ratio', 0):.2f} split ratio")
                 
                 return {
                     "strategy": "agentic",
@@ -386,7 +386,7 @@ async def execute_agentic_reasoning_chunking(
                 }
                 
             except Exception as chunking_error:
-                logger.warning(f"⚠️ [AGENTIC CHUNKING] Model inference failed: {chunking_error}, using fallback")
+                logger.warning(f" Agentic chunking failed: {chunking_error}, using fallback")
                 raise Exception(f"Agentic chunking failed: {chunking_error}")
                 
         except ImportError as import_error:
@@ -533,21 +533,53 @@ async def execute_llm_markdown_chunking(
 @router.post("/start", summary="Start Chunking Test")
 async def start_chunking_test(
     background_tasks: BackgroundTasks,
-    request_data: ChunkingTestStartRequest,
+    file: UploadFile = File(...),
+    config: str = Form(...),
     request: Request = None
 ) -> Dict[str, Any]:
     """
-    Start a comprehensive chunking strategy comparison test with JSON data
+    Start a comprehensive chunking strategy comparison test with multipart/form-data
     """
-    # Enhanced logging for debugging - JSON REQUEST
-    logger.info(f"🔍 [CHUNKING TEST START] JSON request received")
-    logger.info(f"🔍 [CHUNKING TEST START] Test Name: {request_data.testName}")
-    logger.info(f"🔍 [CHUNKING TEST START] Strategies: {request_data.strategies}")
-    logger.info(f"🔍 [CHUNKING TEST START] Input text length: {len(request_data.inputText)}")
+    try:
+        config_data = json.loads(config)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON in config form field")
+
+    # Read file content
+    input_text = (await file.read()).decode('utf-8')
+
+    # Determine strategies from config
+    strategy = config_data.get("strategy", "comparison")
+    if strategy == "comparison":
+        strategies = ["traditional", "agentic"]
+    else:
+        strategies = [strategy]
+
+    # Create a Pydantic model from the parsed config for validation and ease of use
+    try:
+        request_data = ChunkingTestStartRequest(
+            testName=config_data.get("testName", ""),
+            inputText=input_text,
+            strategies=strategies,
+            targetChunkSize=config_data.get("chunkSize", 1000),
+            overlapSize=config_data.get("chunkOverlap", 200),
+            enableGrokReasoning=config_data.get("useSemanticBoundaries", True),
+            turkishOptimization=True,  # Assuming this is always on for this context
+            sessionId=config_data.get("sessionId")
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid config data: {e}")
+
+    # Enhanced logging for debugging - FORM-DATA REQUEST
+    logger.info(f" [CHUNKING TEST START] multipart/form-data request received")
+    logger.info(f" [CHUNKING TEST START] Test Name: {request_data.testName}")
+    logger.info(f" [CHUNKING TEST START] Strategies: {request_data.strategies}")
+    logger.info(f" [CHUNKING TEST START] Input text length: {len(request_data.inputText)}")
     
     # Basic authentication check - USING MOCK AUTHENTICATION FOR DEBUGGING
     if request:
         current_user = _get_current_user(request)
+        logger.info(f" [CHUNKING TEST START] Current user: {current_user}")
         logger.info(f"🔍 [CHUNKING TEST START] Current user: {current_user}")
         
         if not (_is_teacher(current_user) or _is_admin(current_user)):
