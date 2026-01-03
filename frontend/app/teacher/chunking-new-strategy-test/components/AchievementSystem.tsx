@@ -25,7 +25,6 @@ import {
   Crown,
   Medal,
   Sparkles,
-  Fire,
   Gem,
   Shield,
   Sword,
@@ -55,7 +54,8 @@ import {
   Plus,
   Minus,
   X,
-  Check
+  Check,
+  Circle
 } from "lucide-react";
 
 // Achievement interfaces
@@ -128,6 +128,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
   const [sortBy, setSortBy] = useState<"rarity" | "points" | "progress" | "category">("rarity");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [recentUnlocks, setRecentUnlocks] = useState<Achievement[]>([]);
+  const [activeTab, setActiveTab] = useState("achievements");
 
   // Comprehensive achievement definitions
   const achievements: Achievement[] = [
@@ -139,7 +140,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       category: "learning",
       type: "milestone",
       difficulty: "bronze",
-      icon: "👶",
+      icon: "",
       points: 10,
       requirements: [
         { type: "test_count", value: 1, description: "1 test tamamlayın" }
@@ -157,7 +158,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       category: "learning",
       type: "milestone",
       difficulty: "silver",
-      icon: "🎓",
+      icon: "",
       points: 50,
       requirements: [
         { type: "tutorial_complete", value: 3, description: "3 eğitim modülünü tamamlayın" }
@@ -175,7 +176,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       category: "exploration",
       type: "progressive",
       difficulty: "bronze",
-      icon: "🗺️",
+      icon: "",
       points: 25,
       requirements: [
         { type: "scenario_complete", value: 5, description: "5 farklı senaryo deneyin" }
@@ -195,7 +196,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       category: "testing",
       type: "progressive",
       difficulty: "silver",
-      icon: "⚔️",
+      icon: "",
       points: 75,
       requirements: [
         { type: "test_count", value: 10, description: "10 test tamamlayın" }
@@ -213,7 +214,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       category: "testing",
       type: "progressive",
       difficulty: "gold",
-      icon: "👑",
+      icon: "",
       points: 200,
       requirements: [
         { type: "test_count", value: 50, description: "50 test tamamlayın" }
@@ -231,7 +232,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       category: "testing",
       type: "progressive",
       difficulty: "silver",
-      icon: "📦",
+      icon: "",
       points: 100,
       requirements: [
         { type: "total_chunks", value: 1000, description: "1000 chunk oluşturun" }
@@ -251,7 +252,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       category: "quality",
       type: "milestone",
       difficulty: "silver",
-      icon: "⭐",
+      icon: "",
       points: 60,
       requirements: [
         { type: "quality_score", value: 80, description: "Ortalama %80 kalite skoru" }
@@ -269,7 +270,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       category: "quality",
       type: "progressive",
       difficulty: "gold",
-      icon: "💎",
+      icon: "",
       points: 150,
       requirements: [
         { type: "perfect_score", value: 5, description: "5 mükemmel skor" }
@@ -289,7 +290,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       category: "speed",
       type: "milestone",
       difficulty: "gold",
-      icon: "⚡",
+      icon: "",
       points: 100,
       requirements: [
         { type: "speed", value: 30, description: "30 saniyeden hızlı test" }
@@ -309,7 +310,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       category: "mastery",
       type: "special",
       difficulty: "platinum",
-      icon: "🧙‍♂️",
+      icon: "",
       points: 500,
       requirements: [
         { type: "test_count", value: 25, description: "25 test tamamlayın" },
@@ -336,7 +337,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       category: "exploration",
       type: "daily",
       difficulty: "silver",
-      icon: "📅",
+      icon: "",
       points: 80,
       requirements: [
         { type: "consecutive_days", value: 7, description: "7 gün üst üste aktif olun" }
@@ -356,7 +357,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       category: "exploration",
       type: "rare",
       difficulty: "diamond",
-      icon: "🚀",
+      icon: "",
       points: 1000,
       requirements: [
         { type: "test_count", value: 1, description: "İlk testinizi yapın" }
@@ -543,7 +544,7 @@ const AchievementSystem: React.FC<AchievementSystemProps> = ({
       </Card>
 
       {/* Main Content */}
-      <Tabs defaultValue="achievements" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="achievements" className="flex items-center gap-2">
             <Award className="h-4 w-4" />

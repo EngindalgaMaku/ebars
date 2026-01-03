@@ -47,7 +47,6 @@ import {
   Line,
   ScatterChart,
   Scatter,
-  BoxPlot,
   ComposedChart,
   Area,
   AreaChart,

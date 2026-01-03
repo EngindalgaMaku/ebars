@@ -54,7 +54,7 @@ import {
   Line,
   AreaChart,
   Area,
-  TreeMap,
+  Treemap,
   Sankey,
   ComposedChart
 } from "recharts";

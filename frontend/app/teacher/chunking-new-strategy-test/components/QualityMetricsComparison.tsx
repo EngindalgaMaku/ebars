@@ -54,7 +54,6 @@ import {
   PieChart as RechartsPieChart,
   Cell,
   Pie,
-  BoxPlot,
   ComposedChart,
   Area,
   AreaChart

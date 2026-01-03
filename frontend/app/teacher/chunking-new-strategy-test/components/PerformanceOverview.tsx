@@ -476,7 +476,7 @@ const PerformanceOverview: React.FC<PerformanceOverviewProps> = ({
                 <XAxis dataKey="index" />
                 <YAxis />
                 <Tooltip 
-                  formatter={(value) => [`${value.toFixed(0)} kar/sn`, "Throughput"]}
+                  formatter={(value) => [`${Number(value).toFixed(0)} kar/sn`, "Throughput"]}
                 />
                 <Area 
                   type="monotone" 

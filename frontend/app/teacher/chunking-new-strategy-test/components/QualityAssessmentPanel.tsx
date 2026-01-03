@@ -640,8 +640,8 @@ export default function QualityAssessmentPanel({
       const turkishChars = content.match(/[çğıöşüÇĞIİÖŞÜ]/g) || [];
       const turkishCharRatio = turkishChars.length / content.length;
       
-      const words = content.split(/\s+/).filter(w => w.length > 0);
-      const avgWordLength = words.reduce((sum, w) => sum + w.length, 0) / words.length;
+      const words = content.split(/\s+/).filter((w: string) => w.length > 2);
+      const avgWordLength = words.reduce((sum: number, w: string) => sum + w.length, 0) / words.length;
       const morphologicalRichness = Math.min(avgWordLength / 6, 1);
       
       qualityScore += (turkishCharRatio * 0.4 + morphologicalRichness * 0.6);
@@ -898,7 +898,7 @@ export default function QualityAssessmentPanel({
           <TabsTrigger value="benchmarks">Benchmark</TabsTrigger>
           <TabsTrigger value="improvement">İyileştirme</TabsTrigger>
           <TabsTrigger value="settings">Ayarlar</TabsTrigger>
-        </Tabs>
+        </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
           {/* Filters and Search */}

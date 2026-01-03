@@ -182,17 +182,18 @@ const ReferenceIntegrityChecker: React.FC<ReferenceIntegrityCheckerProps> = ({
     // Search for each reference type
     Object.entries(turkishReferencePatterns).forEach(([type, patterns]) => {
       patterns.forEach(pattern => {
-        let match;
+        let match: RegExpExecArray | null;
         const regex = new RegExp(pattern.source, pattern.flags);
         
         while ((match = regex.exec(originalText)) !== null) {
-          const sourceChunk = findChunkForPosition(match.index);
-          const sourceText = match[0];
+          const currentMatch: RegExpExecArray = match;
+          const sourceChunk = findChunkForPosition(currentMatch.index);
+          const sourceText = currentMatch[0];
           
           // Look for potential targets in nearby chunks
           const contextWindow = 1000; // characters
-          const startPos = Math.max(0, match.index - contextWindow);
-          const endPos = Math.min(originalText.length, match.index + contextWindow);
+          const startPos = Math.max(0, currentMatch.index - contextWindow);
+          const endPos = Math.min(originalText.length, currentMatch.index + contextWindow);
           const contextText = originalText.substring(startPos, endPos);
           
           // Find the most likely target chunk
@@ -202,7 +203,7 @@ const ReferenceIntegrityChecker: React.FC<ReferenceIntegrityCheckerProps> = ({
           
           chunks.forEach(chunk => {
             if (chunk.id !== sourceChunk) {
-              const distance = Math.abs(chunk.startIndex - match.index);
+              const distance = Math.abs(chunk.startIndex - currentMatch.index);
               if (distance < bestDistance && distance < contextWindow) {
                 bestTarget = chunk.id;
                 bestTargetText = chunk.content.substring(0, 200);
@@ -892,7 +893,7 @@ const ReferenceIntegrityChecker: React.FC<ReferenceIntegrityCheckerProps> = ({
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Düşük Güven (<60%):</span>
+                    <span className="text-sm text-gray-600">Düşük Güven (&lt;60%):</span>
                     <Badge variant="outline" className="bg-red-50">
                       {detectCrossReferences.filter(ref => ref.confidence < 0.6).length}
                     </Badge>

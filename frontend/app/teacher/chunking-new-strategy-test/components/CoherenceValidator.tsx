@@ -948,7 +948,7 @@ const CoherenceValidator: React.FC<CoherenceValidatorProps> = ({
       )}
 
       {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="validation" className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" />

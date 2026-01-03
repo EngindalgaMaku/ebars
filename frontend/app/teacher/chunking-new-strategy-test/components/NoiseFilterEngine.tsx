@@ -175,7 +175,7 @@ const NoiseFilterEngine: React.FC<NoiseFilterEngineProps> = ({
   // Turkish-specific patterns and corrections
   const turkishEncodingFixes = {
     "Ã¼": "ü", "Ã¶": "ö", "Ã§": "ç", "Ä±": "ı", "Ä°": "İ", "Åž": "ş", "Ä": "ğ",
-    "â€™": "'", "â€œ": '"', "â€": '"', "â€"": "–", "â€"": "—"
+    "â€™": "'", "â€œ": '"', "â€": '"', "â€“": "–", "â€”": "—"
   };
 
   const turkishMorphologyPatterns = [
@@ -814,7 +814,7 @@ const NoiseFilterEngine: React.FC<NoiseFilterEngineProps> = ({
       )}
 
       {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="filtering" className="flex items-center gap-2">
             <Filter className="h-4 w-4" />

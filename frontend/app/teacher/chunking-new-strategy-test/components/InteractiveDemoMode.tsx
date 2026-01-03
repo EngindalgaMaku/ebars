@@ -50,7 +50,7 @@ import {
   Code,
   Database,
   Cpu,
-  Memory,
+  MemoryStick,
   HardDrive,
   Network,
   Shield,

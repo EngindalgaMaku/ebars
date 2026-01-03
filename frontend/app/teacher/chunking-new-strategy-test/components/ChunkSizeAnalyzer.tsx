@@ -488,7 +488,7 @@ const ChunkSizeAnalyzer: React.FC<ChunkSizeAnalyzerProps> = ({
                 <option value="small">Küçük (≤500)</option>
                 <option value="medium">Orta (501-1000)</option>
                 <option value="large">Büyük (1001-2000)</option>
-                <option value="xlarge">Çok Büyük (>2000)</option>
+                <option value="xlarge">Çok Büyük (&gt;2000)</option>
               </select>
             </div>
 
@@ -705,16 +705,22 @@ const ChunkSizeAnalyzer: React.FC<ChunkSizeAnalyzerProps> = ({
                     <XAxis dataKey="range" />
                     <YAxis />
                     <Tooltip 
-                      formatter={(value, name) => [
-                        name === 'count' ? `${value} chunk` :
-                        name === 'percentage' ? `${value.toFixed(1)}%` :
-                        name === 'averageQuality' ? `${(value * 100).toFixed(1)}%` :
-                        `${value} token`,
-                        name === 'count' ? 'Chunk Sayısı' :
-                        name === 'percentage' ? 'Yüzde' :
-                        name === 'averageQuality' ? 'Ortalama Kalite' :
-                        'Toplam Token'
-                      ]}
+                      formatter={(value, name) => {
+                        const numValue = Number(value);
+                        const formattedValue = 
+                          name === 'count' ? `${value} chunk` :
+                          name === 'percentage' ? `${numValue.toFixed(1)}%` :
+                          name === 'averageQuality' ? `${(numValue * 100).toFixed(1)}%` :
+                          `${value} token`;
+                        
+                        const formattedName = 
+                          name === 'count' ? 'Chunk Sayısı' :
+                          name === 'percentage' ? 'Yüzde' :
+                          name === 'averageQuality' ? 'Ortalama Kalite' :
+                          'Toplam Token';
+
+                        return [formattedValue, formattedName];
+                      }}
                     />
                     <Bar dataKey="count" fill="#3b82f6" name="Chunk Sayısı" />
                   </BarChart>

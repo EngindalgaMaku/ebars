@@ -18,11 +18,10 @@ import {
   LineChart,
   Target,
   Database,
-  Memory,
+  MemoryStick,
   Timer,
   Layers,
   Scale,
-  Speedometer,
   ChevronUp,
   ChevronDown,
   AlertTriangle,
@@ -216,9 +215,9 @@ const PerformanceBenchmark: React.FC<PerformanceBenchmarkProps> = ({
       },
       {
         metric: "Token/Saniye",
-        traditional: Math.round(traditional.tokenProcessingRate),
-        agentic: Math.round(agentic.tokenProcessingRate),
-        improvement: ((agentic.tokenProcessingRate - traditional.tokenProcessingRate) / traditional.tokenProcessingRate) * 100,
+        traditional: Math.round(traditional.tokenProcessingRate || 0),
+        agentic: Math.round(agentic.tokenProcessingRate || 0),
+        improvement: (((agentic.tokenProcessingRate || 0) - (traditional.tokenProcessingRate || 0)) / (traditional.tokenProcessingRate || 1)) * 100,
         unit: "token/sn"
       },
       {
@@ -358,7 +357,7 @@ const PerformanceBenchmark: React.FC<PerformanceBenchmarkProps> = ({
                       {Math.round(performanceData.traditional.performance.throughput)} → {Math.round(performanceData.agentic.performance.throughput)} kar/sn
                     </p>
                   </div>
-                  <Speedometer className="h-8 w-8 text-blue-600" />
+                  <Gauge className="h-8 w-8 text-blue-600" />
                 </div>
               </CardContent>
             </Card>
@@ -378,7 +377,7 @@ const PerformanceBenchmark: React.FC<PerformanceBenchmarkProps> = ({
                       {performanceData.traditional.performance.memoryUsage}MB → {performanceData.agentic.performance.memoryUsage}MB
                     </p>
                   </div>
-                  <Memory className="h-8 w-8 text-green-600" />
+                  <MemoryStick className="h-8 w-8 text-green-600" />
                 </div>
               </CardContent>
             </Card>
@@ -602,7 +601,7 @@ const PerformanceBenchmark: React.FC<PerformanceBenchmarkProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-4 text-center">
-                <Memory className="h-8 w-8 text-blue-500 mx-auto mb-2" />
+                <MemoryStick className="h-8 w-8 text-blue-500 mx-auto mb-2" />
                 <div className="text-lg font-bold text-blue-600">
                   {performanceData.traditional.resourceUsage.peakMemory}MB
                 </div>

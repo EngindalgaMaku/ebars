@@ -626,7 +626,7 @@ Bu kaynaklar, yukarıdaki şekil ve tablolarda sunulan bilgileri desteklemektedi
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="scenarios" className="flex items-center gap-2">
             <Beaker className="h-4 w-4" />

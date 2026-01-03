@@ -94,8 +94,9 @@ const ChunkingComparison: React.FC<ChunkingComparisonProps> = ({
   originalText,
   testName,
 }) => {
-  const [activeView, setActiveView] = useState<"overview" | "detailed" | "visualization">("overview");
+  const [activeView, setActiveView] = useState<"overview" | "detailed" | "visualization" | "advanced" | "performance" | "quality" | "statistical">("overview");
   const [detailedTab, setDetailedTab] = useState("traditional");
+  const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(false);
 
   // Calculate comparison metrics
   const calculateComparisonMetrics = () => {

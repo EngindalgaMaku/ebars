@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  Dashboard,
+  LayoutDashboard,
   Activity,
   BarChart3,
   TrendingUp,
@@ -106,7 +106,7 @@ const TestResultsDashboard: React.FC<TestResultsDashboardProps> = ({
   const [refreshInterval, setRefreshInterval] = useState(30); // seconds
   const [showAlerts, setShowAlerts] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [timeRange, setTimeRange] = useState<string>("24h");
+  const [timeRange, setTimeRange] = useState<"1h" | "24h" | "7d" | "30d" | "all">("24h");
 
   // Auto-refresh functionality
   useEffect(() => {
@@ -291,17 +291,19 @@ const TestResultsDashboard: React.FC<TestResultsDashboardProps> = ({
     }
     
     // Apply time range filter
-    const now = Date.now();
-    const timeRangeMs = {
-      "1h": 3600000,
-      "24h": 86400000,
-      "7d": 604800000,
-      "30d": 2592000000
-    }[timeRange] || 86400000;
-    
-    filtered = filtered.filter(t => 
-      new Date(t.startTime).getTime() > now - timeRangeMs
-    );
+    if (timeRange !== 'all') {
+      const now = Date.now();
+      const timeRangeMs = {
+        "1h": 3600000,
+        "24h": 86400000,
+        "7d": 604800000,
+        "30d": 2592000000
+      }[timeRange] || 86400000;
+      
+      filtered = filtered.filter(t => 
+        new Date(t.startTime).getTime() > now - timeRangeMs
+      );
+    }
     
     return filtered;
   }, [testResults, filterStatus, timeRange]);
@@ -312,7 +314,7 @@ const TestResultsDashboard: React.FC<TestResultsDashboardProps> = ({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <Dashboard className="h-8 w-8 text-blue-600" />
+            <LayoutDashboard className="h-8 w-8 text-blue-600" />
             Test Sonuçları Dashboard
           </h1>
           <p className="text-gray-600 mt-1">
@@ -469,9 +471,10 @@ const TestResultsDashboard: React.FC<TestResultsDashboardProps> = ({
               
               <select
                 value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
+                onChange={(e) => setTimeRange(e.target.value as "1h" | "24h" | "7d" | "30d" | "all")}
                 className="px-3 py-1 border rounded-md text-sm"
               >
+                <option value="all">Tümü</option>
                 <option value="1h">Son 1 Saat</option>
                 <option value="24h">Son 24 Saat</option>
                 <option value="7d">Son 7 Gün</option>
@@ -517,6 +520,7 @@ const TestResultsDashboard: React.FC<TestResultsDashboardProps> = ({
             <PerformanceOverview 
               testResults={filteredTestResults} 
               currentTest={currentTest}
+              timeRange={timeRange}
             />
             <QualityMetricsWidget 
               testResults={filteredTestResults} 
@@ -567,6 +571,7 @@ const TestResultsDashboard: React.FC<TestResultsDashboardProps> = ({
           <PerformanceOverview 
             testResults={filteredTestResults} 
             currentTest={currentTest}
+            timeRange={timeRange}
           />
         </TabsContent>
 

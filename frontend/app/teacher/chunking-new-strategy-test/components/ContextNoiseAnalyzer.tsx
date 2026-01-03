@@ -912,7 +912,7 @@ const ContextNoiseAnalyzer: React.FC<ContextNoiseAnalyzerProps> = ({
       )}
 
       {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="analysis" className="flex items-center gap-2">
             <Microscope className="h-4 w-4" />

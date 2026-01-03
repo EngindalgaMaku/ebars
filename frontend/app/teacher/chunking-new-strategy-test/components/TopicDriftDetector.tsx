@@ -62,7 +62,7 @@ import {
   PolarRadiusAxis,
   Radar,
   Sankey,
-  TreeMap
+  Treemap
 } from "recharts";
 
 // Interfaces
@@ -1138,7 +1138,7 @@ const TopicDriftDetector: React.FC<TopicDriftDetectorProps> = ({
       </Card>
 
       {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "detection" | "analysis" | "visualization" | "alerts" | "settings")} className="w-full">
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="detection" className="flex items-center gap-2">
             <GitBranch className="h-4 w-4" />

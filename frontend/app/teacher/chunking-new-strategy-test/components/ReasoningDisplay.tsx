@@ -509,9 +509,10 @@ const ReasoningDisplay: React.FC<ReasoningDisplayProps> = ({
                         <Lightbulb className="h-4 w-4" />
                         LLM Reasoning
                         {chunk.reasoningQuality && (
-                          <Badge size="sm" className={`ml-auto ${getQualityColor(chunk.reasoningQuality.overall)}`}>
-                            {(chunk.reasoningQuality.overall * 100).toFixed(0)}%
-                          </Badge>
+                          <div className={`w-4 h-4 rounded-full ${
+                      (chunk.reasoningQuality?.overall ?? 0.5) >= 0.8 ? 'bg-green-500' :
+                      (chunk.reasoningQuality?.overall ?? 0.5) >= 0.6 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`} />  
                         )}
                       </button>
                       
@@ -569,8 +570,8 @@ const ReasoningDisplay: React.FC<ReasoningDisplayProps> = ({
                 <div key={chunk.id} className="flex gap-4">
                   <div className="flex flex-col items-center">
                     <div className={`w-4 h-4 rounded-full ${
-                      chunk.reasoningQuality?.overall >= 0.8 ? 'bg-green-500' :
-                      chunk.reasoningQuality?.overall >= 0.6 ? 'bg-yellow-500' : 'bg-red-500'
+                      (chunk.reasoningQuality?.overall ?? 0) >= 0.8 ? 'bg-green-500' :
+                      (chunk.reasoningQuality?.overall ?? 0) >= 0.6 ? 'bg-yellow-500' : 'bg-red-500'
                     }`} />
                     {index < filteredChunks.length - 1 && (
                       <div className="w-0.5 h-12 bg-gray-300 mt-2" />
@@ -604,7 +605,7 @@ const ReasoningDisplay: React.FC<ReasoningDisplayProps> = ({
         </Card>
       )}
 
-      {/* Detail Modal */}
+// ...
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>

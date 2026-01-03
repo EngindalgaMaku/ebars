@@ -465,9 +465,10 @@ const QualityMetricsWidget: React.FC<QualityMetricsWidgetProps> = ({
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ range, count, percent }) => 
-                    count > 0 ? `${range.split(' ')[0]}: ${count}` : null
-                  }
+                  label={(props: any) => {
+                    const { range, count } = props;
+                    return count > 0 ? `${range.split(' ')[0]}: ${count}` : null;
+                  }}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="count"

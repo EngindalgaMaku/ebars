@@ -623,13 +623,13 @@ export default function AutomatedEvaluationEngine({
       const turkishCharRatio = turkishChars.length / totalChars;
       
       // Check for proper sentence structure
-      const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
-      const avgSentenceLength = sentences.reduce((sum, s) => sum + s.trim().split(/\s+/).length, 0) / sentences.length;
+      const sentences = content.split(/[.!?]+/).filter((s: string) => s.trim().length > 0);
+      const avgSentenceLength = sentences.reduce((sum: number, s: string) => sum + s.trim().split(/\s+/).length, 0) / sentences.length;
       const sentenceQuality = avgSentenceLength > 5 && avgSentenceLength < 25 ? 1 : 0.5;
       
       // Check for morphological richness
-      const words = content.split(/\s+/).filter(w => w.length > 0);
-      const avgWordLength = words.reduce((sum, w) => sum + w.length, 0) / words.length;
+      const words = content.split(/\s+/).filter((w: string) => w.length > 0);
+      const avgWordLength = words.reduce((sum: number, w: string) => sum + w.length, 0) / words.length;
       const morphologicalRichness = Math.min(avgWordLength / 6, 1); // Turkish words tend to be longer due to agglutination
       
       qualityScore += (turkishCharRatio * 0.3 + sentenceQuality * 0.4 + morphologicalRichness * 0.3);

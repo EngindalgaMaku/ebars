@@ -54,7 +54,7 @@ import {
   Code,
   Database,
   Cpu,
-  Memory,
+  MemoryStick,
   HardDrive,
   Network,
   Shield,
@@ -548,7 +548,7 @@ CPU kullanımı: %65`,
     switch (category) {
       case "strategy": return <Target className="h-4 w-4" />;
       case "performance": return <Zap className="h-4 w-4" />;
-      case "quality": return <Star className="h-4 w-4" />;
+      case "quality": return <MemoryStick className="h-4 w-4" />;
       case "troubleshooting": return <AlertTriangle className="h-4 w-4" />;
       case "advanced": return <Brain className="h-4 w-4" />;
       default: return <BookOpen className="h-4 w-4" />;
@@ -1010,7 +1010,7 @@ CPU kullanımı: %65`,
                     <Badge variant="outline">
                       {tip.category === "speed" && <Zap className="h-3 w-3 mr-1" />}
                       {tip.category === "quality" && <Star className="h-3 w-3 mr-1" />}
-                      {tip.category === "memory" && <Memory className="h-3 w-3 mr-1" />}
+                      {tip.category === "memory" && <MemoryStick className="h-3 w-3 mr-1" />}
                       {tip.category === "accuracy" && <Target className="h-3 w-3 mr-1" />}
                       {tip.category}
                     </Badge>
