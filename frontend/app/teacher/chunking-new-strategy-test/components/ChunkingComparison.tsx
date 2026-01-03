@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  GitBranch, 
-  BarChart3, 
-  TrendingUp, 
+import {
+  GitBranch,
+  BarChart3,
+  TrendingUp,
   Clock,
   Layers,
   Zap,
@@ -17,7 +17,17 @@ import {
   ArrowRight,
   CheckCircle,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  Activity,
+  Calculator,
+  Gauge,
+  Brain,
+  FileText,
+  Download,
+  Eye,
+  Settings,
+  Filter,
+  RefreshCw
 } from "lucide-react";
 import {
   BarChart,
@@ -37,6 +47,10 @@ import {
   Line,
 } from "recharts";
 import ChunkVisualization from "./ChunkVisualization";
+import AdvancedComparisonDashboard from "./AdvancedComparisonDashboard";
+import PerformanceBenchmark from "./PerformanceBenchmark";
+import QualityMetricsComparison from "./QualityMetricsComparison";
+import StatisticalAnalysis from "./StatisticalAnalysis";
 
 interface ChunkData {
   id: string;
@@ -171,30 +185,82 @@ const ChunkingComparison: React.FC<ChunkingComparisonProps> = ({
           <p className="text-gray-600 mt-1">{testName}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant={activeView === "overview" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveView("overview")}
-          >
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Genel Bakış
-          </Button>
-          <Button
-            variant={activeView === "detailed" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveView("detailed")}
-          >
-            <Target className="h-4 w-4 mr-2" />
-            Detaylı Analiz
-          </Button>
-          <Button
-            variant={activeView === "visualization" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveView("visualization")}
-          >
-            <Layers className="h-4 w-4 mr-2" />
-            Görselleştirme
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant={activeView === "overview" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveView("overview")}
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Genel Bakış
+            </Button>
+            <Button
+              variant={activeView === "detailed" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveView("detailed")}
+            >
+              <Target className="h-4 w-4 mr-2" />
+              Detaylı Analiz
+            </Button>
+            <Button
+              variant={activeView === "visualization" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveView("visualization")}
+            >
+              <Layers className="h-4 w-4 mr-2" />
+              Görselleştirme
+            </Button>
+          </div>
+          
+          {/* Advanced Features Toggle */}
+          <div className="border-l pl-2 ml-2">
+            <Button
+              variant={showAdvancedFeatures ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowAdvancedFeatures(!showAdvancedFeatures)}
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Gelişmiş
+            </Button>
+          </div>
+          
+          {/* Advanced Analysis Buttons */}
+          {showAdvancedFeatures && (
+            <div className="flex items-center gap-1 border-l pl-2 ml-2">
+              <Button
+                variant={activeView === "advanced" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveView("advanced")}
+              >
+                <Brain className="h-4 w-4 mr-2" />
+                Gelişmiş Dashboard
+              </Button>
+              <Button
+                variant={activeView === "performance" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveView("performance")}
+              >
+                <Gauge className="h-4 w-4 mr-2" />
+                Performans
+              </Button>
+              <Button
+                variant={activeView === "quality" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveView("quality")}
+              >
+                <Award className="h-4 w-4 mr-2" />
+                Kalite
+              </Button>
+              <Button
+                variant={activeView === "statistical" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setActiveView("statistical")}
+              >
+                <Calculator className="h-4 w-4 mr-2" />
+                İstatistik
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 

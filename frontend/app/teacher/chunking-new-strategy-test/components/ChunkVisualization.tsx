@@ -238,9 +238,9 @@ const ChunkVisualization: React.FC<ChunkVisualizationProps> = ({
                 </div>
                 
                 {chunk.reasoning && (
-                  <div className="text-xs bg-blue-50 border border-blue-200 rounded p-3">
+                  <div className="text-xs bg-purple-50 border border-purple-200 rounded p-3">
                     <button
-                      className="flex items-center gap-1 text-blue-700 font-medium hover:text-blue-900"
+                      className="flex items-center gap-1 text-purple-700 font-medium hover:text-purple-900 w-full text-left"
                       onClick={() => toggleReasoningDetails(chunk.id)}
                     >
                       {showReasoningDetails[chunk.id] ? (
@@ -250,10 +250,73 @@ const ChunkVisualization: React.FC<ChunkVisualizationProps> = ({
                       )}
                       <Zap className="h-3 w-3" />
                       LLM Reasoning
+                      {/* Add quality indicator */}
+                      {chunk.semanticScore && (
+                        <div className="ml-auto flex items-center gap-1">
+                          <div className={`w-2 h-2 rounded-full ${
+                            chunk.semanticScore >= 0.8 ? 'bg-green-500' :
+                            chunk.semanticScore >= 0.6 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`} />
+                          <span className="text-xs text-gray-600">
+                            {(chunk.semanticScore * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      )}
                     </button>
                     {showReasoningDetails[chunk.id] && (
-                      <div className="mt-2 text-blue-800">
-                        {chunk.reasoning}
+                      <div className="mt-3 space-y-2">
+                        <div className="text-purple-800 leading-relaxed">
+                          {chunk.reasoning}
+                        </div>
+                        
+                        {/* Add reasoning quality metrics if available */}
+                        {chunk.semanticScore && (
+                          <div className="pt-2 border-t border-purple-200">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600">Kalite Skoru:</span>
+                              <div className="flex items-center gap-2">
+                                <div className={`px-2 py-1 rounded text-xs font-medium ${
+                                  chunk.semanticScore >= 0.8 ? 'bg-green-100 text-green-800' :
+                                  chunk.semanticScore >= 0.6 ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {chunk.semanticScore >= 0.8 ? 'Yüksek' :
+                                   chunk.semanticScore >= 0.6 ? 'Orta' : 'Düşük'}
+                                </div>
+                                <span className="font-semibold">
+                                  {(chunk.semanticScore * 100).toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Add Turkish-specific reasoning indicators */}
+                        <div className="pt-2 border-t border-purple-200">
+                          <div className="flex flex-wrap gap-1">
+                            {chunk.reasoning.includes('bağlam') && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                                🔗 Bağlamsal
+                              </span>
+                            )}
+                            {chunk.reasoning.includes('semantik') && (
+                              <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                                🧠 Semantik
+                              </span>
+                            )}
+                            {chunk.reasoning.includes('morfoloji') && (
+                              <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded">
+                                📝 Morfolojik
+                              </span>
+                            )}
+                            {(chunk.reasoning.includes('ancak') || chunk.reasoning.includes('fakat') ||
+                              chunk.reasoning.includes('lakin') || chunk.reasoning.includes('ama')) && (
+                              <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded">
+                                ↔️ Söylem İşaretçisi
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

@@ -369,7 +369,7 @@
     box-shadow: none !important;
   }
   .admin-fullbleed .bg-white,
-  .admin-fullbleed .dark\\:bg-gray-800 {
+  .admin-fullbleed .dark\:bg-gray-800 {
     background-color: transparent !important;
   }
   .admin-fullbleed .p-6,
