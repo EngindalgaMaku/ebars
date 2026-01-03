@@ -396,23 +396,23 @@ export default function ChunkingNewStrategyTestPage() {
         testId: status.testId || testId,
         testName: status.testName || `Test ${testId.substring(0, 8)}`,
         status: status.status || "completed",
-        progress: status.progress || 100,
+        progress: Number(status.progress || 100),
         startTime: status.startTime || "",
         endTime: status.endTime,
         strategy: status.currentStrategy || "unknown",
         chunks: status.chunks || [],
         metrics: {
-          totalChunks: status.metrics?.totalChunks || 0,
-          averageChunkSize: status.metrics?.averageChunkSize || 0,
-          chunkSizeVariance: status.metrics?.chunkSizeVariance || 0,
-          semanticCoherence: status.metrics?.semanticCoherence || 0,
-          boundaryQuality: status.metrics?.boundaryQuality || 0,
-          processingTime: status.metrics?.processingTime || status.processingTime || 0,
+          totalChunks: Number(status.metrics?.totalChunks || 0),
+          averageChunkSize: Number(status.metrics?.averageChunkSize || 0),
+          chunkSizeVariance: Number(status.metrics?.chunkSizeVariance || 0),
+          semanticCoherence: Number(status.metrics?.semanticCoherence || 0),
+          boundaryQuality: Number(status.metrics?.boundaryQuality || 0),
+          processingTime: Number(status.metrics?.processingTime || status.processingTime || 0),
         },
         comparison: status.comparison,
         originalText: status.originalText || "",
-        totalCharacters: status.totalCharacters || 0,
-        processingTime: status.processingTime || 0,
+        totalCharacters: Number(status.totalCharacters || 0),
+        processingTime: Number(status.metrics?.processingTime || status.processingTime || 0),
       };
 
       setCurrentTest(testResult);
@@ -807,15 +807,15 @@ export default function ChunkingNewStrategyTestPage() {
                       </div>
                       <div>
                         <div className="text-sm text-gray-500">Ortalama Boyut</div>
-                        <div className="text-lg font-semibold">{Math.round(currentTest.metrics.averageChunkSize)} karakter</div>
+                        <div className="text-lg font-semibold">{Math.round(Number(currentTest.metrics.averageChunkSize))} karakter</div>
                       </div>
                       <div>
                         <div className="text-sm text-gray-500">Semantik Uyum</div>
-                        <div className="text-lg font-semibold">{currentTest.metrics.semanticCoherence.toFixed(1)}%</div>
+                        <div className="text-lg font-semibold">{typeof currentTest.metrics.semanticCoherence === 'number' ? currentTest.metrics.semanticCoherence.toFixed(1) : '0.0'}%</div>
                       </div>
                       <div>
                         <div className="text-sm text-gray-500">İşlem Süresi</div>
-                        <div className="text-lg font-semibold">{currentTest.processingTime}s</div>
+                        <div className="text-lg font-semibold">{typeof currentTest.processingTime === 'number' ? currentTest.processingTime.toFixed(1) : '0.0'}s</div>
                       </div>
                     </div>
                   </CardContent>
