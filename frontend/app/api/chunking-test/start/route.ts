@@ -4,23 +4,21 @@ const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL || "http://local
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    
+    const formData = await request.formData();
+
     // Get authorization header from request
     const authHeader = request.headers.get('authorization');
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+    const headers: Record<string, string> = {}; // Let fetch set the multipart boundary
     
     if (authHeader) {
       headers['authorization'] = authHeader;
     }
     
-    // Forward the JSON data to the backend
+    // Forward the FormData to the backend
     const response = await fetch(`${API_GATEWAY_URL}/api/chunking-test/start`, {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: formData,
     });
 
     if (!response.ok) {
