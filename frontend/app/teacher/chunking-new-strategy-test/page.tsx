@@ -240,6 +240,128 @@ export default function ChunkingNewStrategyTestPage() {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef<boolean>(false);
 
+  // Start a new chunking test
+  const startChunkingTest = async () => {
+    if (!config.file || !config.testName) {
+      toast.error("Lütfen bir test adı girin ve bir dosya seçin.");
+      return;
+    }
+
+    setIsRunning(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", config.file);
+      formData.append("config", JSON.stringify(config));
+
+      const response = await apiClient.post("/chunking-test/start", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      if (response.success && response.testId) {
+        toast.success(`Test '${config.testName}' başlatıldı.`);
+        setCurrentTest({
+          testId: response.testId,
+          testName: config.testName,
+          status: "running",
+          progress: 0,
+          startTime: new Date().toISOString(),
+          strategy: config.strategy,
+          chunks: [],
+          metrics: {} as any,
+          originalText: "",
+          totalCharacters: 0,
+          processingTime: 0,
+        });
+        setSelectedTestId(response.testId);
+        setActiveTab("results");
+        pollStatus(response.testId);
+      } else {
+        throw new Error(response.error || "Test başlatılamadı");
+      }
+    } catch (error: any) {
+      console.error("Start test error:", error);
+      setError(error.message || "Test başlatılırken bir hata oluştu.");
+      setIsRunning(false);
+    }
+  };
+
+  // Stop the currently running test
+  const stopTest = async () => {
+    if (!currentTest || !isRunning) return;
+
+    try {
+      await apiClient.post(`/chunking-test/stop/${currentTest.testId}`);
+      toast.info("Test durduruldu.");
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      setIsRunning(false);
+      if (currentTest) {
+        setCurrentTest({ ...currentTest, status: "stopped" });
+      }
+    } catch (error) {
+      console.error("Stop test error:", error);
+      toast.error("Test durdurulamadı.");
+    }
+  };
+
+  // Poll for test status
+  const pollStatus = (testId: string) => {
+    if (isPollingRef.current) return;
+    isPollingRef.current = true;
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const status = await apiClient.get(`/chunking-test/status/${testId}`);
+        if (status.status === "completed" || status.status === "failed") {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          isPollingRef.current = false;
+          setIsRunning(false);
+          loadTestDetails(testId);
+        } else {
+          setCurrentTest((prev) => prev ? { ...prev, progress: status.progress, status: status.status } : null);
+        }
+      } catch (error) {
+        console.error("Polling error:", error);
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        isPollingRef.current = false;
+        setIsRunning(false);
+      }
+    }, 2000);
+  };
+
+  // Reset configuration
+  const resetConfig = () => {
+    setConfig({
+      testName: "",
+      strategy: "comparison",
+      file: null,
+      chunkSize: 1000,
+      chunkOverlap: 200,
+      similarityThreshold: 0.7,
+      llmReasoningWeight: 0.3,
+      maxChunkSize: 2000,
+      minChunkSize: 100,
+      useSemanticBoundaries: true,
+      enableContextualMerging: true,
+      enableQualityMetrics: true,
+      enableVisualization: true,
+      exportFormat: ["json", "csv"],
+    });
+    toast.info("Konfigürasyon sıfırlandı.");
+  };
+
   useEffect(() => {
     setMounted(true);
     loadTestList();
@@ -609,11 +731,11 @@ export default function ChunkingNewStrategyTestPage() {
 
             {/* Action Buttons */}
             <div className="flex justify-end gap-4">
-              <Button variant="outline" onClick={() => { /* Reset config */ }}>
+              <Button variant="outline" onClick={resetConfig}>
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Sıfırla
               </Button>
-              <Button onClick={() => { /* startChunkingTest() */ }} disabled={!config.file || isRunning}>
+              <Button onClick={startChunkingTest} disabled={!config.file || !config.testName || isRunning}>
                 {isRunning ? (
                   <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Çalışıyor...</>
                 ) : (
