@@ -199,19 +199,16 @@ async def execute_traditional_chunking(
     
     try:
         logger.info(f"Starting traditional chunking - text length: {len(text)}, target_size: {target_size}")
-        
-        # Import traditional text chunker
-        from src.text_processing.text_chunker import TextChunker
-        
-        # Create traditional chunker
-        chunker = TextChunker(
+
+        from src.text_processing.text_chunker import chunk_text
+
+        chunks = chunk_text(
+            text=text,
             chunk_size=target_size,
-            overlap=overlap,
-            strategy="semantic"  # Use semantic chunking as baseline
+            chunk_overlap=overlap,
+            strategy="markdown",
+            language="tr",
         )
-        
-        # Perform chunking
-        chunks = chunker.chunk_text(text)
         
         execution_time = (time.time() - start_time) * 1000
         
@@ -451,6 +448,37 @@ async def execute_agentic_reasoning_chunking(
         except Exception as fallback_error:
             execution_time = (time.time() - start_time) * 1000
             logger.error(f"Even fallback chunking failed: {fallback_error}")
+
+            try:
+                from src.text_processing.text_chunker import chunk_text
+
+                chunks = chunk_text(
+                    text=text,
+                    chunk_size=target_size,
+                    chunk_overlap=overlap,
+                    strategy="markdown",
+                    language="tr",
+                )
+                if chunks:
+                    total_chars = sum(len(chunk) for chunk in chunks)
+                    avg_chunk_size = total_chars / len(chunks) if chunks else 0
+                    return {
+                        "strategy": "agentic",
+                        "chunks": chunks,
+                        "chunk_count": len(chunks),
+                        "total_characters": total_chars,
+                        "avg_chunk_size": avg_chunk_size,
+                        "processing_time_ms": execution_time,
+                        "semantic_coherence_score": 0.6,
+                        "boundary_quality_score": 0.7,
+                        "success": True,
+                        "fallback": True,
+                        "error": str(fallback_error),
+                        "error_type": type(fallback_error).__name__,
+                    }
+            except Exception as last_resort_error:
+                logger.error(f"Last resort markdown chunking failed: {last_resort_error}")
+
             return {
                 "strategy": "agentic",
                 "chunks": [],
@@ -461,8 +489,8 @@ async def execute_agentic_reasoning_chunking(
                 "semantic_coherence_score": 0,
                 "boundary_quality_score": 0,
                 "success": False,
-                "error": str(e),
-                "error_type": type(e).__name__
+                "error": str(fallback_error),
+                "error_type": type(fallback_error).__name__,
             }
 
 async def execute_llm_markdown_chunking(
@@ -546,7 +574,10 @@ async def start_chunking_test(
         raise HTTPException(status_code=400, detail="Invalid JSON in config form field")
 
     # Read file content
-    input_text = (await file.read()).decode('utf-8')
+    input_text = (await file.read()).decode("utf-8", errors="replace")
+
+    if not input_text or not input_text.strip():
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
 
     # Determine strategies from config
     strategy = config_data.get("strategy", "comparison")
