@@ -52,7 +52,10 @@ class MultiAgentChunk:
     size_decision: str = ""
     quality_decision: str = ""
     
-    # Metadata
+    # Enriched metadata (NEW)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    # Statistics
     word_count: int = 0
     char_count: int = 0
     improvement_iterations: int = 0
@@ -70,6 +73,7 @@ class MultiAgentChunk:
             'semantic_decision': self.semantic_decision,
             'size_decision': self.size_decision,
             'quality_decision': self.quality_decision,
+            'metadata': self.metadata,
             'word_count': self.word_count,
             'char_count': self.char_count,
             'improvement_iterations': self.improvement_iterations,
@@ -156,15 +160,19 @@ class ChunkingResult:
     total_processing_time: float
     agent_metrics: Dict[str, Any]
     quality_summary: Dict[str, float]
+    metadata_stats: Optional[Dict[str, Any]] = None
     
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             'chunks': [c.to_dict() for c in self.chunks],
             'total_processing_time': self.total_processing_time,
             'agent_metrics': self.agent_metrics,
             'quality_summary': self.quality_summary,
             'chunk_count': len(self.chunks)
         }
+        if self.metadata_stats:
+            result['metadata_stats'] = self.metadata_stats
+        return result
 
 
 class MultiAgentChunker:
@@ -177,12 +185,13 @@ class MultiAgentChunker:
     - SizeAgent: Manages chunk sizes
     - QualityAgent: Validates and improves chunks
     - CoordinatorAgent: Orchestrates all agents
+    - ChunkEnricher: Adds metadata to chunks (NEW)
     
     Usage:
         chunker = MultiAgentChunker()
-        result = chunker.chunk_text(text)
+        result = chunker.chunk_text(text, document_title="My Document")
         for chunk in result.chunks:
-            print(chunk.text, chunk.quality_score)
+            print(chunk.text, chunk.quality_score, chunk.metadata)
     """
     
     def __init__(self, config: MultiAgentConfig = None):
@@ -192,16 +201,25 @@ class MultiAgentChunker:
         coordinator_config = self.config.to_coordinator_config()
         self.coordinator = CoordinatorAgent(coordinator_config)
         
+        # Initialize chunk enricher for metadata
+        from .metadata import ChunkEnricher, EnricherConfig
+        self.enricher = ChunkEnricher(EnricherConfig(
+            use_llm_keywords=self.config.use_llm,
+            llm_model=self.config.llm_model,
+            model_inference_url=self.config.model_inference_url
+        ))
+        
         logger.info(f"MultiAgentChunker initialized with config: "
                    f"target_size={self.config.target_chunk_size}, "
                    f"quality_threshold={self.config.quality_threshold}")
     
-    def chunk_text(self, text: str) -> ChunkingResult:
+    def chunk_text(self, text: str, document_title: str = None) -> ChunkingResult:
         """
         Chunk text using multi-agent system.
         
         Args:
             text: Input text to chunk
+            document_title: Optional document title for metadata
             
         Returns:
             ChunkingResult with chunks and metrics
@@ -234,16 +252,27 @@ class MultiAgentChunker:
         final_chunks = self._validate_chunks(raw_chunks)
         logger.info(f"Final chunks: {len(final_chunks)}")
         
+        # Step 5: Enrich chunks with metadata (NEW)
+        enriched_chunks = self.enricher.enrich_chunks(
+            final_chunks,
+            document_title=document_title
+        )
+        logger.info(f"Enriched {len(enriched_chunks)} chunks with metadata")
+        
         # Calculate metrics
         total_time = time.time() - start_time
         agent_metrics = self.coordinator.get_all_agent_metrics()
-        quality_summary = self._calculate_quality_summary(final_chunks)
+        quality_summary = self._calculate_quality_summary(enriched_chunks)
+        
+        # Calculate metadata statistics
+        metadata_stats = self.enricher.calculate_stats(enriched_chunks)
         
         return ChunkingResult(
-            chunks=final_chunks,
+            chunks=enriched_chunks,
             total_processing_time=total_time,
             agent_metrics=agent_metrics,
-            quality_summary=quality_summary
+            quality_summary=quality_summary,
+            metadata_stats=metadata_stats.to_dict()
         )
     
     def _initial_segmentation(self, text: str) -> List[Tuple[int, int, str]]:
@@ -331,16 +360,94 @@ class MultiAgentChunker:
                     continue
             
             # Check if segment is too small (< min_size) and merge with previous
-            if len(text_content) < 150 and merged_segments:
+            if len(text_content) < self.config.min_chunk_size and merged_segments:
                 prev_start, prev_end, prev_text = merged_segments[-1]
-                merged_text = prev_text + '\n\n' + text_content
-                merged_segments[-1] = (prev_start, end, merged_text.strip())
-            else:
-                merged_segments.append((start, end, text_content))
+                if len(prev_text) + len(text_content) < self.config.max_chunk_size:
+                    merged_text = prev_text + '\n\n' + text_content
+                    merged_segments[-1] = (prev_start, end, merged_text.strip())
+                    i += 1
+                    continue
             
+            merged_segments.append((start, end, text_content))
             i += 1
         
-        return merged_segments if merged_segments else segments
+        # Second pass: split large segments by paragraphs
+        final_segments = []
+        for start, end, text_content in merged_segments:
+            if len(text_content) > self.config.max_chunk_size:
+                # Split by paragraphs (try both \n\n and single \n)
+                paragraphs = text_content.split('\n\n')
+                if len(paragraphs) == 1:
+                    # No double newlines, try single newlines
+                    paragraphs = text_content.split('\n')
+                
+                current_chunk = []
+                current_size = 0
+                chunk_start = start
+                
+                for para in paragraphs:
+                    para = para.strip()
+                    if not para:
+                        continue
+                    
+                    para_size = len(para)
+                    
+                    # If single paragraph is too large, split by sentences
+                    if para_size > self.config.max_chunk_size:
+                        # Save current chunk first
+                        if current_chunk:
+                            chunk_text = '\n\n'.join(current_chunk)
+                            chunk_end = chunk_start + len(chunk_text)
+                            final_segments.append((chunk_start, chunk_end, chunk_text))
+                            chunk_start = chunk_end
+                            current_chunk = []
+                            current_size = 0
+                        
+                        # Split large paragraph by sentences
+                        sentences = re.split(r'(?<=[.!?])\s+', para)
+                        sent_chunk = []
+                        sent_size = 0
+                        
+                        for sent in sentences:
+                            sent = sent.strip()
+                            if not sent:
+                                continue
+                            sent_len = len(sent)
+                            
+                            if sent_size + sent_len > self.config.max_chunk_size and sent_chunk:
+                                chunk_text = ' '.join(sent_chunk)
+                                chunk_end = chunk_start + len(chunk_text)
+                                final_segments.append((chunk_start, chunk_end, chunk_text))
+                                chunk_start = chunk_end
+                                sent_chunk = [sent]
+                                sent_size = sent_len
+                            else:
+                                sent_chunk.append(sent)
+                                sent_size += sent_len + 1
+                        
+                        if sent_chunk:
+                            current_chunk = [' '.join(sent_chunk)]
+                            current_size = len(current_chunk[0])
+                    # If adding this paragraph exceeds max, save current and start new
+                    elif current_size + para_size > self.config.max_chunk_size and current_chunk:
+                        chunk_text = '\n\n'.join(current_chunk)
+                        chunk_end = chunk_start + len(chunk_text)
+                        final_segments.append((chunk_start, chunk_end, chunk_text))
+                        chunk_start = chunk_end
+                        current_chunk = [para]
+                        current_size = para_size
+                    else:
+                        current_chunk.append(para)
+                        current_size += para_size + 2  # +2 for \n\n
+                
+                # Add remaining
+                if current_chunk:
+                    chunk_text = '\n\n'.join(current_chunk)
+                    final_segments.append((chunk_start, end, chunk_text))
+            else:
+                final_segments.append((start, end, text_content))
+        
+        return final_segments if final_segments else segments
     
     def _find_boundaries(
         self, 
@@ -437,15 +544,95 @@ class MultiAgentChunker:
                 prev_context = text[max(0, start-200):start] if start > 0 else ""
                 next_context = text[end:min(len(text), end+200)] if end < len(text) else ""
                 
-                chunks.append(ChunkCandidate(
-                    text=chunk_text,
-                    start_pos=start,
-                    end_pos=end,
-                    previous_context=prev_context,
-                    next_context=next_context
-                ))
+                # Final enforcement: split chunks that are still too large
+                if len(chunk_text) > self.config.max_chunk_size:
+                    # Split by sentences
+                    sub_chunks = self._split_large_chunk(chunk_text, start)
+                    for sub_start, sub_end, sub_text in sub_chunks:
+                        chunks.append(ChunkCandidate(
+                            text=sub_text,
+                            start_pos=sub_start,
+                            end_pos=sub_end,
+                            previous_context=prev_context,
+                            next_context=next_context
+                        ))
+                else:
+                    chunks.append(ChunkCandidate(
+                        text=chunk_text,
+                        start_pos=start,
+                        end_pos=end,
+                        previous_context=prev_context,
+                        next_context=next_context
+                    ))
         
         return chunks
+    
+    def _split_large_chunk(self, text: str, base_start: int) -> List[Tuple[int, int, str]]:
+        """Split a large chunk by sentences to respect max_chunk_size."""
+        # Try splitting by sentences
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        
+        result = []
+        current_chunk = []
+        current_size = 0
+        chunk_start = base_start
+        
+        for sent in sentences:
+            sent = sent.strip()
+            if not sent:
+                continue
+            
+            sent_len = len(sent)
+            
+            # If single sentence is too large, split by words (last resort)
+            if sent_len > self.config.max_chunk_size:
+                # Save current chunk first
+                if current_chunk:
+                    chunk_text = ' '.join(current_chunk)
+                    chunk_end = chunk_start + len(chunk_text)
+                    result.append((chunk_start, chunk_end, chunk_text))
+                    chunk_start = chunk_end + 1
+                    current_chunk = []
+                    current_size = 0
+                
+                # Split by words
+                words = sent.split()
+                word_chunk = []
+                word_size = 0
+                for word in words:
+                    if word_size + len(word) > self.config.max_chunk_size and word_chunk:
+                        chunk_text = ' '.join(word_chunk)
+                        chunk_end = chunk_start + len(chunk_text)
+                        result.append((chunk_start, chunk_end, chunk_text))
+                        chunk_start = chunk_end + 1
+                        word_chunk = [word]
+                        word_size = len(word)
+                    else:
+                        word_chunk.append(word)
+                        word_size += len(word) + 1
+                
+                if word_chunk:
+                    current_chunk = [' '.join(word_chunk)]
+                    current_size = len(current_chunk[0])
+            elif current_size + sent_len > self.config.max_chunk_size and current_chunk:
+                # Save current and start new
+                chunk_text = ' '.join(current_chunk)
+                chunk_end = chunk_start + len(chunk_text)
+                result.append((chunk_start, chunk_end, chunk_text))
+                chunk_start = chunk_end + 1
+                current_chunk = [sent]
+                current_size = sent_len
+            else:
+                current_chunk.append(sent)
+                current_size += sent_len + 1
+        
+        # Add remaining
+        if current_chunk:
+            chunk_text = ' '.join(current_chunk)
+            chunk_end = chunk_start + len(chunk_text)
+            result.append((chunk_start, chunk_end, chunk_text))
+        
+        return result if result else [(base_start, base_start + len(text), text)]
     
     def _validate_chunks(
         self, 

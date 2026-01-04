@@ -24,6 +24,20 @@ interface ChunkData {
   semanticScore?: number;
   boundaryType?: "natural" | "forced" | "semantic";
   reasoning?: string;
+  // NEW: Enriched metadata fields
+  metadata?: {
+    chunk_id?: string;
+    parent_header?: string | null;
+    section_title?: string | null;
+    header_hierarchy?: string[];
+    keywords?: string[];
+    chunk_type?: string;
+    document_title?: string | null;
+    page_number?: number | null;
+    language?: string;
+    previous_chunk_id?: string | null;
+    next_chunk_id?: string | null;
+  };
 }
 
 interface ChunkVisualizationProps {
@@ -206,10 +220,40 @@ const ChunkVisualization: React.FC<ChunkVisualizationProps> = ({
                         Skor: {chunk.semanticScore.toFixed(3)}
                       </Badge>
                     )}
+                    {/* NEW: Chunk type badge */}
+                    {chunk.metadata?.chunk_type && chunk.metadata.chunk_type !== "content" && (
+                      <Badge variant="secondary" className="text-xs">
+                        {chunk.metadata.chunk_type === "header" && "📑 Başlık"}
+                        {chunk.metadata.chunk_type === "list" && "📋 Liste"}
+                        {chunk.metadata.chunk_type === "table" && "📊 Tablo"}
+                        {chunk.metadata.chunk_type === "code" && "💻 Kod"}
+                        {chunk.metadata.chunk_type === "question" && "❓ Soru"}
+                        {chunk.metadata.chunk_type === "image_caption" && "🖼️ Resim"}
+                      </Badge>
+                    )}
                   </div>
                 </div>
+                {/* NEW: Parent header display */}
+                {chunk.metadata?.parent_header && (
+                  <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
+                    <span className="font-medium">📂 Bölüm:</span>
+                    <span className="text-gray-700">{chunk.metadata.parent_header}</span>
+                  </div>
+                )}
               </CardHeader>
               <CardContent className="space-y-3">
+                {/* NEW: Keywords display */}
+                {chunk.metadata?.keywords && chunk.metadata.keywords.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    <span className="text-xs text-gray-500 mr-1">🏷️ Anahtar Kelimeler:</span>
+                    {chunk.metadata.keywords.map((keyword, kidx) => (
+                      <Badge key={kidx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                        {keyword}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                
                 <div className="text-sm text-gray-700 bg-gray-50 p-3 rounded border-l-4" 
                      style={{ borderLeftColor: getChunkColor(index).includes('red') ? '#ef4444' : 
                                                getChunkColor(index).includes('blue') ? '#3b82f6' :
@@ -456,6 +500,67 @@ const ChunkVisualization: React.FC<ChunkVisualizationProps> = ({
                       </div>
                     )}
                   </div>
+                  
+                  {/* NEW: Metadata section */}
+                  {chunk.metadata && (
+                    <div className="mt-4 p-3 bg-white rounded border">
+                      <div className="text-sm font-medium text-gray-700 mb-2">📋 Metadata:</div>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-gray-500">Bölüm:</span>
+                          <span className="ml-2 font-medium">{chunk.metadata.parent_header || "N/A"}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Chunk Türü:</span>
+                          <span className="ml-2 font-medium">{chunk.metadata.chunk_type || "N/A"}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Dil:</span>
+                          <span className="ml-2 font-medium">{chunk.metadata.language || "N/A"}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Doküman:</span>
+                          <span className="ml-2 font-medium">{chunk.metadata.document_title || "N/A"}</span>
+                        </div>
+                        {chunk.metadata.page_number && (
+                          <div>
+                            <span className="text-gray-500">Sayfa:</span>
+                            <span className="ml-2 font-medium">{chunk.metadata.page_number}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Header hierarchy */}
+                      {chunk.metadata.header_hierarchy && chunk.metadata.header_hierarchy.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <span className="text-gray-500 text-sm">Başlık Hiyerarşisi:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {chunk.metadata.header_hierarchy.map((header, idx) => (
+                              <span key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                {idx > 0 && <span className="text-gray-400 mr-1">›</span>}
+                                {header}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Keywords */}
+                      {chunk.metadata.keywords && chunk.metadata.keywords.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <span className="text-gray-500 text-sm">Anahtar Kelimeler:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {chunk.metadata.keywords.map((keyword, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                {keyword}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   {chunk.reasoning && (
                     <div className="mt-4 p-3 bg-white rounded border">
                       <div className="text-sm font-medium text-gray-700 mb-2">LLM Reasoning:</div>

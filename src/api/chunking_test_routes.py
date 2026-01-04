@@ -707,11 +707,29 @@ async def execute_multi_agent_chunking(
         # Calculate quality metrics
         avg_quality = result.quality_summary.get('avg_quality', 0.0)
         
-        # Build detailed chunks for visualization
+        # Build detailed chunks for visualization with metadata
         detailed_chunks = []
         reasoning_decisions = []
         
         for i, chunk in enumerate(result.chunks):
+            # Extract metadata from chunk (enriched by ChunkEnricher)
+            chunk_metadata = chunk.metadata if hasattr(chunk, 'metadata') and chunk.metadata else {}
+            
+            # Parse JSON fields if they are strings
+            keywords = chunk_metadata.get('keywords_json', '[]')
+            if isinstance(keywords, str):
+                try:
+                    keywords = json.loads(keywords)
+                except:
+                    keywords = []
+            
+            header_hierarchy = chunk_metadata.get('header_hierarchy_json', '[]')
+            if isinstance(header_hierarchy, str):
+                try:
+                    header_hierarchy = json.loads(header_hierarchy)
+                except:
+                    header_hierarchy = []
+            
             detailed_chunks.append({
                 "id": i,
                 "text": chunk.text,
@@ -727,7 +745,21 @@ async def execute_multi_agent_chunking(
                 "quality_decision": chunk.quality_decision,
                 "improvement_iterations": chunk.improvement_iterations,
                 "reasoning": chunk.reasoning,
-                "processing_time": chunk.processing_time
+                "processing_time": chunk.processing_time,
+                # NEW: Enriched metadata fields
+                "metadata": {
+                    "chunk_id": chunk_metadata.get('chunk_id', ''),
+                    "parent_header": chunk_metadata.get('parent_header', '') or None,
+                    "section_title": chunk_metadata.get('section_title', '') or None,
+                    "header_hierarchy": header_hierarchy,
+                    "keywords": keywords,
+                    "chunk_type": chunk_metadata.get('chunk_type', 'content'),
+                    "document_title": chunk_metadata.get('document_title', '') or None,
+                    "page_number": chunk_metadata.get('page_number') if chunk_metadata.get('page_number', -1) >= 0 else None,
+                    "language": chunk_metadata.get('language', 'auto'),
+                    "previous_chunk_id": chunk_metadata.get('previous_chunk_id', '') or None,
+                    "next_chunk_id": chunk_metadata.get('next_chunk_id', '') or None,
+                }
             })
             
             # Add reasoning decision
@@ -758,6 +790,9 @@ async def execute_multi_agent_chunking(
         
         logger.info(f"Multi-agent chunking completed - {chunk_count} chunks, avg_quality: {avg_quality:.3f}")
         
+        # Get metadata statistics from result
+        metadata_stats = result.metadata_stats if hasattr(result, 'metadata_stats') and result.metadata_stats else {}
+        
         return {
             "strategy": "multi_agent",
             "chunks": chunks,
@@ -773,7 +808,9 @@ async def execute_multi_agent_chunking(
             "reasoning_decisions": reasoning_decisions,
             "similarity_analysis": similarity_analysis,
             "agent_metrics": result.agent_metrics,
-            "quality_summary": result.quality_summary
+            "quality_summary": result.quality_summary,
+            # NEW: Metadata statistics
+            "metadata_stats": metadata_stats
         }
         
     except Exception as e:

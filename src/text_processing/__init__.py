@@ -35,6 +35,27 @@ except ImportError as e:
     MultiAgentConfig = None
     ChunkingResult = None
 
+# Metadata Enrichment Components (NEW)
+try:
+    from .metadata import (
+        ChunkMetadata, 
+        EnricherConfig, 
+        MetadataStats,
+        HeaderTracker,
+        KeywordExtractor,
+        ChunkEnricher
+    )
+    METADATA_ENRICHMENT_AVAILABLE = True
+except ImportError as e:
+    print(f"Metadata Enrichment components not available: {e}")
+    METADATA_ENRICHMENT_AVAILABLE = False
+    ChunkMetadata = None
+    EnricherConfig = None
+    MetadataStats = None
+    HeaderTracker = None
+    KeywordExtractor = None
+    ChunkEnricher = None
+
 __all__ = [
     "chunk_text",
     "create_semantic_chunks",
@@ -50,5 +71,13 @@ __all__ = [
     "MultiAgentChunker",
     "MultiAgentConfig",
     "ChunkingResult",
-    "MULTI_AGENT_CHUNKER_AVAILABLE"
+    "MULTI_AGENT_CHUNKER_AVAILABLE",
+    # Metadata Enrichment
+    "ChunkMetadata",
+    "EnricherConfig",
+    "MetadataStats",
+    "HeaderTracker",
+    "KeywordExtractor",
+    "ChunkEnricher",
+    "METADATA_ENRICHMENT_AVAILABLE"
 ]
