@@ -1241,16 +1241,20 @@ async def export_chunking_test_results(test_id: str, format: str = "json", reque
 
 @router.get("/export-pdf/{test_id}", summary="Export Chunking Test Results as PDF")
 async def export_chunking_test_pdf(test_id: str, request: Request = None):
-    """Export chunking test results as PDF file using ReportLab"""
+    """Export chunking test results as comprehensive PDF file with Turkish support"""
     logger.info(f"📄 [PDF EXPORT] Starting PDF export for test_id: {test_id}")
     
     from fastapi.responses import Response
     from reportlab.lib.pagesizes import A4
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import cm
     from reportlab.lib import colors
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
     from io import BytesIO
+    import textwrap
     
     # Basic authentication check
     if request:
@@ -1285,103 +1289,365 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
     
     try:
         logger.info(f"📄 [PDF EXPORT] Creating PDF buffer and document")
+        
+        # Register Turkish-compatible font
+        turkish_font = 'Helvetica'
+        try:
+            font_paths = [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+                "C:/Windows/Fonts/arial.ttf",
+                "/System/Library/Fonts/Helvetica.ttc"
+            ]
+            for font_path in font_paths:
+                if os.path.exists(font_path):
+                    pdfmetrics.registerFont(TTFont('TurkishFont', font_path))
+                    turkish_font = 'TurkishFont'
+                    logger.info(f"📄 [PDF EXPORT] Registered font: {font_path}")
+                    break
+        except Exception as font_error:
+            logger.warning(f"📄 [PDF EXPORT] Font registration failed: {font_error}")
+        
         # Create PDF buffer
         buffer = BytesIO()
         
         # Create PDF document
-        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+        doc = SimpleDocTemplate(
+            buffer, 
+            pagesize=A4, 
+            rightMargin=1.5*cm, 
+            leftMargin=1.5*cm, 
+            topMargin=2*cm, 
+            bottomMargin=2*cm
+        )
         
-        # Get styles
-        styles = getSampleStyleSheet()
+        # Custom styles with Turkish font support
         title_style = ParagraphStyle(
             'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=18,
+            fontName=turkish_font,
+            fontSize=20,
             spaceAfter=30,
-            textColor=colors.HexColor('#1e40af')
+            spaceBefore=20,
+            textColor=colors.HexColor('#1e3a5f'),
+            alignment=TA_CENTER,
+            leading=24
         )
         
-        heading_style = ParagraphStyle(
-            'CustomHeading',
-            parent=styles['Heading2'],
-            fontSize=14,
+        heading1_style = ParagraphStyle(
+            'CustomHeading1',
+            fontName=turkish_font,
+            fontSize=16,
             spaceAfter=12,
-            textColor=colors.HexColor('#1e40af')
+            spaceBefore=20,
+            textColor=colors.HexColor('#1e3a5f'),
+            leading=20
         )
+        
+        heading2_style = ParagraphStyle(
+            'CustomHeading2',
+            fontName=turkish_font,
+            fontSize=13,
+            spaceAfter=8,
+            spaceBefore=14,
+            textColor=colors.HexColor('#2563eb'),
+            leading=16
+        )
+        
+        normal_style = ParagraphStyle(
+            'CustomNormal',
+            fontName=turkish_font,
+            fontSize=10,
+            spaceAfter=6,
+            leading=14,
+            alignment=TA_JUSTIFY
+        )
+        
+        small_style = ParagraphStyle(
+            'CustomSmall',
+            fontName=turkish_font,
+            fontSize=9,
+            spaceAfter=4,
+            leading=12,
+            textColor=colors.HexColor('#4b5563')
+        )
+        
+        chunk_style = ParagraphStyle(
+            'ChunkStyle',
+            fontName=turkish_font,
+            fontSize=9,
+            spaceAfter=8,
+            spaceBefore=4,
+            leading=12,
+            backColor=colors.HexColor('#f8fafc'),
+            leftIndent=5,
+            rightIndent=5
+        )
+        
+        # Helper function to escape XML special characters
+        def escape_xml(text):
+            if not isinstance(text, str):
+                text = str(text)
+            return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
         
         logger.info(f"📄 [PDF EXPORT] Building PDF content")
-        # Build PDF content
         story = []
         
-        # Title
-        story.append(Paragraph("Agentic Chunking Sistemi - Akademik Değerlendirme Raporu", title_style))
-        story.append(Spacer(1, 12))
+        # ===== TITLE PAGE =====
+        story.append(Paragraph("Agentic Chunking Sistemi", title_style))
+        story.append(Paragraph("Akademik Degerlendirme Raporu", heading1_style))
+        story.append(Spacer(1, 30))
         
-        # Test info
-        story.append(Paragraph(f"Test ID: {test_id}", styles['Normal']))
-        story.append(Paragraph(f"Test Adı: {test_data.get('test_name', 'Unnamed Test')}", styles['Normal']))
-        story.append(Paragraph(f"Durum: {test_data.get('status', 'unknown')}", styles['Normal']))
-        story.append(Spacer(1, 12))
+        # Test metadata
+        test_name = escape_xml(test_data.get('test_name', 'Isimsiz Test'))
+        created_at = test_data.get('created_at', test_data.get('start_time', 'Bilinmiyor'))
+        if isinstance(created_at, datetime):
+            created_at = created_at.strftime('%Y-%m-%d %H:%M:%S')
         
-        # Results summary
+        meta_data = [
+            ['Test ID:', test_id],
+            ['Test Adi:', test_name],
+            ['Olusturulma Tarihi:', str(created_at)],
+            ['Durum:', test_data.get('status', 'Bilinmiyor')],
+            ['Rapor Tarihi:', datetime.now().strftime('%Y-%m-%d %H:%M:%S')]
+        ]
+        
+        meta_table = Table(meta_data, colWidths=[4*cm, 12*cm])
+        meta_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), turkish_font),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#6b7280')),
+            ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#1f2937')),
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(meta_table)
+        story.append(Spacer(1, 20))
+        
+        # ===== CONFIGURATION SECTION =====
+        story.append(Paragraph("1. Test Konfigurasyonu", heading1_style))
+        
+        config = test_data.get('configuration', test_data.get('config', {}))
+        if config:
+            config_items = []
+            param_mappings = {
+                'strategies': 'Stratejiler',
+                'chunk_size': 'Chunk Boyutu',
+                'chunk_overlap': 'Overlap',
+                'similarity_threshold': 'Benzerlik Esigi',
+                'llm_reasoning_weight': 'LLM Reasoning Agirligi',
+                'max_chunk_size': 'Maksimum Chunk Boyutu',
+                'min_chunk_size': 'Minimum Chunk Boyutu',
+                'use_semantic_boundaries': 'Semantik Sinirlar',
+                'enable_contextual_merging': 'Baglamsal Birlestirme',
+                'enable_quality_metrics': 'Kalite Metrikleri',
+                'target_size': 'Hedef Boyut',
+                'language': 'Dil'
+            }
+            
+            for key, label in param_mappings.items():
+                value = config.get(key)
+                if value is not None:
+                    if isinstance(value, bool):
+                        value = 'Evet' if value else 'Hayir'
+                    elif isinstance(value, list):
+                        value = ', '.join(str(v) for v in value)
+                    config_items.append([label + ':', str(value)])
+            
+            if config_items:
+                config_table = Table(config_items, colWidths=[5*cm, 11*cm])
+                config_table.setStyle(TableStyle([
+                    ('FONTNAME', (0, 0), (-1, -1), turkish_font),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#6b7280')),
+                    ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e5e7eb')),
+                    ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f9fafb')),
+                ]))
+                story.append(config_table)
+        else:
+            story.append(Paragraph("Konfigurasyon bilgisi bulunamadi.", normal_style))
+        
+        story.append(Spacer(1, 20))
+        
+        # ===== RESULTS SUMMARY =====
+        story.append(Paragraph("2. Sonuc Ozeti", heading1_style))
+        
         results = test_data.get('results', [])
         logger.info(f"📄 [PDF EXPORT] Processing {len(results)} results")
         
         if results:
-            story.append(Paragraph("Sonuçlar Özeti", heading_style))
-            
-            # Create results table
-            table_data = [['Strateji', 'Chunk Sayısı', 'Ortalama Boyut', 'Semantic Coherence', 'Başarı']]
+            # Summary table
+            summary_header = ['Strateji', 'Chunk', 'Ort.Boyut', 'Semantic', 'Boundary', 'Sure', 'Durum']
+            summary_data = [summary_header]
             
             for result in results:
-                table_data.append([
-                    result.get('strategy', 'Unknown'),
-                    str(result.get('chunk_count', 0)),
-                    f"{result.get('avg_chunk_size', 0):.0f}",
-                    f"{result.get('semantic_coherence_score', 0):.2f}",
-                    'Evet' if result.get('success', False) else 'Hayır'
+                strategy = result.get('strategy', 'Bilinmiyor')
+                chunk_count = result.get('chunk_count', len(result.get('chunks', [])))
+                avg_size = result.get('avg_chunk_size', 0)
+                semantic_score = result.get('semantic_coherence_score', 0)
+                boundary_score = result.get('boundary_quality_score', 0)
+                proc_time = result.get('processing_time_ms', 0)
+                success = result.get('success', False)
+                
+                summary_data.append([
+                    strategy,
+                    str(chunk_count),
+                    f"{avg_size:.0f}" if avg_size else "N/A",
+                    f"{semantic_score:.3f}" if semantic_score else "N/A",
+                    f"{boundary_score:.3f}" if boundary_score else "N/A",
+                    f"{proc_time:.0f}ms" if proc_time else "N/A",
+                    'OK' if success else 'FAIL'
                 ])
             
-            table = Table(table_data)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            summary_table = Table(summary_data, colWidths=[2.5*cm, 1.5*cm, 2*cm, 2*cm, 2*cm, 2*cm, 1.5*cm])
+            summary_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), turkish_font),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a5f')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                ('TOPPADDING', (0, 0), (-1, 0), 10),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8fafc')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
             ]))
+            story.append(summary_table)
+            story.append(Spacer(1, 20))
             
-            story.append(table)
-            story.append(Spacer(1, 12))
+            # ===== DETAILED RESULTS FOR EACH STRATEGY =====
+            story.append(Paragraph("3. Strateji Detaylari", heading1_style))
             
-            # Chunk details
-            for i, result in enumerate(results):
-                if result.get('success', False):
-                    story.append(Paragraph(f"{result.get('strategy', 'Unknown')} Stratejisi Detayları", heading_style))
+            for result_idx, result in enumerate(results):
+                strategy = result.get('strategy', 'Bilinmiyor')
+                success = result.get('success', False)
+                
+                story.append(Paragraph(f"3.{result_idx + 1}. {strategy.upper()} Stratejisi", heading2_style))
+                
+                if not success:
+                    error_msg = result.get('error', 'Bilinmeyen hata')
+                    story.append(Paragraph(f"HATA: {escape_xml(error_msg)}", normal_style))
+                    story.append(Spacer(1, 10))
+                    continue
+                
+                # Strategy metrics
+                metrics_data = [
+                    ['Metrik', 'Deger'],
+                    ['Toplam Chunk Sayisi', str(result.get('chunk_count', 0))],
+                    ['Ortalama Chunk Boyutu', f"{result.get('avg_chunk_size', 0):.1f} karakter"],
+                    ['Minimum Chunk Boyutu', f"{result.get('min_chunk_size', 0):.0f} karakter"],
+                    ['Maksimum Chunk Boyutu', f"{result.get('max_chunk_size', 0):.0f} karakter"],
+                    ['Semantic Coherence Score', f"{result.get('semantic_coherence_score', 0):.4f}"],
+                    ['Boundary Quality Score', f"{result.get('boundary_quality_score', 0):.4f}"],
+                    ['Islem Suresi', f"{result.get('processing_time_ms', 0):.2f} ms"],
+                ]
+                
+                # Add reasoning decisions if available
+                reasoning_decisions = result.get('reasoning_decisions', [])
+                if reasoning_decisions:
+                    split_count = sum(1 for d in reasoning_decisions if d.get('decision') == 'SPLIT')
+                    merge_count = sum(1 for d in reasoning_decisions if d.get('decision') == 'MERGE')
+                    avg_conf = sum(d.get('confidence', 0) for d in reasoning_decisions) / len(reasoning_decisions) if reasoning_decisions else 0
                     
-                    chunks = result.get('chunks', [])
-                    story.append(Paragraph(f"Toplam {len(chunks)} chunk oluşturuldu.", styles['Normal']))
+                    metrics_data.extend([
+                        ['Toplam Boundary Karari', str(len(reasoning_decisions))],
+                        ['SPLIT Kararlari', str(split_count)],
+                        ['MERGE Kararlari', str(merge_count)],
+                        ['Ortalama Confidence', f"{avg_conf:.3f}"],
+                    ])
+                
+                metrics_table = Table(metrics_data, colWidths=[6*cm, 10*cm])
+                metrics_table.setStyle(TableStyle([
+                    ('FONTNAME', (0, 0), (-1, -1), turkish_font),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e0e7ff')),
+                    ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+                    ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#c7d2fe')),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ]))
+                story.append(metrics_table)
+                story.append(Spacer(1, 15))
+                
+                # ===== ALL CHUNKS (Full content) =====
+                chunks = result.get('chunks', [])
+                if chunks:
+                    story.append(Paragraph(f"Olusturulan Chunklar ({len(chunks)} adet)", heading2_style))
                     
-                    # Show first few chunks as examples
-                    for j, chunk in enumerate(chunks[:3]):
-                        story.append(Paragraph(f"Chunk {j+1}:", styles['Heading3']))
-                        # Truncate long chunks
-                        chunk_text = chunk[:200] + "..." if len(chunk) > 200 else chunk
-                        story.append(Paragraph(chunk_text, styles['Normal']))
+                    for chunk_idx, chunk in enumerate(chunks):
+                        # Get chunk text
+                        if isinstance(chunk, dict):
+                            chunk_text = chunk.get('text', chunk.get('content', str(chunk)))
+                        else:
+                            chunk_text = str(chunk)
+                        
+                        # Escape XML characters
+                        chunk_text = escape_xml(chunk_text)
+                        
+                        # Calculate chunk stats
+                        char_count = len(chunk_text)
+                        word_count = len(chunk_text.split())
+                        
+                        # Chunk header
+                        chunk_header = f"<b>Chunk {chunk_idx + 1}</b> | {char_count} karakter | {word_count} kelime"
+                        story.append(Paragraph(chunk_header, small_style))
+                        
+                        # Full chunk content
+                        if len(chunk_text) > 3000:
+                            wrapped_text = textwrap.fill(chunk_text, width=100)
+                            story.append(Paragraph(wrapped_text, chunk_style))
+                        else:
+                            story.append(Paragraph(chunk_text, chunk_style))
+                        
+                        story.append(Spacer(1, 8))
+                        
+                        # Page break every 8 chunks
+                        if (chunk_idx + 1) % 8 == 0 and chunk_idx < len(chunks) - 1:
+                            story.append(PageBreak())
+                    
+                    story.append(Spacer(1, 15))
+                
+                # ===== REASONING DECISIONS =====
+                if reasoning_decisions:
+                    story.append(PageBreak())
+                    story.append(Paragraph(f"Agentic Reasoning Kararlari ({len(reasoning_decisions)} adet)", heading2_style))
+                    
+                    for dec_idx, decision in enumerate(reasoning_decisions):
+                        dec_type = decision.get('decision', 'UNKNOWN')
+                        confidence = decision.get('confidence', 0)
+                        reasoning = escape_xml(decision.get('reasoning', 'Aciklama yok'))
+                        semantic_coh = decision.get('semantic_coherence', 0)
+                        topic_cont = decision.get('topic_continuity', 0)
+                        
+                        dec_color = '#22c55e' if dec_type == 'MERGE' else '#ef4444'
+                        
+                        dec_header = f"<b>Karar {dec_idx + 1}:</b> <font color='{dec_color}'>{dec_type}</font> | Conf: {confidence:.2f} | Sem: {semantic_coh:.2f} | Topic: {topic_cont:.2f}"
+                        story.append(Paragraph(dec_header, small_style))
+                        story.append(Paragraph(f"<i>{reasoning}</i>", small_style))
                         story.append(Spacer(1, 6))
-                    
-                    if len(chunks) > 3:
-                        story.append(Paragraph(f"... ve {len(chunks) - 3} chunk daha", styles['Italic']))
-                    
-                    story.append(Spacer(1, 12))
+                        
+                        if (dec_idx + 1) % 15 == 0 and dec_idx < len(reasoning_decisions) - 1:
+                            story.append(PageBreak())
+                
+                story.append(PageBreak())
+        
         else:
             logger.warning(f"⚠️ [PDF EXPORT] No results found for test {test_id}")
-            story.append(Paragraph("Henüz sonuç bulunmuyor.", styles['Normal']))
+            story.append(Paragraph("Henuz sonuc bulunmuyor.", normal_style))
         
-        logger.info(f"📄 [PDF EXPORT] Building PDF document")
+        # ===== FOOTER =====
+        story.append(Spacer(1, 30))
+        story.append(Paragraph(
+            f"Bu rapor Agentic Chunking Test Sistemi tarafindan otomatik olusturulmustur. | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            small_style
+        ))
+        
+        logger.info(f"📄 [PDF EXPORT] Building PDF document with {len(story)} elements")
+        
         # Build PDF
         doc.build(story)
         
@@ -1392,13 +1658,14 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
         logger.info(f"✅ [PDF EXPORT] PDF created successfully, size: {len(pdf_bytes)} bytes")
         
         # Return PDF as response
-        filename = f"chunking_test_report_{test_id[:8]}.pdf"
+        filename = f"chunking_report_{test_id[:8]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f"attachment; filename={filename}"
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Type": "application/pdf"
             }
         )
         

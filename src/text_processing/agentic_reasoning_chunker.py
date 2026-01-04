@@ -2,26 +2,28 @@
 Agentic Reasoning-Based Chunking Strategy
 =========================================
 
-This module implements an advanced chunking strategy that leverages Grok 3 8B model for intelligent 
-semantic boundary detection and paragraph grouping. The system builds upon the existing RAG architecture 
-while introducing sophisticated reasoning capabilities for optimal chunk creation in Turkish documents.
+This module implements an advanced chunking strategy that leverages LLM reasoning for intelligent 
+semantic boundary detection and paragraph grouping. The system is language-agnostic and focuses
+on universal structural and semantic patterns.
 
 Core Principles:
-1. Never break sentences in the middle (kesinlikle cümleyi bölmemelisin)
-2. Seamless chunk transitions (bir chunkın bittiği yerden diğer chunk başlamalı)
-3. Header preservation with content (başlıkları chunk içinde tutmak)
+1. Atomic Unit Preservation - Never break code blocks, tables, diagrams, formulas
+2. List and Hierarchy Integrity - Keep sequential items and heading structures together
+3. Referential Integrity - Maintain cross-references within same chunk
+4. Semantic Coherence - Group conceptually related content
+5. Intelligent Size Management - Allow overflow for coherence, force merge for fragments
 
 Key Features:
 - Sequential markdown paragraph processing
 - Semantic similarity analysis using embeddings
-- Grok 3 8B reasoning for boundary detection
-- Turkish language optimization
+- LLM reasoning for boundary detection (Groq Llama 3.1 8B)
+- Language-agnostic design
 - Fallback to existing chunking strategies
 - Performance optimization with caching and batch processing
 
 Author: Agentic Reasoning Chunking Implementation
-Version: 1.0
-Date: 2025-12-30
+Version: 2.0 (Global/Semantic Focus)
+Date: 2026-01-04
 """
 
 import re
@@ -1029,65 +1031,118 @@ class SequentialMarkdownProcessor:
         return 0
 
 
-class TurkishReasoningPrompts:
+class SemanticReasoningPrompts:
     """
-    Turkish-optimized reasoning prompts for Grok 3 8B boundary detection.
+    Language-agnostic semantic reasoning prompts for intelligent boundary detection.
     
-    These prompts are specifically designed for Turkish language patterns and
-    educational content structure common in Turkish documents.
+    Focuses on universal structural and semantic patterns that apply across all languages.
     """
     
     def create_boundary_detection_prompt(self, context: ReasoningContext) -> str:
-        """Create a boundary detection prompt optimized for Turkish content with enhanced list structure awareness."""
+        """Create a semantic boundary detection prompt focused on structural and conceptual coherence."""
         context_data = context.to_prompt_context()
         
-        return f"""Sen Türkçe metin analizi konusunda uzman bir yapay zeka asistanısın.
-Görevin, iki paragraf grubu arasında anlamsal sınır olup olmadığını belirlemek.
+        return f"""You are a RAG (Retrieval-Augmented Generation) and semantic chunking expert.
+Your task: Determine if there should be a semantic boundary (SPLIT) or continuation (MERGE) between two content groups.
 
-BAĞLAM:
-Grup 1: {context_data['current_summary']}
-Grup 2: {context_data['next_summary']}
-Bölüm Yolu: {context_data['section_path']}
+CONTEXT:
+Group 1: {context_data['current_summary']}
+Group 2: {context_data['next_summary']}
+Section Path: {context_data['section_path']}
 
-KRİTİK KURAL - LİSTE YAPILARI:
-- a), b), c) gibi sıralı liste öğeleri ASLA farklı chunk'lara ayrılmamalı
-- 1), 2), 3) gibi numaralı liste öğeleri birlikte kalmalı
-- "Birinci", "İkinci", "Üçüncü" gibi sıralı ifadeler aynı chunk'ta olmalı
-- Alt başlıklar (a, b, c) ana başlıkla birlikte kalmalı
-- Eğer Grup 1 "a)" ile bitiyorsa ve Grup 2 "b)" ile başlıyorsa, MUTLAKA MERGE karar ver
+═══════════════════════════════════════════════════════════════
+RULE 1: ATOMIC UNITS (Never Split)
+═══════════════════════════════════════════════════════════════
+These structural blocks must stay intact as single units:
+- Code blocks (```, <code>, indented code)
+- Tables (<table>, markdown tables |---|)
+- Diagrams (mermaid, plantuml, ascii art)
+- Mathematical formulas (LaTeX, MathML)
+- Blockquotes with citations
 
-KONU GEÇİŞİ GÖSTERGELERİ:
-- Yeni bir ana konu başlangıcı (ama liste devamı değilse)
-- Farklı kavramsal alan (liste yapısı dışında)
-- Zaman/mekan değişimi
-- Sebep-sonuç ilişkisi değişimi
-- Başlık değişimi (ama alt liste öğeleri değilse)
+If an atomic unit exceeds size limits, split at logical sub-boundaries:
+- Table: split at row groups
+- Code: split at function/class boundaries
+- Diagram: split at subgraph/section
 
-KARAR KRİTERLERİ:
-1. Liste yapısı sürekliliği (EN ÖNEMLİ - 0-1)
-2. Anlamsal tutarlılık (0-1)
-3. Konu sürekliliği (0-1)
-4. Türkçe dil akışı (0-1)
-5. Bağlam korunması (0-1)
+═══════════════════════════════════════════════════════════════
+RULE 2: LIST AND HIERARCHY INTEGRITY
+═══════════════════════════════════════════════════════════════
+Sequential items MUST stay together:
+- Ordered lists: 1), 2), 3) or a), b), c) or i), ii), iii)
+- Bullet points under same parent
+- Numbered steps in procedures
+- Definition lists (term: definition pairs)
 
-ÖZEL DURUMLAR:
-- Eğer içerikte "a)", "b)", "c)" veya "1)", "2)", "3)" gibi sıralı öğeler varsa, bunlar MUTLAKA aynı chunk'ta kalmalı
-- "Mayoz I Evreleri: a) Çekirdek bölünmesi" ve "b) Sitoplazma bölünmesi" gibi durumlar ASLA ayrılmamalı
-- Eğitim materyallerinde liste öğeleri her zaman birlikte tutulmalı
+Heading hierarchy rules:
+- H1 → H2 transition: Usually SPLIT (new major section)
+- H2 → H3 transition: Usually MERGE (subsection belongs to parent)
+- Never separate a heading from its immediate content
 
-Lütfen yanıtını JSON formatında ver. JSON yapısı şu şekilde olmalı:
+═══════════════════════════════════════════════════════════════
+RULE 3: REFERENTIAL INTEGRITY
+═══════════════════════════════════════════════════════════════
+Keep references with their targets:
+- "The following table/figure/code shows..."
+- "As shown above/below..."
+- "See Figure X / Table Y / Example Z"
+- "In the previous/next section..."
+- Variable references (t1, t2, x, y mentioned earlier)
 
-```json
+The referring paragraph and referenced content = same chunk.
+
+═══════════════════════════════════════════════════════════════
+RULE 4: SEMANTIC BOUNDARY INDICATORS (When to SPLIT)
+═══════════════════════════════════════════════════════════════
+Strong SPLIT signals:
+- New major topic introduction
+- Conceptual domain shift
+- Time/location/perspective change
+- Cause-effect relationship break
+- New chapter/section beginning
+- Transition phrases: "Now let's discuss...", "Moving on to...", "In contrast..."
+
+Weak/No SPLIT signals (prefer MERGE):
+- Continuation of same concept
+- Examples following explanation
+- Details elaborating on previous point
+- Consecutive list items
+- Nested content under parent
+
+═══════════════════════════════════════════════════════════════
+RULE 5: SIZE AND CONTEXT OPTIMIZATION
+═══════════════════════════════════════════════════════════════
+- If confidence < 0.6: Add last 2 sentences of previous chunk as context bridge
+- If resulting chunk < 200 chars: Force MERGE with previous
+- If chunk > max_size but atomic: Allow overflow up to 30%
+- Prefer slightly larger coherent chunks over fragmented small ones
+
+═══════════════════════════════════════════════════════════════
+DECISION CRITERIA (Score 0.0 - 1.0)
+═══════════════════════════════════════════════════════════════
+1. structural_integrity: Are atomic units preserved?
+2. semantic_coherence: Do groups share the same concept/topic?
+3. topic_continuity: Is there logical flow between groups?
+4. reference_preservation: Are cross-references maintained?
+5. hierarchy_respect: Is heading/list structure honored?
+
+DECISION LOGIC:
+- If list continuation detected → MERGE (confidence: 0.95)
+- If atomic unit would break → MERGE (confidence: 0.95)
+- If reference would break → MERGE (confidence: 0.90)
+- If new H1/H2 section → SPLIT (confidence: 0.85)
+- If topic shift detected → SPLIT (confidence: 0.75)
+- If uncertain → MERGE (confidence: 0.60)
+
+Respond ONLY with valid JSON:
 {{
-    "boundary_decision": "MERGE",
-    "confidence": 0.9,
-    "reasoning": "Kararının detaylı açıklaması - özellikle liste yapısı analizi",
-    "semantic_coherence": 0.8,
-    "topic_continuity": 0.9
-}}
-```
-
-ÖNEMLI: Yanıtın sadece geçerli JSON olmalı, başka metin ekleme."""
+    "boundary_decision": "MERGE or SPLIT",
+    "confidence": 0.0-1.0,
+    "reasoning": "Detailed explanation citing which rule(s) applied",
+    "dominant_rule": "ATOMIC_UNIT | LIST_INTEGRITY | REFERENCE | TOPIC_SHIFT | HIERARCHY | SIZE",
+    "semantic_coherence": 0.0-1.0,
+    "topic_continuity": 0.0-1.0
+}}"""
 
 
 class GrokReasoningEngine:
@@ -1102,7 +1157,7 @@ class GrokReasoningEngine:
         self.config = config
         self.model_inference_url = config.model_inference_url
         self.model_name = config.grok_model_name
-        self.prompt_templates = TurkishReasoningPrompts()
+        self.prompt_templates = SemanticReasoningPrompts()
         self.cache = get_cache(ttl=1800) if config.enable_caching else None  # 30 min cache
         
     def detect_semantic_boundaries(self, paragraph_groups: List[SimilarityGroup]) -> List[BoundaryDecision]:
@@ -1140,8 +1195,8 @@ class GrokReasoningEngine:
             section_path = current_group.paragraphs[0].metadata.get('section_path', [])
             section_hierarchy = section_path if isinstance(section_path, list) else []
         
-        # Analyze Turkish language features
-        turkish_features = self._analyze_turkish_features(current_group, next_group)
+        # Analyze structural features (language-agnostic)
+        structural_features = self._analyze_structural_features(current_group, next_group)
         
         # Create document context
         document_context = self._create_document_context(current_group, next_group)
@@ -1151,29 +1206,80 @@ class GrokReasoningEngine:
             next_group=next_group,
             document_context=document_context,
             section_hierarchy=section_hierarchy,
-            turkish_language_features=turkish_features
+            turkish_language_features=structural_features  # Keep field name for compatibility
         )
     
-    def _analyze_turkish_features(self, group1: SimilarityGroup, group2: SimilarityGroup) -> Dict[str, Any]:
-        """Analyze Turkish language features for reasoning context."""
+    def _analyze_structural_features(self, group1: SimilarityGroup, group2: SimilarityGroup) -> Dict[str, Any]:
+        """Analyze structural features for reasoning context (language-agnostic)."""
         features = {
-            'transition_words': [],
-            'sentence_patterns': [],
-            'topic_indicators': []
+            'transition_indicators': [],
+            'structural_patterns': [],
+            'list_continuity': False,
+            'atomic_unit_detected': False,
+            'reference_detected': False
         }
         
-        # Turkish transition words that indicate topic changes
-        turkish_transitions = [
-            'sonuç olarak', 'bu nedenle', 'öte yandan', 'diğer taraftan',
-            'ayrıca', 'dahası', 'bunun yanında', 'ancak', 'fakat'
+        if not group2.paragraphs:
+            return features
+        
+        first_text = group2.paragraphs[0].text
+        last_text = group1.paragraphs[-1].text if group1.paragraphs else ""
+        
+        # Detect list continuity patterns (language-agnostic)
+        list_patterns = [
+            r'^[a-z]\)',           # a), b), c)
+            r'^[A-Z]\)',           # A), B), C)
+            r'^\d+\)',             # 1), 2), 3)
+            r'^\d+\.',             # 1., 2., 3.
+            r'^[ivxIVX]+\)',       # i), ii), iii) or I), II), III)
+            r'^[-•●○◦▪▸►]\s',     # Bullet points
+            r'^\*\s',              # Markdown bullets
         ]
         
-        # Check for transition words in group boundaries
-        if group2.paragraphs:
-            first_text = group2.paragraphs[0].text.lower()
-            for transition in turkish_transitions:
-                if transition in first_text:
-                    features['transition_words'].append(transition)
+        import re
+        for pattern in list_patterns:
+            if re.match(pattern, first_text.strip()):
+                features['list_continuity'] = True
+                features['structural_patterns'].append('list_item')
+                break
+        
+        # Detect atomic units
+        atomic_indicators = ['```', '<code', '<table', '<mermaid', '\\begin{', '$$$']
+        for indicator in atomic_indicators:
+            if indicator in first_text or indicator in last_text:
+                features['atomic_unit_detected'] = True
+                features['structural_patterns'].append('atomic_unit')
+                break
+        
+        # Detect cross-references (language-agnostic patterns)
+        reference_patterns = [
+            r'(?:above|below|following|previous|next)',
+            r'(?:figure|table|example|section|chapter)\s*\d+',
+            r'(?:see|refer|shown)\s+(?:in|to|above|below)',
+            r'(?:yukarıda|aşağıda|şekil|tablo|örnek)',  # Keep some Turkish for backward compat
+        ]
+        
+        combined_text = (first_text + " " + last_text).lower()
+        for pattern in reference_patterns:
+            if re.search(pattern, combined_text, re.IGNORECASE):
+                features['reference_detected'] = True
+                features['structural_patterns'].append('cross_reference')
+                break
+        
+        # Detect transition phrases (multi-language)
+        transition_phrases = [
+            # English
+            'however', 'therefore', 'furthermore', 'moreover', 'in contrast',
+            'on the other hand', 'as a result', 'consequently', 'nevertheless',
+            'in conclusion', 'to summarize', 'moving on', 'next we',
+            # Common patterns
+            'but', 'yet', 'so', 'thus', 'hence'
+        ]
+        
+        first_words = first_text.lower()[:100]
+        for phrase in transition_phrases:
+            if phrase in first_words:
+                features['transition_indicators'].append(phrase)
         
         return features
     
@@ -1183,13 +1289,13 @@ class GrokReasoningEngine:
         
         # Add section information
         if group1.paragraphs and group1.paragraphs[0].section_context:
-            context_parts.append(f"Bölüm: {group1.paragraphs[0].section_context}")
+            context_parts.append(f"Section: {group1.paragraphs[0].section_context}")
         
         # Add paragraph types
         types1 = set(p.paragraph_type for p in group1.paragraphs)
         types2 = set(p.paragraph_type for p in group2.paragraphs)
-        context_parts.append(f"Grup 1 türleri: {', '.join(types1)}")
-        context_parts.append(f"Grup 2 türleri: {', '.join(types2)}")
+        context_parts.append(f"Group 1 types: {', '.join(types1)}")
+        context_parts.append(f"Group 2 types: {', '.join(types2)}")
         
         return " | ".join(context_parts)
     
@@ -1269,10 +1375,13 @@ class GrokReasoningEngine:
                 return BoundaryDecision(
                     decision=data.get("boundary_decision", "MERGE"),
                     confidence=float(data.get("confidence", 0.5)),
-                    reasoning=data.get("reasoning", "Grok reasoning response"),
+                    reasoning=data.get("reasoning", "LLM reasoning response"),
                     semantic_coherence=float(data.get("semantic_coherence", 0.5)),
                     topic_continuity=float(data.get("topic_continuity", 0.5)),
-                    metadata={"raw_response": response}
+                    metadata={
+                        "raw_response": response,
+                        "dominant_rule": data.get("dominant_rule", "UNKNOWN")
+                    }
                 )
             else:
                 # Fallback parsing

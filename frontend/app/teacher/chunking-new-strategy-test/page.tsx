@@ -76,7 +76,7 @@ import TestResultsDashboard from "./components/TestResultsDashboard";
 import TestScenarioLibrary from "./components/TestScenarioLibrary";
 import InteractiveTutorial from "./components/InteractiveTutorial";
 import SampleContentGenerator from "./components/SampleContentGenerator";
-import QuickStartWizard from "./components/QuickStartWizard";
+// QuickStartWizard kaldırıldı - yerine inline text yapıştırma alanı eklendi
 import BestPracticesGuide from "./components/BestPracticesGuide";
 import AutomatedEvaluationEngine from "./components/AutomatedEvaluationEngine";
 import QualityAssessmentPanel from "./components/QualityAssessmentPanel";
@@ -201,7 +201,6 @@ export default function ChunkingNewStrategyTestPage() {
   const [evaluationResults, setEvaluationResults] = useState<any>(null);
   const [qualityAssessment, setQualityAssessment] = useState<any>(null);
   const [automatedEvaluationTab, setAutomatedEvaluationTab] = useState("engine");
-  const [wizardData, setWizardData] = useState<any>({});
 
   const [agenticDecisionFilter, setAgenticDecisionFilter] = useState<
     "all" | "SPLIT" | "MERGE"
@@ -1108,10 +1107,76 @@ export default function ChunkingNewStrategyTestPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Hızlı Başlangıç Rehberi</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Hızlı Test - Metin Yapıştır
+                  </CardTitle>
+                  <CardDescription>
+                    Metninizi buraya yapıştırın ve hemen chunking testi yapın
+                  </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <QuickStartWizard onComplete={(data) => setWizardData(data)} />
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="quickTestName">Test Adı</Label>
+                    <Input
+                      id="quickTestName"
+                      placeholder="Örn: Akademik Makale Testi"
+                      value={config.testName}
+                      onChange={(e) => setConfig(prev => ({ ...prev, testName: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="quickTestText">Metin İçeriği</Label>
+                    <Textarea
+                      id="quickTestText"
+                      placeholder="Test etmek istediğiniz metni buraya yapıştırın..."
+                      className="min-h-[200px] font-mono text-sm"
+                      onChange={(e) => {
+                        const text = e.target.value;
+                        if (text.trim()) {
+                          const file = createTextFile(config.testName || "quick-test", text);
+                          setConfig(prev => ({ ...prev, file }));
+                        } else {
+                          setConfig(prev => ({ ...prev, file: null }));
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-gray-500">
+                      Yapıştırdığınız metin otomatik olarak dosyaya dönüştürülür
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (!config.testName.trim()) {
+                          toast.error("Lütfen bir test adı girin");
+                          return;
+                        }
+                        if (!config.file) {
+                          toast.error("Lütfen test edilecek metin girin");
+                          return;
+                        }
+                        startChunkingTest();
+                      }}
+                      disabled={isRunning || !config.file || !config.testName.trim()}
+                      className="flex-1"
+                    >
+                      {isRunning ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Çalışıyor...</>
+                      ) : (
+                        <><Zap className="mr-2 h-4 w-4" /> Hızlı Test Başlat</>
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setActiveTab("configuration")}
+                    >
+                      <Settings className="mr-2 h-4 w-4" />
+                      Detaylı Ayarlar
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
               <Card>
