@@ -1,0 +1,4 @@
+# file: C:\Users\Engin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\colorlog\wrappers.py
+# hypothesis_version: 6.148.11
+
+['%', 'CRITICAL', 'DEBUG', 'ERROR', 'FATAL', 'INFO', 'NOTSET', 'StreamHandler', 'WARN', 'WARNING', 'basicConfig', 'critical', 'debug', 'error', 'exception', 'getLogger', 'info', 'log', 'root', 'stream', 'warning']

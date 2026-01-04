@@ -2860,3 +2860,560 @@ async def update_chunking_test(
         "test_id": test_id,
         "updated_fields": list(request_data.keys())
     }
+
+
+# ===== EVALUATION API ENDPOINTS =====
+# Requirements: 1.1, 2.3, 3.5, 4.1
+
+@router.get("/evaluate/{test_id}", summary="Full Evaluation of Chunking Test")
+async def evaluate_chunking_test(test_id: str, request: Request = None) -> Dict[str, Any]:
+    """
+    Get comprehensive evaluation of chunking test with all metrics.
+    
+    Returns:
+    - Similarity analysis (intra-chunk, inter-chunk, topic separation)
+    - Scientific metrics (HOPE, Topic Drift, Context Preservation, etc.)
+    - Agent performance scores (Structural, Semantic, Size, Quality)
+    - Overall quality comparison
+    
+    Requirements: 1.1, 2.3, 3.5
+    """
+    logger.info(f"📊 [EVALUATION] Starting full evaluation for test_id: {test_id}")
+    
+    # Authentication check
+    current_user = _get_current_user(request)
+    if not (_is_teacher(current_user) or _is_admin(current_user)):
+        raise HTTPException(status_code=403, detail="Teacher or admin access required")
+    
+    # Load test data
+    test_data = CHUNKING_TEST_RESULTS_STORAGE.get(test_id)
+    if not test_data:
+        test_data = _load_chunking_test_from_db(test_id)
+        if test_data:
+            CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
+    
+    if not test_data:
+        raise HTTPException(status_code=404, detail="Chunking test not found")
+    
+    try:
+        from src.evaluation import (
+            SimilarityAnalyzer, 
+            ScientificMetricCalculator,
+            AgentEvaluator,
+            ChunkData,
+            ChunkingConfig
+        )
+        
+        # Extract chunks from test data
+        results = test_data.get("results", [])
+        if not results:
+            raise HTTPException(status_code=400, detail="No results found in test data")
+        
+        # Get traditional and multi-agent chunks
+        traditional_chunks = []
+        multi_agent_chunks = []
+        original_text = ""
+        
+        for result in results:
+            original_text = result.get("original_text", "")
+            
+            # Traditional chunks
+            trad_data = result.get("traditional", {})
+            for chunk in trad_data.get("chunks", []):
+                if isinstance(chunk, dict):
+                    traditional_chunks.append(chunk.get("text", chunk.get("content", "")))
+                else:
+                    traditional_chunks.append(str(chunk))
+            
+            # Multi-agent chunks
+            multi_data = result.get("multi_agent", {})
+            for chunk in multi_data.get("chunks", []):
+                if isinstance(chunk, dict):
+                    multi_agent_chunks.append(chunk.get("text", chunk.get("content", "")))
+                else:
+                    multi_agent_chunks.append(str(chunk))
+        
+        # Initialize analyzers
+        similarity_analyzer = SimilarityAnalyzer()
+        scientific_calculator = ScientificMetricCalculator()
+        agent_evaluator = AgentEvaluator()
+        
+        # Similarity Analysis
+        logger.info(f"📊 [EVALUATION] Calculating similarity metrics...")
+        traditional_similarity = similarity_analyzer.analyze_strategy(traditional_chunks)
+        multi_agent_similarity = similarity_analyzer.analyze_strategy(multi_agent_chunks)
+        
+        # Scientific Metrics
+        logger.info(f"📊 [EVALUATION] Calculating scientific metrics...")
+        traditional_scientific = scientific_calculator.calculate_all_metrics(traditional_chunks)
+        multi_agent_scientific = scientific_calculator.calculate_all_metrics(multi_agent_chunks)
+        
+        # Agent Evaluation (for multi-agent only)
+        logger.info(f"📊 [EVALUATION] Evaluating agent performance...")
+        
+        # Convert to ChunkData format
+        chunk_data_list = []
+        for result in results:
+            multi_data = result.get("multi_agent", {})
+            for i, chunk in enumerate(multi_data.get("chunks", [])):
+                if isinstance(chunk, dict):
+                    chunk_data_list.append(ChunkData(
+                        content=chunk.get("text", chunk.get("content", "")),
+                        char_count=chunk.get("char_count", len(chunk.get("text", ""))),
+                        word_count=chunk.get("word_count", len(chunk.get("text", "").split())),
+                        boundary_type=chunk.get("boundary_type", "unknown"),
+                        quality_score=chunk.get("quality_score", 0.0)
+                    ))
+        
+        config = ChunkingConfig(
+            target_chunk_size=test_data.get("config", {}).get("target_chunk_size", 1500),
+            min_chunk_size=test_data.get("config", {}).get("min_chunk_size", 500),
+            max_chunk_size=test_data.get("config", {}).get("max_chunk_size", 3000)
+        )
+        
+        agent_evaluation = agent_evaluator.evaluate_all(
+            chunks=chunk_data_list,
+            original_text=original_text,
+            config=config
+        )
+        
+        # Calculate improvements
+        def calc_improvement(trad, multi):
+            if trad == 0:
+                return 100.0 if multi > 0 else 0.0
+            return ((multi - trad) / trad) * 100
+        
+        improvements = {
+            "intra_chunk_similarity": calc_improvement(
+                traditional_similarity.intra_chunk_similarity,
+                multi_agent_similarity.intra_chunk_similarity
+            ),
+            "topic_separation": calc_improvement(
+                traditional_similarity.topic_separation_score,
+                multi_agent_similarity.topic_separation_score
+            ),
+            "overall_quality": calc_improvement(
+                traditional_scientific.overall_quality_index,
+                multi_agent_scientific.overall_quality_index
+            )
+        }
+        
+        logger.info(f"✅ [EVALUATION] Evaluation completed for test {test_id}")
+        
+        return {
+            "success": True,
+            "test_id": test_id,
+            "evaluation": {
+                "similarity_analysis": {
+                    "traditional": traditional_similarity.to_dict(),
+                    "multi_agent": multi_agent_similarity.to_dict()
+                },
+                "scientific_metrics": {
+                    "traditional": traditional_scientific.to_dict(),
+                    "multi_agent": multi_agent_scientific.to_dict()
+                },
+                "agent_evaluation": agent_evaluation.to_dict(),
+                "improvements": improvements
+            },
+            "summary": {
+                "traditional_quality": traditional_scientific.overall_quality_index,
+                "multi_agent_quality": multi_agent_scientific.overall_quality_index,
+                "overall_improvement_pct": improvements["overall_quality"],
+                "winner": "multi_agent" if improvements["overall_quality"] > 0 else "traditional"
+            }
+        }
+        
+    except ImportError as e:
+        logger.error(f"❌ [EVALUATION] Import error: {e}")
+        raise HTTPException(status_code=500, detail=f"Evaluation module not available: {str(e)}")
+    except Exception as e:
+        logger.error(f"❌ [EVALUATION] Failed to evaluate test: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to evaluate chunking test: {str(e)}")
+
+
+@router.get("/export-zip/{test_id}", summary="Export Chunking Test as ZIP")
+async def export_chunking_test_zip(test_id: str, request: Request = None):
+    """
+    Export chunking test results as ZIP archive.
+    
+    ZIP Structure:
+    - traditional/ folder with chunk files
+    - multi_agent/ folder with chunk files
+    - metadata.json
+    - comparison_report.md
+    
+    Requirements: 1.2
+    """
+    from fastapi.responses import Response
+    
+    logger.info(f"📦 [ZIP EXPORT] Starting ZIP export for test_id: {test_id}")
+    
+    # Authentication check
+    current_user = _get_current_user(request)
+    if not (_is_teacher(current_user) or _is_admin(current_user)):
+        raise HTTPException(status_code=403, detail="Teacher or admin access required")
+    
+    # Load test data
+    test_data = CHUNKING_TEST_RESULTS_STORAGE.get(test_id)
+    if not test_data:
+        test_data = _load_chunking_test_from_db(test_id)
+        if test_data:
+            CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
+    
+    if not test_data:
+        raise HTTPException(status_code=404, detail="Chunking test not found")
+    
+    try:
+        from src.evaluation import ChunkExportManager, ComparisonReportGenerator, StrategyMetrics
+        
+        exporter = ChunkExportManager()
+        report_generator = ComparisonReportGenerator()
+        
+        # Extract chunks
+        results = test_data.get("results", [])
+        traditional_chunks = []
+        multi_agent_chunks = []
+        
+        for result in results:
+            traditional_chunks.extend(result.get("traditional", {}).get("chunks", []))
+            multi_agent_chunks.extend(result.get("multi_agent", {}).get("chunks", []))
+        
+        # Generate comparison report
+        trad_metrics = StrategyMetrics(
+            chunk_count=len(traditional_chunks),
+            avg_chunk_size=sum(c.get("char_count", 0) for c in traditional_chunks) / max(len(traditional_chunks), 1),
+            total_chars=sum(c.get("char_count", 0) for c in traditional_chunks)
+        )
+        
+        multi_metrics = StrategyMetrics(
+            chunk_count=len(multi_agent_chunks),
+            avg_chunk_size=sum(c.get("char_count", 0) for c in multi_agent_chunks) / max(len(multi_agent_chunks), 1),
+            total_chars=sum(c.get("char_count", 0) for c in multi_agent_chunks)
+        )
+        
+        comparison = report_generator.generate_comparison(trad_metrics, multi_metrics)
+        
+        test_info = {
+            "test_id": test_id,
+            "test_name": test_data.get("test_name", ""),
+            "document_title": test_data.get("document_title", ""),
+            "target_chunk_size": test_data.get("config", {}).get("target_chunk_size", 1500),
+            "min_chunk_size": test_data.get("config", {}).get("min_chunk_size", 500),
+            "max_chunk_size": test_data.get("config", {}).get("max_chunk_size", 3000)
+        }
+        
+        comparison_report = report_generator.generate_markdown_report(comparison, test_info)
+        
+        # Create ZIP
+        zip_bytes = exporter.create_zip_archive(
+            traditional_chunks=traditional_chunks,
+            multi_agent_chunks=multi_agent_chunks,
+            test_info=test_info,
+            comparison_report=comparison_report
+        )
+        
+        logger.info(f"✅ [ZIP EXPORT] ZIP created successfully, size: {len(zip_bytes)} bytes")
+        
+        filename = f"chunking_test_{test_id}.zip"
+        
+        return Response(
+            content=zip_bytes,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+        
+    except ImportError as e:
+        logger.error(f"❌ [ZIP EXPORT] Import error: {e}")
+        raise HTTPException(status_code=500, detail=f"Export module not available: {str(e)}")
+    except Exception as e:
+        logger.error(f"❌ [ZIP EXPORT] Failed to export: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to export chunking test: {str(e)}")
+
+
+@router.get("/agent-scores/{test_id}", summary="Get Agent Performance Scores")
+async def get_agent_scores(test_id: str, request: Request = None) -> Dict[str, Any]:
+    """
+    Get detailed agent performance scores for multi-agent chunking.
+    
+    Returns scores for:
+    - StructuralAgent: Atomic unit preservation
+    - SemanticAgent: Topic boundary detection
+    - SizeAgent: Size variance management
+    - QualityAgent: Quality score evaluation
+    
+    Requirements: 3.5
+    """
+    logger.info(f"🤖 [AGENT SCORES] Getting agent scores for test_id: {test_id}")
+    
+    # Authentication check
+    current_user = _get_current_user(request)
+    if not (_is_teacher(current_user) or _is_admin(current_user)):
+        raise HTTPException(status_code=403, detail="Teacher or admin access required")
+    
+    # Load test data
+    test_data = CHUNKING_TEST_RESULTS_STORAGE.get(test_id)
+    if not test_data:
+        test_data = _load_chunking_test_from_db(test_id)
+        if test_data:
+            CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
+    
+    if not test_data:
+        raise HTTPException(status_code=404, detail="Chunking test not found")
+    
+    try:
+        from src.evaluation import AgentEvaluator, ChunkData, ChunkingConfig
+        
+        agent_evaluator = AgentEvaluator()
+        
+        # Extract multi-agent chunks and original text
+        results = test_data.get("results", [])
+        chunk_data_list = []
+        original_text = ""
+        
+        for result in results:
+            original_text = result.get("original_text", "")
+            multi_data = result.get("multi_agent", {})
+            
+            for chunk in multi_data.get("chunks", []):
+                if isinstance(chunk, dict):
+                    chunk_data_list.append(ChunkData(
+                        content=chunk.get("text", chunk.get("content", "")),
+                        char_count=chunk.get("char_count", len(chunk.get("text", ""))),
+                        word_count=chunk.get("word_count", len(chunk.get("text", "").split())),
+                        boundary_type=chunk.get("boundary_type", "unknown"),
+                        quality_score=chunk.get("quality_score", 0.0)
+                    ))
+        
+        config = ChunkingConfig(
+            target_chunk_size=test_data.get("config", {}).get("target_chunk_size", 1500),
+            min_chunk_size=test_data.get("config", {}).get("min_chunk_size", 500),
+            max_chunk_size=test_data.get("config", {}).get("max_chunk_size", 3000)
+        )
+        
+        # Evaluate all agents
+        evaluation = agent_evaluator.evaluate_all(
+            chunks=chunk_data_list,
+            original_text=original_text,
+            config=config
+        )
+        
+        logger.info(f"✅ [AGENT SCORES] Agent evaluation completed for test {test_id}")
+        
+        return {
+            "success": True,
+            "test_id": test_id,
+            "agent_scores": {
+                "structural": evaluation.structural_score.to_dict(),
+                "semantic": evaluation.semantic_score.to_dict(),
+                "size": evaluation.size_score.to_dict(),
+                "quality": evaluation.quality_score.to_dict()
+            },
+            "overall_score": evaluation.overall_score,
+            "weights": {
+                "structural": evaluation.WEIGHT_STRUCTURAL,
+                "semantic": evaluation.WEIGHT_SEMANTIC,
+                "size": evaluation.WEIGHT_SIZE,
+                "quality": evaluation.WEIGHT_QUALITY
+            }
+        }
+        
+    except ImportError as e:
+        logger.error(f"❌ [AGENT SCORES] Import error: {e}")
+        raise HTTPException(status_code=500, detail=f"Evaluation module not available: {str(e)}")
+    except Exception as e:
+        logger.error(f"❌ [AGENT SCORES] Failed to get agent scores: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get agent scores: {str(e)}")
+
+
+@router.get("/similarity-analysis/{test_id}", summary="Get Similarity Analysis")
+async def get_similarity_analysis(test_id: str, request: Request = None) -> Dict[str, Any]:
+    """
+    Get detailed similarity analysis for chunking test.
+    
+    Returns:
+    - Intra-chunk similarity (coherence within chunks)
+    - Inter-chunk similarity (similarity between adjacent chunks)
+    - Topic separation score
+    
+    Requirements: 2.3
+    """
+    logger.info(f"📈 [SIMILARITY] Getting similarity analysis for test_id: {test_id}")
+    
+    # Authentication check
+    current_user = _get_current_user(request)
+    if not (_is_teacher(current_user) or _is_admin(current_user)):
+        raise HTTPException(status_code=403, detail="Teacher or admin access required")
+    
+    # Load test data
+    test_data = CHUNKING_TEST_RESULTS_STORAGE.get(test_id)
+    if not test_data:
+        test_data = _load_chunking_test_from_db(test_id)
+        if test_data:
+            CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
+    
+    if not test_data:
+        raise HTTPException(status_code=404, detail="Chunking test not found")
+    
+    try:
+        from src.evaluation import SimilarityAnalyzer
+        
+        analyzer = SimilarityAnalyzer()
+        
+        # Extract chunks
+        results = test_data.get("results", [])
+        traditional_chunks = []
+        multi_agent_chunks = []
+        
+        for result in results:
+            # Traditional chunks
+            trad_data = result.get("traditional", {})
+            for chunk in trad_data.get("chunks", []):
+                if isinstance(chunk, dict):
+                    traditional_chunks.append(chunk.get("text", chunk.get("content", "")))
+                else:
+                    traditional_chunks.append(str(chunk))
+            
+            # Multi-agent chunks
+            multi_data = result.get("multi_agent", {})
+            for chunk in multi_data.get("chunks", []):
+                if isinstance(chunk, dict):
+                    multi_agent_chunks.append(chunk.get("text", chunk.get("content", "")))
+                else:
+                    multi_agent_chunks.append(str(chunk))
+        
+        # Analyze both strategies
+        traditional_metrics = analyzer.analyze_strategy(traditional_chunks)
+        multi_agent_metrics = analyzer.analyze_strategy(multi_agent_chunks)
+        
+        logger.info(f"✅ [SIMILARITY] Similarity analysis completed for test {test_id}")
+        
+        return {
+            "success": True,
+            "test_id": test_id,
+            "similarity_analysis": {
+                "traditional": traditional_metrics.to_dict(),
+                "multi_agent": multi_agent_metrics.to_dict()
+            },
+            "comparison": {
+                "intra_chunk_improvement": (
+                    (multi_agent_metrics.intra_chunk_similarity - traditional_metrics.intra_chunk_similarity) 
+                    / max(traditional_metrics.intra_chunk_similarity, 0.001) * 100
+                ),
+                "topic_separation_improvement": (
+                    (multi_agent_metrics.topic_separation_score - traditional_metrics.topic_separation_score)
+                    / max(traditional_metrics.topic_separation_score, 0.001) * 100
+                )
+            }
+        }
+        
+    except ImportError as e:
+        logger.error(f"❌ [SIMILARITY] Import error: {e}")
+        raise HTTPException(status_code=500, detail=f"Evaluation module not available: {str(e)}")
+    except Exception as e:
+        logger.error(f"❌ [SIMILARITY] Failed to get similarity analysis: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get similarity analysis: {str(e)}")
+
+
+@router.post("/batch-evaluate", summary="Batch Evaluation of Multiple Tests")
+async def batch_evaluate_tests(
+    request_data: Dict[str, Any],
+    request: Request = None
+) -> Dict[str, Any]:
+    """
+    Evaluate multiple chunking tests and aggregate results.
+    
+    Request body:
+    - test_ids: List of test IDs to evaluate
+    
+    Returns:
+    - Individual document results
+    - Aggregate statistics (mean, std, min, max)
+    - Statistical significance (p-value)
+    - Effect size (Cohen's d)
+    - Outlier detection
+    
+    Requirements: 7.1, 7.2, 7.3
+    """
+    logger.info(f"📊 [BATCH EVAL] Starting batch evaluation")
+    
+    # Authentication check
+    current_user = _get_current_user(request)
+    if not (_is_teacher(current_user) or _is_admin(current_user)):
+        raise HTTPException(status_code=403, detail="Teacher or admin access required")
+    
+    test_ids = request_data.get("test_ids", [])
+    if not test_ids:
+        raise HTTPException(status_code=400, detail="No test IDs provided")
+    
+    try:
+        from src.evaluation import BatchEvaluator, ScientificMetricCalculator
+        
+        batch_evaluator = BatchEvaluator()
+        scientific_calculator = ScientificMetricCalculator()
+        
+        # Collect test results
+        test_results = []
+        
+        for test_id in test_ids:
+            test_data = CHUNKING_TEST_RESULTS_STORAGE.get(test_id)
+            if not test_data:
+                test_data = _load_chunking_test_from_db(test_id)
+            
+            if not test_data:
+                logger.warning(f"⚠️ [BATCH EVAL] Test {test_id} not found, skipping")
+                continue
+            
+            # Extract chunks and calculate metrics
+            results = test_data.get("results", [])
+            traditional_chunks = []
+            multi_agent_chunks = []
+            
+            for result in results:
+                trad_data = result.get("traditional", {})
+                for chunk in trad_data.get("chunks", []):
+                    if isinstance(chunk, dict):
+                        traditional_chunks.append(chunk.get("text", chunk.get("content", "")))
+                    else:
+                        traditional_chunks.append(str(chunk))
+                
+                multi_data = result.get("multi_agent", {})
+                for chunk in multi_data.get("chunks", []):
+                    if isinstance(chunk, dict):
+                        multi_agent_chunks.append(chunk.get("text", chunk.get("content", "")))
+                    else:
+                        multi_agent_chunks.append(str(chunk))
+            
+            # Calculate scientific metrics
+            trad_metrics = scientific_calculator.calculate_all_metrics(traditional_chunks)
+            multi_metrics = scientific_calculator.calculate_all_metrics(multi_agent_chunks)
+            
+            test_results.append({
+                "test_id": test_id,
+                "test_name": test_data.get("test_name", test_id),
+                "traditional_metrics": trad_metrics.to_dict(),
+                "multi_agent_metrics": multi_metrics.to_dict()
+            })
+        
+        if not test_results:
+            raise HTTPException(status_code=404, detail="No valid tests found")
+        
+        # Run batch evaluation
+        batch_result = batch_evaluator.evaluate_batch(test_results)
+        summary = batch_evaluator.generate_summary(batch_result)
+        
+        logger.info(f"✅ [BATCH EVAL] Batch evaluation completed for {len(test_results)} tests")
+        
+        return {
+            "success": True,
+            "batch_result": batch_result.to_dict(),
+            "summary": summary
+        }
+        
+    except ImportError as e:
+        logger.error(f"❌ [BATCH EVAL] Import error: {e}")
+        raise HTTPException(status_code=500, detail=f"Evaluation module not available: {str(e)}")
+    except Exception as e:
+        logger.error(f"❌ [BATCH EVAL] Failed to run batch evaluation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to run batch evaluation: {str(e)}")

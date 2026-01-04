@@ -1,0 +1,12 @@
+{
+  "name": "Deploy to Server",
+  "description": "Chat'te 'updateonserver' yazıldığında sunucuya deploy yapar",
+  "trigger": {
+    "type": "message",
+    "pattern": "updateonserver"
+  },
+  "action": {
+    "type": "shell",
+    "command": "bash scripts/deploy-auto.sh \"Auto deploy from Kiro\""
+  }
+}

@@ -1,0 +1,4 @@
+# file: C:\Users\Engin\Documents\cursor projects\rag3_for_local\ebars_new\src\evaluation\scientific_metrics.py
+# hypothesis_version: 6.148.11
+
+[-1.0, 0.0, 0.15, 0.2, 0.25, 0.3, 0.5, 0.6, 0.7, 1.0, 100, 150, 200, '.!?', ':;,', 'Doç.', 'Dr.', 'M.S.', 'M.Ö.', 'Prof.', 'Yrd.', '^(bu|şu|o)\\s+\\w+', 'bkz.', 'boundary_type', 'hope_score', 'natural', 'semantic', 'structural', 'topic_drift_score', 'vb.', 'vs.', 'yy.', 'örn.']

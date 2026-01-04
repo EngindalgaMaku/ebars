@@ -1,0 +1,4 @@
+# file: C:\Users\Engin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\trio\_file_io.py
+# hypothesis_version: 6.148.11
+
+['AnyStr_co', 'AnyStr_contra', 'FileT', 'FileT_co', 'StrOrBytesPath', 'T', 'T_co', 'T_contra', 'buffer', 'close', 'closed', 'closefd', 'encoding', 'errors', 'fileno', 'flush', 'getbuffer', 'getvalue', 'isatty', 'line_buffering', 'mode', 'name', 'newlines', 'peek', 'r', 'raw', 'read', 'read1', 'readable', 'readall', 'readinto', 'readinto1', 'readline', 'readlines', 'seek', 'seekable', 'tell', 'truncate', 'writable', 'write', 'writelines']

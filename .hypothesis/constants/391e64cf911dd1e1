@@ -1,0 +1,4 @@
+# file: C:\Users\Engin\Documents\cursor projects\rag3_for_local\ebars_new\src\analytics\database.py
+# hypothesis_version: 6.148.11
+
+[0.0, 30.0, ',', '?', 'BOOLEAN', 'ExperimentDatabase', 'FeedbackCreate', 'SELECT 1', 'TEXT', '[]', 'avg_feedback_score', 'avg_rating', 'best_strategy', 'by_type', 'chain_type', 'correct', 'count', 'error_message', 'experiment', 'export_timestamp', 'feedback_type', 'helpful', 'hybrid_search', 'incorrect', 'metadata', 'model_usage', 'negative_feedbacks', 'not_helpful', 'off_topic', 'positive_feedbacks', 'precise_retrieval', 'rag_config_hash', 'rag_params', 'rating', 'retrieval_k', 'runs', 'score', 'sources', 'statistics', 'success', 'system', 'text', 'top_k', 'total_feedbacks', 'total_queries', 'unclear', 'usage_count', 'utf-8', '{}']

@@ -1,0 +1,4 @@
+# file: C:\Users\Engin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\trio\_subprocess.py
+# hypothesis_version: 6.148.11
+
+[434, 'bufsize', 'encoding', 'errors', 'linux', 'nt', 'open_process', 'posix', 'run_process', 'shell', 'stderr', 'stdin', 'stdout', 'text', 'universal_newlines', 'win32']

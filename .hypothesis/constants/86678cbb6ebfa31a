@@ -1,0 +1,4 @@
+# file: C:\Users\Engin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\colorlog\formatter.py
+# hypothesis_version: 6.148.11
+
+['$', '%', '%s_log_color', 'CRITICAL', 'ColoredFormatter', 'DEBUG', 'ERROR', 'FORCE_COLOR', 'INFO', 'LevelFormatter', 'NO_COLOR', 'TTYColoredFormatter', 'WARNING', 'bold_red', 'default_log_colors', 'green', 'log_color', 'red', 'reset', 'white', 'yellow', '{']

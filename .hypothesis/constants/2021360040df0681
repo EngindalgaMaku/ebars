@@ -1,0 +1,4 @@
+# file: C:\Users\Engin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\colorlog\escape_codes.py
+# hypothesis_version: 6.148.11
+
+[100, 101, 102, 103, 104, 105, 106, 107, 256, '\x1b[', '%s', ',', ';', 'bg_%d', 'bg_%s', 'black', 'blue', 'bold', 'bold_%s', 'bold_black', 'bold_blue', 'bold_cyan', 'bold_green', 'bold_purple', 'bold_red', 'bold_white', 'bold_yellow', 'cyan', 'escape_codes', 'fg_%d', 'fg_%s', 'fg_bold_%s', 'fg_thin_%s', 'green', 'light_black', 'light_blue', 'light_cyan', 'light_green', 'light_purple', 'light_red', 'light_white', 'light_yellow', 'm', 'parse_colors', 'purple', 'red', 'reset', 'thin', 'thin_%s', 'white', 'win32', 'yellow']

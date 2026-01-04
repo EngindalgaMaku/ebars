@@ -1,0 +1,4 @@
+# file: C:\Users\Engin\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pytest_flask\fixtures.py
+# hypothesis_version: 6.148.11
+
+['*', '*/*', 'LIVESERVER_PORT', 'SERVER_NAME', 'application/json', 'application/json-p', 'live_server_host', 'live_server_port', 'live_server_wait', 'start_live_server', 'text/html']

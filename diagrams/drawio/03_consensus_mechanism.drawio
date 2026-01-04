@@ -1,136 +1,157 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Consensus Mechanism" id="consensus">
-    <mxGraphModel dx="900" dy="600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="500" math="0" shadow="0">
+    <mxGraphModel dx="1100" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="700" math="0" shadow="0">
       <root>
         <mxCell id="0"/>
         <mxCell id="1" parent="0"/>
         
-        <!-- Agent Inputs -->
-        <mxCell id="input-label" value="Agent Outputs" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="60" y="30" width="100" height="20" as="geometry"/>
+        <!-- Agent Inputs Box -->
+        <mxCell id="input-box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="30" y="40" width="140" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="input-label" value="Agent Decisions (dᵢ, cᵢ)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="45" width="120" height="20" as="geometry"/>
         </mxCell>
         
-        <mxCell id="a1" value="Structural Agent&#xa;d₁, c₁" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;" vertex="1" parent="1">
-          <mxGeometry x="40" y="60" width="100" height="45" as="geometry"/>
+        <mxCell id="a1" value="Structural Agent&#xa;d₁: PRESERVE&#xa;c₁: 0.95" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1976d2;strokeWidth=1.5;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="45" y="70" width="110" height="40" as="geometry"/>
         </mxCell>
-        <mxCell id="a2" value="Semantic Agent&#xa;d₂, c₂" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;" vertex="1" parent="1">
-          <mxGeometry x="40" y="115" width="100" height="45" as="geometry"/>
+        <mxCell id="a2" value="Semantic Agent&#xa;d₂: MERGE&#xa;c₂: 0.82" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;strokeWidth=1.5;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="45" y="115" width="110" height="40" as="geometry"/>
         </mxCell>
-        <mxCell id="a3" value="Size Agent&#xa;d₃, c₃" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;" vertex="1" parent="1">
-          <mxGeometry x="40" y="170" width="100" height="45" as="geometry"/>
+        <mxCell id="a3" value="Size Agent&#xa;d₃: ALLOW_SPLIT&#xa;c₃: 0.70" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#f57c00;strokeWidth=1.5;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="45" y="160" width="110" height="40" as="geometry"/>
         </mxCell>
-        <mxCell id="a4" value="Quality Agent&#xa;d₄, c₄" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;" vertex="1" parent="1">
-          <mxGeometry x="40" y="225" width="100" height="45" as="geometry"/>
-        </mxCell>
-        
-        <!-- Weights -->
-        <mxCell id="weight-label" value="Weights" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="200" y="30" width="60" height="20" as="geometry"/>
+        <mxCell id="a4" value="Quality Agent&#xa;d₄: APPROVED&#xa;c₄: 0.88" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#388e3c;strokeWidth=1.5;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="45" y="205" width="110" height="40" as="geometry"/>
         </mxCell>
         
-        <mxCell id="w1" value="w₁=0.35" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#000000;strokeWidth=1;" vertex="1" parent="1">
-          <mxGeometry x="180" y="70" width="60" height="25" as="geometry"/>
+        <!-- Weights Box -->
+        <mxCell id="weight-box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="40" width="90" height="220" as="geometry"/>
         </mxCell>
-        <mxCell id="w2" value="w₂=0.30" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#000000;strokeWidth=1;" vertex="1" parent="1">
-          <mxGeometry x="180" y="125" width="60" height="25" as="geometry"/>
-        </mxCell>
-        <mxCell id="w3" value="w₃=0.20" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#000000;strokeWidth=1;" vertex="1" parent="1">
-          <mxGeometry x="180" y="180" width="60" height="25" as="geometry"/>
-        </mxCell>
-        <mxCell id="w4" value="w₄=0.15" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#000000;strokeWidth=1;" vertex="1" parent="1">
-          <mxGeometry x="180" y="235" width="60" height="25" as="geometry"/>
+        <mxCell id="weight-label" value="Weights (wᵢ)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="210" y="45" width="70" height="20" as="geometry"/>
         </mxCell>
         
-        <!-- Multiplication -->
-        <mxCell id="mult" value="×" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
-          <mxGeometry x="280" y="140" width="40" height="40" as="geometry"/>
+        <mxCell id="w1" value="w₁ = 0.35" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1976d2;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="215" y="80" width="60" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="w2" value="w₂ = 0.30" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="215" y="125" width="60" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="w3" value="w₃ = 0.20" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#f57c00;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="215" y="170" width="60" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="w4" value="w₄ = 0.15" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#388e3c;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="215" y="215" width="60" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="wsum" value="Σwᵢ = 1.0" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="215" y="245" width="60" height="15" as="geometry"/>
         </mxCell>
         
-        <!-- Summation -->
-        <mxCell id="sum" value="Σ" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=16;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="370" y="140" width="40" height="40" as="geometry"/>
+        <!-- Calculation Box -->
+        <mxCell id="calc-box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#ff9800;strokeWidth=1.5;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="320" y="40" width="200" height="220" as="geometry"/>
+        </mxCell>
+        <mxCell id="calc-label" value="Score Calculation" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="370" y="45" width="100" height="20" as="geometry"/>
         </mxCell>
         
-        <!-- Score Calculation Box -->
-        <mxCell id="score-box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="450" y="60" width="180" height="200" as="geometry"/>
+        <mxCell id="split-score" value="Split Score =&#xa;Σ(wᵢ × cᵢ × I[dᵢ ∈ Split_Set])" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffcdd2;strokeColor=#c62828;strokeWidth=1;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="340" y="75" width="160" height="45" as="geometry"/>
         </mxCell>
-        <mxCell id="score-label" value="Score Calculation" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="490" y="65" width="100" height="15" as="geometry"/>
+        <mxCell id="merge-score" value="Merge Score =&#xa;Σ(wᵢ × cᵢ × I[dᵢ ∈ Merge_Set])" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;strokeWidth=1;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="340" y="130" width="160" height="45" as="geometry"/>
         </mxCell>
-        
-        <mxCell id="split-score" value="Split Score&#xa;Σ(wᵢ×cᵢ×I[split])" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="470" y="90" width="140" height="45" as="geometry"/>
-        </mxCell>
-        <mxCell id="merge-score" value="Merge Score&#xa;Σ(wᵢ×cᵢ×I[merge])" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="470" y="145" width="140" height="45" as="geometry"/>
-        </mxCell>
-        <mxCell id="compare" value="Compare" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="500" y="200" width="80" height="50" as="geometry"/>
+        <mxCell id="compare" value="Compare&#xa;Scores" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="375" y="190" width="90" height="60" as="geometry"/>
         </mxCell>
         
-        <!-- Priority Rules -->
-        <mxCell id="priority-box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="670" y="60" width="160" height="200" as="geometry"/>
+        <!-- Priority Rules Box (Hard vs Soft) -->
+        <mxCell id="priority-box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffebee;strokeColor=#c62828;strokeWidth=1.5;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="550" y="40" width="200" height="150" as="geometry"/>
         </mxCell>
-        <mxCell id="priority-label" value="Priority Rules" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="710" y="65" width="80" height="15" as="geometry"/>
+        <mxCell id="priority-label" value="Hard Constraints (Override)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="580" y="45" width="140" height="18" as="geometry"/>
         </mxCell>
         
-        <mxCell id="p1" value="1. PRESERVE" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="690" y="90" width="120" height="25" as="geometry"/>
+        <mxCell id="p1" value="1. 🔒 PRESERVE (atomic unit)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f9a825;strokeWidth=1.5;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="560" y="68" width="180" height="25" as="geometry"/>
         </mxCell>
-        <mxCell id="p2" value="2. FORCE_SPLIT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="690" y="120" width="120" height="25" as="geometry"/>
+        <mxCell id="p2" value="2. ⚠️ FORCE_SPLIT (size &gt; 1.3×max)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffcdd2;strokeColor=#c62828;strokeWidth=1;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="560" y="98" width="180" height="25" as="geometry"/>
         </mxCell>
-        <mxCell id="p3" value="3. FORCE_MERGE" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="690" y="150" width="120" height="25" as="geometry"/>
+        <mxCell id="p3" value="3. ⚠️ FORCE_MERGE (size &lt; 0.5×min)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;strokeWidth=1;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="560" y="128" width="180" height="25" as="geometry"/>
         </mxCell>
-        <mxCell id="p4" value="4. SPLIT/MERGE" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="690" y="180" width="120" height="25" as="geometry"/>
+        <mxCell id="p4" value="4. ❌ REJECTED (quality &lt; θ)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f44336;strokeColor=#b71c1c;strokeWidth=1;fontSize=9;align=left;spacingLeft=5;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="560" y="158" width="180" height="25" as="geometry"/>
         </mxCell>
-        <mxCell id="p5" value="5. NEUTRAL" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="690" y="210" width="120" height="25" as="geometry"/>
+        
+        <!-- Soft Constraints Box -->
+        <mxCell id="soft-box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1976d2;strokeWidth=1.5;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="550" y="200" width="200" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="soft-label" value="Soft Constraints (Consensus)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="580" y="205" width="140" height="18" as="geometry"/>
+        </mxCell>
+        
+        <mxCell id="s1" value="5. ✂️ SPLIT (split_score ≥ θ)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="560" y="228" width="180" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2" value="6. 🔗 MERGE (merge &gt; split)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=9;align=left;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="560" y="258" width="180" height="25" as="geometry"/>
         </mxCell>
         
         <!-- Final Output -->
-        <mxCell id="final" value="Final&#xa;Decision" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#000000;strokeWidth=1.5;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="710" y="290" width="80" height="50" as="geometry"/>
+        <mxCell id="final-box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#c2185b;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="780" y="100" width="180" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="final-label" value="Final Decision" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="830" y="105" width="80" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="final-decision" value="Decision: PRESERVE&#xa;Confidence: 0.95&#xa;Reasoning: Atomic unit&#xa;(Table detected by&#xa;Structural Agent)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10;spacingLeft=5;" vertex="1" parent="1">
+          <mxGeometry x="790" y="130" width="160" height="90" as="geometry"/>
+        </mxCell>
+        
+        <!-- Case Study Box -->
+        <mxCell id="case-box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="30" y="310" width="450" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="case-label" value="Case Study: Conflict Resolution" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="170" y="315" width="170" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="case-text" value="Scenario: Code block detected within a large chunk&#xa;&#xa;• Structural Agent: PRESERVE (c=0.95) ← Code block detected&#xa;• Semantic Agent: SPLIT (c=0.78) ← Topic change detected&#xa;• Size Agent: FORCE_SPLIT (c=0.85) ← Chunk exceeds max_size&#xa;&#xa;Resolution: PRESERVE wins (Hard Constraint #1)&#xa;Reason: &quot;Atomic unit integrity &gt; size constraints&quot;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=9;spacingLeft=10;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="40" y="340" width="430" height="110" as="geometry"/>
+        </mxCell>
+        
+        <!-- Formula Box -->
+        <mxCell id="formula-box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="310" width="460" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="formula-label" value="Mathematical Formulation" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="650" y="315" width="160" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="formula-text" value="Consensus Score:&#xa;  Split_Score = Σᵢ (wᵢ × cᵢ × I[dᵢ ∈ {SPLIT, FORCE_SPLIT, ALLOW_SPLIT}])&#xa;  Merge_Score = Σᵢ (wᵢ × cᵢ × I[dᵢ ∈ {MERGE, FORCE_MERGE}])&#xa;&#xa;Notation:&#xa;  wᵢ = weight of agent i,  cᵢ = confidence [0,1]&#xa;  dᵢ = decision,  I[·] = indicator function {0,1}&#xa;  θ = 0.5 (consensus threshold)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=9;spacingLeft=10;spacingTop=5;fontFamily=Courier New;" vertex="1" parent="1">
+          <mxGeometry x="510" y="340" width="440" height="110" as="geometry"/>
         </mxCell>
         
         <!-- Arrows -->
-        <mxCell id="arr1" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1" source="a1" target="mult">
+        <mxCell id="arr1" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;" edge="1" parent="1" source="input-box" target="weight-box">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
-        <mxCell id="arr2" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1" source="a2" target="mult">
+        <mxCell id="arr2" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;" edge="1" parent="1" source="weight-box" target="calc-box">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
-        <mxCell id="arr3" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1" source="a3" target="mult">
+        <mxCell id="arr3" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;" edge="1" parent="1" source="calc-box" target="priority-box">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
-        <mxCell id="arr4" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#000000;" edge="1" parent="1" source="a4" target="mult">
+        <mxCell id="arr4" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;" edge="1" parent="1" source="priority-box" target="final-box">
           <mxGeometry relative="1" as="geometry"/>
         </mxCell>
-        
-        <mxCell id="arr5" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;" edge="1" parent="1" source="mult" target="sum">
+        <mxCell id="arr5" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#000000;dashed=1;" edge="1" parent="1" source="soft-box" target="final-box">
           <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="arr6" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;" edge="1" parent="1" source="sum" target="score-box">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="arr7" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;" edge="1" parent="1" source="score-box" target="priority-box">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="arr8" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;" edge="1" parent="1" source="priority-box" target="final">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        
-        <!-- Formula at bottom -->
-        <mxCell id="formula-box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="360" width="590" height="80" as="geometry"/>
-        </mxCell>
-        <mxCell id="formula" value="Consensus Formula:  Score = Σᵢ (wᵢ × cᵢ × I[dᵢ])&#xa;&#xa;where: wᵢ = agent weight,  cᵢ = confidence,  dᵢ = decision,  I[·] = indicator function" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;spacingLeft=10;" vertex="1" parent="1">
-          <mxGeometry x="50" y="370" width="570" height="60" as="geometry"/>
         </mxCell>
         
       </root>

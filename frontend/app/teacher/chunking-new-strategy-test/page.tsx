@@ -89,6 +89,9 @@ import ContextNoiseAnalyzer from "./components/ContextNoiseAnalyzer";
 import CoherenceValidator from "./components/CoherenceValidator";
 import NoiseFilterEngine from "./components/NoiseFilterEngine";
 import DriftVisualization from "./components/DriftVisualization";
+// NEW: Evaluation Components
+import AgentPerformanceRadar from "./components/AgentPerformanceRadar";
+import EvaluationExportPanel from "./components/EvaluationExportPanel";
 
 // Chunking Strategy Configuration Interface
 interface ChunkingConfig {
@@ -2175,9 +2178,10 @@ export default function ChunkingNewStrategyTestPage() {
                 onValueChange={setAutomatedEvaluationTab}
                 className="w-full"
               >
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid w-full grid-cols-6">
                   <TabsTrigger value="engine">Motor</TabsTrigger>
                   <TabsTrigger value="assessment">Değerlendirme</TabsTrigger>
+                  <TabsTrigger value="agents">Agent Analizi</TabsTrigger>
                   <TabsTrigger value="metrics">Metrikler</TabsTrigger>
                   <TabsTrigger value="monitoring">İzleme</TabsTrigger>
                   <TabsTrigger value="reports">Raporlar</TabsTrigger>
@@ -2209,6 +2213,39 @@ export default function ChunkingNewStrategyTestPage() {
                     enableRealTimeUpdates={true}
                     enableBenchmarking={true}
                   />
+                </TabsContent>
+
+                <TabsContent value="agents" className="space-y-4">
+                  {/* Agent Performance Radar Chart */}
+                  {currentTest?.testId && (
+                    <AgentPerformanceRadar
+                      testId={currentTest.testId}
+                      token={tokenManager.getAccessToken() || undefined}
+                      onError={(error) => toast.error(error)}
+                    />
+                  )}
+                  
+                  {/* Export Panel */}
+                  {currentTest?.testId && (
+                    <EvaluationExportPanel
+                      testId={currentTest.testId}
+                      testName={currentTest.testName}
+                      token={tokenManager.getAccessToken() || undefined}
+                      onExportComplete={() => toast.success("Export tamamlandı")}
+                      onError={(error) => toast.error(error)}
+                    />
+                  )}
+                  
+                  {!currentTest?.testId && (
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-center text-gray-500">
+                          <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                          <p>Agent analizi için önce bir test seçin veya çalıştırın.</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="metrics" className="space-y-4">
