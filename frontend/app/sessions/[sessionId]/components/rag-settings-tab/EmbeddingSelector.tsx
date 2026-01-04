@@ -47,6 +47,11 @@ export const EmbeddingSelector: React.FC<EmbeddingSelectorProps> = ({
     if (provider === "alibaba" && availableEmbeddingModels.alibaba?.length) {
       setSelectedEmbeddingModel(availableEmbeddingModels.alibaba[0].id);
     } else if (
+      provider === "cohere" &&
+      availableEmbeddingModels.cohere?.length
+    ) {
+      setSelectedEmbeddingModel(availableEmbeddingModels.cohere[0].id);
+    } else if (
       provider === "openrouter" &&
       availableEmbeddingModels.openrouter?.length
     ) {
@@ -70,6 +75,8 @@ export const EmbeddingSelector: React.FC<EmbeddingSelectorProps> = ({
     switch (provider) {
       case "alibaba":
         return "🛒";
+      case "cohere":
+        return "🔷";
       case "openrouter":
         return "🚀";
       case "huggingface":
@@ -89,6 +96,13 @@ export const EmbeddingSelector: React.FC<EmbeddingSelectorProps> = ({
           label: "Premium",
           color: "bg-yellow-100 text-yellow-700",
           description: "Yüksek kaliteli, çok boyutlu embeddings",
+        };
+      case "cohere":
+        return {
+          status: "premium",
+          label: "Premium",
+          color: "bg-blue-100 text-blue-700",
+          description: "100+ dil desteği, Türkçe optimize, 1024 boyut",
         };
       case "openrouter":
         return {
@@ -125,6 +139,8 @@ export const EmbeddingSelector: React.FC<EmbeddingSelectorProps> = ({
     switch (selectedEmbeddingProvider) {
       case "alibaba":
         return availableEmbeddingModels.alibaba || [];
+      case "cohere":
+        return availableEmbeddingModels.cohere || [];
       case "openrouter":
         return availableEmbeddingModels.openrouter || [];
       case "ollama":
@@ -218,6 +234,21 @@ export const EmbeddingSelector: React.FC<EmbeddingSelectorProps> = ({
                     <Badge variant="outline" className="text-xs">
                       <Globe className="w-3 h-3 mr-1" />
                       Çok Dilli
+                    </Badge>
+                  </>
+                )}
+                {selectedEmbeddingProvider === "cohere" && (
+                  <>
+                    <Badge variant="outline" className="text-xs">
+                      <Zap className="w-3 h-3 mr-1" />
+                      1024D
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      <Globe className="w-3 h-3 mr-1" />
+                      100+ Dil
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      🇹🇷 Türkçe
                     </Badge>
                   </>
                 )}
@@ -387,6 +418,16 @@ export const EmbeddingSelector: React.FC<EmbeddingSelectorProps> = ({
                           <div
                             key={i}
                             className="w-2 h-2 bg-yellow-400 rounded-full"
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {selectedEmbeddingProvider === "cohere" && (
+                      <div className="flex gap-0.5">
+                        {[...Array(5)].map((_, i) => (
+                          <div
+                            key={i}
+                            className="w-2 h-2 bg-blue-400 rounded-full"
                           />
                         ))}
                       </div>

@@ -46,6 +46,13 @@ interface AvailableEmbeddingModels {
     dimensions?: number;
     language?: string;
   }>;
+  cohere?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    dimensions?: number;
+    language?: string;
+  }>;
 }
 
 interface RagSettings {
@@ -76,6 +83,7 @@ export const useRagSettings = (sessionId: string) => {
       huggingface: [],
       alibaba: [],
       openrouter: [],
+      cohere: [],
     });
 
   // Settings states
@@ -107,6 +115,7 @@ export const useRagSettings = (sessionId: string) => {
   const PROVIDER_OPTIONS = [
     { value: "groq", label: "🌐 Groq (Cloud - Hızlı)" },
     { value: "alibaba", label: "🛒 Alibaba (Cloud - Qwen)" },
+    { value: "cohere", label: "🔷 Cohere (Cloud - Command)" },
     { value: "deepseek", label: "🔮 DeepSeek (Cloud - Premium)" },
     { value: "openrouter", label: "🚀 OpenRouter (Cloud - Güçlü)" },
     { value: "huggingface", label: "🤗 HuggingFace (Ücretsiz)" },
@@ -115,6 +124,7 @@ export const useRagSettings = (sessionId: string) => {
 
   const EMBEDDING_PROVIDER_OPTIONS = [
     { value: "alibaba", label: "🛒 Alibaba (Cloud - Qwen)" },
+    { value: "cohere", label: "🔷 Cohere (Cloud - Multilingual)" },
     { value: "openrouter", label: "🚀 OpenRouter (Cloud - OpenAI)" },
     { value: "huggingface", label: "🤗 HuggingFace (Ücretsiz)" },
   ];
@@ -249,6 +259,7 @@ export const useRagSettings = (sessionId: string) => {
         huggingface: embeddingData.huggingface || [],
         alibaba: embeddingData.alibaba || [],
         openrouter: embeddingData.openrouter || [],
+        cohere: embeddingData.cohere || [],
       });
 
       // Set default embedding model if not set
@@ -259,6 +270,12 @@ export const useRagSettings = (sessionId: string) => {
           embeddingData.alibaba.length > 0
         ) {
           setSelectedEmbeddingModel(embeddingData.alibaba[0].id);
+        } else if (
+          selectedEmbeddingProvider === "cohere" &&
+          embeddingData.cohere &&
+          embeddingData.cohere.length > 0
+        ) {
+          setSelectedEmbeddingModel(embeddingData.cohere[0].id);
         } else if (
           selectedEmbeddingProvider === "openrouter" &&
           embeddingData.openrouter &&

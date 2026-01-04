@@ -7,5 +7,6 @@ ollama
 groq
 huggingface_hub
 openai
+cohere
 # sentence-transformers is optional - only needed for local reranking
 # Install separately if needed: pip install sentence-transformers

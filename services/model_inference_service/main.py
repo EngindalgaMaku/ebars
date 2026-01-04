@@ -15,6 +15,7 @@ from huggingface_hub import InferenceClient
 # sentence-transformers is optional - only imported when needed (lazy loading)
 # from sentence_transformers import CrossEncoder  # Moved to get_rerank_model() function
 from openai import OpenAI as OpenAIClient
+import cohere
 
 # 🚀 PERFORMANCE UPGRADE: Import connection pooling for Model Inference Service
 from core.http_client import HybridHTTPClient, get_http_client
@@ -39,6 +40,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 ALIBABA_API_KEY = os.getenv("ALIBABA_API_KEY", os.getenv("DASHSCOPE_API_KEY"))
 ALIBABA_API_BASE = os.getenv("ALIBABA_API_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 
 # --- Model Configuration File Path ---
 CONFIG_FILE_PATH = Path(__file__).parent / "models_config.json"
@@ -301,6 +303,18 @@ if ALIBABA_API_KEY:
 else:
     print("⚠️ Warning: ALIBABA_API_KEY not set. Alibaba models will not be available.")
 
+# Cohere client setup
+cohere_client = None
+if COHERE_API_KEY:
+    try:
+        cohere_client = cohere.Client(COHERE_API_KEY)
+        print("✅ Cohere API client initialized.")
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to initialize Cohere client: {e}")
+        cohere_client = None
+else:
+    print("⚠️ Warning: COHERE_API_KEY not set. Cohere models will not be available.")
+
 # --- Reranking ---
 # NOTE: Reranking is now handled by reranker-service (Alibaba DashScope API)
 # No local sentence-transformers dependency needed
@@ -509,6 +523,19 @@ def is_alibaba_model(model_name: str) -> bool:
     ]
     return model_name in alibaba_models
 
+def is_cohere_model(model_name: str) -> bool:
+    """Check if the model is a Cohere Command model."""
+    cohere_models = [
+        "command-r-plus",
+        "command-r",
+        "command",
+        "command-light",
+        "command-nightly",
+        "command-r-plus-08-2024",
+        "command-r-08-2024"
+    ]
+    return model_name in cohere_models or model_name.startswith("command")
+
 def is_alibaba_embedding_model(model_name: str) -> bool:
     """Check if the model is an Alibaba DashScope embedding model."""
     if not model_name:
@@ -535,6 +562,7 @@ def health_check():
         "openrouter_available": bool(openrouter_client and OPENROUTER_API_KEY),
         "deepseek_available": bool(deepseek_client and DEEPSEEK_API_KEY),
         "alibaba_available": bool(alibaba_client and ALIBABA_API_KEY),
+        "cohere_available": bool(cohere_client and COHERE_API_KEY),
         "ollama_host": OLLAMA_HOST
     }
 
@@ -617,6 +645,31 @@ async def generate_response(request: GenerationRequest):
                     raise HTTPException(status_code=401, detail=error_detail)
                 else:
                     error_detail = f"DeepSeek API error: {error_str}"
+                    print(f"❌ {error_detail}")
+                    raise HTTPException(status_code=500, detail=error_detail)
+
+        elif is_cohere_model(model_name):
+            if not cohere_client or not COHERE_API_KEY:
+                raise HTTPException(status_code=503, detail="Cohere client is not available. Check COHERE_API_KEY.")
+
+            try:
+                # Cohere chat API
+                response = cohere_client.chat(
+                    model=model_name,
+                    message=prompt,
+                    temperature=request.temperature,
+                    max_tokens=request.max_tokens
+                )
+                response_content = response.text or ""
+                return GenerationResponse(response=response_content, model_used=model_name)
+            except Exception as e:
+                error_str = str(e)
+                if "401" in error_str or "authentication" in error_str.lower() or "invalid" in error_str.lower():
+                    error_detail = f"Cohere API authentication failed. Please check your COHERE_API_KEY environment variable. Error: {error_str}"
+                    print(f"❌ {error_detail}")
+                    raise HTTPException(status_code=401, detail=error_detail)
+                else:
+                    error_detail = f"Cohere API error: {error_str}"
                     print(f"❌ {error_detail}")
                     raise HTTPException(status_code=500, detail=error_detail)
 
@@ -905,7 +958,7 @@ def get_available_models():
     # Initialize models dict with all providers
     models = {
         "groq": [], "ollama": [], "huggingface": [], 
-        "openrouter": [], "deepseek": [], "alibaba": [], "openai": []
+        "openrouter": [], "deepseek": [], "alibaba": [], "cohere": [], "openai": []
     }
     
     # Load models from config file (only if provider is enabled)
@@ -917,6 +970,15 @@ def get_available_models():
     
     if deepseek_client and DEEPSEEK_API_KEY:
         models["deepseek"] = config_models.get("deepseek", [])
+    
+    # Cohere models - if Cohere client is configured
+    if cohere_client and COHERE_API_KEY:
+        models["cohere"] = config_models.get("cohere", [
+            "command-r-plus",
+            "command-r",
+            "command",
+            "command-light"
+        ])
     
     # Ollama models - empty by default (lazy loading)
     models["ollama"] = config_models.get("ollama", [])
@@ -935,12 +997,13 @@ def get_available_models():
 
 @app.get("/models/embedding", summary="List Available Embedding Models")
 def get_available_embedding_models():
-    """Returns a list of available embedding models from Ollama, HuggingFace, Alibaba, and OpenRouter."""
+    """Returns a list of available embedding models from Ollama, HuggingFace, Alibaba, OpenRouter, and Cohere."""
     embedding_models = {
         "ollama": [],
         "huggingface": [],
         "alibaba": [],
-        "openrouter": []
+        "openrouter": [],
+        "cohere": []
     }
     
     # Get Ollama embedding models (DISABLED - causes unnecessary connection attempts)
@@ -1093,6 +1156,41 @@ def get_available_embedding_models():
     else:
         embedding_models["openrouter"] = []
     
+    # Cohere embedding models
+    if cohere_client and COHERE_API_KEY:
+        embedding_models["cohere"] = [
+            {
+                "id": "embed-multilingual-v3.0",
+                "name": "embed-multilingual-v3.0",
+                "description": "Cohere Multilingual v3 - 100+ dil desteği, Türkçe optimize (1024 boyut)",
+                "dimensions": 1024,
+                "language": "multilingual"
+            },
+            {
+                "id": "embed-english-v3.0",
+                "name": "embed-english-v3.0",
+                "description": "Cohere English v3 - Yüksek kalite İngilizce (1024 boyut)",
+                "dimensions": 1024,
+                "language": "en"
+            },
+            {
+                "id": "embed-multilingual-light-v3.0",
+                "name": "embed-multilingual-light-v3.0",
+                "description": "Cohere Multilingual Light - Hızlı, hafif (384 boyut)",
+                "dimensions": 384,
+                "language": "multilingual"
+            },
+            {
+                "id": "embed-english-light-v3.0",
+                "name": "embed-english-light-v3.0",
+                "description": "Cohere English Light - Hızlı, hafif İngilizce (384 boyut)",
+                "dimensions": 384,
+                "language": "en"
+            }
+        ]
+    else:
+        embedding_models["cohere"] = []
+    
     return embedding_models
 
 @app.get("/debug/models", summary="Debug: List All Models with Details")
@@ -1214,6 +1312,18 @@ def is_openrouter_embedding_model(model_name: str) -> bool:
         return False
     # OpenRouter embedding models typically start with "openai/" for OpenAI models
     return model_name.startswith("openai/") and "embedding" in model_name.lower()
+
+def is_cohere_embedding_model(model_name: str) -> bool:
+    """Check if the model is a Cohere embedding model."""
+    if not model_name:
+        return False
+    cohere_embedding_models = [
+        "embed-multilingual-v3.0",  # 1024 dim, supports 100+ languages including Turkish
+        "embed-english-v3.0",       # 1024 dim, English only
+        "embed-multilingual-light-v3.0",  # 384 dim, lightweight multilingual
+        "embed-english-light-v3.0"  # 384 dim, lightweight English
+    ]
+    return model_name in cohere_embedding_models or model_name.startswith("embed-")
 
 @app.post("/embeddings", response_model=EmbedResponse, summary="Generate Embeddings for Texts (OpenAI-compatible endpoint)")
 async def generate_embeddings_openai_compatible(request: EmbedRequest):
@@ -1381,6 +1491,63 @@ async def generate_embeddings(request: EmbedRequest):
                 except Exception as openrouter_error:
                     print(f"⚠️ OpenRouter embedding failed: {openrouter_error}. Trying HuggingFace fallback...")
                     openrouter_failed = True
+        
+        # Check for Cohere embedding model (PRIORITY 3)
+        is_cohere_embedding = is_cohere_embedding_model(model_name)
+        cohere_failed = False
+        if is_cohere_embedding:
+            print(f"🔵 [EMBEDDING] Detected Cohere embedding model: {model_name}")
+            if not cohere_client or not COHERE_API_KEY:
+                error_msg = f"❌ [CRITICAL] Cohere client not available for embedding model '{model_name}'. "
+                if not COHERE_API_KEY:
+                    error_msg += "COHERE_API_KEY is not set. "
+                error_msg += "Falling back to HuggingFace."
+                print(error_msg)
+                cohere_failed = True
+            else:
+                try:
+                    print(f"✅ Using Cohere embedding model: {model_name}")
+                    
+                    # Cohere embed API - supports batch processing
+                    embeddings = []
+                    print(f"Processing {len(texts)} texts for Cohere embedding")
+                    
+                    # Cohere supports batch embedding (up to 96 texts per request)
+                    # Process in batches of 96
+                    batch_size = 96
+                    for batch_start in range(0, len(texts), batch_size):
+                        batch_texts = texts[batch_start:batch_start + batch_size]
+                        print(f"Processing batch {batch_start//batch_size + 1} ({len(batch_texts)} texts)")
+                        
+                        try:
+                            # Cohere embed API call
+                            response = cohere_client.embed(
+                                texts=batch_texts,
+                                model=model_name,
+                                input_type="search_document"  # or "search_query" for queries
+                            )
+                            
+                            # Extract embeddings from response
+                            if hasattr(response, 'embeddings'):
+                                batch_embeddings = response.embeddings
+                                embeddings.extend(batch_embeddings)
+                            else:
+                                raise Exception(f"Unexpected Cohere embedding response format")
+                                
+                        except Exception as batch_error:
+                            print(f"⚠️ Cohere batch embedding failed: {str(batch_error)}")
+                            # Add zero vectors as fallback for failed batch
+                            # embed-multilingual-v3.0 is 1024 dim
+                            dim = 1024 if "v3.0" in model_name and "light" not in model_name else 384
+                            embeddings.extend([[0.0] * dim for _ in batch_texts])
+                    
+                    end_time = time.time()
+                    processing_time = end_time - start_time
+                    print(f"✅ Successfully generated {len(embeddings)} embeddings using Cohere in {processing_time:.2f} seconds.")
+                    return EmbedResponse(embeddings=embeddings, model_used=model_name)
+                except Exception as cohere_error:
+                    print(f"⚠️ Cohere embedding failed: {cohere_error}. Trying HuggingFace fallback...")
+                    cohere_failed = True
         
         # Check model type and skip Ollama entirely unless explicitly an Ollama model
         # This prevents unnecessary connection attempts

@@ -50,6 +50,16 @@
     "qwen-max-longcontext",
     "qwen2.5-max"
   ],
+  "cohere": [
+    "command-r-plus",
+    "command-r",
+    "command",
+    "command-light",
+    "embed-multilingual-v3.0",
+    "embed-english-v3.0",
+    "embed-multilingual-light-v3.0",
+    "embed-english-light-v3.0"
+  ],
   "ollama": [],
   "openai": []
 }

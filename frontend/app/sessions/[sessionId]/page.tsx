@@ -101,7 +101,14 @@ export default function SessionPage() {
       dimensions?: number;
       language?: string;
     }>;
-  }>({ ollama: [], huggingface: [], alibaba: [], openrouter: [] });
+    cohere?: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      dimensions?: number;
+      language?: string;
+    }>;
+  }>({ ollama: [], huggingface: [], alibaba: [], openrouter: [], cohere: [] });
   const [embeddingModelsLoading, setEmbeddingModelsLoading] = useState(false);
 
   // Note: Embedding model loading is now handled in the main RAG settings useEffect above
@@ -960,6 +967,9 @@ export default function SessionPage() {
                           <option value="alibaba">
                             🛒 Alibaba (Cloud - Qwen)
                           </option>
+                          <option value="cohere">
+                            🔷 Cohere (Cloud - Command)
+                          </option>
                           <option value="deepseek">
                             🔮 DeepSeek (Cloud - Premium)
                           </option>
@@ -1161,6 +1171,10 @@ export default function SessionPage() {
                                 ? (availableEmbeddingModels.alibaba || []).map(
                                     (m) => m.id
                                   )
+                                : e.target.value === "cohere"
+                                ? (availableEmbeddingModels.cohere || []).map(
+                                    (m) => m.id
+                                  )
                                 : e.target.value === "openrouter"
                                 ? (availableEmbeddingModels.openrouter || []).map(
                                     (m) => m.id
@@ -1181,6 +1195,9 @@ export default function SessionPage() {
                         >
                           <option value="alibaba">
                             🛒 Alibaba (Cloud - Qwen)
+                          </option>
+                          <option value="cohere">
+                            🔷 Cohere (Cloud - Multilingual)
                           </option>
                           <option value="openrouter">
                             🚀 OpenRouter (Cloud - OpenAI)
@@ -1342,6 +1359,52 @@ export default function SessionPage() {
                                 )}
                                 <option value="">
                                   OpenRouter model bulunamadı
+                                </option>
+                              </>
+                            )
+                          ) : selectedEmbeddingProvider === "cohere" ? (
+                            (availableEmbeddingModels.cohere || []).length >
+                            0 ? (
+                              <>
+                                {selectedEmbeddingModel &&
+                                  !(
+                                    availableEmbeddingModels.cohere || []
+                                  ).some(
+                                    (m) => m.id === selectedEmbeddingModel
+                                  ) && (
+                                    <option
+                                      key={selectedEmbeddingModel}
+                                      value={selectedEmbeddingModel}
+                                    >
+                                      {selectedEmbeddingModel} (Kayıtlı)
+                                    </option>
+                                  )}
+                                {(availableEmbeddingModels.cohere || []).map(
+                                  (model) => (
+                                    <option key={model.id} value={model.id}>
+                                      {model.name}{" "}
+                                      {model.description
+                                        ? `- ${model.description}`
+                                        : ""}{" "}
+                                      {model.dimensions
+                                        ? `(${model.dimensions}D)`
+                                        : ""}
+                                    </option>
+                                  )
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                {selectedEmbeddingModel && (
+                                  <option
+                                    key={selectedEmbeddingModel}
+                                    value={selectedEmbeddingModel}
+                                  >
+                                    {selectedEmbeddingModel} (Kayıtlı)
+                                  </option>
+                                )}
+                                <option value="">
+                                  Cohere model bulunamadı
                                 </option>
                               </>
                             )

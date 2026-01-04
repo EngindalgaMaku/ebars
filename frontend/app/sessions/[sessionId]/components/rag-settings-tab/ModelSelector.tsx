@@ -50,6 +50,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ sessionId }) => {
         return "🌐";
       case "alibaba":
         return "🛒";
+      case "cohere":
+        return "🔷";
       case "deepseek":
         return "🔮";
       case "openrouter":
@@ -67,6 +69,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({ sessionId }) => {
     switch (provider) {
       case "groq":
       case "alibaba":
+      case "cohere":
       case "deepseek":
       case "openrouter":
         return {
