@@ -409,7 +409,7 @@ export default function ChunkingNewStrategyTestPage() {
     similarityThreshold: 0.7,
     llmReasoningWeight: 0.3,
     maxChunkSize: 2000,
-    minChunkSize: 100,
+    minChunkSize: 200,
     useSemanticBoundaries: true,
     enableContextualMerging: true,
     
@@ -621,7 +621,7 @@ export default function ChunkingNewStrategyTestPage() {
       similarityThreshold: 0.7,
       llmReasoningWeight: 0.3,
       maxChunkSize: 2000,
-      minChunkSize: 100,
+      minChunkSize: 200,
       useSemanticBoundaries: true,
       enableContextualMerging: true,
       enableQualityMetrics: true,

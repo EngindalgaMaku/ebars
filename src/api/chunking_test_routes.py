@@ -143,6 +143,8 @@ class ChunkingTestStartRequest(BaseModel):
     strategies: List[str] = Field(default=["traditional", "agentic"], description="Chunking strategies to test")
     targetChunkSize: int = Field(default=1000, description="Target chunk size in characters")
     overlapSize: int = Field(default=200, description="Overlap size between chunks")
+    minChunkSize: int = Field(default=200, description="Minimum chunk size in characters")
+    maxChunkSize: int = Field(default=2000, description="Maximum chunk size in characters")
     enableGrokReasoning: bool = Field(default=True, description="Enable Grok 3 8B reasoning for boundary detection")
     turkishOptimization: bool = Field(default=True, description="Enable Turkish language optimization")
     sessionId: Optional[str] = Field(default=None, description="Optional session ID for context")
@@ -153,6 +155,8 @@ class ChunkingTestConfiguration(BaseModel):
     strategies: List[str] = Field(default=["traditional", "agentic"], description="Chunking strategies")
     target_chunk_size: int = Field(default=1000, description="Target chunk size")
     overlap_size: int = Field(default=200, description="Overlap size")
+    min_chunk_size: int = Field(default=200, description="Minimum chunk size")
+    max_chunk_size: int = Field(default=2000, description="Maximum chunk size")
     enable_grok_reasoning: bool = Field(default=True, description="Enable Grok reasoning")
     turkish_optimization: bool = Field(default=True, description="Turkish optimization")
     session_id: Optional[str] = Field(default=None, description="Session ID")
@@ -652,6 +656,8 @@ async def execute_multi_agent_chunking(
     target_size: int,
     overlap: int,
     quality_threshold: float = 0.75,
+    min_chunk_size: int = 200,
+    max_chunk_size: int = 2000,
     session_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
@@ -673,8 +679,8 @@ async def execute_multi_agent_chunking(
         
         # Create config
         config = MultiAgentConfig(
-            min_chunk_size=100,
-            max_chunk_size=target_size * 2,
+            min_chunk_size=min_chunk_size,
+            max_chunk_size=max_chunk_size,
             target_chunk_size=target_size,
             overlap_ratio=overlap / target_size if target_size > 0 else 0.1,
             quality_threshold=quality_threshold,
@@ -861,6 +867,8 @@ async def start_chunking_test(
             strategies=request_data.strategies,
             target_chunk_size=request_data.targetChunkSize,
             overlap_size=request_data.overlapSize,
+            min_chunk_size=request_data.minChunkSize,
+            max_chunk_size=request_data.maxChunkSize,
             enable_grok_reasoning=request_data.enableGrokReasoning,
             turkish_optimization=request_data.turkishOptimization,
             session_id=request_data.sessionId
@@ -1890,6 +1898,8 @@ async def execute_full_chunking_test(
                     config.target_chunk_size,
                     config.overlap_size,
                     0.75,  # quality_threshold
+                    config.min_chunk_size,
+                    config.max_chunk_size,
                     config.session_id
                 )
             else:
