@@ -24,6 +24,17 @@ except ImportError as e:
     MarkdownElement = None
     MarkdownSection = None
 
+# Multi-Agent Chunking System (NEW DEFAULT)
+try:
+    from .multi_agent_chunker import MultiAgentChunker, MultiAgentConfig, ChunkingResult
+    MULTI_AGENT_CHUNKER_AVAILABLE = True
+except ImportError as e:
+    print(f"Multi-Agent Chunker not available: {e}")
+    MULTI_AGENT_CHUNKER_AVAILABLE = False
+    MultiAgentChunker = None
+    MultiAgentConfig = None
+    ChunkingResult = None
+
 __all__ = [
     "chunk_text",
     "create_semantic_chunks",
@@ -34,5 +45,10 @@ __all__ = [
     "ASTMarkdownParser",
     "MarkdownElement",
     "MarkdownSection",
-    "ADVANCED_COMPONENTS_AVAILABLE"
+    "ADVANCED_COMPONENTS_AVAILABLE",
+    # Multi-Agent Chunking
+    "MultiAgentChunker",
+    "MultiAgentConfig",
+    "ChunkingResult",
+    "MULTI_AGENT_CHUNKER_AVAILABLE"
 ]

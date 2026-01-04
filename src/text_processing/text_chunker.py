@@ -123,6 +123,15 @@ except ImportError as e:
             self.batch_size = kwargs.get('batch_size', 8)
             self.model_inference_url = kwargs.get('model_inference_url', "http://model-inference-service:8002")
 
+# Import Multi-Agent chunker (NEW DEFAULT)
+MULTI_AGENT_CHUNKER_AVAILABLE = False
+try:
+    from .multi_agent_chunker import MultiAgentChunker, MultiAgentConfig
+    MULTI_AGENT_CHUNKER_AVAILABLE = True
+    logger.info("✅ Multi-Agent chunker available (NEW DEFAULT)")
+except ImportError as e:
+    logger.warning(f"⚠️ Multi-Agent chunker not available: {e}")
+
 def _group_units(units: Sequence[str], chunk_size: int, chunk_overlap: int) -> List[str]:
     """Group sentence/paragraph units into chunks close to chunk_size (by characters)."""
     chunks: List[str] = []
@@ -482,7 +491,7 @@ def chunk_text(
     text: str,
     chunk_size: int = None,
     chunk_overlap: int = None,
-    strategy: Literal["char", "paragraph", "sentence", "markdown", "semantic", "hybrid", "lightweight", "llm_markdown", "agentic_reasoning"] = "llm_markdown",
+    strategy: Literal["char", "paragraph", "sentence", "markdown", "semantic", "hybrid", "lightweight", "llm_markdown", "agentic_reasoning", "multi_agent"] = "multi_agent",
     language: str = "auto",
     use_embedding_refinement: bool = True,
     use_lightweight_chunker: bool = True,
@@ -498,7 +507,8 @@ def chunk_text(
         chunk_size: The desired maximum size of each chunk (in characters).
         chunk_overlap: The desired overlap between consecutive chunks (in characters).
         strategy: Chunking strategy to use:
-                  - "llm_markdown": LLM-assisted markdown chunking (DEFAULT, Groq primary + fallback)
+                  - "multi_agent": Multi-agent intelligent chunking (DEFAULT, RECOMMENDED)
+                  - "llm_markdown": LLM-assisted markdown chunking (Groq primary + fallback)
                   - "agentic_reasoning": Agentic reasoning-based semantic chunking with Grok 3 8B
                   - "lightweight": Turkish-optimized lightweight chunker (fallback)
                   - "char": Character-based chunking with word boundaries
@@ -507,7 +517,6 @@ def chunk_text(
                   - "markdown": Enhanced markdown structure-aware chunking
                   - "semantic": LLM-based semantic chunking (with safe fallback)
                   - "hybrid": Combination of markdown + semantic analysis
-                  - "llm_markdown": LLM-assisted markdown chunking (OpenRouter free primary + Groq fallback)
         language: Language of the text ("tr", "en", or "auto")
         use_embedding_refinement: Whether to use embedding-based refinement
         use_lightweight_chunker: Whether to use the new lightweight chunker (DEFAULT: True)
@@ -525,9 +534,9 @@ def chunk_text(
     # Examples handled: "LLM_MARKDOWN", " llm-markdown ", "Llm_Markdown"
     original_strategy = strategy
     try:
-        strategy = (strategy or "llm_markdown").strip().lower().replace("-", "_")
+        strategy = (strategy or "multi_agent").strip().lower().replace("-", "_")
     except Exception:
-        strategy = "lightweight"
+        strategy = "multi_agent"
     if original_strategy != strategy:
         logger.info(f"Normalized chunking strategy: '{original_strategy}' -> '{strategy}'")
 
@@ -661,6 +670,44 @@ def chunk_text(
         logger.info("⚠️ Redirecting 'hybrid' strategy to 'lightweight' chunker (better performance)")
         return chunk_text(text, chunk_size, chunk_overlap, "lightweight", language, use_embedding_refinement, True, use_llm_post_processing, llm_model_name, model_inference_url)
     
+    elif strategy == "multi_agent":
+        # Multi-agent intelligent chunking (NEW DEFAULT)
+        if not MULTI_AGENT_CHUNKER_AVAILABLE:
+            logger.info("⚠️ Multi-agent chunker not available, using lightweight chunker")
+            return chunk_text(text, chunk_size, chunk_overlap, "lightweight", language, use_embedding_refinement, True, use_llm_post_processing, llm_model_name, model_inference_url)
+        
+        try:
+            # Configure multi-agent chunker
+            ma_config = MultiAgentConfig(
+                min_chunk_size=200,
+                max_chunk_size=chunk_size * 2,
+                target_chunk_size=chunk_size,
+                overlap_ratio=chunk_overlap / chunk_size if chunk_size > 0 else 0.1,
+                quality_threshold=0.75,
+                max_improvement_iterations=3,
+                use_llm=True,
+                llm_model=llm_model_name,
+                model_inference_url=model_inference_url,
+                enable_parallel=True,
+                enable_caching=True
+            )
+            
+            chunker = MultiAgentChunker(ma_config)
+            result = chunker.chunk_text(normalized)
+            
+            if result.chunks:
+                chunks = [chunk.text for chunk in result.chunks]
+                logger.info(f"✅ Multi-agent chunking successful: {len(chunks)} chunks, avg_quality: {result.quality_summary.get('avg_quality', 0):.2f}")
+                return chunks
+            else:
+                logger.warning("⚠️ Multi-agent chunking returned no chunks, falling back")
+                return chunk_text(text, chunk_size, chunk_overlap, "lightweight", language, use_embedding_refinement, True, use_llm_post_processing, llm_model_name, model_inference_url)
+                
+        except Exception as e:
+            logger.error(f"❌ Multi-agent chunking failed: {e}")
+            logger.info("⚠️ Falling back to lightweight chunker")
+            return chunk_text(text, chunk_size, chunk_overlap, "lightweight", language, use_embedding_refinement, True, use_llm_post_processing, llm_model_name, model_inference_url)
+    
     elif strategy == "agentic_reasoning":
         # Agentic reasoning-based semantic chunking with Grok 3 8B
         if not AGENTIC_REASONING_AVAILABLE:
@@ -669,7 +716,7 @@ def chunk_text(
         
         try:
             # Configure agentic reasoning chunker
-            config = AgenticChunkingConfig(
+            ar_config = AgenticChunkingConfig(
                 target_size=chunk_size,
                 min_size=max(100, chunk_size // 10),
                 max_size=min(1024, chunk_size * 1.2),
@@ -684,7 +731,7 @@ def chunk_text(
             
             chunks = create_agentic_reasoning_chunks(
                 text=normalized,
-                config=config,
+                config=ar_config,
                 model_inference_url=model_inference_url
             )
             
