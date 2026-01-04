@@ -167,14 +167,29 @@ class SemanticAgent(BaseAgent):
             if llm_decision:
                 return llm_decision
         
-        # Default to NEUTRAL
-        return AgentDecision(
-            agent_name=self.name,
-            decision_type=DecisionType.NEUTRAL,
-            confidence=0.5,
-            reasoning=f"Moderate similarity ({similarity:.2f}). No clear boundary.",
-            metrics=metrics
-        )
+        # Medium similarity - make a decision based on which threshold is closer
+        # If closer to high similarity, lean towards MERGE
+        # If closer to low similarity, lean towards SPLIT
+        mid_point = (self.config.similarity_threshold + self.config.topic_drift_threshold) / 2
+        
+        if similarity >= mid_point:
+            # Closer to high similarity - weak MERGE
+            return AgentDecision(
+                agent_name=self.name,
+                decision_type=DecisionType.MERGE,
+                confidence=0.6,
+                reasoning=f"Moderate-high similarity ({similarity:.2f}). Leaning towards keeping together.",
+                metrics=metrics
+            )
+        else:
+            # Closer to low similarity - weak SPLIT
+            return AgentDecision(
+                agent_name=self.name,
+                decision_type=DecisionType.SPLIT,
+                confidence=0.6,
+                reasoning=f"Moderate-low similarity ({similarity:.2f}). Leaning towards splitting.",
+                metrics=metrics
+            )
     
     def _calculate_similarity(
         self, 

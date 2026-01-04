@@ -158,38 +158,64 @@ class ConsensusCalculator:
         # Check if conflict resolution changed the outcome
         conflict_resolved = self._has_conflict(decisions)
         
-        # Calculate weighted scores
+        # Calculate weighted scores and average confidence
         agent_contributions = {}
         split_score = 0.0
         merge_score = 0.0
+        total_weight = 0.0
+        weighted_confidence = 0.0
         
         for decision in decisions:
             weight = self._get_agent_weight(decision.agent_name)
             contribution = weight * decision.confidence
-            agent_contributions[decision.agent_name] = contribution
+            agent_contributions[decision.agent_name] = {
+                'weight': weight,
+                'confidence': decision.confidence,
+                'contribution': contribution,
+                'decision': decision.decision_type.value
+            }
+            
+            # Track weighted confidence for all decisions
+            weighted_confidence += weight * decision.confidence
+            total_weight += weight
             
             if decision.is_split_decision:
                 split_score += contribution
             elif decision.is_merge_decision:
                 merge_score += contribution
+            # NEUTRAL decisions contribute to overall confidence but not to split/merge
+        
+        # Calculate average weighted confidence
+        avg_confidence = weighted_confidence / total_weight if total_weight > 0 else 0.5
         
         # Determine final decision based on scores
         if conflict_resolved:
             final_decision = resolved_decision
-            confidence = max(d.confidence for d in decisions if self._matches_decision(d, resolved_decision))
+            # Use the confidence of the winning agent
+            matching_decisions = [d for d in decisions if self._matches_decision(d, resolved_decision)]
+            confidence = max((d.confidence for d in matching_decisions), default=avg_confidence)
             reasoning = conflict_explanation
         else:
-            if split_score > merge_score and split_score >= self.config.consensus_threshold:
+            # Lower threshold for decisions when we have clear agent agreement
+            effective_threshold = self.config.consensus_threshold * 0.5  # 0.3 instead of 0.6
+            
+            if split_score > merge_score and split_score >= effective_threshold:
                 final_decision = DecisionType.SPLIT
-                confidence = split_score
-                reasoning = f"Consensus for SPLIT (score: {split_score:.2f})"
-            elif merge_score > split_score and merge_score >= self.config.consensus_threshold:
+                # Confidence is the average of all agent confidences, not just split score
+                confidence = avg_confidence
+                reasoning = f"Consensus for SPLIT (split: {split_score:.2f}, merge: {merge_score:.2f}, avg_conf: {avg_confidence:.2f})"
+            elif merge_score > split_score and merge_score >= effective_threshold:
                 final_decision = DecisionType.MERGE
-                confidence = merge_score
-                reasoning = f"Consensus for MERGE (score: {merge_score:.2f})"
+                confidence = avg_confidence
+                reasoning = f"Consensus for MERGE (split: {split_score:.2f}, merge: {merge_score:.2f}, avg_conf: {avg_confidence:.2f})"
+            elif split_score > 0 or merge_score > 0:
+                # If any agent voted, use the majority
+                final_decision = DecisionType.SPLIT if split_score >= merge_score else DecisionType.MERGE
+                confidence = avg_confidence
+                reasoning = f"Weak consensus for {final_decision.value} (split: {split_score:.2f}, merge: {merge_score:.2f})"
             else:
                 final_decision = DecisionType.NEUTRAL
-                confidence = max(split_score, merge_score)
+                confidence = avg_confidence
                 reasoning = f"No clear consensus (split: {split_score:.2f}, merge: {merge_score:.2f})"
         
         return ConsensusResult(

@@ -254,38 +254,60 @@ class MultiAgentChunker:
         """
         segments = []
         
-        # Split by double newlines (paragraphs)
-        paragraph_pattern = re.compile(r'\n\s*\n')
+        # First, split by major headers (## or #)
+        header_pattern = re.compile(r'(?=^#{1,2}\s+)', re.MULTILINE)
         
-        last_end = 0
-        for match in paragraph_pattern.finditer(text):
-            if match.start() > last_end:
-                segment_text = text[last_end:match.start()]
-                if segment_text.strip():
-                    segments.append((last_end, match.start(), segment_text))
-            last_end = match.end()
+        parts = header_pattern.split(text)
+        current_pos = 0
         
-        # Add final segment
-        if last_end < len(text):
-            segment_text = text[last_end:]
-            if segment_text.strip():
-                segments.append((last_end, len(text), segment_text))
+        for part in parts:
+            if not part.strip():
+                current_pos += len(part)
+                continue
+            
+            # Find actual position in text
+            part_start = text.find(part, current_pos)
+            if part_start == -1:
+                part_start = current_pos
+            part_end = part_start + len(part)
+            
+            # Further split by double newlines within each part
+            paragraph_pattern = re.compile(r'\n\s*\n')
+            sub_parts = paragraph_pattern.split(part)
+            
+            sub_pos = part_start
+            for sub_part in sub_parts:
+                if sub_part.strip():
+                    # Find actual position
+                    sub_start = text.find(sub_part.strip(), sub_pos)
+                    if sub_start == -1:
+                        sub_start = sub_pos
+                    sub_end = sub_start + len(sub_part.strip())
+                    
+                    segments.append((sub_start, sub_end, sub_part.strip()))
+                    sub_pos = sub_end
+            
+            current_pos = part_end
         
-        # If no paragraphs found, split by sentences
+        # If no segments found, fall back to paragraph splitting
         if not segments:
-            sentence_pattern = re.compile(r'[.!?]+\s+')
+            paragraph_pattern = re.compile(r'\n\s*\n')
             last_end = 0
-            for match in sentence_pattern.finditer(text):
-                if match.end() > last_end:
-                    segment_text = text[last_end:match.end()]
+            for match in paragraph_pattern.finditer(text):
+                if match.start() > last_end:
+                    segment_text = text[last_end:match.start()]
                     if segment_text.strip():
-                        segments.append((last_end, match.end(), segment_text))
+                        segments.append((last_end, match.start(), segment_text.strip()))
                 last_end = match.end()
             
             if last_end < len(text):
                 segment_text = text[last_end:]
                 if segment_text.strip():
-                    segments.append((last_end, len(text), segment_text))
+                    segments.append((last_end, len(text), segment_text.strip()))
+        
+        # If still no segments, treat whole text as one segment
+        if not segments and text.strip():
+            segments.append((0, len(text), text.strip()))
         
         return segments
     
@@ -305,12 +327,21 @@ class MultiAgentChunker:
         boundaries = []
         current_chunk_start = 0
         current_chunk_size = 0
+        current_chunk_segments = []
         
         for i, (start, end, segment_text) in enumerate(segments):
             segment_size = len(segment_text)
             
+            # Check if this segment starts with a header (natural boundary)
+            is_header = segment_text.strip().startswith('#') or segment_text.strip().startswith('##')
+            
             # Check if adding this segment would exceed target size
-            if current_chunk_size + segment_size > self.config.target_chunk_size:
+            should_check_boundary = (
+                current_chunk_size + segment_size > self.config.target_chunk_size or
+                (is_header and current_chunk_size > self.config.min_chunk_size)
+            )
+            
+            if should_check_boundary and current_chunk_size > 0:
                 # Create boundary info
                 if i > 0:
                     prev_segment = segments[i-1][2]
@@ -327,21 +358,30 @@ class MultiAgentChunker:
                 context = AnalysisContext(boundary=boundary)
                 result = self.coordinator.coordinate(context)
                 
-                # Decide based on consensus
-                if result.final_decision in [DecisionType.SPLIT, DecisionType.FORCE_SPLIT, DecisionType.ALLOW_SPLIT]:
+                # Decide based on consensus - be more aggressive about splitting at headers
+                should_split = (
+                    result.final_decision in [DecisionType.SPLIT, DecisionType.FORCE_SPLIT, DecisionType.ALLOW_SPLIT] or
+                    (is_header and result.final_decision != DecisionType.PRESERVE)
+                )
+                
+                if should_split:
                     boundaries.append(start)
                     current_chunk_start = start
                     current_chunk_size = segment_size
+                    current_chunk_segments = [segment_text]
                 else:
                     current_chunk_size += segment_size
+                    current_chunk_segments.append(segment_text)
             else:
                 current_chunk_size += segment_size
+                current_chunk_segments.append(segment_text)
             
             # Force split if chunk is too large
             if current_chunk_size > self.config.max_chunk_size * 1.3:
                 boundaries.append(start)
                 current_chunk_start = start
                 current_chunk_size = segment_size
+                current_chunk_segments = [segment_text]
         
         return boundaries
     
@@ -391,16 +431,45 @@ class MultiAgentChunker:
             # Extract agent decisions
             decisions = {d.agent_name: d for d in result.agent_decisions}
             
+            # Get quality score from quality agent if available
+            quality_agent_decision = decisions.get('QualityAgent')
+            if quality_agent_decision:
+                # Quality agent's metrics contain the actual quality scores
+                quality_metrics = quality_agent_decision.metrics
+                quality_score = quality_metrics.get('overall_quality', quality_agent_decision.confidence)
+            else:
+                quality_score = result.confidence
+            
+            # Get structural decision
+            structural_decision = ''
+            if 'StructuralAgent' in decisions:
+                structural_decision = decisions['StructuralAgent'].decision_type.value
+            
+            # Get semantic decision
+            semantic_decision = ''
+            if 'SemanticAgent' in decisions:
+                semantic_decision = decisions['SemanticAgent'].decision_type.value
+            
+            # Get size decision
+            size_decision = ''
+            if 'SizeAgent' in decisions:
+                size_decision = decisions['SizeAgent'].decision_type.value
+            
+            # Get quality decision
+            quality_decision = ''
+            if 'QualityAgent' in decisions:
+                quality_decision = decisions['QualityAgent'].decision_type.value
+            
             chunk = MultiAgentChunk(
                 text=candidate.text,
                 start_pos=candidate.start_pos,
                 end_pos=candidate.end_pos,
-                quality_score=result.confidence,
+                quality_score=quality_score,
                 confidence=result.confidence,
-                structural_decision=decisions.get('StructuralAgent', {}).decision_type.value if 'StructuralAgent' in decisions else '',
-                semantic_decision=decisions.get('SemanticAgent', {}).decision_type.value if 'SemanticAgent' in decisions else '',
-                size_decision=decisions.get('SizeAgent', {}).decision_type.value if 'SizeAgent' in decisions else '',
-                quality_decision=decisions.get('QualityAgent', {}).decision_type.value if 'QualityAgent' in decisions else '',
+                structural_decision=structural_decision,
+                semantic_decision=semantic_decision,
+                size_decision=size_decision,
+                quality_decision=quality_decision,
                 word_count=len(candidate.text.split()),
                 char_count=len(candidate.text),
                 improvement_iterations=result.improvement_iterations,
