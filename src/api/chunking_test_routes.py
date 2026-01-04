@@ -646,6 +646,148 @@ async def execute_llm_markdown_chunking(
             "error": str(e)
         }
 
+
+async def execute_multi_agent_chunking(
+    text: str,
+    target_size: int,
+    overlap: int,
+    quality_threshold: float = 0.75,
+    session_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Execute multi-agent chunking strategy.
+    
+    Uses specialized agents:
+    - StructuralAgent: Preserves atomic units (code, tables, lists)
+    - SemanticAgent: Detects topic boundaries
+    - SizeAgent: Manages chunk sizes
+    - QualityAgent: Validates and improves chunks
+    - CoordinatorAgent: Orchestrates all agents
+    """
+    start_time = time.time()
+    
+    try:
+        logger.info(f"Starting multi-agent chunking - text length: {len(text)}, target_size: {target_size}")
+        
+        from src.text_processing.multi_agent_chunker import MultiAgentChunker, MultiAgentConfig
+        
+        # Create config
+        config = MultiAgentConfig(
+            min_chunk_size=100,
+            max_chunk_size=target_size * 2,
+            target_chunk_size=target_size,
+            overlap_ratio=overlap / target_size if target_size > 0 else 0.1,
+            quality_threshold=quality_threshold,
+            max_improvement_iterations=3,
+            use_llm=True,
+            llm_model="llama-3.1-8b-instant",
+            model_inference_url=MODEL_INFERENCE_URL,
+            enable_parallel=True,
+            enable_caching=True
+        )
+        
+        # Create chunker and process
+        chunker = MultiAgentChunker(config)
+        result = chunker.chunk_text(text)
+        
+        execution_time = (time.time() - start_time) * 1000
+        
+        # Extract chunks
+        chunks = [chunk.text for chunk in result.chunks]
+        chunk_count = len(chunks)
+        total_chars = sum(len(chunk) for chunk in chunks)
+        avg_chunk_size = total_chars / chunk_count if chunk_count > 0 else 0
+        
+        # Calculate quality metrics
+        avg_quality = result.quality_summary.get('avg_quality', 0.0)
+        
+        # Build detailed chunks for visualization
+        detailed_chunks = []
+        reasoning_decisions = []
+        
+        for i, chunk in enumerate(result.chunks):
+            detailed_chunks.append({
+                "id": i,
+                "text": chunk.text,
+                "start_index": chunk.start_pos,
+                "end_index": chunk.end_pos,
+                "word_count": chunk.word_count,
+                "char_count": chunk.char_count,
+                "quality_score": chunk.quality_score,
+                "confidence": chunk.confidence,
+                "structural_decision": chunk.structural_decision,
+                "semantic_decision": chunk.semantic_decision,
+                "size_decision": chunk.size_decision,
+                "quality_decision": chunk.quality_decision,
+                "improvement_iterations": chunk.improvement_iterations,
+                "reasoning": chunk.reasoning,
+                "processing_time": chunk.processing_time
+            })
+            
+            # Add reasoning decision
+            reasoning_decisions.append({
+                "decision": "SPLIT" if i < len(result.chunks) - 1 else "END",
+                "confidence": chunk.confidence,
+                "reasoning": chunk.reasoning,
+                "semantic_coherence": chunk.quality_score,
+                "topic_continuity": chunk.quality_score,
+                "metadata": {
+                    "decision_method": "multi_agent_consensus",
+                    "structural": chunk.structural_decision,
+                    "semantic": chunk.semantic_decision,
+                    "size": chunk.size_decision,
+                    "quality": chunk.quality_decision
+                }
+            })
+        
+        # Similarity analysis
+        similarity_analysis = {
+            "total_boundary_decisions": len(reasoning_decisions),
+            "split_ratio": 1.0,
+            "avg_confidence": avg_quality,
+            "avg_semantic_coherence": avg_quality,
+            "avg_topic_continuity": avg_quality,
+            "reasoning_methods": ["multi_agent_consensus"]
+        }
+        
+        logger.info(f"Multi-agent chunking completed - {chunk_count} chunks, avg_quality: {avg_quality:.3f}")
+        
+        return {
+            "strategy": "multi_agent",
+            "chunks": chunks,
+            "detailed_chunks": detailed_chunks,
+            "chunk_count": chunk_count,
+            "total_characters": total_chars,
+            "avg_chunk_size": avg_chunk_size,
+            "processing_time_ms": execution_time,
+            "semantic_coherence_score": avg_quality,
+            "boundary_quality_score": avg_quality,
+            "success": True,
+            "config": f"Multi-Agent Chunking (quality_threshold={quality_threshold})",
+            "reasoning_decisions": reasoning_decisions,
+            "similarity_analysis": similarity_analysis,
+            "agent_metrics": result.agent_metrics,
+            "quality_summary": result.quality_summary
+        }
+        
+    except Exception as e:
+        execution_time = (time.time() - start_time) * 1000
+        logger.error(f"Multi-agent chunking failed: {e}", exc_info=True)
+        return {
+            "strategy": "multi_agent",
+            "chunks": [],
+            "chunk_count": 0,
+            "total_characters": 0,
+            "avg_chunk_size": 0,
+            "processing_time_ms": execution_time,
+            "semantic_coherence_score": 0,
+            "boundary_quality_score": 0,
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+
+
 # ===== API ENDPOINTS =====
 
 @router.post("/start", summary="Start Chunking Test")
@@ -1740,6 +1882,14 @@ async def execute_full_chunking_test(
                     config.input_text,
                     config.target_chunk_size,
                     config.overlap_size,
+                    config.session_id
+                )
+            elif strategy == "multi_agent":
+                result = await execute_multi_agent_chunking(
+                    config.input_text,
+                    config.target_chunk_size,
+                    config.overlap_size,
+                    0.75,  # quality_threshold
                     config.session_id
                 )
             else:

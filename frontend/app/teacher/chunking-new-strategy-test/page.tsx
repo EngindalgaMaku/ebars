@@ -93,7 +93,7 @@ import DriftVisualization from "./components/DriftVisualization";
 // Chunking Strategy Configuration Interface
 interface ChunkingConfig {
   testName: string;
-  strategy: "traditional" | "agentic" | "comparison";
+  strategy: "traditional" | "agentic" | "multi_agent" | "comparison";
   file: File | null;
   
   // Traditional chunking parameters
@@ -968,6 +968,12 @@ export default function ChunkingNewStrategyTestPage() {
                           Agentic
                         </Button>
                         <Button
+                          variant={config.strategy === 'multi_agent' ? 'default' : 'outline'}
+                          onClick={() => setConfig({ ...config, strategy: 'multi_agent' })}
+                        >
+                          Multi-Agent
+                        </Button>
+                        <Button
                           variant={config.strategy === 'comparison' ? 'default' : 'outline'}
                           onClick={() => setConfig({ ...config, strategy: 'comparison' })}
                         >
@@ -1079,6 +1085,47 @@ export default function ChunkingNewStrategyTestPage() {
                         <div className="flex items-center space-x-2">
                           <input type="checkbox" id="enable-contextual-merging" checked={config.enableContextualMerging} onChange={(e) => setConfig({ ...config, enableContextualMerging: e.target.checked })} />
                           <Label htmlFor="enable-contextual-merging">Bağlamsal Birleştirmeyi Etkinleştir</Label>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Multi-Agent Chunking Parameters */}
+                    {config.strategy === 'multi_agent' && (
+                      <div className="space-y-4">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Multi-Agent Chunking
+                        </h4>
+                        <p className="text-sm text-gray-600">
+                          5 uzman ajan ile akıllı chunking: Structural, Semantic, Size, Quality ve Coordinator
+                        </p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="ma-target-size">Hedef Chunk Boyutu</Label>
+                            <Input id="ma-target-size" type="number" value={config.chunkSize} onChange={(e) => setConfig({ ...config, chunkSize: Number(e.target.value) })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="ma-quality-threshold">Kalite Eşiği</Label>
+                            <Input id="ma-quality-threshold" type="number" step="0.05" min="0" max="1" value={config.similarityThreshold} onChange={(e) => setConfig({ ...config, similarityThreshold: Number(e.target.value) })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="ma-max-size">Max Chunk Boyutu</Label>
+                            <Input id="ma-max-size" type="number" value={config.maxChunkSize} onChange={(e) => setConfig({ ...config, maxChunkSize: Number(e.target.value) })} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="ma-min-size">Min Chunk Boyutu</Label>
+                            <Input id="ma-min-size" type="number" value={config.minChunkSize} onChange={(e) => setConfig({ ...config, minChunkSize: Number(e.target.value) })} />
+                          </div>
+                        </div>
+                        <div className="bg-blue-50 p-3 rounded-lg text-sm">
+                          <p className="font-medium text-blue-800 mb-2">Ajan Rolleri:</p>
+                          <ul className="text-blue-700 space-y-1">
+                            <li>• <strong>Structural:</strong> Kod, tablo, liste gibi atomik birimleri korur</li>
+                            <li>• <strong>Semantic:</strong> Konu sınırlarını ve anlamsal tutarlılığı analiz eder</li>
+                            <li>• <strong>Size:</strong> Chunk boyutlarını optimize eder</li>
+                            <li>• <strong>Quality:</strong> Chunk kalitesini doğrular ve iyileştirir</li>
+                            <li>• <strong>Coordinator:</strong> Tüm ajanları orkestre eder</li>
+                          </ul>
                         </div>
                       </div>
                     )}
