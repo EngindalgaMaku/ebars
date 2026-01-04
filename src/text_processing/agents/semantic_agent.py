@@ -8,12 +8,12 @@ Uses embeddings and LLM reasoning for topic drift detection.
 
 import re
 import json
-import hashlib
-import requests
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 import logging
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
+
 import numpy as np
+import requests
 
 from .base_agent import BaseAgent, AgentConfig
 from ..protocols.messages import AgentDecision, DecisionType, AnalysisContext
@@ -203,17 +203,71 @@ class SemanticAgent(BaseAgent):
         if embedding1 and embedding2:
             return self._cosine_similarity(embedding1, embedding2)
         
-        # Generate embeddings
+        # Try to generate embeddings
         try:
-            from ..embedding.embedding_generator import generate_embeddings
-            embeddings = generate_embeddings([text1, text2])
-            if len(embeddings) == 2:
-                return self._cosine_similarity(embeddings[0], embeddings[1])
+            from src.embedding.embedding_generator import generate_embeddings
+            embeddings = generate_embeddings([text1[:500], text2[:500]])  # Limit text length
+            if len(embeddings) == 2 and embeddings[0] and embeddings[1]:
+                sim = self._cosine_similarity(embeddings[0], embeddings[1])
+                if sim > 0:  # Valid similarity
+                    logger.info(f"Embedding similarity calculated: {sim:.3f}")
+                    return sim
         except Exception as e:
             logger.warning(f"Embedding generation failed: {e}")
         
-        # Fallback to simple word overlap
-        return self._word_overlap_similarity(text1, text2)
+        # Fallback to enhanced word overlap with semantic awareness
+        return self._semantic_word_overlap(text1, text2)
+    
+    def _semantic_word_overlap(self, text1: str, text2: str) -> float:
+        """
+        Calculate semantic word overlap with awareness of:
+        - Common topic words
+        - Header/section indicators
+        - Question/answer patterns
+        """
+        # Normalize texts
+        text1_lower = text1.lower()
+        text2_lower = text2.lower()
+        
+        # Extract meaningful words (filter out common stop words)
+        stop_words = {'ve', 'ile', 'bir', 'bu', 'da', 'de', 'için', 'gibi', 'olan', 
+                      'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
+                      'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'}
+        
+        words1 = set(w for w in re.findall(r'\b\w{3,}\b', text1_lower) if w not in stop_words)
+        words2 = set(w for w in re.findall(r'\b\w{3,}\b', text2_lower) if w not in stop_words)
+        
+        if not words1 or not words2:
+            return 0.5  # Neutral if no meaningful words
+        
+        # Calculate Jaccard similarity
+        intersection = words1 & words2
+        union = words1 | words2
+        jaccard = len(intersection) / len(union) if union else 0
+        
+        # Boost similarity if texts share topic-specific terms
+        # (words that appear in both and are relatively rare)
+        topic_boost = 0
+        if len(intersection) >= 3:
+            topic_boost = 0.1
+        if len(intersection) >= 5:
+            topic_boost = 0.2
+        
+        # Check for question-answer relationship
+        is_question = bool(re.search(r'\?|soru|question', text1_lower))
+        is_answer = bool(re.search(r'cevap|answer|yanıt', text2_lower))
+        if is_question and is_answer:
+            # Questions and answers should stay together
+            return 0.9
+        
+        # Check for header-content relationship
+        is_header = text1.strip().startswith('#') or len(text1) < 100
+        has_content = len(text2) > 200
+        if is_header and has_content and jaccard > 0.1:
+            # Header followed by related content
+            return max(0.7, jaccard + topic_boost)
+        
+        return min(1.0, jaccard + topic_boost)
     
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """Calculate cosine similarity between two vectors."""
@@ -231,19 +285,6 @@ class SemanticAgent(BaseAgent):
             return float(dot_product / (norm1 * norm2))
         except Exception:
             return 0.5
-    
-    def _word_overlap_similarity(self, text1: str, text2: str) -> float:
-        """Calculate simple word overlap similarity."""
-        words1 = set(text1.lower().split())
-        words2 = set(text2.lower().split())
-        
-        if not words1 or not words2:
-            return 0.0
-        
-        intersection = words1 & words2
-        union = words1 | words2
-        
-        return len(intersection) / len(union)
     
     def _check_cross_references(self, text1: str, text2: str) -> Tuple[bool, str]:
         """Check for cross-references between segments."""

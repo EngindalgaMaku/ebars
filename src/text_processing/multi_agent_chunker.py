@@ -251,65 +251,96 @@ class MultiAgentChunker:
         Initial text segmentation based on natural boundaries.
         
         Returns list of (start, end, segment_text) tuples.
+        Keeps questions with their answers together.
         """
         segments = []
         
-        # First, split by major headers (## or #)
-        header_pattern = re.compile(r'(?=^#{1,2}\s+)', re.MULTILINE)
-        
-        parts = header_pattern.split(text)
+        # First, split by major headers (## or ###)
+        # But be careful not to split questions from answers
+        lines = text.split('\n')
+        current_segment_start = 0
+        current_segment_lines = []
         current_pos = 0
         
-        for part in parts:
-            if not part.strip():
-                current_pos += len(part)
-                continue
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            line_start = current_pos
+            line_end = current_pos + len(line)
             
-            # Find actual position in text
-            part_start = text.find(part, current_pos)
-            if part_start == -1:
-                part_start = current_pos
-            part_end = part_start + len(part)
+            # Check if this is a header line
+            is_header = line.strip().startswith('#')
             
-            # Further split by double newlines within each part
-            paragraph_pattern = re.compile(r'\n\s*\n')
-            sub_parts = paragraph_pattern.split(part)
+            # Check if this is a question (starts with number followed by period)
+            is_question_start = bool(re.match(r'^\s*\d+[\.\)]\s+', line.strip()))
             
-            sub_pos = part_start
-            for sub_part in sub_parts:
-                if sub_part.strip():
-                    # Find actual position
-                    sub_start = text.find(sub_part.strip(), sub_pos)
-                    if sub_start == -1:
-                        sub_start = sub_pos
-                    sub_end = sub_start + len(sub_part.strip())
-                    
-                    segments.append((sub_start, sub_end, sub_part.strip()))
-                    sub_pos = sub_end
+            # Check if this is an answer line
+            is_answer = line.strip().upper().startswith('CEVAP')
             
-            current_pos = part_end
+            # Decide whether to start a new segment
+            should_split = False
+            
+            if is_header and current_segment_lines:
+                # Split at headers, but only if we have content
+                should_split = True
+            elif is_question_start and current_segment_lines:
+                # Check if previous segment is also a question - if so, don't split
+                prev_text = '\n'.join(current_segment_lines)
+                if not re.search(r'\d+[\.\)]\s+', prev_text):
+                    # Previous segment is not a question, safe to split
+                    should_split = True
+            
+            if should_split:
+                # Save current segment
+                segment_text = '\n'.join(current_segment_lines).strip()
+                if segment_text:
+                    segments.append((current_segment_start, line_start, segment_text))
+                current_segment_start = line_start
+                current_segment_lines = [line]
+            else:
+                current_segment_lines.append(line)
+            
+            current_pos = line_end + 1  # +1 for newline
+            i += 1
         
-        # If no segments found, fall back to paragraph splitting
-        if not segments:
-            paragraph_pattern = re.compile(r'\n\s*\n')
-            last_end = 0
-            for match in paragraph_pattern.finditer(text):
-                if match.start() > last_end:
-                    segment_text = text[last_end:match.start()]
-                    if segment_text.strip():
-                        segments.append((last_end, match.start(), segment_text.strip()))
-                last_end = match.end()
+        # Add final segment
+        if current_segment_lines:
+            segment_text = '\n'.join(current_segment_lines).strip()
+            if segment_text:
+                segments.append((current_segment_start, len(text), segment_text))
+        
+        # Post-process: merge small segments and ensure questions have answers
+        merged_segments = []
+        i = 0
+        while i < len(segments):
+            start, end, text_content = segments[i]
             
-            if last_end < len(text):
-                segment_text = text[last_end:]
-                if segment_text.strip():
-                    segments.append((last_end, len(text), segment_text.strip()))
+            # Check if this segment ends with a question without answer
+            has_question = bool(re.search(r'\d+[\.\)]\s+.*\?', text_content, re.DOTALL))
+            has_answer = 'CEVAP' in text_content.upper()
+            
+            # If question without answer, try to merge with next segment
+            if has_question and not has_answer and i + 1 < len(segments):
+                next_start, next_end, next_text = segments[i + 1]
+                # Check if next segment has the answer
+                if 'CEVAP' in next_text.upper():
+                    # Merge them
+                    merged_text = text_content + '\n\n' + next_text
+                    merged_segments.append((start, next_end, merged_text.strip()))
+                    i += 2
+                    continue
+            
+            # Check if segment is too small (< min_size) and merge with previous
+            if len(text_content) < 150 and merged_segments:
+                prev_start, prev_end, prev_text = merged_segments[-1]
+                merged_text = prev_text + '\n\n' + text_content
+                merged_segments[-1] = (prev_start, end, merged_text.strip())
+            else:
+                merged_segments.append((start, end, text_content))
+            
+            i += 1
         
-        # If still no segments, treat whole text as one segment
-        if not segments and text.strip():
-            segments.append((0, len(text), text.strip()))
-        
-        return segments
+        return merged_segments if merged_segments else segments
     
     def _find_boundaries(
         self, 
@@ -423,9 +454,25 @@ class MultiAgentChunker:
         """Validate and improve chunk candidates."""
         final_chunks = []
         
-        for candidate in candidates:
-            # Validate with coordinator
-            context = AnalysisContext(chunk_candidate=candidate)
+        for i, candidate in enumerate(candidates):
+            # Create boundary info for semantic analysis
+            # Use previous chunk's text as segment_before, current as segment_after
+            if i > 0:
+                prev_text = candidates[i-1].text[-500:]  # Last 500 chars
+            else:
+                prev_text = candidate.previous_context or ""
+            
+            boundary = BoundaryInfo(
+                position=candidate.start_pos,
+                segment_before=prev_text,
+                segment_after=candidate.text[:500]  # First 500 chars
+            )
+            
+            # Validate with coordinator - include both boundary and chunk
+            context = AnalysisContext(
+                chunk_candidate=candidate,
+                boundary=boundary
+            )
             result = self.coordinator.coordinate(context)
             
             # Extract agent decisions
