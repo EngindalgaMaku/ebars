@@ -3090,6 +3090,18 @@ def get_models():
                     "description": "Alibaba DashScope (Qwen)"
                 })
             
+            # Add Cohere models
+            for model in model_data.get("cohere", []):
+                # Filter out embedding models - only include LLM models
+                if not model.startswith("embed-"):
+                    all_models.append({
+                        "id": model,
+                        "name": model.replace("command-", "Command ").title(),  # Clean up model names
+                        "provider": "cohere",
+                        "type": "cloud",
+                        "description": "Cohere (Command)"
+                    })
+            
             return {
                 "models": all_models,
                 "providers": {
@@ -3128,6 +3140,12 @@ def get_models():
                         "description": "Alibaba Cloud DashScope Qwen Modelleri",
                         "icon": "🛒",
                         "models": model_data.get("alibaba", [])
+                    },
+                    "cohere": {
+                        "name": "Cohere",
+                        "description": "Cohere Command Modelleri",
+                        "icon": "🔷",
+                        "models": [m for m in model_data.get("cohere", []) if not m.startswith("embed-")]
                     }
                 }
             }
