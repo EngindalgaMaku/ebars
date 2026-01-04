@@ -9,7 +9,8 @@
  * - Batch evaluation
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { apiClient } from "@/lib/api-client";
+import { tokenManager } from "@/lib/token-manager";
 
 export interface EvaluationResult {
   success: boolean;
@@ -31,6 +32,12 @@ export interface EvaluationResult {
     multi_agent_quality: number;
     overall_improvement_pct: number;
     winner: 'multi_agent' | 'traditional';
+  };
+  warning?: {
+    type: string;
+    message: string;
+    embedding_service_status: string;
+    recommendation: string;
   };
 }
 
@@ -122,40 +129,21 @@ export interface BatchResult {
  * Get full evaluation for a chunking test
  */
 export async function getFullEvaluation(testId: string, token?: string): Promise<EvaluationResult> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(`${API_BASE_URL}/chunking-test/evaluate/${testId}`, {
-    method: 'GET',
-    headers,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-    throw new Error(error.detail || `Failed to get evaluation: ${response.status}`);
-  }
-
-  return response.json();
+  return apiClient.get(`/chunking-test/evaluate/${testId}`);
 }
 
 /**
  * Download ZIP export of chunking test
  */
 export async function downloadZipExport(testId: string, token?: string): Promise<Blob> {
-  const headers: Record<string, string> = {};
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(`${API_BASE_URL}/chunking-test/export-zip/${testId}`, {
+  // For blob downloads, we need to use fetch directly with the correct URL
+  const response = await fetch(`/api/chunking-test/export-zip/${testId}`, {
     method: 'GET',
-    headers,
+    headers: {
+      ...(tokenManager.getAccessToken()
+        ? { Authorization: `Bearer ${tokenManager.getAccessToken()}` }
+        : {}),
+    },
   });
 
   if (!response.ok) {
@@ -181,25 +169,7 @@ export async function getAgentScores(testId: string, token?: string): Promise<{
   overall_score: number;
   weights: Record<string, number>;
 }> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(`${API_BASE_URL}/chunking-test/agent-scores/${testId}`, {
-    method: 'GET',
-    headers,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-    throw new Error(error.detail || `Failed to get agent scores: ${response.status}`);
-  }
-
-  return response.json();
+  return apiClient.get(`/chunking-test/agent-scores/${testId}`);
 }
 
 /**
@@ -217,51 +187,14 @@ export async function getSimilarityAnalysis(testId: string, token?: string): Pro
     topic_separation_improvement: number;
   };
 }> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(`${API_BASE_URL}/chunking-test/similarity-analysis/${testId}`, {
-    method: 'GET',
-    headers,
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-    throw new Error(error.detail || `Failed to get similarity analysis: ${response.status}`);
-  }
-
-  return response.json();
+  return apiClient.get(`/chunking-test/similarity-analysis/${testId}`);
 }
 
 /**
  * Run batch evaluation on multiple tests
  */
 export async function runBatchEvaluation(testIds: string[], token?: string): Promise<BatchResult> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(`${API_BASE_URL}/chunking-test/batch-evaluate`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ test_ids: testIds }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-    throw new Error(error.detail || `Failed to run batch evaluation: ${response.status}`);
-  }
-
-  return response.json();
+  return apiClient.post(`/chunking-test/batch-evaluate`, { test_ids: testIds });
 }
 
 /**
@@ -270,14 +203,14 @@ export async function runBatchEvaluation(testIds: string[], token?: string): Pro
 export async function triggerZipDownload(testId: string, testName: string, token?: string): Promise<void> {
   const blob = await downloadZipExport(testId, token);
   
-  const url = window.URL.createObjectURL(blob);
+  const url = globalThis.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = `chunking_test_${testName || testId}.zip`;
   document.body.appendChild(link);
   link.click();
-  document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
+  link.remove();
+  globalThis.URL.revokeObjectURL(url);
 }
 
 /**

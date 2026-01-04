@@ -2885,6 +2885,13 @@ async def evaluate_chunking_test(test_id: str, request: Request = None) -> Dict[
     if not (_is_teacher(current_user) or _is_admin(current_user)):
         raise HTTPException(status_code=403, detail="Teacher or admin access required")
     
+    # Check embedding service health
+    from src.embedding.embedding_generator import check_embedding_service_health, is_using_fallback_embeddings
+    embedding_healthy, embedding_message = check_embedding_service_health()
+    
+    if not embedding_healthy:
+        logger.warning(f"⚠️ [EVALUATION] Embedding service not healthy: {embedding_message}")
+    
     # Load test data
     test_data = CHUNKING_TEST_RESULTS_STORAGE.get(test_id)
     if not test_data:
@@ -2905,6 +2912,7 @@ async def evaluate_chunking_test(test_id: str, request: Request = None) -> Dict[
         )
         
         # Extract chunks from test data
+        # Test data structure: results is an array where each item has a "strategy" field
         results = test_data.get("results", [])
         if not results:
             raise HTTPException(status_code=400, detail="No results found in test data")
@@ -2912,26 +2920,66 @@ async def evaluate_chunking_test(test_id: str, request: Request = None) -> Dict[
         # Get traditional and multi-agent chunks
         traditional_chunks = []
         multi_agent_chunks = []
-        original_text = ""
+        original_text = test_data.get("original_text", "")
+        
+        # Find traditional and multi-agent results
+        traditional_result = None
+        multi_agent_result = None
         
         for result in results:
-            original_text = result.get("original_text", "")
+            strategy = result.get("strategy", "")
+            if strategy == "traditional":
+                traditional_result = result
+            elif strategy in ["multi_agent", "agentic", "agentic_reasoning"]:
+                multi_agent_result = result
+        
+        # Extract traditional chunks
+        if traditional_result:
+            raw_chunks = traditional_result.get("chunks", [])
+            detailed_chunks = traditional_result.get("detailed_chunks", [])
+            chunks_to_use = detailed_chunks if detailed_chunks else raw_chunks
             
-            # Traditional chunks
-            trad_data = result.get("traditional", {})
-            for chunk in trad_data.get("chunks", []):
+            for chunk in chunks_to_use:
                 if isinstance(chunk, dict):
                     traditional_chunks.append(chunk.get("text", chunk.get("content", "")))
+                elif isinstance(chunk, str):
+                    traditional_chunks.append(chunk)
                 else:
                     traditional_chunks.append(str(chunk))
             
-            # Multi-agent chunks
-            multi_data = result.get("multi_agent", {})
-            for chunk in multi_data.get("chunks", []):
+            if not original_text:
+                original_text = traditional_result.get("original_text", "")
+        
+        # Extract multi-agent chunks
+        if multi_agent_result:
+            raw_chunks = multi_agent_result.get("chunks", [])
+            detailed_chunks = multi_agent_result.get("detailed_chunks", [])
+            chunks_to_use = detailed_chunks if detailed_chunks else raw_chunks
+            
+            for chunk in chunks_to_use:
                 if isinstance(chunk, dict):
                     multi_agent_chunks.append(chunk.get("text", chunk.get("content", "")))
+                elif isinstance(chunk, str):
+                    multi_agent_chunks.append(chunk)
                 else:
                     multi_agent_chunks.append(str(chunk))
+            
+            if not original_text:
+                original_text = multi_agent_result.get("original_text", "")
+        
+        # If we don't have both, use what we have
+        if not traditional_chunks and not multi_agent_chunks:
+            raise HTTPException(status_code=400, detail="No chunks found in test results")
+        
+        # If only one strategy exists, use it for both (for comparison purposes)
+        if not traditional_chunks:
+            traditional_chunks = multi_agent_chunks
+            logger.warning("⚠️ [EVALUATION] No traditional chunks found, using multi-agent for comparison")
+        if not multi_agent_chunks:
+            multi_agent_chunks = traditional_chunks
+            logger.warning("⚠️ [EVALUATION] No multi-agent chunks found, using traditional for comparison")
+        
+        logger.info(f"📊 [EVALUATION] Found {len(traditional_chunks)} traditional chunks and {len(multi_agent_chunks)} multi-agent chunks")
         
         # Initialize analyzers
         similarity_analyzer = SimilarityAnalyzer()
@@ -2951,24 +2999,50 @@ async def evaluate_chunking_test(test_id: str, request: Request = None) -> Dict[
         # Agent Evaluation (for multi-agent only)
         logger.info(f"📊 [EVALUATION] Evaluating agent performance...")
         
-        # Convert to ChunkData format
+        # Convert multi-agent chunks to ChunkData format
         chunk_data_list = []
-        for result in results:
-            multi_data = result.get("multi_agent", {})
-            for i, chunk in enumerate(multi_data.get("chunks", [])):
+        if multi_agent_result:
+            raw_chunks = multi_agent_result.get("chunks", [])
+            detailed_chunks = multi_agent_result.get("detailed_chunks", [])
+            chunks_to_use = detailed_chunks if detailed_chunks else raw_chunks
+            
+            for chunk in chunks_to_use:
                 if isinstance(chunk, dict):
+                    content = chunk.get("text", chunk.get("content", ""))
                     chunk_data_list.append(ChunkData(
-                        content=chunk.get("text", chunk.get("content", "")),
-                        char_count=chunk.get("char_count", len(chunk.get("text", ""))),
-                        word_count=chunk.get("word_count", len(chunk.get("text", "").split())),
+                        content=content,
+                        char_count=chunk.get("char_count", len(content)),
+                        word_count=chunk.get("word_count", len(content.split())),
                         boundary_type=chunk.get("boundary_type", "unknown"),
                         quality_score=chunk.get("quality_score", 0.0)
                     ))
+                elif isinstance(chunk, str):
+                    chunk_data_list.append(ChunkData(
+                        content=chunk,
+                        char_count=len(chunk),
+                        word_count=len(chunk.split()),
+                        boundary_type="unknown",
+                        quality_score=0.0
+                    ))
+        
+        # If no multi-agent chunks, use traditional chunks for agent evaluation
+        if not chunk_data_list:
+            for chunk_text in multi_agent_chunks:
+                chunk_data_list.append(ChunkData(
+                    content=chunk_text,
+                    char_count=len(chunk_text),
+                    word_count=len(chunk_text.split()),
+                    boundary_type="unknown",
+                    quality_score=0.0
+                ))
         
         config = ChunkingConfig(
-            target_chunk_size=test_data.get("config", {}).get("target_chunk_size", 1500),
-            min_chunk_size=test_data.get("config", {}).get("min_chunk_size", 500),
-            max_chunk_size=test_data.get("config", {}).get("max_chunk_size", 3000)
+            target_chunk_size=test_data.get("config", {}).get("target_chunk_size",
+                             test_data.get("configuration", {}).get("target_chunk_size", 1500)),
+            min_chunk_size=test_data.get("config", {}).get("min_chunk_size",
+                          test_data.get("configuration", {}).get("min_chunk_size", 500)),
+            max_chunk_size=test_data.get("config", {}).get("max_chunk_size",
+                          test_data.get("configuration", {}).get("max_chunk_size", 3000))
         )
         
         agent_evaluation = agent_evaluator.evaluate_all(
@@ -3000,7 +3074,10 @@ async def evaluate_chunking_test(test_id: str, request: Request = None) -> Dict[
         
         logger.info(f"✅ [EVALUATION] Evaluation completed for test {test_id}")
         
-        return {
+        # Check if using fallback embeddings and add warning
+        using_fallback = is_using_fallback_embeddings()
+        
+        response_data = {
             "success": True,
             "test_id": test_id,
             "evaluation": {
@@ -3022,6 +3099,21 @@ async def evaluate_chunking_test(test_id: str, request: Request = None) -> Dict[
                 "winner": "multi_agent" if improvements["overall_quality"] > 0 else "traditional"
             }
         }
+        
+        # Add warning if using fallback embeddings
+        if using_fallback or not embedding_healthy:
+            response_data["warning"] = {
+                "type": "fallback_embeddings",
+                "message": "⚠️ Embedding servisi çalışmıyor! Hash-based fallback embedding kullanılıyor. "
+                          "Semantik analiz sonuçları ANLAMSIZ olacaktır. Gerçek sonuçlar için embedding "
+                          "servisinin (model-inference-service) çalıştığından emin olun.",
+                "embedding_service_status": embedding_message,
+                "recommendation": "Docker container'ları yeniden başlatın veya model-inference-service'in "
+                                 "çalıştığını kontrol edin."
+            }
+            logger.warning(f"⚠️ [EVALUATION] Results may be unreliable - using fallback embeddings!")
+        
+        return response_data
         
     except ImportError as e:
         logger.error(f"❌ [EVALUATION] Import error: {e}")
@@ -3168,28 +3260,76 @@ async def get_agent_scores(test_id: str, request: Request = None) -> Dict[str, A
         agent_evaluator = AgentEvaluator()
         
         # Extract multi-agent chunks and original text
+        # Test data structure: results is an array where each item has a "strategy" field
         results = test_data.get("results", [])
         chunk_data_list = []
-        original_text = ""
+        original_text = test_data.get("original_text", "")
         
+        # Find multi-agent or agentic strategy results
+        multi_agent_result = None
         for result in results:
-            original_text = result.get("original_text", "")
-            multi_data = result.get("multi_agent", {})
-            
-            for chunk in multi_data.get("chunks", []):
+            strategy = result.get("strategy", "")
+            if strategy in ["multi_agent", "agentic", "agentic_reasoning"]:
+                multi_agent_result = result
+                break
+        
+        # If no multi-agent result, try to use the first available result
+        if not multi_agent_result and results:
+            multi_agent_result = results[0]
+            logger.warning(f"⚠️ [AGENT SCORES] No multi-agent result found, using first result with strategy: {multi_agent_result.get('strategy', 'unknown')}")
+        
+        if not multi_agent_result:
+            raise HTTPException(status_code=400, detail="No chunking results found for evaluation")
+        
+        # Get original text from result if not in test_data
+        if not original_text:
+            original_text = multi_agent_result.get("original_text", "")
+        
+        # Extract chunks from the result
+        # Chunks can be in different formats: detailed_chunks, chunks array, or raw chunks
+        detailed_chunks = multi_agent_result.get("detailed_chunks", [])
+        raw_chunks = multi_agent_result.get("chunks", [])
+        
+        if detailed_chunks:
+            for chunk in detailed_chunks:
                 if isinstance(chunk, dict):
+                    content = chunk.get("content", chunk.get("text", ""))
                     chunk_data_list.append(ChunkData(
-                        content=chunk.get("text", chunk.get("content", "")),
-                        char_count=chunk.get("char_count", len(chunk.get("text", ""))),
-                        word_count=chunk.get("word_count", len(chunk.get("text", "").split())),
+                        content=content,
+                        char_count=chunk.get("char_count", len(content)),
+                        word_count=chunk.get("word_count", len(content.split())),
                         boundary_type=chunk.get("boundary_type", "unknown"),
                         quality_score=chunk.get("quality_score", 0.0)
                     ))
+        elif raw_chunks:
+            for i, chunk in enumerate(raw_chunks):
+                if isinstance(chunk, dict):
+                    content = chunk.get("text", chunk.get("content", ""))
+                elif isinstance(chunk, str):
+                    content = chunk
+                else:
+                    content = str(chunk)
+                
+                chunk_data_list.append(ChunkData(
+                    content=content,
+                    char_count=len(content),
+                    word_count=len(content.split()),
+                    boundary_type="unknown",
+                    quality_score=0.0
+                ))
+        
+        if not chunk_data_list:
+            raise HTTPException(status_code=400, detail="No chunks found in test results for evaluation")
+        
+        logger.info(f"📊 [AGENT SCORES] Found {len(chunk_data_list)} chunks for evaluation")
         
         config = ChunkingConfig(
-            target_chunk_size=test_data.get("config", {}).get("target_chunk_size", 1500),
-            min_chunk_size=test_data.get("config", {}).get("min_chunk_size", 500),
-            max_chunk_size=test_data.get("config", {}).get("max_chunk_size", 3000)
+            target_chunk_size=test_data.get("config", {}).get("target_chunk_size", 
+                             test_data.get("configuration", {}).get("target_chunk_size", 1500)),
+            min_chunk_size=test_data.get("config", {}).get("min_chunk_size",
+                          test_data.get("configuration", {}).get("min_chunk_size", 500)),
+            max_chunk_size=test_data.get("config", {}).get("max_chunk_size",
+                          test_data.get("configuration", {}).get("max_chunk_size", 3000))
         )
         
         # Evaluate all agents

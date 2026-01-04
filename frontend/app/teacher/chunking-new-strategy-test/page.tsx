@@ -2216,6 +2216,16 @@ export default function ChunkingNewStrategyTestPage() {
                 </TabsContent>
 
                 <TabsContent value="agents" className="space-y-4">
+                  {/* Embedding Service Warning */}
+                  <Alert className="bg-amber-50 border-amber-200">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800">
+                      <strong>Önemli:</strong> Semantik analiz sonuçlarının doğru olması için embedding servisi 
+                      (model-inference-service) çalışıyor olmalıdır. Eğer servis çalışmıyorsa, hash-based fallback 
+                      embedding kullanılır ve sonuçlar anlamsız olur. Docker container&apos;larınızın çalıştığından emin olun.
+                    </AlertDescription>
+                  </Alert>
+                  
                   {/* Agent Performance Radar Chart */}
                   {currentTest?.testId && (
                     <AgentPerformanceRadar

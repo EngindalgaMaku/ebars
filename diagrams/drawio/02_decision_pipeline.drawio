@@ -1,134 +1,134 @@
-<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" version="29.2.9">
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0" version="29.2.9">
   <diagram name="Decision Pipeline" id="pipeline">
     <mxGraphModel dx="1426" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="700" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         
-        <!-- Start -->
-        <mxCell id="start" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" value="Segment&#xa;Boundary&#xa;Detected" vertex="1">
+        <!-- Start (Grayscale) -->
+        <mxCell id="start" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1.5;" value="Segment&#xa;Boundary&#xa;Detected" vertex="1">
           <mxGeometry height="60" width="90" x="380" y="20" as="geometry" />
         </mxCell>
         
-        <!-- Check Required -->
-        <mxCell id="check" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;" value="Boundary&#xa;Check&#xa;Required?" vertex="1">
+        <!-- Check Required (Grayscale) -->
+        <mxCell id="check" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1.5;" value="Boundary&#xa;Check&#xa;Required?" vertex="1">
           <mxGeometry height="80" width="110" x="370" y="110" as="geometry" />
         </mxCell>
         
-        <!-- Implicit Merge -->
-        <mxCell id="implicit" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#0277bd;strokeWidth=1.5;" value="Implicit MERGE&#xa;(No boundary added)" vertex="1">
+        <!-- Implicit Merge (Grayscale) -->
+        <mxCell id="implicit" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;strokeWidth=1.5;" value="Implicit MERGE&#xa;(No boundary added)" vertex="1">
           <mxGeometry height="45" width="110" x="560" y="128" as="geometry" />
         </mxCell>
         
-        <!-- Parallel Analysis Box -->
-        <mxCell id="analysis-box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#ff9800;strokeWidth=2;dashed=1;" value="" vertex="1">
+        <!-- Parallel Analysis Box (Grayscale) -->
+        <mxCell id="analysis-box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;dashed=1;" value="" vertex="1">
           <mxGeometry height="130" width="600" x="130" y="220" as="geometry" />
         </mxCell>
         <mxCell id="analysis-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=11;" value="Parallel Agent Analysis Phase" vertex="1">
           <mxGeometry height="20" width="200" x="330" y="225" as="geometry" />
         </mxCell>
-        <mxCell id="parallel-note" parent="1" style="text;html=1;strokeColor=none;fillColor=#e1d5e7;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=9;fontStyle=2;" value="⚡ Latency: O(max(agent_time))" vertex="1">
+        <mxCell id="parallel-note" parent="1" style="text;html=1;strokeColor=#666666;fillColor=#eeeeee;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=9;fontStyle=2;" value="⚡ Latency: O(max(agent_time))" vertex="1">
           <mxGeometry height="18" width="150" x="540" y="227" as="geometry" />
         </mxCell>
         
-        <!-- Analysis Boxes -->
-        <mxCell id="a1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1976d2;strokeWidth=1.5;fontSize=9;" value="Structural Analysis&#xa;• Code block detection&#xa;• Table detection&#xa;• List detection&#xa;• Mermaid/diagram" vertex="1">
+        <!-- Analysis Boxes (Grayscale) -->
+        <mxCell id="a1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1.5;fontSize=9;" value="Structural Analysis&#xa;• Code block detection&#xa;• Table detection&#xa;• List detection&#xa;• Mermaid/diagram" vertex="1">
           <mxGeometry height="75" width="120" x="150" y="255" as="geometry" />
         </mxCell>
-        <mxCell id="a2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;strokeWidth=1.5;fontSize=9;" value="Semantic Analysis&#xa;• Embedding similarity&#xa;• Topic drift detection&#xa;• Cross-reference check&#xa;• Q&amp;A pair detection" vertex="1">
+        <mxCell id="a2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1.5;fontSize=9;" value="Semantic Analysis&#xa;• Embedding similarity&#xa;• Topic drift detection&#xa;• Cross-reference check&#xa;• Q&amp;A pair detection" vertex="1">
           <mxGeometry height="75" width="120" x="290" y="255" as="geometry" />
         </mxCell>
-        <mxCell id="a3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#f57c00;strokeWidth=1.5;fontSize=9;" value="Size Analysis&#xa;• Min/Max check&#xa;• Target comparison&#xa;• Overlap calculation" vertex="1">
+        <mxCell id="a3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1.5;fontSize=9;" value="Size Analysis&#xa;• Min/Max check&#xa;• Target comparison&#xa;• Overlap calculation" vertex="1">
           <mxGeometry height="75" width="120" x="430" y="255" as="geometry" />
         </mxCell>
-        <mxCell id="a4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#388e3c;strokeWidth=1.5;fontSize=9;" value="Quality Analysis&#xa;• Content coherence&#xa;• Word diversity&#xa;• Sentence structure" vertex="1">
+        <mxCell id="a4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1.5;fontSize=9;" value="Quality Analysis&#xa;• Content coherence&#xa;• Word diversity&#xa;• Sentence structure" vertex="1">
           <mxGeometry height="75" width="120" x="570" y="255" as="geometry" />
         </mxCell>
         
-        <!-- Weighted Score -->
-        <mxCell id="weight" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#000000;strokeWidth=1.5;fontStyle=1;" value="Weighted Score Calculation&#xa;θ (threshold) = 0.5" vertex="1">
+        <!-- Weighted Score (Grayscale) -->
+        <mxCell id="weight" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e0e0e0;strokeColor=#333333;strokeWidth=1.5;fontStyle=1;" value="Weighted Score Calculation&#xa;θ (threshold) = 0.5" vertex="1">
           <mxGeometry height="45" width="200" x="330" y="380" as="geometry" />
         </mxCell>
         
-        <!-- Atomic Check -->
-        <mxCell id="atomic-check" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f9a825;strokeWidth=1.5;fontSize=10;" value="Structural Agent&#xa;detected&#xa;atomic unit?" vertex="1">
+        <!-- Atomic Check (Grayscale) -->
+        <mxCell id="atomic-check" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#eeeeee;strokeColor=#333333;strokeWidth=1.5;fontSize=10;" value="Structural Agent&#xa;detected&#xa;atomic unit?" vertex="1">
           <mxGeometry height="90" width="120" x="370" y="455" as="geometry" />
         </mxCell>
         
-        <!-- Consensus Decision -->
-        <mxCell id="consensus" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=10;" value="Consensus&#xa;Decision&#xa;score ≥ θ?" vertex="1">
+        <!-- Consensus Decision (Grayscale) -->
+        <mxCell id="consensus" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1.5;fontSize=10;" value="Consensus&#xa;Decision&#xa;score ≥ θ?" vertex="1">
           <mxGeometry height="80" width="100" x="200" y="560" as="geometry" />
         </mxCell>
         
-        <!-- Decision Outputs -->
-        <mxCell id="preserve" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f9a825;strokeWidth=2;fontStyle=1;" value="PRESERVE&#xa;(Atomic unit)" vertex="1">
+        <!-- Decision Outputs (Grayscale) -->
+        <mxCell id="preserve" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e0e0e0;strokeColor=#333333;strokeWidth=2;fontStyle=1;" value="PRESERVE&#xa;(Atomic unit)" vertex="1">
           <mxGeometry height="45" width="100" x="560" y="478" as="geometry" />
         </mxCell>
-        <mxCell id="split" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffcdd2;strokeColor=#c62828;strokeWidth=1.5;fontStyle=1;" value="SPLIT&#xa;(Add boundary)" vertex="1">
+        <mxCell id="split" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d0d0d0;strokeColor=#333333;strokeWidth=1.5;fontStyle=1;" value="SPLIT&#xa;(Add boundary)" vertex="1">
           <mxGeometry height="45" width="100" x="80" y="650" as="geometry" />
         </mxCell>
-        <mxCell id="merge" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;strokeWidth=1.5;fontStyle=1;" value="MERGE&#xa;(Keep together)" vertex="1">
+        <mxCell id="merge" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;strokeWidth=1.5;fontStyle=1;" value="MERGE&#xa;(Keep together)" vertex="1">
           <mxGeometry height="45" width="100" x="330" y="650" as="geometry" />
         </mxCell>
         
-        <!-- Force Conditions Box -->
-        <mxCell id="force-box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffebee;strokeColor=#c62828;strokeWidth=1.5;dashed=1;" value="" vertex="1">
+        <!-- Force Conditions Box (Grayscale) -->
+        <mxCell id="force-box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#333333;strokeWidth=1.5;dashed=1;" value="" vertex="1">
           <mxGeometry height="100" width="200" x="560" y="570" as="geometry" />
         </mxCell>
         <mxCell id="force-label" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=10;" value="Force Conditions (Hard Constraints)" vertex="1">
           <mxGeometry height="18" width="180" x="570" y="575" as="geometry" />
         </mxCell>
-        <mxCell id="force-split" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=9;" value="FORCE_SPLIT&#xa;chunk &gt; 130% max (θ_max=1.3)" vertex="1">
+        <mxCell id="force-split" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1;fontSize=9;" value="FORCE_SPLIT&#xa;chunk &gt; 130% max (θ_max=1.3)" vertex="1">
           <mxGeometry height="30" width="180" x="570" y="598" as="geometry" />
         </mxCell>
-        <mxCell id="force-merge" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=9;" value="FORCE_MERGE&#xa;chunk &lt; 50% min (θ_min=0.5)" vertex="1">
+        <mxCell id="force-merge" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=1;fontSize=9;" value="FORCE_MERGE&#xa;chunk &lt; 50% min (θ_min=0.5)" vertex="1">
           <mxGeometry height="30" width="180" x="570" y="633" as="geometry" />
         </mxCell>
         
-        <!-- Output -->
-        <mxCell id="output" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;strokeWidth=2;" value="Final Chunk&#xa;Boundary" vertex="1">
+        <!-- Output (Grayscale) -->
+        <mxCell id="output" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#333333;strokeWidth=2;" value="Final Chunk&#xa;Boundary" vertex="1">
           <mxGeometry height="50" width="100" x="200" y="730" as="geometry" />
         </mxCell>
         
-        <!-- Arrows -->
-        <mxCell id="arr1" edge="1" parent="1" source="start" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;" target="check">
+        <!-- Arrows (All Grayscale) -->
+        <mxCell id="arr1" edge="1" parent="1" source="start" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#333333;" target="check">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr2" edge="1" parent="1" source="check" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;fontSize=9;" target="implicit" value="No">
+        <mxCell id="arr2" edge="1" parent="1" source="check" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#333333;fontSize=9;" target="implicit" value="No">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr3" edge="1" parent="1" source="check" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;fontSize=9;" target="analysis-box" value="Yes">
+        <mxCell id="arr3" edge="1" parent="1" source="check" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#333333;fontSize=9;" target="analysis-box" value="Yes">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="430" y="220" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="arr4" edge="1" parent="1" source="analysis-box" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;" target="weight">
+        <mxCell id="arr4" edge="1" parent="1" source="analysis-box" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#333333;" target="weight">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr5" edge="1" parent="1" source="weight" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;" target="atomic-check">
+        <mxCell id="arr5" edge="1" parent="1" source="weight" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#333333;" target="atomic-check">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr6" edge="1" parent="1" source="atomic-check" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#f9a825;fontSize=9;" target="preserve" value="Yes (code/table/list)">
+        <mxCell id="arr6" edge="1" parent="1" source="atomic-check" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#333333;fontSize=9;" target="preserve" value="Yes (code/table/list)">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr7" edge="1" parent="1" source="atomic-check" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#000000;fontSize=9;" target="consensus" value="No">
+        <mxCell id="arr7" edge="1" parent="1" source="atomic-check" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#333333;fontSize=9;" target="consensus" value="No">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr8" edge="1" parent="1" source="consensus" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#c62828;fontSize=9;" target="split" value="split_score ≥ 0.5">
+        <mxCell id="arr8" edge="1" parent="1" source="consensus" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#333333;fontSize=9;" target="split" value="split_score ≥ 0.5">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr9" edge="1" parent="1" source="consensus" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#2e7d32;fontSize=9;" target="merge" value="merge_score &gt; split">
+        <mxCell id="arr9" edge="1" parent="1" source="consensus" style="endArrow=classic;html=1;strokeWidth=1.5;strokeColor=#333333;fontSize=9;" target="merge" value="merge_score &gt; split">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         
-        <!-- To Output -->
-        <mxCell id="arr10" edge="1" parent="1" source="split" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#000000;" target="output">
+        <!-- To Output Arrows -->
+        <mxCell id="arr10" edge="1" parent="1" source="split" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#333333;" target="output">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr11" edge="1" parent="1" source="merge" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#000000;" target="output">
+        <mxCell id="arr11" edge="1" parent="1" source="merge" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#333333;" target="output">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="arr12" edge="1" parent="1" source="preserve" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#000000;dashed=1;" target="output">
+        <mxCell id="arr12" edge="1" parent="1" source="preserve" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#333333;dashed=1;" target="output">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="800" y="500" />
@@ -136,7 +136,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="arr13" edge="1" parent="1" source="implicit" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#000000;dashed=1;" target="output">
+        <mxCell id="arr13" edge="1" parent="1" source="implicit" style="endArrow=classic;html=1;strokeWidth=1;strokeColor=#333333;dashed=1;" target="output">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="820" y="150" />
@@ -145,7 +145,7 @@
           </mxGeometry>
         </mxCell>
         
-        <!-- Threshold Parameters Box -->
+        <!-- Threshold Parameters Box (Grayscale) -->
         <mxCell id="params-box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=1;dashed=1;" value="" vertex="1">
           <mxGeometry height="80" width="200" x="30" y="380" as="geometry" />
         </mxCell>

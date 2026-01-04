@@ -6,7 +6,7 @@ This module provides functions to generate text embeddings using the model-infer
 - Caching support for performance optimization
 """
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import hashlib
 import time
 import numpy as np
@@ -21,6 +21,60 @@ logger = setup_logging()
 
 # Global configuration
 MODEL_INFERENCE_URL = get_model_inference_url()
+
+# Track if we're using fallback embeddings
+_using_fallback_embeddings = False
+
+
+def check_embedding_service_health() -> Tuple[bool, str]:
+    """
+    Check if the embedding service is available and working.
+    
+    Returns:
+        Tuple of (is_healthy, message)
+    """
+    global _using_fallback_embeddings
+    
+    try:
+        embed_url = f"{MODEL_INFERENCE_URL}/embed"
+        test_payload = {"texts": ["test"]}
+        
+        response = requests.post(
+            embed_url,
+            json=test_payload,
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            embeddings = result.get("embeddings", [])
+            if embeddings and len(embeddings) > 0 and len(embeddings[0]) > 100:
+                _using_fallback_embeddings = False
+                return True, "Embedding service is healthy"
+            else:
+                _using_fallback_embeddings = True
+                return False, "Embedding service returned invalid embeddings"
+        else:
+            _using_fallback_embeddings = True
+            return False, f"Embedding service returned status {response.status_code}"
+            
+    except requests.exceptions.RequestException as e:
+        _using_fallback_embeddings = True
+        return False, f"Embedding service unreachable: {str(e)}"
+    except Exception as e:
+        _using_fallback_embeddings = True
+        return False, f"Embedding service check failed: {str(e)}"
+
+
+def is_using_fallback_embeddings() -> bool:
+    """
+    Check if the system is currently using fallback (hash-based) embeddings.
+    
+    Returns:
+        True if using fallback embeddings, False if using real embeddings
+    """
+    return _using_fallback_embeddings
 
 def _truncate_text_for_embedding(text: str, max_length: int = 1500) -> str:
     """
@@ -200,8 +254,14 @@ def _generate_simple_embeddings(texts: List[str]) -> List[List[float]]:
     """
     Generate simple hash-based embeddings as a last resort fallback.
     This is NOT suitable for production but prevents complete failure.
+    
+    WARNING: These embeddings have NO semantic meaning!
     """
+    global _using_fallback_embeddings
+    _using_fallback_embeddings = True
+    
     logger.warning("Using simple hash-based embeddings - NOT recommended for production!")
+    logger.warning("⚠️ SEMANTIC ANALYSIS WILL BE MEANINGLESS WITH FALLBACK EMBEDDINGS!")
     embeddings = []
     
     for text in texts:
