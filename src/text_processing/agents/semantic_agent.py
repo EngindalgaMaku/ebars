@@ -253,12 +253,59 @@ class SemanticAgent(BaseAgent):
         if len(intersection) >= 5:
             topic_boost = 0.2
         
-        # Check for question-answer relationship
-        is_question = bool(re.search(r'\?|soru|question', text1_lower))
-        is_answer = bool(re.search(r'cevap|answer|yanıt', text2_lower))
+        # Check for question-answer relationship (CRITICAL for educational content)
+        # Question patterns
+        question_patterns = [
+            r'\?$',  # Ends with question mark
+            r'\?\s*$',  # Ends with question mark and whitespace
+            r'which of the following',
+            r'what is',
+            r'what are',
+            r'how does',
+            r'how do',
+            r'why does',
+            r'why do',
+            r'when did',
+            r'where is',
+            r'who is',
+            r'select the',
+            r'choose the',
+            r'identify the',
+            r'which statement',
+            r'which option',
+            r'aşağıdakilerden hangisi',
+            r'hangisi doğrudur',
+            r'hangisi yanlıştır',
+        ]
+        
+        # Answer patterns (options like a., b., c., d. or A), B), etc.)
+        answer_patterns = [
+            r'^[a-d][\.\)]\s',  # a. or a)
+            r'^[A-D][\.\)]\s',  # A. or A)
+            r'^\s*[a-d][\.\)]\s',  # with leading whitespace
+            r'^\s*[A-D][\.\)]\s',
+            r'cevap',
+            r'answer',
+            r'yanıt',
+            r'doğru cevap',
+            r'correct answer',
+        ]
+        
+        # Check if text1 ends with a question
+        is_question = any(re.search(p, text1_lower) for p in question_patterns)
+        
+        # Check if text2 starts with answer options
+        is_answer = any(re.search(p, text2_lower, re.MULTILINE) for p in answer_patterns)
+        
         if is_question and is_answer:
-            # Questions and answers should stay together
-            return 0.9
+            # Questions and answers MUST stay together
+            logger.info("Question-Answer pair detected - forcing high similarity")
+            return 0.95
+        
+        # Also check if text1 ends with question and text2 has related content
+        if is_question and jaccard > 0.15:
+            # Question followed by related content (likely answer)
+            return max(0.85, jaccard + topic_boost)
         
         # Check for header-content relationship
         is_header = text1.strip().startswith('#') or len(text1) < 100
@@ -363,7 +410,7 @@ class SemanticAgent(BaseAgent):
         if not context.boundary:
             return ""
         
-        return f"""You are a semantic analysis agent for RAG text chunking.
+        return f"""You are a semantic analysis agent for RAG text chunking in educational content.
 
 Analyze the boundary between these two text segments:
 
@@ -373,10 +420,19 @@ SEGMENT A (ending):
 SEGMENT B (starting):
 {context.boundary.segment_after[:500] if len(context.boundary.segment_after) > 500 else context.boundary.segment_after}
 
+CRITICAL RULES - These segments MUST stay together (MERGE):
+1. Question-Answer pairs: If A ends with a question and B contains the answer/options
+2. Problem-Solution pairs: If A presents a problem and B provides the solution
+3. List continuations: If A starts a numbered/bulleted list and B continues it
+4. Table/Figure with caption: If A or B is a caption for content in the other
+5. Code with explanation: If one segment explains code in the other
+6. Cross-references: If B references content in A (e.g., "see above", "as shown")
+
 Evaluate:
 1. Topic continuity (0-1): Are they discussing the same topic?
-2. Referential links: Does B reference content in A? (e.g., "see above", "the following table")
-3. Logical flow: Is there a natural break point?
+2. Question-Answer relationship: Does A end with a question (?, "Which of the following", "What is") and B contain answers?
+3. Referential links: Does B reference content in A?
+4. Logical flow: Is there a natural break point or should they stay together?
 
 Respond in JSON:
 {{
@@ -384,5 +440,6 @@ Respond in JSON:
   "confidence": 0.0-1.0,
   "topic_continuity": 0.0-1.0,
   "has_references": true/false,
+  "is_question_answer_pair": true/false,
   "reasoning": "brief explanation"
 }}"""

@@ -327,6 +327,13 @@ class QualityAgent(BaseAgent):
         """Score the information density of the chunk."""
         score = 1.0
         
+        # Check for garbage/useless chunks
+        if self._is_garbage_chunk(text):
+            score = 0.0
+            issues.append("Chunk is garbage/useless content")
+            suggestions.append("Discard or merge with adjacent chunk")
+            return score
+        
         # Check for very short chunks
         if len(text) < 100:
             score -= 0.3
@@ -349,6 +356,80 @@ class QualityAgent(BaseAgent):
             issues.append("Chunk has few words")
         
         return max(0.0, min(1.0, score))
+    
+    def _is_garbage_chunk(self, text: str) -> bool:
+        """
+        Detect garbage/useless chunks that should be discarded.
+        
+        Garbage chunks include:
+        - Only page numbers
+        - Only metadata tags
+        - Only whitespace/formatting
+        - Only image credits without context
+        - Only navigation elements
+        """
+        text_stripped = text.strip()
+        text_lower = text_stripped.lower()
+        
+        # Very short chunks (< 50 chars) are suspicious
+        if len(text_stripped) < 50:
+            # Check if it's just a page number
+            if re.match(r'^(page\s*)?\d+\s*$', text_lower):
+                return True
+            # Check if it's just metadata tags
+            if re.match(r'^<[^>]+>\s*\d*\s*<[^>]+>$', text_stripped):
+                return True
+            # Check if it's just "## Page X" type header
+            if re.match(r'^#+\s*(page|sayfa)\s*\d+', text_lower):
+                return True
+        
+        # Check for page number patterns
+        page_patterns = [
+            r'^##\s*page\s*\d+\s*<[^>]*>\d+<[^>]*>\s*$',  # ## Page 22 <page_number>30</page_number>
+            r'^page\s*\d+\s*of\s*\d+\s*$',  # Page 1 of 10
+            r'^\d+\s*/\s*\d+\s*$',  # 1 / 10
+            r'^-\s*\d+\s*-\s*$',  # - 1 -
+            r'^\[\s*\d+\s*\]\s*$',  # [1]
+        ]
+        
+        for pattern in page_patterns:
+            if re.match(pattern, text_lower, re.IGNORECASE):
+                return True
+        
+        # Check for only image credits
+        credit_patterns = [
+            r'^(credit|photo|image|figure):\s*',
+            r'^(source|kaynak):\s*',
+            r'^\(?(credit|photo|image):\s*[^)]+\)?\s*$',
+        ]
+        
+        for pattern in credit_patterns:
+            if re.match(pattern, text_lower) and len(text_stripped) < 200:
+                return True
+        
+        # Check for navigation/UI elements
+        nav_patterns = [
+            r'^(next|previous|back|forward|continue)\s*$',
+            r'^(ileri|geri|devam|sonraki|önceki)\s*$',
+            r'^(chapter|section|bölüm|kısım)\s*\d+\s*$',
+        ]
+        
+        for pattern in nav_patterns:
+            if re.match(pattern, text_lower):
+                return True
+        
+        # Check for only HTML/XML tags with minimal content
+        # Remove all tags and check remaining content
+        text_no_tags = re.sub(r'<[^>]+>', '', text_stripped)
+        if len(text_no_tags.strip()) < 20 and len(text_stripped) > 20:
+            return True
+        
+        # Check word count - less than 5 meaningful words is garbage
+        words = [w for w in text_stripped.split() if len(w) > 2 and not w.startswith('<')]
+        if len(words) < 5:
+            return True
+        
+        return False
     
     def _determine_improvement_strategy(self, quality_score: QualityScore) -> ImprovementStrategy:
         """Determine best improvement strategy based on quality issues."""

@@ -762,9 +762,27 @@ async def execute_multi_agent_chunking(
                 }
             })
             
+            # Determine decision type based on agent decisions
+            # MERGE means segments were kept together (no split at this boundary)
+            # SPLIT means a new chunk was created
+            decision_type = "SPLIT"  # Default - a new chunk was created
+            
+            # Check if semantic agent suggested MERGE (high similarity)
+            if chunk.semantic_decision and 'merge' in chunk.semantic_decision.lower():
+                decision_type = "MERGE"
+            # Check if structural agent preserved atomic unit
+            elif chunk.structural_decision and 'preserve' in chunk.structural_decision.lower():
+                decision_type = "PRESERVE"
+            # Check if size agent forced the decision
+            elif chunk.size_decision:
+                if 'force_split' in chunk.size_decision.lower():
+                    decision_type = "FORCE_SPLIT"
+                elif 'force_merge' in chunk.size_decision.lower():
+                    decision_type = "FORCE_MERGE"
+            
             # Add reasoning decision
             reasoning_decisions.append({
-                "decision": "SPLIT" if i < len(result.chunks) - 1 else "END",
+                "decision": decision_type if i < len(result.chunks) - 1 else "END",
                 "confidence": chunk.confidence,
                 "reasoning": chunk.reasoning,
                 "semantic_coherence": chunk.quality_score,
@@ -778,20 +796,47 @@ async def execute_multi_agent_chunking(
                 }
             })
         
+        # Calculate actual decision counts
+        split_count = sum(1 for d in reasoning_decisions if d["decision"] in ["SPLIT", "FORCE_SPLIT"])
+        merge_count = sum(1 for d in reasoning_decisions if d["decision"] in ["MERGE", "FORCE_MERGE"])
+        preserve_count = sum(1 for d in reasoning_decisions if d["decision"] == "PRESERVE")
+        
         # Similarity analysis
         similarity_analysis = {
             "total_boundary_decisions": len(reasoning_decisions),
-            "split_ratio": 1.0,
+            "split_ratio": split_count / len(reasoning_decisions) if reasoning_decisions else 0,
+            "merge_ratio": merge_count / len(reasoning_decisions) if reasoning_decisions else 0,
+            "preserve_ratio": preserve_count / len(reasoning_decisions) if reasoning_decisions else 0,
             "avg_confidence": avg_quality,
             "avg_semantic_coherence": avg_quality,
             "avg_topic_continuity": avg_quality,
-            "reasoning_methods": ["multi_agent_consensus"]
+            "reasoning_methods": ["multi_agent_consensus"],
+            "decision_breakdown": {
+                "SPLIT": split_count,
+                "MERGE": merge_count,
+                "PRESERVE": preserve_count,
+                "FORCE_SPLIT": sum(1 for d in reasoning_decisions if d["decision"] == "FORCE_SPLIT"),
+                "FORCE_MERGE": sum(1 for d in reasoning_decisions if d["decision"] == "FORCE_MERGE"),
+            }
         }
         
         logger.info(f"Multi-agent chunking completed - {chunk_count} chunks, avg_quality: {avg_quality:.3f}")
         
         # Get metadata statistics from result
         metadata_stats = result.metadata_stats if hasattr(result, 'metadata_stats') and result.metadata_stats else {}
+        
+        # Get boundary decisions from agent_metrics if available
+        boundary_decisions_from_agents = result.agent_metrics.get('boundary_decisions', {})
+        if boundary_decisions_from_agents:
+            bd_counts = boundary_decisions_from_agents.get('counts', {})
+            bd_details = boundary_decisions_from_agents.get('details', [])
+            
+            # Update similarity_analysis with actual boundary decision counts
+            similarity_analysis['boundary_decision_counts'] = bd_counts
+            similarity_analysis['total_boundary_evaluations'] = boundary_decisions_from_agents.get('total', 0)
+            
+            # Log boundary decision breakdown
+            logger.info(f"Boundary decisions: {bd_counts}")
         
         return {
             "strategy": "multi_agent",
@@ -1659,6 +1704,99 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
         
         story.append(Spacer(1, 20))
         
+        # ===== METRIC DEFINITIONS SECTION =====
+        story.append(Paragraph("1.1. Metrik ve Parametre Tanimlari", heading2_style))
+        story.append(Spacer(1, 10))
+        
+        # Metric definitions
+        metric_definitions = [
+            ['Metrik/Parametre', 'Tanim', 'Deger Araligi'],
+            ['Semantic Coherence Score', 
+             'Chunk icindeki konularin tutarliligi. QualityAgent tarafindan hesaplanir. '
+             'Yuksek deger = chunk icerigi anlamsal olarak tutarli.',
+             '0.0 - 1.0'],
+            ['Boundary Quality Score', 
+             'Chunk sinirlarinin kalitesi. Dogal sinirlar (baslik, paragraf) yuksek skor alir. '
+             'Zorlanmis sinirlar (boyut limiti) dusuk skor alir.',
+             '0.0 - 1.0'],
+            ['Confidence', 
+             'Agent kararlarina olan guven seviyesi. Tum agentlarin agirlikli ortalamasi.',
+             '0.0 - 1.0'],
+            ['SPLIT Karari', 
+             'Iki segment arasinda bolunme karari. Konu degisikligi veya dogal sinir tespit edildiginde verilir.',
+             'Karar Turu'],
+            ['MERGE Karari', 
+             'Iki segmentin birlestirilmesi karari. Yuksek semantik benzerlik veya soru-cevap iliskisi tespit edildiginde verilir.',
+             'Karar Turu'],
+            ['PRESERVE Karari', 
+             'Atomik birimin korunmasi karari. Kod bloklari, tablolar, mermaid diyagramlari icin verilir.',
+             'Karar Turu'],
+            ['Target Chunk Size', 
+             'Hedeflenen chunk boyutu (karakter). Sistem bu boyuta yakin chunklar olusturmaya calisir.',
+             'Karakter'],
+            ['Overlap Size', 
+             'Ardisik chunklar arasindaki ortak metin miktari. Baglam koruma icin kullanilir.',
+             'Karakter'],
+        ]
+        
+        metric_table = Table(metric_definitions, colWidths=[4.5*cm, 9*cm, 2.5*cm])
+        metric_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), turkish_font),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a5f')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('ALIGN', (2, 1), (2, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8fafc')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(metric_table)
+        story.append(Spacer(1, 15))
+        
+        # Agent descriptions
+        story.append(Paragraph("1.2. Agent Rolleri", heading2_style))
+        story.append(Spacer(1, 10))
+        
+        agent_descriptions = [
+            ['Agent', 'Gorev', 'Karar Tipleri'],
+            ['StructuralAgent', 
+             'Atomik birimleri (kod bloklari, tablolar, listeler, mermaid diyagramlari) tespit eder ve korur.',
+             'PRESERVE, SPLIT, NEUTRAL'],
+            ['SemanticAgent', 
+             'Konu tutarliligi ve semantik benzerligi analiz eder. Embedding veya kelime ortusumu kullanir.',
+             'MERGE, SPLIT, NEUTRAL'],
+            ['SizeAgent', 
+             'Chunk boyutlarini kontrol eder. Min/max sinirlari asildigi zaman zorla boler veya birlestirir.',
+             'FORCE_SPLIT, FORCE_MERGE, ALLOW_SPLIT'],
+            ['QualityAgent', 
+             'Chunk kalitesini degerlendirir. Dusuk kaliteli chunklari iyilestirme icin isaretler.',
+             'APPROVED, NEEDS_IMPROVEMENT, REJECTED'],
+            ['CoordinatorAgent', 
+             'Tum agentlari koordine eder ve agirlikli konsensus hesaplar.',
+             'Final karar'],
+        ]
+        
+        agent_table = Table(agent_descriptions, colWidths=[3.5*cm, 8*cm, 4.5*cm])
+        agent_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), turkish_font),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1e3a5f')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8fafc')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(agent_table)
+        story.append(Spacer(1, 20))
+        
         # ===== RESULTS SUMMARY =====
         story.append(Paragraph("2. Sonuc Ozeti", heading1_style))
         
@@ -1734,17 +1872,70 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
                 
                 # Add reasoning decisions if available
                 reasoning_decisions = result.get('reasoning_decisions', [])
+                similarity_analysis = result.get('similarity_analysis', {})
+                
                 if reasoning_decisions:
-                    split_count = sum(1 for d in reasoning_decisions if d.get('decision') == 'SPLIT')
-                    merge_count = sum(1 for d in reasoning_decisions if d.get('decision') == 'MERGE')
+                    # Count different decision types
+                    split_count = sum(1 for d in reasoning_decisions if d.get('decision') in ['SPLIT', 'FORCE_SPLIT'])
+                    merge_count = sum(1 for d in reasoning_decisions if d.get('decision') in ['MERGE', 'FORCE_MERGE'])
+                    preserve_count = sum(1 for d in reasoning_decisions if d.get('decision') == 'PRESERVE')
+                    force_split_count = sum(1 for d in reasoning_decisions if d.get('decision') == 'FORCE_SPLIT')
+                    force_merge_count = sum(1 for d in reasoning_decisions if d.get('decision') == 'FORCE_MERGE')
                     avg_conf = sum(d.get('confidence', 0) for d in reasoning_decisions) / len(reasoning_decisions) if reasoning_decisions else 0
+                    avg_semantic = sum(d.get('semantic_coherence', 0) for d in reasoning_decisions) / len(reasoning_decisions) if reasoning_decisions else 0
                     
                     metrics_data.extend([
+                        ['--- Boundary Karar Istatistikleri ---', ''],
                         ['Toplam Boundary Karari', str(len(reasoning_decisions))],
-                        ['SPLIT Kararlari', str(split_count)],
-                        ['MERGE Kararlari', str(merge_count)],
+                        ['SPLIT Kararlari (Toplam)', str(split_count)],
+                        ['  - Normal SPLIT', str(split_count - force_split_count)],
+                        ['  - FORCE_SPLIT (Boyut Asimi)', str(force_split_count)],
+                        ['MERGE Kararlari (Toplam)', str(merge_count)],
+                        ['  - Normal MERGE', str(merge_count - force_merge_count)],
+                        ['  - FORCE_MERGE (Kucuk Chunk)', str(force_merge_count)],
+                        ['PRESERVE Kararlari', str(preserve_count)],
                         ['Ortalama Confidence', f"{avg_conf:.3f}"],
+                        ['Ortalama Semantic Coherence', f"{avg_semantic:.3f}"],
                     ])
+                    
+                    # Add split/merge ratio
+                    if similarity_analysis:
+                        split_ratio = similarity_analysis.get('split_ratio', 0)
+                        merge_ratio = similarity_analysis.get('merge_ratio', 0)
+                        metrics_data.extend([
+                            ['SPLIT Orani', f"{split_ratio*100:.1f}%"],
+                            ['MERGE Orani', f"{merge_ratio*100:.1f}%"],
+                        ])
+                
+                # Add metadata statistics if available
+                metadata_stats = result.get('metadata_stats', {})
+                if metadata_stats:
+                    metrics_data.extend([
+                        ['--- Metadata Istatistikleri ---', ''],
+                        ['Baslik Kapsami', f"{metadata_stats.get('header_coverage_percent', 0):.1f}%"],
+                        ['Ort. Anahtar Kelime/Chunk', f"{metadata_stats.get('avg_keywords_per_chunk', 0):.1f}"],
+                    ])
+                    
+                    # Language distribution
+                    lang_dist = metadata_stats.get('language_distribution', {})
+                    if lang_dist:
+                        lang_str = ', '.join(f"{k}: {v}" for k, v in lang_dist.items())
+                        metrics_data.append(['Dil Dagilimi', lang_str])
+                    
+                    # Chunk type distribution
+                    type_dist = metadata_stats.get('chunk_type_distribution', {})
+                    if type_dist:
+                        type_labels = {
+                            'content': 'Icerik',
+                            'header': 'Baslik',
+                            'list': 'Liste',
+                            'table': 'Tablo',
+                            'code': 'Kod',
+                            'question': 'Soru',
+                            'image_caption': 'Resim'
+                        }
+                        type_str = ', '.join(f"{type_labels.get(k, k)}: {v}" for k, v in type_dist.items())
+                        metrics_data.append(['Chunk Tur Dagilimi', type_str])
                 
                 metrics_table = Table(metrics_data, colWidths=[6*cm, 10*cm])
                 metrics_table.setStyle(TableStyle([
@@ -1760,8 +1951,10 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
                 story.append(metrics_table)
                 story.append(Spacer(1, 15))
                 
-                # ===== ALL CHUNKS (Full content) =====
+                # ===== ALL CHUNKS (Full content with metadata) =====
                 chunks = result.get('chunks', [])
+                detailed_chunks = result.get('detailed_chunks', [])
+                
                 if chunks:
                     story.append(Paragraph(f"Olusturulan Chunklar ({len(chunks)} adet)", heading2_style))
                     
@@ -1779,9 +1972,65 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
                         char_count = len(chunk_text)
                         word_count = len(chunk_text.split())
                         
-                        # Chunk header
+                        # Get metadata from detailed_chunks if available
+                        chunk_metadata = {}
+                        if chunk_idx < len(detailed_chunks):
+                            detailed = detailed_chunks[chunk_idx]
+                            chunk_metadata = detailed.get('metadata', {}) if isinstance(detailed, dict) else {}
+                        
+                        # Chunk header with metadata
                         chunk_header = f"<b>Chunk {chunk_idx + 1}</b> | {char_count} karakter | {word_count} kelime"
+                        
+                        # Add chunk type if available
+                        chunk_type = chunk_metadata.get('chunk_type', '')
+                        if chunk_type and chunk_type != 'content':
+                            type_labels = {
+                                'header': 'Baslik',
+                                'list': 'Liste',
+                                'table': 'Tablo',
+                                'code': 'Kod',
+                                'question': 'Soru',
+                                'image_caption': 'Resim'
+                            }
+                            chunk_header += f" | <font color='#6366f1'>[{type_labels.get(chunk_type, chunk_type)}]</font>"
+                        
                         story.append(Paragraph(chunk_header, small_style))
+                        
+                        # Add metadata info if available
+                        metadata_parts = []
+                        
+                        # Parent header (section)
+                        parent_header = chunk_metadata.get('parent_header')
+                        if parent_header:
+                            metadata_parts.append(f"<b>Bolum:</b> {escape_xml(str(parent_header))}")
+                        
+                        # Keywords
+                        keywords = chunk_metadata.get('keywords', [])
+                        if isinstance(keywords, str):
+                            try:
+                                keywords = json.loads(keywords)
+                            except:
+                                keywords = []
+                        if keywords and isinstance(keywords, list) and len(keywords) > 0:
+                            keywords_str = ', '.join(escape_xml(str(k)) for k in keywords[:5])
+                            if len(keywords) > 5:
+                                keywords_str += f' (+{len(keywords) - 5} daha)'
+                            metadata_parts.append(f"<b>Anahtar Kelimeler:</b> {keywords_str}")
+                        
+                        # Language
+                        language = chunk_metadata.get('language')
+                        if language and language != 'auto':
+                            lang_labels = {'tr': 'Turkce', 'en': 'Ingilizce'}
+                            metadata_parts.append(f"<b>Dil:</b> {lang_labels.get(language, language)}")
+                        
+                        # Page number
+                        page_num = chunk_metadata.get('page_number')
+                        if page_num is not None and page_num >= 0:
+                            metadata_parts.append(f"<b>Sayfa:</b> {page_num}")
+                        
+                        if metadata_parts:
+                            metadata_line = ' | '.join(metadata_parts)
+                            story.append(Paragraph(f"<font color='#6b7280' size='8'>{metadata_line}</font>", small_style))
                         
                         # Full chunk content
                         if len(chunk_text) > 3000:

@@ -241,8 +241,8 @@ class MultiAgentChunker:
         logger.info(f"Initial segmentation: {len(segments)} segments")
         
         # Step 2: Find optimal boundaries using agents
-        boundaries = self._find_boundaries(text, segments)
-        logger.info(f"Found {len(boundaries)} boundaries")
+        boundaries, boundary_decisions = self._find_boundaries(text, segments)
+        logger.info(f"Found {len(boundaries)} boundaries, {len(boundary_decisions)} decisions")
         
         # Step 3: Generate chunks from boundaries
         raw_chunks = self._generate_chunks(text, boundaries)
@@ -252,9 +252,13 @@ class MultiAgentChunker:
         final_chunks = self._validate_chunks(raw_chunks)
         logger.info(f"Final chunks: {len(final_chunks)}")
         
-        # Step 5: Enrich chunks with metadata (NEW)
+        # Step 5: Filter out garbage chunks
+        filtered_chunks = self._filter_garbage_chunks(final_chunks)
+        logger.info(f"After garbage filtering: {len(filtered_chunks)} chunks (removed {len(final_chunks) - len(filtered_chunks)})")
+        
+        # Step 6: Enrich chunks with metadata
         enriched_chunks = self.enricher.enrich_chunks(
-            final_chunks,
+            filtered_chunks,
             document_title=document_title
         )
         logger.info(f"Enriched {len(enriched_chunks)} chunks with metadata")
@@ -262,6 +266,19 @@ class MultiAgentChunker:
         # Calculate metrics
         total_time = time.time() - start_time
         agent_metrics = self.coordinator.get_all_agent_metrics()
+        
+        # Add boundary decision statistics to agent_metrics
+        if boundary_decisions:
+            decision_counts = {}
+            for bd in boundary_decisions:
+                dec = bd.get('decision', 'unknown')
+                decision_counts[dec] = decision_counts.get(dec, 0) + 1
+            agent_metrics['boundary_decisions'] = {
+                'total': len(boundary_decisions),
+                'counts': decision_counts,
+                'details': boundary_decisions
+            }
+        
         quality_summary = self._calculate_quality_summary(enriched_chunks)
         
         # Calculate metadata statistics
@@ -275,17 +292,132 @@ class MultiAgentChunker:
             metadata_stats=metadata_stats.to_dict()
         )
     
+    def _filter_garbage_chunks(self, chunks: List['MultiAgentChunk']) -> List['MultiAgentChunk']:
+        """
+        Filter out garbage/useless chunks.
+        
+        Garbage chunks include:
+        - Only page numbers
+        - Only metadata tags
+        - Very short chunks with no meaningful content
+        - Only image credits without context
+        """
+        filtered = []
+        
+        for chunk in chunks:
+            if not self._is_garbage_chunk(chunk.text):
+                filtered.append(chunk)
+            else:
+                logger.debug(f"Filtered garbage chunk: {chunk.text[:50]}...")
+        
+        return filtered
+    
+    def _is_garbage_chunk(self, text: str) -> bool:
+        """
+        Detect garbage/useless chunks that should be discarded.
+        """
+        text_stripped = text.strip()
+        text_lower = text_stripped.lower()
+        
+        # Very short chunks (< 50 chars) are suspicious
+        if len(text_stripped) < 50:
+            # Check if it's just a page number
+            if re.match(r'^(page\s*)?\d+\s*$', text_lower):
+                return True
+            # Check if it's just metadata tags
+            if re.match(r'^<[^>]+>\s*\d*\s*<[^>]+>$', text_stripped):
+                return True
+            # Check if it's just "## Page X" type header
+            if re.match(r'^#+\s*(page|sayfa)\s*\d+', text_lower):
+                return True
+        
+        # Check for page number patterns
+        page_patterns = [
+            r'^##\s*page\s*\d+\s*<[^>]*>\d+<[^>]*>\s*$',
+            r'^page\s*\d+\s*of\s*\d+\s*$',
+            r'^\d+\s*/\s*\d+\s*$',
+            r'^-\s*\d+\s*-\s*$',
+            r'^\[\s*\d+\s*\]\s*$',
+        ]
+        
+        for pattern in page_patterns:
+            if re.match(pattern, text_lower, re.IGNORECASE):
+                return True
+        
+        # Check for only HTML/XML tags with minimal content
+        text_no_tags = re.sub(r'<[^>]+>', '', text_stripped)
+        if len(text_no_tags.strip()) < 20 and len(text_stripped) > 20:
+            return True
+        
+        # Check word count - less than 5 meaningful words is garbage
+        words = [w for w in text_stripped.split() if len(w) > 2 and not w.startswith('<')]
+        if len(words) < 5:
+            return True
+        
+        return False
+
+    def _find_protected_ranges(self, text: str) -> List[Tuple[int, int]]:
+        """
+        Find ranges in text that should not be split (code blocks, mermaid, tables, etc.)
+        
+        Returns list of (start, end) tuples for protected ranges.
+        """
+        protected = []
+        
+        # Patterns for protected blocks
+        patterns = [
+            # Fenced code blocks (```)
+            re.compile(r'```[\w]*\n.*?\n```', re.DOTALL),
+            # Mermaid blocks with various formats
+            re.compile(r'<mermaid>.*?</mermaid>', re.DOTALL),
+            re.compile(r'```mermaid.*?```', re.DOTALL),
+            # HTML code/pre blocks
+            re.compile(r'<code>.*?</code>', re.DOTALL),
+            re.compile(r'<pre>.*?</pre>', re.DOTALL),
+            # HTML tables
+            re.compile(r'<table>.*?</table>', re.DOTALL),
+            # LaTeX blocks
+            re.compile(r'\$\$.*?\$\$', re.DOTALL),
+            # Chart/diagram blocks
+            re.compile(r'<chart>.*?</chart>', re.DOTALL),
+            re.compile(r'<diagram>.*?</diagram>', re.DOTALL),
+            # SVG blocks
+            re.compile(r'<svg.*?</svg>', re.DOTALL),
+        ]
+        
+        for pattern in patterns:
+            for match in pattern.finditer(text):
+                protected.append((match.start(), match.end()))
+        
+        # Merge overlapping ranges
+        if protected:
+            protected.sort()
+            merged = [protected[0]]
+            for start, end in protected[1:]:
+                last_start, last_end = merged[-1]
+                if start <= last_end:
+                    merged[-1] = (last_start, max(last_end, end))
+                else:
+                    merged.append((start, end))
+            return merged
+        
+        return protected
+
     def _initial_segmentation(self, text: str) -> List[Tuple[int, int, str]]:
         """
         Initial text segmentation based on natural boundaries.
         
         Returns list of (start, end, segment_text) tuples.
         Keeps questions with their answers together.
+        Preserves code blocks, mermaid diagrams, and other atomic units.
         """
         segments = []
         
-        # First, split by major headers (## or ###)
-        # But be careful not to split questions from answers
+        # First, identify and protect code blocks/special blocks
+        protected_ranges = self._find_protected_ranges(text)
+        
+        # Split by major headers (## or ###)
+        # But be careful not to split questions from answers or code blocks
         lines = text.split('\n')
         current_segment_start = 0
         current_segment_lines = []
@@ -297,11 +429,14 @@ class MultiAgentChunker:
             line_start = current_pos
             line_end = current_pos + len(line)
             
+            # Check if we're inside a protected range (code block, mermaid, etc.)
+            in_protected = any(start <= line_start < end for start, end in protected_ranges)
+            
             # Check if this is a header line
-            is_header = line.strip().startswith('#')
+            is_header = line.strip().startswith('#') and not in_protected
             
             # Check if this is a question (starts with number followed by period)
-            is_question_start = bool(re.match(r'^\s*\d+[\.\)]\s+', line.strip()))
+            is_question_start = bool(re.match(r'^\s*\d+[\.\)]\s+', line.strip())) and not in_protected
             
             # Check if this is an answer line
             is_answer = line.strip().upper().startswith('CEVAP')
@@ -309,15 +444,16 @@ class MultiAgentChunker:
             # Decide whether to start a new segment
             should_split = False
             
-            if is_header and current_segment_lines:
-                # Split at headers, but only if we have content
-                should_split = True
-            elif is_question_start and current_segment_lines:
-                # Check if previous segment is also a question - if so, don't split
-                prev_text = '\n'.join(current_segment_lines)
-                if not re.search(r'\d+[\.\)]\s+', prev_text):
-                    # Previous segment is not a question, safe to split
+            if not in_protected:
+                if is_header and current_segment_lines:
+                    # Split at headers, but only if we have content
                     should_split = True
+                elif is_question_start and current_segment_lines:
+                    # Check if previous segment is also a question - if so, don't split
+                    prev_text = '\n'.join(current_segment_lines)
+                    if not re.search(r'\d+[\.\)]\s+', prev_text):
+                        # Previous segment is not a question, safe to split
+                        should_split = True
             
             if should_split:
                 # Save current segment
@@ -339,34 +475,109 @@ class MultiAgentChunker:
                 segments.append((current_segment_start, len(text), segment_text))
         
         # Post-process: merge small segments and ensure questions have answers
+        # Also ensure headers are merged with their following content
         merged_segments = []
         i = 0
         while i < len(segments):
             start, end, text_content = segments[i]
             
-            # Check if this segment ends with a question without answer
+            # Check if this segment is just a header (very short and starts with #)
+            is_header_only = (
+                len(text_content) < 200 and 
+                text_content.strip().startswith('#') and
+                '\n' not in text_content.strip()
+            )
+            
+            # If header only, merge with next segment
+            if is_header_only and i + 1 < len(segments):
+                next_start, next_end, next_text = segments[i + 1]
+                # Merge header with its content
+                merged_text = text_content + '\n\n' + next_text
+                # Don't add yet - continue checking if merged is still too small
+                segments[i + 1] = (start, next_end, merged_text.strip())
+                i += 1
+                continue
+            
+            # Enhanced question-answer detection
+            text_lower = text_content.lower()
+            
+            # Question patterns (more comprehensive)
+            question_patterns = [
+                r'\?\s*$',  # Ends with question mark
+                r'which of the following',
+                r'what is\b',
+                r'what are\b',
+                r'how does\b',
+                r'why does\b',
+                r'select the\b',
+                r'choose the\b',
+                r'identify the\b',
+                r'which statement',
+                r'aşağıdakilerden hangisi',
+                r'hangisi doğrudur',
+                r'hangisi yanlıştır',
+            ]
+            
+            # Answer patterns (options like a., b., c., d.)
+            answer_patterns = [
+                r'^[a-d][\.\)]\s',
+                r'^\s*[a-d][\.\)]\s',
+                r'^[A-D][\.\)]\s',
+                r'^\s*[A-D][\.\)]\s',
+                r'cevap',
+                r'answer',
+            ]
+            
+            # Check if this segment ends with a question
+            ends_with_question = any(re.search(p, text_lower) for p in question_patterns)
+            has_answer_in_segment = any(re.search(p, text_lower, re.MULTILINE) for p in answer_patterns)
+            
+            # If question without answer options, try to merge with next segment
+            if ends_with_question and not has_answer_in_segment and i + 1 < len(segments):
+                next_start, next_end, next_text = segments[i + 1]
+                next_lower = next_text.lower()
+                
+                # Check if next segment has answer options
+                next_has_answers = any(re.search(p, next_lower, re.MULTILINE) for p in answer_patterns)
+                
+                if next_has_answers:
+                    # Merge question with its answers
+                    merged_text = text_content + '\n\n' + next_text
+                    logger.info(f"Merging question with answer options")
+                    merged_segments.append((start, next_end, merged_text.strip()))
+                    i += 2
+                    continue
+            
+            # Legacy check for Turkish CEVAP pattern
             has_question = bool(re.search(r'\d+[\.\)]\s+.*\?', text_content, re.DOTALL))
             has_answer = 'CEVAP' in text_content.upper()
             
-            # If question without answer, try to merge with next segment
             if has_question and not has_answer and i + 1 < len(segments):
                 next_start, next_end, next_text = segments[i + 1]
-                # Check if next segment has the answer
                 if 'CEVAP' in next_text.upper():
-                    # Merge them
                     merged_text = text_content + '\n\n' + next_text
                     merged_segments.append((start, next_end, merged_text.strip()))
                     i += 2
                     continue
             
-            # Check if segment is too small (< min_size) and merge with previous
-            if len(text_content) < self.config.min_chunk_size and merged_segments:
-                prev_start, prev_end, prev_text = merged_segments[-1]
-                if len(prev_text) + len(text_content) < self.config.max_chunk_size:
-                    merged_text = prev_text + '\n\n' + text_content
-                    merged_segments[-1] = (prev_start, end, merged_text.strip())
-                    i += 1
-                    continue
+            # Check if segment is too small (< min_size)
+            if len(text_content) < self.config.min_chunk_size:
+                # Try to merge with next segment first (preferred for headers)
+                if i + 1 < len(segments):
+                    next_start, next_end, next_text = segments[i + 1]
+                    if len(text_content) + len(next_text) < self.config.max_chunk_size:
+                        merged_text = text_content + '\n\n' + next_text
+                        segments[i + 1] = (start, next_end, merged_text.strip())
+                        i += 1
+                        continue
+                # Otherwise merge with previous
+                elif merged_segments:
+                    prev_start, prev_end, prev_text = merged_segments[-1]
+                    if len(prev_text) + len(text_content) < self.config.max_chunk_size:
+                        merged_text = prev_text + '\n\n' + text_content
+                        merged_segments[-1] = (prev_start, end, merged_text.strip())
+                        i += 1
+                        continue
             
             merged_segments.append((start, end, text_content))
             i += 1
@@ -453,16 +664,18 @@ class MultiAgentChunker:
         self, 
         text: str, 
         segments: List[Tuple[int, int, str]]
-    ) -> List[int]:
+    ) -> Tuple[List[int], List[Dict[str, Any]]]:
         """
         Find optimal chunk boundaries using agents.
         
-        Returns list of boundary positions.
+        Returns:
+            Tuple of (boundary positions, boundary decisions)
         """
         if len(segments) <= 1:
-            return []
+            return [], []
         
         boundaries = []
+        boundary_decisions = []  # Track all decisions including MERGE
         current_chunk_start = 0
         current_chunk_size = 0
         current_chunk_segments = []
@@ -496,6 +709,17 @@ class MultiAgentChunker:
                 context = AnalysisContext(boundary=boundary)
                 result = self.coordinator.coordinate(context)
                 
+                # Record the decision
+                decision_record = {
+                    'position': start,
+                    'decision': result.final_decision.value,
+                    'confidence': result.confidence,
+                    'reasoning': result.reasoning,
+                    'is_header': is_header,
+                    'agent_decisions': {d.agent_name: d.decision_type.value for d in result.agent_decisions}
+                }
+                boundary_decisions.append(decision_record)
+                
                 # Decide based on consensus - be more aggressive about splitting at headers
                 should_split = (
                     result.final_decision in [DecisionType.SPLIT, DecisionType.FORCE_SPLIT, DecisionType.ALLOW_SPLIT] or
@@ -508,6 +732,7 @@ class MultiAgentChunker:
                     current_chunk_size = segment_size
                     current_chunk_segments = [segment_text]
                 else:
+                    # MERGE decision - segments stay together
                     current_chunk_size += segment_size
                     current_chunk_segments.append(segment_text)
             else:
@@ -517,11 +742,20 @@ class MultiAgentChunker:
             # Force split if chunk is too large
             if current_chunk_size > self.config.max_chunk_size * 1.3:
                 boundaries.append(start)
+                # Record forced split
+                boundary_decisions.append({
+                    'position': start,
+                    'decision': 'force_split',
+                    'confidence': 1.0,
+                    'reasoning': f'Chunk size ({current_chunk_size}) exceeded max limit ({self.config.max_chunk_size * 1.3:.0f})',
+                    'is_header': False,
+                    'agent_decisions': {'SizeAgent': 'force_split'}
+                })
                 current_chunk_start = start
                 current_chunk_size = segment_size
                 current_chunk_segments = [segment_text]
         
-        return boundaries
+        return boundaries, boundary_decisions
     
     def _generate_chunks(
         self, 
@@ -568,14 +802,28 @@ class MultiAgentChunker:
         return chunks
     
     def _split_large_chunk(self, text: str, base_start: int) -> List[Tuple[int, int, str]]:
-        """Split a large chunk by sentences to respect max_chunk_size."""
-        # Try splitting by sentences
+        """Split a large chunk by sentences to respect max_chunk_size.
+        
+        Preserves code blocks and other protected content.
+        """
+        # First check if this chunk contains protected content
+        protected_ranges = self._find_protected_ranges(text)
+        
+        # If the entire chunk is a protected block, don't split it
+        if protected_ranges:
+            for p_start, p_end in protected_ranges:
+                # If protected range covers most of the text, keep it intact
+                if p_end - p_start > len(text) * 0.8:
+                    return [(base_start, base_start + len(text), text)]
+        
+        # Try splitting by sentences, but avoid splitting inside protected ranges
         sentences = re.split(r'(?<=[.!?])\s+', text)
         
         result = []
         current_chunk = []
         current_size = 0
         chunk_start = base_start
+        current_text_pos = 0
         
         for sent in sentences:
             sent = sent.strip()
@@ -583,6 +831,23 @@ class MultiAgentChunker:
                 continue
             
             sent_len = len(sent)
+            
+            # Find position of this sentence in original text
+            sent_pos = text.find(sent, current_text_pos)
+            if sent_pos >= 0:
+                current_text_pos = sent_pos + sent_len
+            
+            # Check if this sentence is inside a protected range
+            in_protected = any(
+                p_start <= (base_start + sent_pos) < p_end 
+                for p_start, p_end in protected_ranges
+            ) if sent_pos >= 0 and protected_ranges else False
+            
+            # If in protected range, add to current chunk without size check
+            if in_protected:
+                current_chunk.append(sent)
+                current_size += sent_len + 1
+                continue
             
             # If single sentence is too large, split by words (last resort)
             if sent_len > self.config.max_chunk_size:

@@ -305,14 +305,20 @@ export default function ChunkingNewStrategyTestPage() {
           const detailedInfo = detailedChunksArray[i] || {};
           
           // Determine boundaryType based on agent decisions
+          // Priority: force_split > structural preserve > default semantic
           let boundaryType: "natural" | "forced" | "semantic" = "semantic";
-          if (detailedInfo.structural_decision === "preserve" || detailedInfo.structural_decision === "force_preserve") {
-            boundaryType = "natural";
-          } else if (detailedInfo.size_decision === "force_split") {
+          
+          // Check size decision first (highest priority - forced splits)
+          if (detailedInfo.size_decision === "force_split") {
             boundaryType = "forced";
-          } else if (detailedInfo.semantic_decision === "split" || detailedInfo.semantic_decision === "merge") {
-            boundaryType = "semantic";
           }
+          // Then check structural decision (only "preserve" indicates natural boundary)
+          // Only mark as natural if there's no semantic decision or it's neutral
+          else if (detailedInfo.structural_decision === "preserve" && 
+                   (!detailedInfo.semantic_decision || detailedInfo.semantic_decision === "neutral")) {
+            boundaryType = "natural";
+          }
+          // All other cases (semantic split/merge, allow_split, empty decisions) remain as "semantic" (default)
           
           // Extract metadata from detailed chunk info
           const chunkMetadata = detailedInfo.metadata || {};

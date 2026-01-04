@@ -164,29 +164,60 @@ const ChunkVisualization: React.FC<ChunkVisualizationProps> = ({
           </CardHeader>
           <CardContent>
             <div className="text-sm text-gray-600 mb-4">
-              Her renk farklı bir chunk'ı temsil eder. Chunk sınırları renkli kenarlıklarla gösterilir.
+              Her renk farklı bir chunk'ı temsil eder. Chunk sınırları renkli kenarlıklarla gösterilir. Detaylar için chunk'a tıklayın.
             </div>
             <div className="border rounded-lg p-4 bg-gray-50 max-h-96 overflow-y-auto">
               <div className="text-sm leading-relaxed space-y-1">
-                {chunks.map((chunk, index) => (
-                  <span
-                    key={chunk.id}
-                    className={`inline-block p-2 m-1 rounded border-l-4 cursor-pointer transition-all hover:shadow-md ${getChunkColor(index, chunk.boundaryType)} ${
-                      selectedChunk === chunk.id ? "ring-2 ring-blue-400 shadow-lg" : ""
-                    }`}
-                    title={`Chunk ${index + 1}: ${chunk.size} karakter${chunk.semanticScore ? ` - Skor: ${chunk.semanticScore.toFixed(3)}` : ""}`}
-                    onClick={() => setSelectedChunk(selectedChunk === chunk.id ? null : chunk.id)}
-                  >
-                    {chunk.content}
-                    {chunk.boundaryType && (
-                      <div className="text-xs mt-1 opacity-75">
-                        {chunk.boundaryType === "semantic" && "🧠 Semantik"}
-                        {chunk.boundaryType === "natural" && "📝 Doğal"}
-                        {chunk.boundaryType === "forced" && "✂️ Zorlanmış"}
+                {chunks.map((chunk, index) => {
+                  // Build tooltip with metadata
+                  let tooltipParts = [`Chunk ${index + 1}: ${chunk.size} karakter`];
+                  if (chunk.semanticScore) tooltipParts.push(`Skor: ${chunk.semanticScore.toFixed(3)}`);
+                  if (chunk.metadata?.chunk_type && chunk.metadata.chunk_type !== 'content') {
+                    tooltipParts.push(`Tür: ${chunk.metadata.chunk_type}`);
+                  }
+                  if (chunk.metadata?.parent_header) {
+                    tooltipParts.push(`Bölüm: ${chunk.metadata.parent_header}`);
+                  }
+                  if (chunk.metadata?.keywords && chunk.metadata.keywords.length > 0) {
+                    tooltipParts.push(`Anahtar: ${chunk.metadata.keywords.slice(0, 3).join(', ')}`);
+                  }
+                  
+                  return (
+                    <span
+                      key={chunk.id}
+                      className={`inline-block p-2 m-1 rounded border-l-4 cursor-pointer transition-all hover:shadow-md ${getChunkColor(index, chunk.boundaryType)} ${
+                        selectedChunk === chunk.id ? "ring-2 ring-blue-400 shadow-lg" : ""
+                      }`}
+                      title={tooltipParts.join(' | ')}
+                      onClick={() => setSelectedChunk(selectedChunk === chunk.id ? null : chunk.id)}
+                    >
+                      {chunk.content}
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {chunk.boundaryType && (
+                          <span className="text-xs opacity-75">
+                            {chunk.boundaryType === "semantic" && "🧠 Semantik"}
+                            {chunk.boundaryType === "natural" && "📝 Doğal"}
+                            {chunk.boundaryType === "forced" && "✂️ Zorlanmış"}
+                          </span>
+                        )}
+                        {chunk.metadata?.chunk_type && chunk.metadata.chunk_type !== 'content' && (
+                          <span className="text-xs bg-indigo-100 text-indigo-700 px-1 rounded">
+                            {chunk.metadata.chunk_type === "header" && "📑"}
+                            {chunk.metadata.chunk_type === "list" && "📋"}
+                            {chunk.metadata.chunk_type === "table" && "📊"}
+                            {chunk.metadata.chunk_type === "code" && "💻"}
+                            {chunk.metadata.chunk_type === "question" && "❓"}
+                          </span>
+                        )}
+                        {chunk.metadata?.keywords && chunk.metadata.keywords.length > 0 && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-1 rounded">
+                            🏷️ {chunk.metadata.keywords.length}
+                          </span>
+                        )}
                       </div>
-                    )}
-                  </span>
-                ))}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           </CardContent>
