@@ -11,12 +11,20 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const format = searchParams.get("format") || "json";
 
+    // Forward the Authorization header from the original request
+    const authHeader = request.headers.get("authorization");
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (authHeader) {
+      headers["authorization"] = authHeader;
+    }
+
     // Forward request to backend API gateway
     const response = await fetch(`${API_GATEWAY_URL}/api/chunking-test/export/${testId}?format=${format}`, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
     });
 
     if (!response.ok) {

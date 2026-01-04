@@ -744,7 +744,11 @@ const DriftVisualization: React.FC<DriftVisualizationProps> = ({
       )}
 
       {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as any)}
+        className="w-full"
+      >
         <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="timeline" className="flex items-center gap-2">
             <Activity className="h-4 w-4" />

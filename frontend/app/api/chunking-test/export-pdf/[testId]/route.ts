@@ -34,45 +34,14 @@ export async function GET(
       );
     }
 
-    const backendResponse = await response.json();
-    
-    // Check if backend returned markdown report
-    if (backendResponse.success && backendResponse.report) {
-      // Generate PDF using jsPDF
-      const pdfBuffer = generatePDFFromMarkdown(backendResponse.report, testId);
-      
-      return new NextResponse(new Uint8Array(pdfBuffer), {
-        headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${backendResponse.filename || `chunking_report_${testId.substring(0, 8)}.pdf`}"`
-        }
-      });
-    }
-    
-    // Fallback: Get test data and generate HTML report
-    const statusResponse = await fetch(`${API_GATEWAY_URL}/api/chunking-test/status/${testId}`, {
-      method: "GET",
-      headers,
-    });
+    const contentType = response.headers.get("content-type") || "application/pdf";
+    const arrayBuffer = await response.arrayBuffer();
 
-    if (!statusResponse.ok) {
-      const error = await statusResponse.json().catch(() => ({ error: "Backend error" }));
-      return NextResponse.json(
-        { error: error.error || "Test verileri alınamadı" },
-        { status: statusResponse.status }
-      );
-    }
-
-    const testData = await statusResponse.json();
-    
-    // Generate PDF using jsPDF
-    const pdfBuffer = generateComprehensiveAcademicReportPDF(testData, testId);
-    
-    return new NextResponse(new Uint8Array(pdfBuffer), {
+    return new NextResponse(new Uint8Array(arrayBuffer), {
       headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="agentic_chunking_academic_report_${testId.substring(0, 8)}.pdf"`
-      }
+        "Content-Type": contentType,
+        "Content-Disposition": `attachment; filename="chunking_test_report_${testId.substring(0, 8)}.pdf"`,
+      },
     });
 
   } catch (error: any) {

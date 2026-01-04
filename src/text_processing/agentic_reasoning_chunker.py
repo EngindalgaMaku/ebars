@@ -1680,6 +1680,9 @@ class BoundaryDetectionAlgorithm:
         logger.info(f"🔍 Detecting optimal boundaries for {len(paragraph_groups)} groups with enhanced semantic analysis")
         
         boundaries = []
+        # Track rolling size to enforce hard max_size boundaries even if Grok strongly prefers MERGE
+        group_sizes = [sum(len(p.text) for p in g.paragraphs) for g in paragraph_groups]
+        rolling_size = 0
         
         # Stage 1: Grok reasoning decisions with enhanced context
         logger.debug("Stage 1: Enhanced Grok reasoning with Turkish context")
@@ -1714,6 +1717,15 @@ class BoundaryDetectionAlgorithm:
         for i, (grok_decision, sim_score, struct_score, size_score, semantic_score) in enumerate(
             zip(grok_decisions, similarity_scores, structural_scores, size_scores, semantic_transition_scores)
         ):
+            # Update rolling size and compute whether adding the next group would exceed max_size.
+            rolling_size += group_sizes[i]
+            next_group_size = group_sizes[i + 1] if i + 1 < len(group_sizes) else 0
+            exceeds_max_size = (
+                self.config.max_size is not None and
+                (i + 1) < len(group_sizes) and
+                (rolling_size + next_group_size) > self.config.max_size
+            )
+            
             # Calculate weighted final score with all metrics
             final_score = (
                 grok_decision.confidence * self.decision_weights['grok_reasoning'] +
@@ -1729,7 +1741,12 @@ class BoundaryDetectionAlgorithm:
             )
             
             # Multi-stage decision process
-            if grok_decision.decision == "SPLIT" and final_score > confidence_threshold:
+            if exceeds_max_size:
+                final_decision = "SPLIT"
+                decision_reasoning = (
+                    f"Hard max_size split override (projected_size: {rolling_size + next_group_size} > max_size: {self.config.max_size})"
+                )
+            elif grok_decision.decision == "SPLIT" and final_score > confidence_threshold:
                 final_decision = "SPLIT"
                 decision_reasoning = f"Grok + metrics support split (score: {final_score:.3f} > {confidence_threshold:.3f})"
             elif grok_decision.decision == "MERGE" and final_score < (confidence_threshold + 0.1):
@@ -1765,6 +1782,10 @@ class BoundaryDetectionAlgorithm:
             )
             
             boundaries.append(boundary)
+            
+            # Reset rolling size after a split so size calculations apply per-chunk.
+            if final_decision == "SPLIT":
+                rolling_size = 0
         
         # Log detailed boundary analysis
         split_count = sum(1 for b in boundaries if b.decision == "SPLIT")

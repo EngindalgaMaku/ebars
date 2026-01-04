@@ -397,7 +397,11 @@ async def execute_agentic_reasoning_chunking(
         # Simple fallback chunking
         try:
             chunks = []
+            detailed_chunks = []
+            reasoning_decisions = []
+            similarity_analysis = {}
             current_pos = 0
+            chunk_index = 0
             
             while current_pos < len(text):
                 # Find a good break point near target size
@@ -409,15 +413,90 @@ async def execute_agentic_reasoning_chunking(
                 # Look for sentence endings
                 sentence_endings = ['.', '!', '?', '\n\n']
                 best_break = end_pos
+                chosen_break_reason = "target_size"
+                chosen_break_char = ""
                 
                 for i in range(len(chunk_text) - 1, max(0, len(chunk_text) - 200), -1):
                     if chunk_text[i] in sentence_endings:
                         best_break = current_pos + i + 1
+                        chosen_break_char = chunk_text[i]
+                        chosen_break_reason = "sentence_boundary" if chunk_text[i] != '\n' else "paragraph_boundary"
                         break
                 
-                chunk = text[current_pos:best_break].strip()
+                raw_chunk = text[current_pos:best_break]
+                chunk = raw_chunk.strip()
                 if chunk:
                     chunks.append(chunk)
+
+                    start_index = current_pos
+                    end_index = best_break
+                    word_count = len(chunk.split())
+                    sentence_count = max(
+                        1,
+                        sum(1 for ch in chunk if ch in ['.', '!', '?'])
+                    )
+                    paragraph_count = max(1, chunk.count('\n\n') + 1)
+                    has_header = chunk.lstrip().startswith('#')
+
+                    boundary_metadata = {
+                        "decision_method": "fallback_heuristic",
+                        "break_reason": chosen_break_reason,
+                        "break_char": chosen_break_char,
+                        "target_size": target_size,
+                        "search_window": 200,
+                    }
+
+                    boundary_reasoning = (
+                        f"Fallback heuristic boundary. Reason={chosen_break_reason}. "
+                        f"Selected break near target_size={target_size}."
+                    )
+
+                    chunk_boundary_decisions = []
+                    if end_index < len(text):
+                        decision = {
+                            "decision": "SPLIT",
+                            "confidence": 0.55 if chosen_break_reason == "target_size" else 0.65,
+                            "reasoning": boundary_reasoning,
+                            "semantic_coherence": 0.55,
+                            "topic_continuity": 0.55,
+                            "metadata": boundary_metadata,
+                        }
+                        chunk_boundary_decisions.append(decision)
+                        reasoning_decisions.append(decision)
+
+                    detailed_chunks.append({
+                        "id": chunk_index,
+                        "text": chunk,
+                        "start_index": start_index,
+                        "end_index": end_index,
+                        "word_count": word_count,
+                        "sentence_count": sentence_count,
+                        "paragraph_count": paragraph_count,
+                        "has_header": has_header,
+                        "quality_score": 0.55,
+                        "semantic_coherence": 0.55,
+                        "topic_consistency": 0.55,
+                        "reasoning_confidence": 0.55,
+                        "issues": ["fallback_heuristic"],
+                        "metadata": {
+                            "fallback": True,
+                            "fallback_reason": str(e),
+                            "turkish_optimization": turkish_optimization,
+                        },
+                        "boundary_decisions": chunk_boundary_decisions,
+                        "reasoning_summary": {
+                            "total_decisions": len(chunk_boundary_decisions),
+                            "split_decisions": len([bd for bd in chunk_boundary_decisions if bd.get("decision") == "SPLIT"]),
+                            "merge_decisions": 0,
+                            "avg_confidence": (
+                                sum(bd.get("confidence", 0) for bd in chunk_boundary_decisions) / len(chunk_boundary_decisions)
+                                if chunk_boundary_decisions
+                                else 0
+                            ),
+                            "reasoning_methods": ["fallback_heuristic"],
+                        },
+                    })
+                    chunk_index += 1
                 
                 current_pos = best_break
             
@@ -427,10 +506,21 @@ async def execute_agentic_reasoning_chunking(
             avg_chunk_size = total_chars / chunk_count if chunk_count > 0 else 0
             
             logger.info(f"Fallback chunking completed - {chunk_count} chunks")
+
+            if reasoning_decisions:
+                similarity_analysis = {
+                    "total_boundary_decisions": len(reasoning_decisions),
+                    "split_ratio": 1.0,
+                    "avg_confidence": sum(rd["confidence"] for rd in reasoning_decisions) / len(reasoning_decisions),
+                    "avg_semantic_coherence": sum(rd["semantic_coherence"] for rd in reasoning_decisions) / len(reasoning_decisions),
+                    "avg_topic_continuity": sum(rd["topic_continuity"] for rd in reasoning_decisions) / len(reasoning_decisions),
+                    "reasoning_methods": list(set(rd["metadata"].get("decision_method", "fallback_heuristic") for rd in reasoning_decisions if rd.get("metadata"))),
+                }
             
             return {
                 "strategy": "agentic",
                 "chunks": chunks,
+                "detailed_chunks": detailed_chunks,
                 "chunk_count": chunk_count,
                 "total_characters": total_chars,
                 "avg_chunk_size": avg_chunk_size,
@@ -440,8 +530,8 @@ async def execute_agentic_reasoning_chunking(
                 "success": True,
                 "config": f"Fallback Chunking (Turkish={turkish_optimization})",
                 "grok_reasoning_used": False,
-                "reasoning_decisions": [],
-                "similarity_analysis": {},
+                "reasoning_decisions": reasoning_decisions,
+                "similarity_analysis": similarity_analysis,
                 "fallback": True
             }
             
@@ -1651,3 +1741,49 @@ async def get_reasoning_analysis(test_id: str, request: Request = None) -> Dict[
     except Exception as e:
         logger.error(f"Failed to get reasoning analysis: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get reasoning analysis: {str(e)}")
+
+@router.put("/update/{test_id}", summary="Update Chunking Test")
+async def update_chunking_test(
+    test_id: str,
+    request_data: dict,
+    request: Request = None
+) -> Dict[str, Any]:
+    """Update chunking test name or other properties"""
+    # Basic authentication check
+    current_user = _get_current_user(request)
+    logger.info(f"🔍 [CHUNKING TEST UPDATE] Current user: {current_user}")
+    
+    if not (_is_teacher(current_user) or _is_admin(current_user)):
+        raise HTTPException(status_code=403, detail="Teacher or admin access required")
+    
+    logger.info(f"🔍 [CHUNKING TEST UPDATE] Authentication successful - access granted")
+    
+    # Try memory first, then database
+    test_data = CHUNKING_TEST_RESULTS_STORAGE.get(test_id)
+    if not test_data:
+        test_data = _load_chunking_test_from_db(test_id)
+        if test_data:
+            CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
+    
+    if not test_data:
+        raise HTTPException(status_code=404, detail="Chunking test not found")
+    
+    # Update allowed fields
+    if "testName" in request_data:
+        test_data["test_name"] = request_data["testName"]
+    
+    # Update timestamp
+    test_data["last_updated"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    
+    # Save changes
+    CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
+    _save_chunking_test_to_db(test_id, test_data)
+    
+    logger.info(f"✅ [CHUNKING TEST UPDATE] Test {test_id} updated successfully")
+    
+    return {
+        "success": True,
+        "message": "Test updated successfully",
+        "test_id": test_id,
+        "updated_fields": list(request_data.keys())
+    }

@@ -1,0 +1,47 @@
+import { NextRequest, NextResponse } from "next/server";
+
+const API_GATEWAY_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL || "http://localhost:8000";
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ testId: string }> }
+) {
+  try {
+    const { testId } = await params;
+    const body = await request.json();
+
+    // Get authorization header from request
+    const authHeader = request.headers.get('authorization');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (authHeader) {
+      headers['authorization'] = authHeader;
+    }
+    
+    // Forward the request to the backend
+    const response = await fetch(`${API_GATEWAY_URL}/api/chunking-test/update/${testId}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Backend error" }));
+      return NextResponse.json(
+        { error: error.error || "Test güncellenemedi" },
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data);
+  } catch (error: any) {
+    console.error("Chunking test update API error:", error);
+    return NextResponse.json(
+      { error: error.message || "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
