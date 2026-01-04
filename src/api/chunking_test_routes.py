@@ -225,11 +225,90 @@ async def execute_traditional_chunking(
         size_variance = sum((len(chunk) - avg_chunk_size) ** 2 for chunk in chunks) / chunk_count if chunk_count > 0 else 0
         coherence_score = max(0, 1 - (size_variance / (target_size ** 2)))
         
+        # Enrich chunks with metadata
+        detailed_chunks = []
+        metadata_stats = {}
+        try:
+            from src.text_processing.metadata import ChunkEnricher, EnricherConfig
+            
+            # Create wrapper objects for enrichment
+            class SimpleChunk:
+                def __init__(self, text):
+                    self.text = text
+                    self.metadata = {}
+            
+            chunk_objects = [SimpleChunk(chunk) for chunk in chunks]
+            enricher = ChunkEnricher(EnricherConfig(
+                use_llm_keywords=False,
+                detect_language=True,
+                max_keywords=5
+            ))
+            enriched_chunks = enricher.enrich_chunks(chunk_objects)
+            
+            # Build detailed chunks with metadata
+            for i, chunk_obj in enumerate(enriched_chunks):
+                chunk_metadata = chunk_obj.metadata if hasattr(chunk_obj, 'metadata') and chunk_obj.metadata else {}
+                
+                # Parse JSON fields
+                keywords = chunk_metadata.get('keywords_json', '[]')
+                if isinstance(keywords, str):
+                    try:
+                        keywords = json.loads(keywords)
+                    except:
+                        keywords = []
+                
+                header_hierarchy = chunk_metadata.get('header_hierarchy_json', '[]')
+                if isinstance(header_hierarchy, str):
+                    try:
+                        header_hierarchy = json.loads(header_hierarchy)
+                    except:
+                        header_hierarchy = []
+                
+                detailed_chunks.append({
+                    "id": i,
+                    "text": chunk_obj.text,
+                    "start_index": 0,
+                    "end_index": len(chunk_obj.text),
+                    "word_count": len(chunk_obj.text.split()),
+                    "char_count": len(chunk_obj.text),
+                    "metadata": {
+                        "chunk_id": chunk_metadata.get('chunk_id', ''),
+                        "parent_header": chunk_metadata.get('parent_header', '') or None,
+                        "section_title": chunk_metadata.get('section_title', '') or None,
+                        "header_hierarchy": header_hierarchy,
+                        "keywords": keywords,
+                        "chunk_type": chunk_metadata.get('chunk_type', 'content'),
+                        "document_title": chunk_metadata.get('document_title', '') or None,
+                        "page_number": chunk_metadata.get('page_number') if chunk_metadata.get('page_number', -1) >= 0 else None,
+                        "language": chunk_metadata.get('language', 'auto'),
+                        "previous_chunk_id": chunk_metadata.get('previous_chunk_id', '') or None,
+                        "next_chunk_id": chunk_metadata.get('next_chunk_id', '') or None,
+                    }
+                })
+            
+            metadata_stats = enricher.calculate_stats(enriched_chunks).to_dict()
+            logger.info(f"Enriched {len(enriched_chunks)} traditional chunks with metadata")
+            
+        except Exception as enrich_error:
+            logger.warning(f"Traditional chunking metadata enrichment failed: {enrich_error}")
+            # Create basic detailed_chunks without metadata
+            for i, chunk in enumerate(chunks):
+                detailed_chunks.append({
+                    "id": i,
+                    "text": chunk,
+                    "start_index": 0,
+                    "end_index": len(chunk),
+                    "word_count": len(chunk.split()),
+                    "char_count": len(chunk),
+                    "metadata": {}
+                })
+        
         logger.info(f"Traditional chunking completed - {chunk_count} chunks, avg_size: {avg_chunk_size:.0f}")
         
         return {
             "strategy": "traditional",
             "chunks": chunks,
+            "detailed_chunks": detailed_chunks,
             "chunk_count": chunk_count,
             "total_characters": total_chars,
             "avg_chunk_size": avg_chunk_size,
@@ -237,7 +316,8 @@ async def execute_traditional_chunking(
             "semantic_coherence_score": coherence_score,
             "boundary_quality_score": 0.7,  # Default score for traditional
             "success": True,
-            "config": f"Traditional Semantic Chunking (size={target_size}, overlap={overlap})"
+            "config": f"Traditional Semantic Chunking (size={target_size}, overlap={overlap})",
+            "metadata_stats": metadata_stats
         }
         
     except Exception as e:
@@ -263,17 +343,39 @@ async def execute_agentic_reasoning_chunking(
     overlap: int,
     enable_grok: bool = True,
     turkish_optimization: bool = True,
-    session_id: Optional[str] = None
+    session_id: Optional[str] = None,
+    test_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """Execute agentic reasoning chunking strategy with simplified approach"""
     start_time = time.time()
     
+    # Progress update helper
+    def update_progress(pct: int, message: str, step: int = 0, total_steps: int = 6):
+        if test_id and test_id in CHUNKING_TEST_RESULTS_STORAGE:
+            test_data = CHUNKING_TEST_RESULTS_STORAGE[test_id]
+            # Calculate overall progress: agentic is typically the second strategy (50-100%)
+            base_progress = test_data.get("progress_percentage", 0)
+            # Sub-progress within this strategy
+            test_data["sub_progress"] = {
+                "current_step": step,
+                "total_steps": total_steps,
+                "step_message": message,
+                "step_percentage": pct
+            }
+            test_data["progress_message"] = f"Agentic Chunking: {message}"
+            test_data["last_updated"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
+            _save_chunking_test_to_db(test_id, test_data)
+    
     try:
         logger.info(f"Starting agentic reasoning chunking - text length: {len(text)}, Grok: {enable_grok}, Turkish: {turkish_optimization}")
+        update_progress(5, "Agentic chunker başlatılıyor...", 1, 6)
         
         # Try to import and use the full agentic chunker
         try:
             from src.text_processing.agentic_reasoning_chunker import AgenticReasoningChunker, AgenticChunkingConfig
+            
+            update_progress(15, "Konfigürasyon hazırlanıyor...", 2, 6)
             
             # Create config using model inference service like LLM chunking
             config = AgenticChunkingConfig(
@@ -289,9 +391,28 @@ async def execute_agentic_reasoning_chunking(
             # Create chunker
             chunker = AgenticReasoningChunker(config)
             
+            update_progress(25, "Metin analiz ediliyor...", 3, 6)
+            
             # Perform chunking with timeout and error handling
             try:
+                update_progress(40, "Boundary detection yapılıyor...", 4, 6)
                 agentic_chunks = chunker.create_chunks(text)
+                
+                update_progress(70, "Chunk'lar oluşturuluyor...", 5, 6)
+                
+                # Enrich chunks with metadata
+                update_progress(80, "Metadata ekleniyor...", 5, 6)
+                try:
+                    from src.text_processing.metadata import ChunkEnricher, EnricherConfig
+                    enricher = ChunkEnricher(EnricherConfig(
+                        use_llm_keywords=False,  # Disable LLM for speed
+                        detect_language=True,
+                        max_keywords=5
+                    ))
+                    agentic_chunks = enricher.enrich_chunks(agentic_chunks)
+                    logger.info(f"Enriched {len(agentic_chunks)} agentic chunks with metadata")
+                except Exception as enrich_error:
+                    logger.warning(f"Metadata enrichment failed: {enrich_error}, continuing without metadata")
                 
                 # Convert AgenticChunk objects to strings for backward compatibility
                 chunks = [chunk.text for chunk in agentic_chunks]
@@ -327,6 +448,24 @@ async def execute_agentic_reasoning_chunking(
                             "metadata": bd.metadata
                         })
                     
+                    # Extract enriched metadata from chunk
+                    chunk_metadata = chunk.metadata if hasattr(chunk, 'metadata') and chunk.metadata else {}
+                    
+                    # Parse JSON fields if they are strings
+                    keywords = chunk_metadata.get('keywords_json', '[]')
+                    if isinstance(keywords, str):
+                        try:
+                            keywords = json.loads(keywords)
+                        except:
+                            keywords = []
+                    
+                    header_hierarchy = chunk_metadata.get('header_hierarchy_json', '[]')
+                    if isinstance(header_hierarchy, str):
+                        try:
+                            header_hierarchy = json.loads(header_hierarchy)
+                        except:
+                            header_hierarchy = []
+                    
                     detailed_chunks.append({
                         "id": i,
                         "text": chunk.text,
@@ -341,7 +480,19 @@ async def execute_agentic_reasoning_chunking(
                         "topic_consistency": chunk.topic_consistency,
                         "reasoning_confidence": chunk.reasoning_confidence,
                         "issues": chunk.issues,
-                        "metadata": chunk.metadata,
+                        "metadata": {
+                            "chunk_id": chunk_metadata.get('chunk_id', ''),
+                            "parent_header": chunk_metadata.get('parent_header', '') or None,
+                            "section_title": chunk_metadata.get('section_title', '') or None,
+                            "header_hierarchy": header_hierarchy,
+                            "keywords": keywords,
+                            "chunk_type": chunk_metadata.get('chunk_type', 'content'),
+                            "document_title": chunk_metadata.get('document_title', '') or None,
+                            "page_number": chunk_metadata.get('page_number') if chunk_metadata.get('page_number', -1) >= 0 else None,
+                            "language": chunk_metadata.get('language', 'auto'),
+                            "previous_chunk_id": chunk_metadata.get('previous_chunk_id', '') or None,
+                            "next_chunk_id": chunk_metadata.get('next_chunk_id', '') or None,
+                        },
                         "boundary_decisions": chunk_reasoning,
                         "reasoning_summary": {
                             "total_decisions": len(chunk.boundary_decisions),
@@ -369,6 +520,15 @@ async def execute_agentic_reasoning_chunking(
                 logger.info(f" Agentic chunking completed - {chunk_count} chunks, coherence: {semantic_coherence:.3f}")
                 logger.info(f" Agentic reasoning - {len(reasoning_decisions)} boundary decisions, {similarity_analysis.get('split_ratio', 0):.2f} split ratio")
                 
+                update_progress(100, f"Tamamlandı! {chunk_count} chunk oluşturuldu.", 6, 6)
+                
+                # Calculate metadata statistics
+                metadata_stats = {}
+                try:
+                    metadata_stats = enricher.calculate_stats(agentic_chunks).to_dict()
+                except Exception as stats_error:
+                    logger.warning(f"Metadata stats calculation failed: {stats_error}")
+                
                 return {
                     "strategy": "agentic",
                     "chunks": chunks,  # For backward compatibility
@@ -383,7 +543,8 @@ async def execute_agentic_reasoning_chunking(
                     "config": f"Agentic Reasoning Chunking (Grok={enable_grok}, Turkish={turkish_optimization})",
                     "grok_reasoning_used": enable_grok,
                     "reasoning_decisions": reasoning_decisions,  # NEW: All reasoning decisions
-                    "similarity_analysis": similarity_analysis  # NEW: Similarity analysis summary
+                    "similarity_analysis": similarity_analysis,  # NEW: Similarity analysis summary
+                    "metadata_stats": metadata_stats  # NEW: Metadata statistics
                 }
                 
             except Exception as chunking_error:
@@ -970,6 +1131,12 @@ async def start_chunking_test(
             "input_text_length": len(request_data.inputText),
             "results": [],
             "progress_percentage": 0.0,
+            "progress_message": "Test başlatılıyor...",
+            "sub_progress": {
+                "current_step": 0,
+                "total_steps": 0,
+                "step_message": ""
+            },
             "last_updated": now_iso
         }
         
@@ -1143,6 +1310,9 @@ async def get_chunking_test_status(test_id: str, request: Request) -> Dict[str, 
         "testId": test_id,
         "status": test_data.get("status", "unknown"),
         "progress": round(progress_percentage, 1),
+        "progress_percentage": round(progress_percentage, 1),
+        "progress_message": test_data.get("progress_message"),
+        "sub_progress": test_data.get("sub_progress"),
         "startTime": test_data.get("start_time"),
         "endTime": test_data.get("end_time"),
         "currentStrategy": test_data.get("current_strategy"),
@@ -1708,38 +1878,36 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
         story.append(Paragraph("1.1. Metrik ve Parametre Tanimlari", heading2_style))
         story.append(Spacer(1, 10))
         
-        # Metric definitions
+        # Metric definitions - FIXED column widths to prevent overflow
         metric_definitions = [
             ['Metrik/Parametre', 'Tanim', 'Deger Araligi'],
             ['Semantic Coherence Score', 
-             'Chunk icindeki konularin tutarliligi. QualityAgent tarafindan hesaplanir. '
-             'Yuksek deger = chunk icerigi anlamsal olarak tutarli.',
+             'Chunk icindeki konularin tutarliligi. QualityAgent tarafindan hesaplanir.',
              '0.0 - 1.0'],
             ['Boundary Quality Score', 
-             'Chunk sinirlarinin kalitesi. Dogal sinirlar (baslik, paragraf) yuksek skor alir. '
-             'Zorlanmis sinirlar (boyut limiti) dusuk skor alir.',
+             'Chunk sinirlarinin kalitesi. Dogal sinirlar yuksek skor alir.',
              '0.0 - 1.0'],
             ['Confidence', 
-             'Agent kararlarina olan guven seviyesi. Tum agentlarin agirlikli ortalamasi.',
+             'Agent kararlarina olan guven seviyesi.',
              '0.0 - 1.0'],
             ['SPLIT Karari', 
-             'Iki segment arasinda bolunme karari. Konu degisikligi veya dogal sinir tespit edildiginde verilir.',
+             'Iki segment arasinda bolunme karari.',
              'Karar Turu'],
             ['MERGE Karari', 
-             'Iki segmentin birlestirilmesi karari. Yuksek semantik benzerlik veya soru-cevap iliskisi tespit edildiginde verilir.',
+             'Iki segmentin birlestirilmesi karari.',
              'Karar Turu'],
             ['PRESERVE Karari', 
-             'Atomik birimin korunmasi karari. Kod bloklari, tablolar, mermaid diyagramlari icin verilir.',
+             'Atomik birimin korunmasi karari.',
              'Karar Turu'],
             ['Target Chunk Size', 
-             'Hedeflenen chunk boyutu (karakter). Sistem bu boyuta yakin chunklar olusturmaya calisir.',
+             'Hedeflenen chunk boyutu (karakter).',
              'Karakter'],
             ['Overlap Size', 
-             'Ardisik chunklar arasindaki ortak metin miktari. Baglam koruma icin kullanilir.',
+             'Ardisik chunklar arasindaki ortak metin.',
              'Karakter'],
         ]
         
-        metric_table = Table(metric_definitions, colWidths=[4.5*cm, 9*cm, 2.5*cm])
+        metric_table = Table(metric_definitions, colWidths=[4*cm, 8*cm, 3*cm])
         metric_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), turkish_font),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
@@ -1764,23 +1932,23 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
         agent_descriptions = [
             ['Agent', 'Gorev', 'Karar Tipleri'],
             ['StructuralAgent', 
-             'Atomik birimleri (kod bloklari, tablolar, listeler, mermaid diyagramlari) tespit eder ve korur.',
-             'PRESERVE, SPLIT, NEUTRAL'],
+             'Atomik birimleri (kod, tablo, liste) korur.',
+             'PRESERVE, SPLIT'],
             ['SemanticAgent', 
-             'Konu tutarliligi ve semantik benzerligi analiz eder. Embedding veya kelime ortusumu kullanir.',
-             'MERGE, SPLIT, NEUTRAL'],
+             'Konu tutarliligi ve semantik benzerligi analiz eder.',
+             'MERGE, SPLIT'],
             ['SizeAgent', 
-             'Chunk boyutlarini kontrol eder. Min/max sinirlari asildigi zaman zorla boler veya birlestirir.',
-             'FORCE_SPLIT, FORCE_MERGE, ALLOW_SPLIT'],
+             'Chunk boyutlarini kontrol eder.',
+             'FORCE_SPLIT, FORCE_MERGE'],
             ['QualityAgent', 
-             'Chunk kalitesini degerlendirir. Dusuk kaliteli chunklari iyilestirme icin isaretler.',
-             'APPROVED, NEEDS_IMPROVEMENT, REJECTED'],
+             'Chunk kalitesini degerlendirir.',
+             'APPROVED, REJECTED'],
             ['CoordinatorAgent', 
-             'Tum agentlari koordine eder ve agirlikli konsensus hesaplar.',
+             'Agentlari koordine eder, konsensus hesaplar.',
              'Final karar'],
         ]
         
-        agent_table = Table(agent_descriptions, colWidths=[3.5*cm, 8*cm, 4.5*cm])
+        agent_table = Table(agent_descriptions, colWidths=[3*cm, 7*cm, 5*cm])
         agent_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), turkish_font),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
@@ -1842,6 +2010,148 @@ async def export_chunking_test_pdf(test_id: str, request: Request = None):
             ]))
             story.append(summary_table)
             story.append(Spacer(1, 20))
+            
+            # ===== STRATEGY COMPARISON SECTION =====
+            if len(results) >= 2:
+                story.append(Paragraph("2.1. Strateji Karsilastirmasi", heading2_style))
+                story.append(Spacer(1, 10))
+                
+                # Find traditional and agentic results
+                traditional_result = None
+                agentic_result = None
+                multi_agent_result = None
+                
+                for r in results:
+                    strategy = r.get('strategy', '').lower()
+                    if strategy == 'traditional':
+                        traditional_result = r
+                    elif strategy in ['agentic', 'agentic_reasoning']:
+                        agentic_result = r
+                    elif strategy == 'multi_agent':
+                        multi_agent_result = r
+                
+                # Use agentic or multi_agent as the "new" method
+                new_result = agentic_result or multi_agent_result
+                
+                if traditional_result and new_result:
+                    new_strategy_name = new_result.get('strategy', 'Agentic').upper()
+                    
+                    # Calculate comparison metrics
+                    trad_chunks = traditional_result.get('chunk_count', 0)
+                    new_chunks = new_result.get('chunk_count', 0)
+                    chunk_diff = new_chunks - trad_chunks
+                    chunk_diff_pct = ((new_chunks - trad_chunks) / trad_chunks * 100) if trad_chunks > 0 else 0
+                    
+                    trad_semantic = traditional_result.get('semantic_coherence_score', 0)
+                    new_semantic = new_result.get('semantic_coherence_score', 0)
+                    semantic_diff = new_semantic - trad_semantic
+                    semantic_improvement = ((new_semantic - trad_semantic) / trad_semantic * 100) if trad_semantic > 0 else 0
+                    
+                    trad_boundary = traditional_result.get('boundary_quality_score', 0)
+                    new_boundary = new_result.get('boundary_quality_score', 0)
+                    boundary_diff = new_boundary - trad_boundary
+                    boundary_improvement = ((new_boundary - trad_boundary) / trad_boundary * 100) if trad_boundary > 0 else 0
+                    
+                    trad_time = traditional_result.get('processing_time_ms', 0)
+                    new_time = new_result.get('processing_time_ms', 0)
+                    time_diff = new_time - trad_time
+                    
+                    trad_avg_size = traditional_result.get('avg_chunk_size', 0)
+                    new_avg_size = new_result.get('avg_chunk_size', 0)
+                    
+                    # Comparison table
+                    comparison_data = [
+                        ['Metrik', 'Traditional', new_strategy_name, 'Fark', 'Kazanan'],
+                        ['Chunk Sayisi', str(trad_chunks), str(new_chunks), 
+                         f"{chunk_diff:+d} ({chunk_diff_pct:+.1f}%)", 
+                         'Esit' if chunk_diff == 0 else ('Traditional' if chunk_diff > 0 else new_strategy_name)],
+                        ['Ort. Chunk Boyutu', f"{trad_avg_size:.0f}", f"{new_avg_size:.0f}",
+                         f"{new_avg_size - trad_avg_size:+.0f}",
+                         'Esit' if abs(new_avg_size - trad_avg_size) < 50 else ('Hedefe Yakin' if abs(new_avg_size - 1000) < abs(trad_avg_size - 1000) else 'Traditional')],
+                        ['Semantic Coherence', f"{trad_semantic:.4f}", f"{new_semantic:.4f}",
+                         f"{semantic_diff:+.4f} ({semantic_improvement:+.1f}%)",
+                         new_strategy_name if semantic_diff > 0 else ('Esit' if semantic_diff == 0 else 'Traditional')],
+                        ['Boundary Quality', f"{trad_boundary:.4f}", f"{new_boundary:.4f}",
+                         f"{boundary_diff:+.4f} ({boundary_improvement:+.1f}%)",
+                         new_strategy_name if boundary_diff > 0 else ('Esit' if boundary_diff == 0 else 'Traditional')],
+                        ['Islem Suresi', f"{trad_time:.0f}ms", f"{new_time:.0f}ms",
+                         f"{time_diff:+.0f}ms",
+                         'Traditional' if time_diff > 0 else new_strategy_name],
+                    ]
+                    
+                    comparison_table = Table(comparison_data, colWidths=[3.5*cm, 2.5*cm, 2.5*cm, 3.5*cm, 3*cm])
+                    comparison_table.setStyle(TableStyle([
+                        ('FONTNAME', (0, 0), (-1, -1), turkish_font),
+                        ('FONTSIZE', (0, 0), (-1, -1), 8),
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#059669')),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                        ('FONTSIZE', (0, 0), (-1, 0), 9),
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#a7f3d0')),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#ecfdf5')),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                        ('TOPPADDING', (0, 0), (-1, -1), 8),
+                    ]))
+                    story.append(comparison_table)
+                    story.append(Spacer(1, 15))
+                    
+                    # Winner summary
+                    wins = {'Traditional': 0, new_strategy_name: 0, 'Esit': 0}
+                    if semantic_diff > 0.01:
+                        wins[new_strategy_name] += 1
+                    elif semantic_diff < -0.01:
+                        wins['Traditional'] += 1
+                    else:
+                        wins['Esit'] += 1
+                        
+                    if boundary_diff > 0.01:
+                        wins[new_strategy_name] += 1
+                    elif boundary_diff < -0.01:
+                        wins['Traditional'] += 1
+                    else:
+                        wins['Esit'] += 1
+                    
+                    # Determine overall winner
+                    if wins[new_strategy_name] > wins['Traditional']:
+                        winner = new_strategy_name
+                        winner_reason = f"Semantic ve Boundary kalitesinde ustun"
+                    elif wins['Traditional'] > wins[new_strategy_name]:
+                        winner = 'Traditional'
+                        winner_reason = "Daha hizli islem suresi"
+                    else:
+                        winner = 'Esit'
+                        winner_reason = "Her iki yontem benzer sonuclar uretti"
+                    
+                    story.append(Paragraph(f"<b>Genel Degerlendirme:</b> {winner} stratejisi one cikiyor. {winner_reason}.", normal_style))
+                    
+                    # Detailed analysis
+                    story.append(Spacer(1, 10))
+                    analysis_points = []
+                    
+                    if semantic_improvement > 5:
+                        analysis_points.append(f"• {new_strategy_name} semantik tutarlilikta %{semantic_improvement:.1f} iyilesme sagladi.")
+                    elif semantic_improvement < -5:
+                        analysis_points.append(f"• Traditional semantik tutarlilikta %{abs(semantic_improvement):.1f} daha iyi.")
+                    
+                    if boundary_improvement > 5:
+                        analysis_points.append(f"• {new_strategy_name} sinir kalitesinde %{boundary_improvement:.1f} iyilesme sagladi.")
+                    
+                    if time_diff > 1000:
+                        analysis_points.append(f"• {new_strategy_name} {time_diff/1000:.1f} saniye daha uzun surdu (LLM cagrilari nedeniyle).")
+                    
+                    if abs(chunk_diff) > 5:
+                        if chunk_diff > 0:
+                            analysis_points.append(f"• {new_strategy_name} {chunk_diff} adet daha fazla chunk uretti (daha ince parcalama).")
+                        else:
+                            analysis_points.append(f"• {new_strategy_name} {abs(chunk_diff)} adet daha az chunk uretti (daha iyi birlestirme).")
+                    
+                    for point in analysis_points:
+                        story.append(Paragraph(point, small_style))
+                    
+                    story.append(Spacer(1, 10))
+            
+            story.append(Spacer(1, 10))
             
             # ===== DETAILED RESULTS FOR EACH STRATEGY =====
             story.append(Paragraph("3. Strateji Detaylari", heading1_style))
@@ -2149,6 +2459,12 @@ async def execute_full_chunking_test(
             test_data["current_strategy"] = strategy
             test_data["progress_percentage"] = (strategy_index / total_strategies) * 100
             test_data["status"] = "running"
+            test_data["progress_message"] = f"Strateji işleniyor: {strategy} ({strategy_index + 1}/{total_strategies})"
+            test_data["sub_progress"] = {
+                "current_step": 0,
+                "total_steps": 6,
+                "step_message": "Başlatılıyor..."
+            }
             
             # Save intermediate progress
             CHUNKING_TEST_RESULTS_STORAGE[test_id] = test_data
@@ -2169,7 +2485,8 @@ async def execute_full_chunking_test(
                     config.overlap_size,
                     config.enable_grok_reasoning,
                     config.turkish_optimization,
-                    config.session_id
+                    config.session_id,
+                    test_id  # Pass test_id for progress tracking
                 )
             elif strategy == "llm_markdown":
                 result = await execute_llm_markdown_chunking(

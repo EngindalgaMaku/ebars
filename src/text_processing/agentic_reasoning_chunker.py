@@ -1160,18 +1160,26 @@ class GrokReasoningEngine:
         self.prompt_templates = SemanticReasoningPrompts()
         self.cache = get_cache(ttl=1800) if config.enable_caching else None  # 30 min cache
         
-    def detect_semantic_boundaries(self, paragraph_groups: List[SimilarityGroup]) -> List[BoundaryDecision]:
+    def detect_semantic_boundaries(self, paragraph_groups: List[SimilarityGroup], 
+                                     progress_callback: Optional[callable] = None) -> List[BoundaryDecision]:
         """
         Use Grok 3 8B to make intelligent boundary decisions between paragraph groups.
+        
+        Args:
+            paragraph_groups: List of similarity groups to analyze
+            progress_callback: Optional callback function(current, total, message) for progress updates
         """
         if len(paragraph_groups) <= 1:
             return []
         
-        logger.info(f"Detecting semantic boundaries for {len(paragraph_groups)-1} group transitions")
+        total_transitions = len(paragraph_groups) - 1
+        logger.info(f"Detecting semantic boundaries for {total_transitions} group transitions")
         
         boundary_decisions = []
+        last_log_time = time.time()
+        log_interval = 2.0  # Log every 2 seconds
         
-        for i in range(len(paragraph_groups) - 1):
+        for i in range(total_transitions):
             current_group = paragraph_groups[i]
             next_group = paragraph_groups[i + 1]
             
@@ -1182,8 +1190,22 @@ class GrokReasoningEngine:
             decision = self._query_grok_for_boundary(reasoning_context)
             
             boundary_decisions.append(decision)
+            
+            # Progress reporting
+            current_time = time.time()
+            if current_time - last_log_time >= log_interval or i == total_transitions - 1:
+                progress_pct = ((i + 1) / total_transitions) * 100
+                logger.info(f"🔄 Boundary detection: {i+1}/{total_transitions} ({progress_pct:.1f}%)")
+                last_log_time = current_time
+            
+            # Call progress callback if provided
+            if progress_callback:
+                try:
+                    progress_callback(i + 1, total_transitions, f"Analyzing boundary {i+1}/{total_transitions}")
+                except Exception as e:
+                    logger.debug(f"Progress callback error: {e}")
         
-        logger.info(f"Generated {len(boundary_decisions)} boundary decisions")
+        logger.info(f"✅ Generated {len(boundary_decisions)} boundary decisions")
         return boundary_decisions
     
     def _prepare_reasoning_context(self, current_group: SimilarityGroup,
@@ -1776,17 +1798,23 @@ class BoundaryDetectionAlgorithm:
         # Semantic change detection cache for performance
         self.semantic_cache = {}
     
-    def detect_optimal_boundaries(self, paragraph_groups: List[SimilarityGroup]) -> List[ChunkBoundary]:
+    def detect_optimal_boundaries(self, paragraph_groups: List[SimilarityGroup],
+                                    progress_callback: Optional[callable] = None) -> List[ChunkBoundary]:
         """
         Enhanced multi-stage boundary detection with advanced semantic change detection.
         
         Combines traditional metrics with Turkish-specific semantic analysis for optimal
         boundary detection in educational content.
+        
+        Args:
+            paragraph_groups: List of similarity groups to analyze
+            progress_callback: Optional callback function(current, total, message) for progress updates
         """
         if len(paragraph_groups) <= 1:
             return []
         
-        logger.info(f"🔍 Detecting optimal boundaries for {len(paragraph_groups)} groups with enhanced semantic analysis")
+        total_groups = len(paragraph_groups)
+        logger.info(f"🔍 Detecting optimal boundaries for {total_groups} groups with enhanced semantic analysis")
         
         boundaries = []
         # Track rolling size to enforce hard max_size boundaries even if Grok strongly prefers MERGE
@@ -1795,10 +1823,19 @@ class BoundaryDetectionAlgorithm:
         
         # Stage 1: Grok reasoning decisions with enhanced context
         logger.debug("Stage 1: Enhanced Grok reasoning with Turkish context")
+        if progress_callback:
+            progress_callback(0, 100, "Stage 1/6: Grok reasoning analysis...")
         grok_decisions = []
         if self.config.use_grok_reasoning:
             try:
-                grok_decisions = self.grok_engine.detect_semantic_boundaries(paragraph_groups)
+                # Pass progress callback to grok engine
+                def grok_progress(current, total, msg):
+                    # Map grok progress to 0-40% of total
+                    pct = int((current / total) * 40) if total > 0 else 0
+                    if progress_callback:
+                        progress_callback(pct, 100, f"Stage 1/6: {msg}")
+                
+                grok_decisions = self.grok_engine.detect_semantic_boundaries(paragraph_groups, grok_progress)
             except Exception as e:
                 logger.warning(f"Grok reasoning failed, using enhanced fallback: {e}")
                 grok_decisions = self._enhanced_fallback_decisions(paragraph_groups)
@@ -1807,22 +1844,32 @@ class BoundaryDetectionAlgorithm:
         
         # Stage 2: Advanced embedding similarity analysis
         logger.debug("Stage 2: Advanced embedding similarity with contextual weighting")
+        if progress_callback:
+            progress_callback(45, 100, "Stage 2/6: Embedding similarity analysis...")
         similarity_scores = self._calculate_enhanced_boundary_similarities(paragraph_groups)
         
         # Stage 3: Enhanced structural analysis with Turkish patterns
         logger.debug("Stage 3: Enhanced structural analysis with Turkish educational patterns")
+        if progress_callback:
+            progress_callback(55, 100, "Stage 3/6: Structural analysis...")
         structural_scores = self._analyze_enhanced_structural_boundaries(paragraph_groups)
         
         # Stage 4: Dynamic size constraint analysis
         logger.debug("Stage 4: Dynamic size constraint analysis")
+        if progress_callback:
+            progress_callback(65, 100, "Stage 4/6: Size constraint analysis...")
         size_scores = self._analyze_dynamic_size_constraints(paragraph_groups)
         
         # Stage 5: NEW - Turkish semantic transition analysis
         logger.debug("Stage 5: Turkish semantic transition analysis")
+        if progress_callback:
+            progress_callback(75, 100, "Stage 5/6: Semantic transition analysis...")
         semantic_transition_scores = self._analyze_semantic_transitions(paragraph_groups)
         
         # Stage 6: Enhanced weighted decision fusion with confidence scoring
         logger.debug("Stage 6: Enhanced decision fusion with multi-metric confidence")
+        if progress_callback:
+            progress_callback(85, 100, "Stage 6/6: Decision fusion...")
         for i, (grok_decision, sim_score, struct_score, size_score, semantic_score) in enumerate(
             zip(grok_decisions, similarity_scores, structural_scores, size_scores, semantic_transition_scores)
         ):

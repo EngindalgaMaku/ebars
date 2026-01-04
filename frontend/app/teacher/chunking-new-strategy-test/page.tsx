@@ -143,6 +143,15 @@ interface ChunkingResult {
   configuration?: any;
   strategyMetrics?: Record<string, any>;
   detailedResults?: any[];
+  
+  // Progress tracking details
+  progressMessage?: string;
+  subProgress?: {
+    current_step: number;
+    total_steps: number;
+    step_message: string;
+    step_percentage: number;
+  };
 }
 
 interface AgenticReasoningDecision {
@@ -234,7 +243,7 @@ export default function ChunkingNewStrategyTestPage() {
       testId: status.testId || fallbackTestId,
       testName: status.testName || fallbackTestName,
       status: status.status || "completed",
-      progress: Number(status.progress ?? 0),
+      progress: Number(status.progress ?? status.progress_percentage ?? 0),
       startTime: status.startTime || "",
       endTime: status.endTime,
       strategy: status.currentStrategy || fallbackStrategy,
@@ -251,6 +260,9 @@ export default function ChunkingNewStrategyTestPage() {
       originalText: status.originalText || "",
       totalCharacters: Number(status.totalCharacters || status.inputTextLength || 0),
       processingTime: Number(status.metrics?.processingTime || status.processingTime || 0),
+      // Progress tracking details
+      progressMessage: status.progress_message || status.progressMessage || undefined,
+      subProgress: status.sub_progress || status.subProgress || undefined,
     };
   };
 
@@ -1324,6 +1336,36 @@ export default function ChunkingNewStrategyTestPage() {
                           <div className="text-sm font-medium">{Number(currentTest.progress ?? 0).toFixed(1)}%</div>
                         </div>
                         <Progress value={Number(currentTest.progress ?? 0)} />
+                        
+                        {/* Progress Message */}
+                        {currentTest.progressMessage && (
+                          <div className="text-sm text-blue-600 font-medium mt-2">
+                            {currentTest.progressMessage}
+                          </div>
+                        )}
+                        
+                        {/* Sub-Progress Details */}
+                        {currentTest.subProgress && currentTest.subProgress.total_steps > 0 && (
+                          <div className="mt-3 p-3 bg-gray-50 rounded-lg border">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-xs text-gray-500">
+                                Adım {currentTest.subProgress.current_step} / {currentTest.subProgress.total_steps}
+                              </div>
+                              <div className="text-xs font-medium text-gray-700">
+                                {currentTest.subProgress.step_percentage?.toFixed(0) ?? 0}%
+                              </div>
+                            </div>
+                            <Progress 
+                              value={currentTest.subProgress.step_percentage ?? 0} 
+                              className="h-2"
+                            />
+                            {currentTest.subProgress.step_message && (
+                              <div className="text-xs text-gray-600 mt-2">
+                                {currentTest.subProgress.step_message}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1556,6 +1598,156 @@ export default function ChunkingNewStrategyTestPage() {
                         strategy={currentTest.strategy}
                         showMetrics={true}
                       />
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Strategy Comparison Section */}
+                {currentTest.status === "completed" && currentTest.detailedResults && currentTest.detailedResults.length >= 2 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5" />
+                        Strateji Karşılaştırması
+                      </CardTitle>
+                      <CardDescription>
+                        Traditional ve Agentic stratejilerin karşılaştırmalı analizi
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {(() => {
+                        const traditionalResult = currentTest.detailedResults?.find((r: any) => r?.strategy === "traditional");
+                        const agenticResult = currentTest.detailedResults?.find((r: any) => 
+                          r?.strategy === "agentic" || r?.strategy === "agentic_reasoning" || r?.strategy === "multi_agent"
+                        );
+                        
+                        if (!traditionalResult || !agenticResult) {
+                          return <div className="text-gray-500">Karşılaştırma için yeterli veri yok.</div>;
+                        }
+                        
+                        const tradChunks = traditionalResult.chunk_count || 0;
+                        const agentChunks = agenticResult.chunk_count || 0;
+                        const chunkDiff = agentChunks - tradChunks;
+                        
+                        const tradSemantic = traditionalResult.semantic_coherence_score || 0;
+                        const agentSemantic = agenticResult.semantic_coherence_score || 0;
+                        const semanticDiff = agentSemantic - tradSemantic;
+                        const semanticImprovement = tradSemantic > 0 ? ((agentSemantic - tradSemantic) / tradSemantic * 100) : 0;
+                        
+                        const tradBoundary = traditionalResult.boundary_quality_score || 0;
+                        const agentBoundary = agenticResult.boundary_quality_score || 0;
+                        const boundaryDiff = agentBoundary - tradBoundary;
+                        const boundaryImprovement = tradBoundary > 0 ? ((agentBoundary - tradBoundary) / tradBoundary * 100) : 0;
+                        
+                        const tradTime = traditionalResult.processing_time_ms || 0;
+                        const agentTime = agenticResult.processing_time_ms || 0;
+                        
+                        const tradAvgSize = traditionalResult.avg_chunk_size || 0;
+                        const agentAvgSize = agenticResult.avg_chunk_size || 0;
+                        
+                        // Determine winner
+                        let semanticWinner = semanticDiff > 0.01 ? "Agentic" : (semanticDiff < -0.01 ? "Traditional" : "Eşit");
+                        let boundaryWinner = boundaryDiff > 0.01 ? "Agentic" : (boundaryDiff < -0.01 ? "Traditional" : "Eşit");
+                        let timeWinner = tradTime < agentTime ? "Traditional" : "Agentic";
+                        
+                        return (
+                          <div className="space-y-6">
+                            {/* Comparison Table */}
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="bg-emerald-600 text-white">
+                                    <th className="px-4 py-3 text-left">Metrik</th>
+                                    <th className="px-4 py-3 text-center">Traditional</th>
+                                    <th className="px-4 py-3 text-center">Agentic</th>
+                                    <th className="px-4 py-3 text-center">Fark</th>
+                                    <th className="px-4 py-3 text-center">Kazanan</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="bg-emerald-50">
+                                  <tr className="border-b border-emerald-200">
+                                    <td className="px-4 py-3 font-medium">Chunk Sayısı</td>
+                                    <td className="px-4 py-3 text-center">{tradChunks}</td>
+                                    <td className="px-4 py-3 text-center">{agentChunks}</td>
+                                    <td className="px-4 py-3 text-center">{chunkDiff > 0 ? `+${chunkDiff}` : chunkDiff}</td>
+                                    <td className="px-4 py-3 text-center">-</td>
+                                  </tr>
+                                  <tr className="border-b border-emerald-200">
+                                    <td className="px-4 py-3 font-medium">Ort. Chunk Boyutu</td>
+                                    <td className="px-4 py-3 text-center">{Math.round(tradAvgSize)}</td>
+                                    <td className="px-4 py-3 text-center">{Math.round(agentAvgSize)}</td>
+                                    <td className="px-4 py-3 text-center">{Math.round(agentAvgSize - tradAvgSize)}</td>
+                                    <td className="px-4 py-3 text-center">-</td>
+                                  </tr>
+                                  <tr className="border-b border-emerald-200">
+                                    <td className="px-4 py-3 font-medium">Semantic Coherence</td>
+                                    <td className="px-4 py-3 text-center">{tradSemantic.toFixed(4)}</td>
+                                    <td className="px-4 py-3 text-center">{agentSemantic.toFixed(4)}</td>
+                                    <td className="px-4 py-3 text-center">
+                                      <span className={semanticDiff > 0 ? "text-green-600" : semanticDiff < 0 ? "text-red-600" : ""}>
+                                        {semanticDiff > 0 ? "+" : ""}{semanticDiff.toFixed(4)} ({semanticImprovement > 0 ? "+" : ""}{semanticImprovement.toFixed(1)}%)
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-center">
+                                      <Badge variant={semanticWinner === "Agentic" ? "default" : semanticWinner === "Traditional" ? "secondary" : "outline"}>
+                                        {semanticWinner}
+                                      </Badge>
+                                    </td>
+                                  </tr>
+                                  <tr className="border-b border-emerald-200">
+                                    <td className="px-4 py-3 font-medium">Boundary Quality</td>
+                                    <td className="px-4 py-3 text-center">{tradBoundary.toFixed(4)}</td>
+                                    <td className="px-4 py-3 text-center">{agentBoundary.toFixed(4)}</td>
+                                    <td className="px-4 py-3 text-center">
+                                      <span className={boundaryDiff > 0 ? "text-green-600" : boundaryDiff < 0 ? "text-red-600" : ""}>
+                                        {boundaryDiff > 0 ? "+" : ""}{boundaryDiff.toFixed(4)} ({boundaryImprovement > 0 ? "+" : ""}{boundaryImprovement.toFixed(1)}%)
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-center">
+                                      <Badge variant={boundaryWinner === "Agentic" ? "default" : boundaryWinner === "Traditional" ? "secondary" : "outline"}>
+                                        {boundaryWinner}
+                                      </Badge>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td className="px-4 py-3 font-medium">İşlem Süresi</td>
+                                    <td className="px-4 py-3 text-center">{tradTime.toFixed(0)}ms</td>
+                                    <td className="px-4 py-3 text-center">{agentTime.toFixed(0)}ms</td>
+                                    <td className="px-4 py-3 text-center">{(agentTime - tradTime).toFixed(0)}ms</td>
+                                    <td className="px-4 py-3 text-center">
+                                      <Badge variant={timeWinner === "Traditional" ? "secondary" : "default"}>
+                                        {timeWinner}
+                                      </Badge>
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                            
+                            {/* Summary */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                              <h4 className="font-semibold text-blue-800 mb-2">Genel Değerlendirme</h4>
+                              <div className="text-sm text-blue-700 space-y-1">
+                                {semanticImprovement > 5 && (
+                                  <p>✅ Agentic strateji semantik tutarlılıkta %{semanticImprovement.toFixed(1)} iyileşme sağladı.</p>
+                                )}
+                                {semanticImprovement < -5 && (
+                                  <p>⚠️ Traditional strateji semantik tutarlılıkta %{Math.abs(semanticImprovement).toFixed(1)} daha iyi.</p>
+                                )}
+                                {boundaryImprovement > 5 && (
+                                  <p>✅ Agentic strateji sınır kalitesinde %{boundaryImprovement.toFixed(1)} iyileşme sağladı.</p>
+                                )}
+                                {agentTime > tradTime + 1000 && (
+                                  <p>⏱️ Agentic strateji {((agentTime - tradTime) / 1000).toFixed(1)} saniye daha uzun sürdü (LLM çağrıları nedeniyle).</p>
+                                )}
+                                {Math.abs(chunkDiff) > 5 && (
+                                  <p>📊 Agentic strateji {chunkDiff > 0 ? `${chunkDiff} adet daha fazla` : `${Math.abs(chunkDiff)} adet daha az`} chunk üretti.</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 )}
