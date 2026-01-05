@@ -80,7 +80,7 @@ export default function DocumentUploadSection({
     }
 
     const config = {
-      chunk_strategy: "lightweight",
+      chunk_strategy: "multi_agent",  // Multi-agent intelligent chunking (4 agents: Structural, Semantic, Size, Quality)
       chunk_size: 800,
       chunk_overlap: 100,
       embedding_model: "nomic-embed-text",

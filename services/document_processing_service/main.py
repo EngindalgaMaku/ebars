@@ -460,7 +460,7 @@ async def process_and_store(request: ProcessRequest):
         
         chunk_size = request.chunk_size or default_chunk_size
         chunk_overlap = request.chunk_overlap or default_chunk_overlap
-        chunk_strategy = request.chunk_strategy or "lightweight"
+        chunk_strategy = request.chunk_strategy or "multi_agent"  # Default to multi_agent chunking
         use_llm_post_processing = request.use_llm_post_processing or False
         llm_model_name = request.llm_model_name or "llama-3.1-8b-instant"
         model_inference_url = request.model_inference_url or MODEL_INFERENCER_URL
@@ -468,6 +468,14 @@ async def process_and_store(request: ProcessRequest):
         if UNIFIED_CHUNKING_AVAILABLE:
             # Use UNIFIED chunking system with Turkish support, zero ML dependencies, and optional LLM post-processing
             logger.info(f"🚀 USING UNIFIED CHUNKING SYSTEM: strategy='{chunk_strategy}', size={chunk_size}, overlap={chunk_overlap}, llm_post_processing={use_llm_post_processing}")
+            
+            # Log multi-agent availability check
+            try:
+                from src.text_processing.text_chunker import MULTI_AGENT_CHUNKER_AVAILABLE
+                logger.info(f"🔍 MULTI_AGENT_CHUNKER_AVAILABLE = {MULTI_AGENT_CHUNKER_AVAILABLE}")
+            except Exception as check_err:
+                logger.warning(f"⚠️ Could not check MULTI_AGENT_CHUNKER_AVAILABLE: {check_err}")
+            
             try:
                 chunks = chunk_text(
                     text=request.text,

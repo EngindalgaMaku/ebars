@@ -25,7 +25,7 @@ def chunk_text_with_strategy(
     text: str,
     chunk_size: int = 1000,
     chunk_overlap: int = 200,
-    strategy: str = "lightweight",
+    strategy: str = "multi_agent",  # Multi-agent intelligent chunking as DEFAULT
     use_llm_post_processing: bool = False,
     llm_model_name: str = "llama-3.1-8b-instant",
     model_inference_url: str = None
@@ -37,7 +37,8 @@ def chunk_text_with_strategy(
         text: Text to chunk
         chunk_size: Target chunk size in characters
         chunk_overlap: Overlap between chunks
-        strategy: Chunking strategy ('lightweight' or 'semantic')
+        strategy: Chunking strategy (DEFAULT: 'multi_agent' - 4 agents: Structural, Semantic, Size, Quality)
+                  Other options: 'lightweight', 'semantic', 'markdown', 'agentic_reasoning'
         use_llm_post_processing: Whether to use LLM for chunk refinement
         llm_model_name: LLM model for post-processing
         model_inference_url: Model inference service URL

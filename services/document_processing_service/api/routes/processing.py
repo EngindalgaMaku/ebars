@@ -58,11 +58,12 @@ async def process_and_store(request: ProcessRequest):
             logger.info(f"⚪ Standard embedding model ({embedding_model}): Using standard chunk sizes (size={default_chunk_size}, overlap={default_chunk_overlap})")
         
         # Step 1: Chunk text
+        # CRITICAL: Default to multi_agent for intelligent chunking (4 agents: Structural, Semantic, Size, Quality)
         chunks = chunk_text_with_strategy(
             text=request.text,
             chunk_size=request.chunk_size or default_chunk_size,
             chunk_overlap=request.chunk_overlap or default_chunk_overlap,
-            strategy=request.chunk_strategy or "lightweight",
+            strategy=request.chunk_strategy or "multi_agent",  # Multi-agent intelligent chunking as DEFAULT
             use_llm_post_processing=request.use_llm_post_processing or False,
             llm_model_name=request.llm_model_name or "llama-3.1-8b-instant",
             model_inference_url=request.model_inference_url

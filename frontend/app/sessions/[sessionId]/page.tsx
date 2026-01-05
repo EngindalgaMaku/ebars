@@ -2466,11 +2466,22 @@ export default function SessionPage() {
                         </div>
                       )}
                       
-                      {/* Chunk Index */}
-                      {selectedChunkForModal.chunk_metadata.chunk_index && (
+                      {/* Chunk Index - Always show if available */}
+                      {(selectedChunkForModal.chunk_metadata.chunk_index || selectedChunkForModal.chunk_index) && (
                         <div className="flex flex-col">
                           <span className="text-xs text-muted-foreground">Sıra</span>
-                          <span className="text-foreground">{selectedChunkForModal.chunk_metadata.chunk_index} / {selectedChunkForModal.chunk_metadata.total_chunks || '?'}</span>
+                          <span className="text-foreground">
+                            {selectedChunkForModal.chunk_metadata.chunk_index || selectedChunkForModal.chunk_index} 
+                            {selectedChunkForModal.chunk_metadata.total_chunks ? ` / ${selectedChunkForModal.chunk_metadata.total_chunks}` : ''}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Chunk Length */}
+                      {selectedChunkForModal.chunk_metadata.chunk_length && (
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted-foreground">Uzunluk</span>
+                          <span className="text-foreground">{selectedChunkForModal.chunk_metadata.chunk_length} karakter</span>
                         </div>
                       )}
                       
@@ -2481,7 +2492,23 @@ export default function SessionPage() {
                           <span className="text-foreground text-xs">{selectedChunkForModal.chunk_metadata.embedding_model}</span>
                         </div>
                       )}
+                      
+                      {/* Document Name from metadata */}
+                      {selectedChunkForModal.chunk_metadata.document_name && (
+                        <div className="flex flex-col sm:col-span-2">
+                          <span className="text-xs text-muted-foreground">Döküman</span>
+                          <span className="text-foreground text-xs truncate">{selectedChunkForModal.chunk_metadata.document_name}</span>
+                        </div>
+                      )}
                     </div>
+                    
+                    {/* Chunk Preview */}
+                    {selectedChunkForModal.chunk_metadata.chunk_preview && (
+                      <div className="pt-2 border-t border-border">
+                        <span className="text-xs text-muted-foreground block mb-1">Önizleme</span>
+                        <span className="text-xs text-foreground/70 italic">{selectedChunkForModal.chunk_metadata.chunk_preview}</span>
+                      </div>
+                    )}
                     
                     {/* Keywords */}
                     {selectedChunkForModal.chunk_metadata.keywords_json && (
