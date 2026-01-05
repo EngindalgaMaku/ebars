@@ -352,19 +352,24 @@ class SemanticAgent(BaseAgent):
             prompt = self.get_prompt(context)
             
             response = requests.post(
-                f"{self.config.model_inference_url}/v1/chat/completions",
+                f"{self.config.model_inference_url}/models/generate",
                 json={
                     "model": self.config.llm_model,
-                    "messages": [{"role": "user", "content": prompt}],
+                    "prompt": prompt,
                     "temperature": 0.1,
-                    "max_tokens": 500
+                    "max_tokens": 500,
+                    "stream": False
                 },
                 timeout=self.config.llm_timeout
             )
             
             if response.status_code == 200:
                 result = response.json()
-                content = result['choices'][0]['message']['content']
+                # Handle the correct response format from /models/generate
+                if 'text' in result:
+                    content = result['text']
+                else:
+                    content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
                 
                 # Parse JSON response
                 try:

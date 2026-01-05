@@ -1051,7 +1051,7 @@ BATCH_PROCESSING_JOBS: Dict[str, Any] = {}
 async def process_and_store_documents(
     session_id: str = Form(...),
     markdown_files: str = Form(...),  # JSON string of file list
-    chunk_strategy: str = Form("lightweight"),
+    chunk_strategy: str = Form("multi_agent"),
     chunk_size: int = Form(500),  # Reduced from 1000 to 500 for more chunks
     chunk_overlap: int = Form(100),
     embedding_model: str = Form("mixedbread-ai/mxbai-embed-large-v1"),
@@ -1222,7 +1222,7 @@ BATCH_PROCESSING_JOBS: Dict[str, Any] = {}
 async def process_and_store_documents_batch(
     session_id: str = Form(...),
     markdown_files: str = Form(...),  # JSON string of file list
-    chunk_strategy: str = Form("lightweight"),
+    chunk_strategy: str = Form("multi_agent"),
     chunk_size: int = Form(500),
     chunk_overlap: int = Form(100),
     embedding_model: str = Form("mixedbread-ai/mxbai-embed-large-v1"),
@@ -3000,7 +3000,7 @@ async def import_session(file: UploadFile = File(...), auto_reindex: bool = True
                 form = {
                     "session_id": created.session_id,
                     "markdown_files": json.dumps(markdown_files),
-                    "chunk_strategy": "lightweight",
+                    "chunk_strategy": rag_settings.get("chunk_strategy", "multi_agent") if rag_settings else "multi_agent",
                     "chunk_size": 1500,
                     "chunk_overlap": 150,
                     "embedding_model": embedding_model,

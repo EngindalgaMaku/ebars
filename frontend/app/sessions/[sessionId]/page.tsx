@@ -16,6 +16,7 @@ import {
   deleteSessionInteractions,
 } from "@/lib/api";
 import { ModelManagement } from "./components/rag-settings-tab/ModelManagement";
+import { ChunkingStrategySelector } from "./components/rag-settings-tab/ChunkingStrategySelector";
 import TopicManagementPanel from "@/components/TopicManagementPanel";
 import SessionSettingsPanel from "@/components/SessionSettingsPanel";
 import QuestionPoolPanel from "@/components/QuestionPoolPanel";
@@ -1122,6 +1123,11 @@ export default function SessionPage() {
                             </span>
                           </label>
                         </div>
+                      </div>
+
+                      {/* Chunking Strategy Section */}
+                      <div className="lg:col-span-2 mt-6">
+                        <ChunkingStrategySelector sessionId={sessionId} />
                       </div>
 
                       {/* Model Management - Model Ekle/Çıkar */}

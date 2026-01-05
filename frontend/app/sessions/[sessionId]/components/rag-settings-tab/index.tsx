@@ -11,6 +11,7 @@ export { ModelSelector } from "./ModelSelector";
 export { EmbeddingSelector } from "./EmbeddingSelector";
 export { RerankerSelector } from "./RerankerSelector";
 export { SettingsSaveButton } from "./SettingsSaveButton";
+export { ChunkingStrategySelector } from "./ChunkingStrategySelector";
 
 // Hook
 export { useRagSettings } from "../../hooks/useRagSettings";

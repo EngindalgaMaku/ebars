@@ -460,7 +460,18 @@ async def process_and_store(request: ProcessRequest):
         
         chunk_size = request.chunk_size or default_chunk_size
         chunk_overlap = request.chunk_overlap or default_chunk_overlap
+        # CRITICAL FIX: If multi-agent chunker is available, use it instead of lightweight
         chunk_strategy = request.chunk_strategy or "multi_agent"  # Default to multi_agent chunking
+        
+        # Override lightweight with multi_agent if multi-agent chunker is available
+        if chunk_strategy == "lightweight" and UNIFIED_CHUNKING_AVAILABLE:
+            try:
+                from src.text_processing.text_chunker import MULTI_AGENT_CHUNKER_AVAILABLE
+                if MULTI_AGENT_CHUNKER_AVAILABLE:
+                    chunk_strategy = "multi_agent"
+                    logger.info(f"🔄 STRATEGY OVERRIDE: Changed 'lightweight' to 'multi_agent' (multi-agent chunker available)")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not check multi-agent availability: {e}")
         use_llm_post_processing = request.use_llm_post_processing or False
         llm_model_name = request.llm_model_name or "llama-3.1-8b-instant"
         model_inference_url = request.model_inference_url or MODEL_INFERENCER_URL
@@ -2600,7 +2611,7 @@ async def reprocess_session_documents(
                         text=original_text,
                         chunk_size=chunk_size,
                         chunk_overlap=chunk_overlap,
-                        strategy="lightweight",
+                        strategy=chunk_strategy,  # ✅ FIXED: Use the actual chunk_strategy parameter
                         use_llm_post_processing=False
                     )
                     logger.info(f"✅ REPROCESS: Re-chunked into {len(new_chunks)} new chunks")

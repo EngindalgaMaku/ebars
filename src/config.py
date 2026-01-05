@@ -139,6 +139,10 @@ class RAGConfig:
             'min_chunk_size': int(os.getenv('MIN_CHUNK_SIZE', '100')),
             'max_chunk_size': int(os.getenv('MAX_CHUNK_SIZE', '1500')),
             
+            # Chunking Strategy Configuration
+            'default_chunking_strategy': os.getenv('DEFAULT_CHUNKING_STRATEGY', 'multi_agent'),
+            'available_strategies': ['multi_agent', 'agentic_reasoning', 'traditional', 'lightweight'],
+            
             # Semantic Analysis Settings
             'default_embedding_model': os.getenv(
                 'SEMANTIC_EMBEDDING_MODEL',

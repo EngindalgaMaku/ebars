@@ -536,7 +536,8 @@ export async function listMarkdownFiles(): Promise<string[]> {
 export async function addMarkdownDocumentsToSession(
   sessionId: string,
   filenames: string[],
-  embeddingModel: string = "mxbai-embed-large"
+  embeddingModel: string = "mxbai-embed-large",
+  chunkStrategy: string = "multi_agent"
 ): Promise<{
   success: boolean;
   processed_count: number;
@@ -550,7 +551,7 @@ export async function addMarkdownDocumentsToSession(
   const formData = new FormData();
   formData.append("session_id", sessionId);
   formData.append("markdown_files", JSON.stringify(filenames));
-  formData.append("chunk_strategy", "lightweight");
+  formData.append("chunk_strategy", chunkStrategy);
   formData.append("chunk_size", "800");
   formData.append("chunk_overlap", "100");
   formData.append("embedding_model", embeddingModel);
@@ -736,7 +737,7 @@ export async function configureAndProcess(data: {
   const formData = new FormData();
   formData.append("session_id", data.session_id);
   formData.append("markdown_files", JSON.stringify(data.markdown_files));
-  formData.append("chunk_strategy", data.chunk_strategy);
+  formData.append("chunk_strategy", data.chunk_strategy || "multi_agent"); // Default to multi_agent
   formData.append("chunk_size", data.chunk_size.toString());
   formData.append("chunk_overlap", data.chunk_overlap.toString());
   formData.append("embedding_model", data.embedding_model);
@@ -1176,6 +1177,7 @@ export async function saveSessionRagSettings(
     embedding_provider?: string;
     use_reranker_service?: boolean;
     reranker_type?: "bge" | "ms-marco";
+    chunk_strategy?: "multi_agent" | "lightweight" | "traditional" | "semantic";
   }
 ): Promise<{ success: boolean; session_id: string; rag_settings: any }> {
   const token = tokenManager.getAccessToken?.() || null;

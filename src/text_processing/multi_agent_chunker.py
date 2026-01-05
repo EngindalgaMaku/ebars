@@ -405,74 +405,43 @@ class MultiAgentChunker:
 
     def _initial_segmentation(self, text: str) -> List[Tuple[int, int, str]]:
         """
-        Initial text segmentation based on natural boundaries.
+        Initial text segmentation with LLM preprocessing option.
         
         Returns list of (start, end, segment_text) tuples.
-        Keeps questions with their answers together.
-        Preserves code blocks, mermaid diagrams, and other atomic units.
+        Uses LLM for intelligent segmentation when available.
         """
         segments = []
         
-        # First, identify and protect code blocks/special blocks
+        # Try LLM-based preprocessing first if enabled
+        if self.config.use_llm:
+            try:
+                from .llm_preprocessor import LLMPreprocessor, PreprocessorConfig
+                
+                preprocessor_config = PreprocessorConfig(
+                    llm_model=self.config.llm_model,
+                    model_inference_url=self.config.model_inference_url,
+                    max_chunk_size=self.config.target_chunk_size * 2,  # Larger initial chunks
+                    enable_markdown_fixing=True,
+                    enable_intelligent_segmentation=True
+                )
+                
+                preprocessor = LLMPreprocessor(preprocessor_config)
+                # Ensure the max_chunk_size is properly set
+                preprocessor.update_max_chunk_size(self.config.target_chunk_size * 2)
+                segments = preprocessor.preprocess_text(text)
+                
+                if segments:
+                    logger.info(f"LLM preprocessing successful: {len(segments)} segments")
+                    return segments
+                else:
+                    logger.warning("LLM preprocessing returned no segments, falling back")
+                    
+            except Exception as e:
+                logger.warning(f"LLM preprocessing failed: {e}, falling back to rule-based")
+        
+        # Fallback to rule-based segmentation
         protected_ranges = self._find_protected_ranges(text)
-        
-        # Split by major headers (## or ###)
-        # But be careful not to split questions from answers or code blocks
-        lines = text.split('\n')
-        current_segment_start = 0
-        current_segment_lines = []
-        current_pos = 0
-        
-        i = 0
-        while i < len(lines):
-            line = lines[i]
-            line_start = current_pos
-            line_end = current_pos + len(line)
-            
-            # Check if we're inside a protected range (code block, mermaid, etc.)
-            in_protected = any(start <= line_start < end for start, end in protected_ranges)
-            
-            # Check if this is a header line
-            is_header = line.strip().startswith('#') and not in_protected
-            
-            # Check if this is a question (starts with number followed by period)
-            is_question_start = bool(re.match(r'^\s*\d+[\.\)]\s+', line.strip())) and not in_protected
-            
-            # Check if this is an answer line
-            is_answer = line.strip().upper().startswith('CEVAP')
-            
-            # Decide whether to start a new segment
-            should_split = False
-            
-            if not in_protected:
-                if is_header and current_segment_lines:
-                    # Split at headers, but only if we have content
-                    should_split = True
-                elif is_question_start and current_segment_lines:
-                    # Check if previous segment is also a question - if so, don't split
-                    prev_text = '\n'.join(current_segment_lines)
-                    if not re.search(r'\d+[\.\)]\s+', prev_text):
-                        # Previous segment is not a question, safe to split
-                        should_split = True
-            
-            if should_split:
-                # Save current segment
-                segment_text = '\n'.join(current_segment_lines).strip()
-                if segment_text:
-                    segments.append((current_segment_start, line_start, segment_text))
-                current_segment_start = line_start
-                current_segment_lines = [line]
-            else:
-                current_segment_lines.append(line)
-            
-            current_pos = line_end + 1  # +1 for newline
-            i += 1
-        
-        # Add final segment
-        if current_segment_lines:
-            segment_text = '\n'.join(current_segment_lines).strip()
-            if segment_text:
-                segments.append((current_segment_start, len(text), segment_text))
+        segments = self._create_initial_segments_with_word_boundaries(text, protected_ranges)
         
         # Post-process: merge small segments and ensure questions have answers
         # Also ensure headers are merged with their following content
@@ -582,83 +551,354 @@ class MultiAgentChunker:
             merged_segments.append((start, end, text_content))
             i += 1
         
-        # Second pass: split large segments by paragraphs
+        # Second pass: split large segments by paragraphs with proper word boundary handling
         final_segments = []
         for start, end, text_content in merged_segments:
             if len(text_content) > self.config.max_chunk_size:
-                # Split by paragraphs (try both \n\n and single \n)
-                paragraphs = text_content.split('\n\n')
-                if len(paragraphs) == 1:
-                    # No double newlines, try single newlines
-                    paragraphs = text_content.split('\n')
-                
-                current_chunk = []
-                current_size = 0
-                chunk_start = start
-                
-                for para in paragraphs:
-                    para = para.strip()
-                    if not para:
-                        continue
-                    
-                    para_size = len(para)
-                    
-                    # If single paragraph is too large, split by sentences
-                    if para_size > self.config.max_chunk_size:
-                        # Save current chunk first
-                        if current_chunk:
-                            chunk_text = '\n\n'.join(current_chunk)
-                            chunk_end = chunk_start + len(chunk_text)
-                            final_segments.append((chunk_start, chunk_end, chunk_text))
-                            chunk_start = chunk_end
-                            current_chunk = []
-                            current_size = 0
-                        
-                        # Split large paragraph by sentences
-                        sentences = re.split(r'(?<=[.!?])\s+', para)
-                        sent_chunk = []
-                        sent_size = 0
-                        
-                        for sent in sentences:
-                            sent = sent.strip()
-                            if not sent:
-                                continue
-                            sent_len = len(sent)
-                            
-                            if sent_size + sent_len > self.config.max_chunk_size and sent_chunk:
-                                chunk_text = ' '.join(sent_chunk)
-                                chunk_end = chunk_start + len(chunk_text)
-                                final_segments.append((chunk_start, chunk_end, chunk_text))
-                                chunk_start = chunk_end
-                                sent_chunk = [sent]
-                                sent_size = sent_len
-                            else:
-                                sent_chunk.append(sent)
-                                sent_size += sent_len + 1
-                        
-                        if sent_chunk:
-                            current_chunk = [' '.join(sent_chunk)]
-                            current_size = len(current_chunk[0])
-                    # If adding this paragraph exceeds max, save current and start new
-                    elif current_size + para_size > self.config.max_chunk_size and current_chunk:
-                        chunk_text = '\n\n'.join(current_chunk)
-                        chunk_end = chunk_start + len(chunk_text)
-                        final_segments.append((chunk_start, chunk_end, chunk_text))
-                        chunk_start = chunk_end
-                        current_chunk = [para]
-                        current_size = para_size
-                    else:
-                        current_chunk.append(para)
-                        current_size += para_size + 2  # +2 for \n\n
-                
-                # Add remaining
-                if current_chunk:
-                    chunk_text = '\n\n'.join(current_chunk)
-                    final_segments.append((chunk_start, end, chunk_text))
+                # Use word-boundary-aware splitting
+                sub_segments = self._split_segment_with_word_boundaries(
+                    text_content, start, end
+                )
+                final_segments.extend(sub_segments)
             else:
                 final_segments.append((start, end, text_content))
         
         return final_segments if final_segments else segments
+    
+    def _create_initial_segments_with_word_boundaries(
+        self,
+        text: str,
+        protected_ranges: List[Tuple[int, int]]
+    ) -> List[Tuple[int, int, str]]:
+        """
+        Create initial segments with CORRECT position tracking.
+        
+        The root cause was wrong position calculation. This fixes it completely.
+        """
+        segments = []
+        
+        # Use a different approach: track actual positions in original text
+        lines = text.split('\n')
+        current_segment_start = 0
+        current_segment_lines = []
+        
+        # Build a position map for each line
+        line_positions = []
+        pos = 0
+        for line in lines:
+            line_positions.append(pos)
+            pos += len(line) + 1  # +1 for newline
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            line_start_pos = line_positions[i]
+            
+            # Check if we're inside a protected range
+            in_protected = any(
+                start <= line_start_pos < end
+                for start, end in protected_ranges
+            )
+            
+            # Check if this is a header line
+            is_header = line.strip().startswith('#') and not in_protected
+            
+            # Check if this is a question
+            is_question_start = bool(
+                re.match(r'^\s*\d+[\.\)]\s+', line.strip())
+            ) and not in_protected
+            
+            # Decide whether to start a new segment
+            should_split = False
+            
+            if not in_protected:
+                if is_header and current_segment_lines:
+                    should_split = True
+                elif is_question_start and current_segment_lines:
+                    prev_text = '\n'.join(current_segment_lines)
+                    if not re.search(r'\d+[\.\)]\s+', prev_text):
+                        should_split = True
+            
+            if should_split:
+                # Create segment from accumulated lines
+                if current_segment_lines:
+                    # CRITICAL FIX: Use line positions to get exact boundaries
+                    segment_end = line_start_pos
+                    actual_segment_text = text[current_segment_start:segment_end].strip()
+                    
+                    if actual_segment_text:
+                        segments.append((current_segment_start, segment_end, actual_segment_text))
+                    
+                    # Start new segment at current line position
+                    current_segment_start = line_start_pos
+                
+                # Reset for new segment
+                current_segment_lines = [line]
+            else:
+                current_segment_lines.append(line)
+            
+            i += 1
+        
+        # Add final segment
+        if current_segment_lines:
+            actual_segment_text = text[current_segment_start:].strip()
+            if actual_segment_text:
+                segments.append((current_segment_start, len(text), actual_segment_text))
+        
+        return segments
+    
+    def _find_word_boundary_end(self, text: str, start_pos: int, target_pos: int) -> int:
+        """
+        Find a word boundary near the target position.
+        
+        This ensures we never split in the middle of a word.
+        """
+        if target_pos >= len(text):
+            return len(text)
+        
+        if target_pos <= start_pos:
+            return start_pos
+        
+        # Look backwards from target_pos to find a word boundary
+        pos = target_pos
+        
+        # If we're already at a word boundary, use it
+        if pos < len(text) and not text[pos].isalnum():
+            return pos
+        
+        # Look backwards for a word boundary (space, punctuation, newline)
+        while pos > start_pos:
+            char = text[pos - 1]
+            next_char = text[pos] if pos < len(text) else ' '
+            
+            # Word boundary conditions:
+            # 1. Previous char is not alphanumeric, current char is alphanumeric
+            # 2. Previous char is alphanumeric, current char is not alphanumeric
+            # 3. Newline boundaries
+            # 4. Punctuation boundaries
+            if (not char.isalnum() and next_char.isalnum()) or \
+               (char.isalnum() and not next_char.isalnum()) or \
+               char in '\n\r' or \
+               char in '.,;:!?()[]{}"\'-':
+                return pos
+            
+            pos -= 1
+        
+        # If we couldn't find a good boundary, look forward instead
+        pos = target_pos
+        while pos < len(text) and pos < target_pos + 50:  # Don't look too far ahead
+            char = text[pos]
+            if not char.isalnum() or char in '\n\r .,;:!?()[]{}"\'-':
+                return pos
+            pos += 1
+        
+        # Fallback: use the target position (shouldn't happen often)
+        return min(target_pos, len(text))
+    
+    def _split_segment_with_word_boundaries(
+        self,
+        text_content: str,
+        start_pos: int,
+        end_pos: int
+    ) -> List[Tuple[int, int, str]]:
+        """
+        Split a large segment while respecting word boundaries.
+        
+        This method ensures that splits never occur in the middle of words,
+        which was the root cause of the chunking issues.
+        """
+        segments = []
+        
+        # Split by paragraphs first (try both \n\n and single \n)
+        paragraphs = text_content.split('\n\n')
+        if len(paragraphs) == 1:
+            # No double newlines, try single newlines
+            paragraphs = text_content.split('\n')
+        
+        current_chunk_parts = []
+        current_chunk_size = 0
+        current_pos = start_pos
+        
+        for para in paragraphs:
+            para = para.strip()
+            if not para:
+                continue
+            
+            para_size = len(para)
+            
+            # If single paragraph is too large, split by sentences
+            if para_size > self.config.max_chunk_size:
+                # Save current chunk first if we have content
+                if current_chunk_parts:
+                    chunk_text = '\n\n'.join(current_chunk_parts)
+                    # Find the actual end position by searching in original text
+                    chunk_end = self._find_text_end_position(
+                        text_content, chunk_text, current_pos, start_pos
+                    )
+                    segments.append((current_pos, chunk_end, chunk_text))
+                    current_pos = chunk_end
+                    current_chunk_parts = []
+                    current_chunk_size = 0
+                
+                # Split large paragraph by sentences with word boundaries
+                sentence_segments = self._split_paragraph_by_sentences(
+                    para, current_pos, text_content, start_pos
+                )
+                segments.extend(sentence_segments)
+                
+                # Update current position to after the last sentence segment
+                if sentence_segments:
+                    current_pos = sentence_segments[-1][1]
+                
+            # If adding this paragraph exceeds max size, save current chunk
+            elif current_chunk_size + para_size > self.config.max_chunk_size and current_chunk_parts:
+                chunk_text = '\n\n'.join(current_chunk_parts)
+                chunk_end = self._find_text_end_position(
+                    text_content, chunk_text, current_pos, start_pos
+                )
+                segments.append((current_pos, chunk_end, chunk_text))
+                current_pos = chunk_end
+                current_chunk_parts = [para]
+                current_chunk_size = para_size
+            else:
+                current_chunk_parts.append(para)
+                current_chunk_size += para_size + 2  # +2 for \n\n
+        
+        # Add remaining content
+        if current_chunk_parts:
+            chunk_text = '\n\n'.join(current_chunk_parts)
+            segments.append((current_pos, end_pos, chunk_text))
+        
+        return segments if segments else [(start_pos, end_pos, text_content)]
+    
+    def _find_text_end_position(
+        self,
+        full_text: str,
+        chunk_text: str,
+        start_pos: int,
+        segment_start: int
+    ) -> int:
+        """
+        Find the actual end position of chunk_text within full_text.
+        This ensures we maintain correct character positions.
+        """
+        # Calculate relative position within the segment
+        relative_start = start_pos - segment_start
+        
+        # Find the chunk text in the full segment text
+        chunk_end_in_segment = relative_start + len(chunk_text)
+        
+        # Convert back to absolute position
+        return segment_start + chunk_end_in_segment
+    
+    def _split_paragraph_by_sentences(
+        self,
+        paragraph: str,
+        start_pos: int,
+        full_text: str,
+        segment_start: int
+    ) -> List[Tuple[int, int, str]]:
+        """
+        Split a large paragraph by sentences while maintaining word boundaries.
+        """
+        segments = []
+        sentences = re.split(r'(?<=[.!?])\s+', paragraph)
+        
+        current_sentences = []
+        current_size = 0
+        current_pos = start_pos
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            
+            sentence_len = len(sentence)
+            
+            # If single sentence is too large, split by words (last resort)
+            if sentence_len > self.config.max_chunk_size:
+                # Save current sentences first
+                if current_sentences:
+                    chunk_text = ' '.join(current_sentences)
+                    chunk_end = self._find_text_end_position(
+                        full_text, chunk_text, current_pos, segment_start
+                    )
+                    segments.append((current_pos, chunk_end, chunk_text))
+                    current_pos = chunk_end
+                    current_sentences = []
+                    current_size = 0
+                
+                # Split by words with word boundary preservation
+                word_segments = self._split_sentence_by_words(
+                    sentence, current_pos, full_text, segment_start
+                )
+                segments.extend(word_segments)
+                
+                if word_segments:
+                    current_pos = word_segments[-1][1]
+                    
+            elif current_size + sentence_len > self.config.max_chunk_size and current_sentences:
+                # Save current sentences and start new chunk
+                chunk_text = ' '.join(current_sentences)
+                chunk_end = self._find_text_end_position(
+                    full_text, chunk_text, current_pos, segment_start
+                )
+                segments.append((current_pos, chunk_end, chunk_text))
+                current_pos = chunk_end
+                current_sentences = [sentence]
+                current_size = sentence_len
+            else:
+                current_sentences.append(sentence)
+                current_size += sentence_len + 1  # +1 for space
+        
+        # Add remaining sentences
+        if current_sentences:
+            chunk_text = ' '.join(current_sentences)
+            chunk_end = current_pos + len(chunk_text)
+            segments.append((current_pos, chunk_end, chunk_text))
+        
+        return segments
+    
+    def _split_sentence_by_words(
+        self,
+        sentence: str,
+        start_pos: int,
+        full_text: str,
+        segment_start: int
+    ) -> List[Tuple[int, int, str]]:
+        """
+        Split a very long sentence by words as a last resort.
+        This maintains word boundaries by definition.
+        """
+        segments = []
+        words = sentence.split()
+        
+        current_words = []
+        current_size = 0
+        current_pos = start_pos
+        
+        for word in words:
+            word_len = len(word)
+            
+            if current_size + word_len > self.config.max_chunk_size and current_words:
+                # Save current words
+                chunk_text = ' '.join(current_words)
+                chunk_end = current_pos + len(chunk_text)
+                segments.append((current_pos, chunk_end, chunk_text))
+                current_pos = chunk_end
+                current_words = [word]
+                current_size = word_len
+            else:
+                current_words.append(word)
+                current_size += word_len + 1  # +1 for space
+        
+        # Add remaining words
+        if current_words:
+            chunk_text = ' '.join(current_words)
+            chunk_end = current_pos + len(chunk_text)
+            segments.append((current_pos, chunk_end, chunk_text))
+        
+        return segments
     
     def _find_boundaries(
         self, 
@@ -802,9 +1042,9 @@ class MultiAgentChunker:
         return chunks
     
     def _split_large_chunk(self, text: str, base_start: int) -> List[Tuple[int, int, str]]:
-        """Split a large chunk by sentences to respect max_chunk_size.
+        """Split a large chunk intelligently using semantic boundaries.
         
-        Preserves code blocks and other protected content.
+        This balances semantic coherence with size constraints.
         """
         # First check if this chunk contains protected content
         protected_ranges = self._find_protected_ranges(text)
@@ -816,88 +1056,250 @@ class MultiAgentChunker:
                 if p_end - p_start > len(text) * 0.8:
                     return [(base_start, base_start + len(text), text)]
         
-        # Try splitting by sentences, but avoid splitting inside protected ranges
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+        # Try semantic splitting first (by paragraphs, then sentences)
+        return self._split_by_semantic_boundaries(text, base_start)
+    
+    def _split_by_semantic_boundaries(
+        self,
+        text: str,
+        base_start: int
+    ) -> List[Tuple[int, int, str]]:
+        """
+        Split text by semantic boundaries (paragraphs, sentences) with word safety.
+        
+        This maintains semantic coherence while preventing word breaks.
+        """
+        if len(text) <= self.config.max_chunk_size:
+            return [(base_start, base_start + len(text), text)]
         
         result = []
+        
+        # Try splitting by double newlines (paragraphs) first
+        paragraphs = text.split('\n\n')
+        if len(paragraphs) == 1:
+            # No paragraphs, try single newlines
+            paragraphs = text.split('\n')
+        
         current_chunk = []
         current_size = 0
-        chunk_start = base_start
-        current_text_pos = 0
+        current_pos = 0
         
-        for sent in sentences:
-            sent = sent.strip()
-            if not sent:
+        for para in paragraphs:
+            para = para.strip()
+            if not para:
                 continue
             
-            sent_len = len(sent)
+            para_size = len(para)
             
-            # Find position of this sentence in original text
-            sent_pos = text.find(sent, current_text_pos)
-            if sent_pos >= 0:
-                current_text_pos = sent_pos + sent_len
-            
-            # Check if this sentence is inside a protected range
-            in_protected = any(
-                p_start <= (base_start + sent_pos) < p_end 
-                for p_start, p_end in protected_ranges
-            ) if sent_pos >= 0 and protected_ranges else False
-            
-            # If in protected range, add to current chunk without size check
-            if in_protected:
-                current_chunk.append(sent)
-                current_size += sent_len + 1
-                continue
-            
-            # If single sentence is too large, split by words (last resort)
-            if sent_len > self.config.max_chunk_size:
+            # If single paragraph is too large, split by sentences
+            if para_size > self.config.max_chunk_size:
                 # Save current chunk first
                 if current_chunk:
-                    chunk_text = ' '.join(current_chunk)
-                    chunk_end = chunk_start + len(chunk_text)
-                    result.append((chunk_start, chunk_end, chunk_text))
-                    chunk_start = chunk_end + 1
+                    chunk_text = '\n\n'.join(current_chunk)
+                    result.append((
+                        base_start + current_pos - current_size,
+                        base_start + current_pos,
+                        chunk_text
+                    ))
                     current_chunk = []
                     current_size = 0
                 
-                # Split by words
-                words = sent.split()
-                word_chunk = []
-                word_size = 0
-                for word in words:
-                    if word_size + len(word) > self.config.max_chunk_size and word_chunk:
-                        chunk_text = ' '.join(word_chunk)
-                        chunk_end = chunk_start + len(chunk_text)
-                        result.append((chunk_start, chunk_end, chunk_text))
-                        chunk_start = chunk_end + 1
-                        word_chunk = [word]
-                        word_size = len(word)
-                    else:
-                        word_chunk.append(word)
-                        word_size += len(word) + 1
+                # Split large paragraph by sentences
+                sentence_chunks = self._split_paragraph_by_sentences_safe(
+                    para, base_start + current_pos
+                )
+                result.extend(sentence_chunks)
+                current_pos += para_size + 2  # +2 for \n\n
                 
-                if word_chunk:
-                    current_chunk = [' '.join(word_chunk)]
-                    current_size = len(current_chunk[0])
-            elif current_size + sent_len > self.config.max_chunk_size and current_chunk:
-                # Save current and start new
-                chunk_text = ' '.join(current_chunk)
-                chunk_end = chunk_start + len(chunk_text)
-                result.append((chunk_start, chunk_end, chunk_text))
-                chunk_start = chunk_end + 1
-                current_chunk = [sent]
-                current_size = sent_len
+            # If adding this paragraph exceeds max size, save current chunk
+            elif current_size + para_size > self.config.max_chunk_size and current_chunk:
+                chunk_text = '\n\n'.join(current_chunk)
+                result.append((
+                    base_start + current_pos - current_size,
+                    base_start + current_pos,
+                    chunk_text
+                ))
+                current_chunk = [para]
+                current_size = para_size
+                current_pos += para_size + 2
             else:
-                current_chunk.append(sent)
-                current_size += sent_len + 1
+                current_chunk.append(para)
+                current_size += para_size + 2  # +2 for \n\n
+                current_pos += para_size + 2
         
-        # Add remaining
+        # Add remaining content
         if current_chunk:
-            chunk_text = ' '.join(current_chunk)
-            chunk_end = chunk_start + len(chunk_text)
-            result.append((chunk_start, chunk_end, chunk_text))
+            chunk_text = '\n\n'.join(current_chunk)
+            result.append((
+                base_start + current_pos - current_size,
+                base_start + len(text),
+                chunk_text
+            ))
         
         return result if result else [(base_start, base_start + len(text), text)]
+    
+    def _split_paragraph_by_sentences_safe(
+        self,
+        paragraph: str,
+        start_pos: int
+    ) -> List[Tuple[int, int, str]]:
+        """
+        Split paragraph by sentences with word boundary safety.
+        """
+        if len(paragraph) <= self.config.max_chunk_size:
+            return [(start_pos, start_pos + len(paragraph), paragraph)]
+        
+        # Split by sentence endings
+        sentences = re.split(r'(?<=[.!?])\s+', paragraph)
+        
+        result = []
+        current_sentences = []
+        current_size = 0
+        current_pos = 0
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            
+            sentence_len = len(sentence)
+            
+            # If single sentence is too large, we need to split by words (last resort)
+            if sentence_len > self.config.max_chunk_size:
+                # Save current sentences first
+                if current_sentences:
+                    chunk_text = ' '.join(current_sentences)
+                    result.append((
+                        start_pos + current_pos - current_size,
+                        start_pos + current_pos,
+                        chunk_text
+                    ))
+                    current_sentences = []
+                    current_size = 0
+                
+                # Split by words as last resort, but ensure word boundaries
+                word_chunks = self._split_by_words_safe(sentence, start_pos + current_pos)
+                result.extend(word_chunks)
+                current_pos += sentence_len + 1
+                
+            elif current_size + sentence_len > self.config.max_chunk_size and current_sentences:
+                # Save current sentences
+                chunk_text = ' '.join(current_sentences)
+                result.append((
+                    start_pos + current_pos - current_size,
+                    start_pos + current_pos,
+                    chunk_text
+                ))
+                current_sentences = [sentence]
+                current_size = sentence_len
+                current_pos += sentence_len + 1
+            else:
+                current_sentences.append(sentence)
+                current_size += sentence_len + 1
+                current_pos += sentence_len + 1
+        
+        # Add remaining sentences
+        if current_sentences:
+            chunk_text = ' '.join(current_sentences)
+            result.append((
+                start_pos + current_pos - current_size,
+                start_pos + len(paragraph),
+                chunk_text
+            ))
+        
+        return result
+    
+    def _split_by_words_safe(
+        self,
+        text: str,
+        start_pos: int
+    ) -> List[Tuple[int, int, str]]:
+        """
+        Split by words as absolute last resort, ensuring word boundaries.
+        """
+        words = text.split()
+        result = []
+        current_words = []
+        current_size = 0
+        current_pos = 0
+        
+        for word in words:
+            word_len = len(word)
+            
+            if current_size + word_len > self.config.max_chunk_size and current_words:
+                chunk_text = ' '.join(current_words)
+                result.append((
+                    start_pos + current_pos - current_size,
+                    start_pos + current_pos,
+                    chunk_text
+                ))
+                current_words = [word]
+                current_size = word_len
+                current_pos += word_len + 1
+            else:
+                current_words.append(word)
+                current_size += word_len + 1
+                current_pos += word_len + 1
+        
+        # Add remaining words
+        if current_words:
+            chunk_text = ' '.join(current_words)
+            result.append((
+                start_pos + current_pos - current_size,
+                start_pos + len(text),
+                chunk_text
+            ))
+        
+        return result
+    
+    def _find_word_boundary_before(self, text: str, target_pos: int, min_pos: int) -> int:
+        """
+        Find a word boundary before the target position.
+        
+        This ensures we never split in the middle of a word.
+        """
+        if target_pos >= len(text):
+            return len(text)
+        
+        if target_pos <= min_pos:
+            return min_pos
+        
+        # Start from target_pos and look backwards for a word boundary
+        pos = target_pos
+        
+        # If we're already at a word boundary, use it
+        if pos < len(text) and not text[pos].isalnum():
+            return pos
+        
+        # Look backwards for a word boundary
+        while pos > min_pos:
+            char = text[pos - 1]
+            next_char = text[pos] if pos < len(text) else ' '
+            
+            # Word boundary conditions:
+            # 1. Space or punctuation followed by alphanumeric
+            # 2. Alphanumeric followed by space or punctuation
+            # 3. Newline boundaries
+            if (not char.isalnum() and next_char.isalnum()) or \
+               (char.isalnum() and not next_char.isalnum()) or \
+               char in '\n\r' or \
+               char in ' \t.,;:!?()[]{}"\'-':
+                return pos
+            
+            pos -= 1
+        
+        # If we couldn't find a good boundary, look forward instead (but not too far)
+        pos = target_pos
+        max_forward = min(len(text), target_pos + 100)  # Don't look too far ahead
+        
+        while pos < max_forward:
+            char = text[pos]
+            if not char.isalnum() or char in '\n\r .,;:!?()[]{}"\'-':
+                return pos
+            pos += 1
+        
+        # Fallback: use the target position (shouldn't happen often)
+        return min(target_pos, len(text))
     
     def _validate_chunks(
         self, 
@@ -981,19 +1383,64 @@ class MultiAgentChunker:
         return final_chunks
     
     def _calculate_quality_summary(
-        self, 
+        self,
         chunks: List[MultiAgentChunk]
     ) -> Dict[str, float]:
-        """Calculate quality summary statistics."""
+        """Calculate quality summary statistics with separate semantic and boundary metrics."""
         if not chunks:
-            return {'avg_quality': 0.0, 'min_quality': 0.0, 'max_quality': 0.0}
+            return {
+                'avg_quality': 0.0,
+                'min_quality': 0.0,
+                'max_quality': 0.0,
+                'semantic_coherence_score': 0.0,
+                'boundary_quality_score': 0.0
+            }
         
         qualities = [c.quality_score for c in chunks]
+        confidences = [c.confidence for c in chunks]
+        
+        # Semantic coherence: based on chunk quality scores (content coherence)
+        semantic_coherence_score = sum(qualities) / len(qualities)
+        
+        # Boundary quality: based on agent decision confidence (boundary decisions)
+        boundary_quality_score = sum(confidences) / len(confidences)
+        
+        # If we have structural/semantic decisions, factor them in
+        structural_scores = []
+        semantic_scores = []
+        
+        for chunk in chunks:
+            # Convert decision types to quality scores
+            if chunk.structural_decision:
+                if 'preserve' in chunk.structural_decision.lower():
+                    structural_scores.append(0.9)  # High quality for preserved structures
+                elif 'allow' in chunk.structural_decision.lower():
+                    structural_scores.append(0.7)  # Medium quality for allowed splits
+                else:
+                    structural_scores.append(0.6)  # Lower for other decisions
+            
+            if chunk.semantic_decision:
+                if 'merge' in chunk.semantic_decision.lower():
+                    semantic_scores.append(0.8)  # Good semantic continuity
+                elif 'split' in chunk.semantic_decision.lower():
+                    semantic_scores.append(0.7)  # Acceptable semantic boundary
+                else:
+                    semantic_scores.append(0.6)  # Default
+        
+        # Adjust boundary quality based on structural decisions
+        if structural_scores:
+            boundary_quality_score = (boundary_quality_score + sum(structural_scores) / len(structural_scores)) / 2
+        
+        # Adjust semantic coherence based on semantic decisions
+        if semantic_scores:
+            semantic_coherence_score = (semantic_coherence_score + sum(semantic_scores) / len(semantic_scores)) / 2
         
         return {
             'avg_quality': sum(qualities) / len(qualities),
             'min_quality': min(qualities),
             'max_quality': max(qualities),
+            'semantic_coherence_score': semantic_coherence_score,
+            'boundary_quality_score': boundary_quality_score,
             'total_chunks': len(chunks),
             'avg_chunk_size': sum(c.char_count for c in chunks) / len(chunks),
             'total_improvement_iterations': sum(c.improvement_iterations for c in chunks)

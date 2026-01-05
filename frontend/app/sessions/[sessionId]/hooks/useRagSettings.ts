@@ -55,6 +55,17 @@ interface AvailableEmbeddingModels {
   }>;
 }
 
+// Chunking Strategy Types
+export type ChunkingStrategy = "multi_agent" | "lightweight" | "traditional" | "semantic";
+
+export interface ChunkingStrategyOption {
+  value: ChunkingStrategy;
+  label: string;
+  description: string;
+  recommended?: boolean;
+  badge?: string;
+}
+
 interface RagSettings {
   provider?: string;
   model?: string;
@@ -70,6 +81,7 @@ interface RagSettings {
   min_score_threshold?: number; // Minimum score threshold for source filtering (default: 0.4)
   use_kb?: boolean;
   use_qa_pairs?: boolean;
+  chunk_strategy?: ChunkingStrategy; // Chunking strategy selection
 }
 
 export const useRagSettings = (sessionId: string) => {
@@ -100,6 +112,7 @@ export const useRagSettings = (sessionId: string) => {
   const [minScoreThreshold, setMinScoreThreshold] = useState<number>(0.4); // Default: 0.4 (40%)
   const [useKb, setUseKb] = useState<boolean>(false);
   const [useQaPairs, setUseQaPairs] = useState<boolean>(false);
+  const [selectedChunkStrategy, setSelectedChunkStrategy] = useState<ChunkingStrategy>("multi_agent"); // Default: multi_agent
 
   // Loading states
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -144,6 +157,34 @@ export const useRagSettings = (sessionId: string) => {
     },
   ];
 
+  const CHUNKING_STRATEGY_OPTIONS: ChunkingStrategyOption[] = [
+    {
+      value: "multi_agent",
+      label: "Multi-Agent Chunking",
+      description: "Gelişmiş AI destekli parçalama - Çoklu uzman ajanlarla optimal içerik segmentasyonu",
+      recommended: true,
+      badge: "Önerilen"
+    },
+    {
+      value: "lightweight",
+      label: "Lightweight Chunking",
+      description: "Hızlı ve verimli parçalama - Minimal kaynak kullanımıyla hızlı işleme",
+      recommended: false
+    },
+    {
+      value: "traditional",
+      label: "Traditional Chunking",
+      description: "Standart kural tabanlı parçalama - Sabit boyutlu segmentler ve örtüşme",
+      recommended: false
+    },
+    {
+      value: "semantic",
+      label: "Semantic Chunking",
+      description: "İçerik farkında parçalama - Anlamsal sınırları ve bağlamı korur",
+      recommended: false
+    }
+  ];
+
   // Load settings from session
   useEffect(() => {
     if (currentSession?.rag_settings) {
@@ -171,6 +212,9 @@ export const useRagSettings = (sessionId: string) => {
       if (settings.use_qa_pairs !== undefined)
         setUseQaPairs(settings.use_qa_pairs);
       else setUseQaPairs(false);
+      if (settings.chunk_strategy)
+        setSelectedChunkStrategy(settings.chunk_strategy);
+      else setSelectedChunkStrategy("multi_agent"); // Default to multi_agent
 
       setHasUnsavedChanges(false);
     } else {
@@ -185,6 +229,7 @@ export const useRagSettings = (sessionId: string) => {
       setMinScoreThreshold(0.4); // Default
       setUseKb(false);
       setUseQaPairs(false);
+      setSelectedChunkStrategy("multi_agent"); // Default
       setHasUnsavedChanges(false);
     }
   }, [currentSession?.rag_settings]);
@@ -204,7 +249,8 @@ export const useRagSettings = (sessionId: string) => {
       currentSettings.reranker_type !== selectedRerankerType ||
       (currentSettings.min_score_threshold ?? 0.4) !== minScoreThreshold ||
       (currentSettings.use_kb ?? true) !== useKb ||
-      (currentSettings.use_qa_pairs ?? true) !== useQaPairs;
+      (currentSettings.use_qa_pairs ?? true) !== useQaPairs ||
+      (currentSettings.chunk_strategy ?? "multi_agent") !== selectedChunkStrategy;
 
     setHasUnsavedChanges(hasChanges);
   }, [
@@ -218,6 +264,7 @@ export const useRagSettings = (sessionId: string) => {
     minScoreThreshold,
     useKb,
     useQaPairs,
+    selectedChunkStrategy,
     currentSession?.rag_settings,
   ]);
 
@@ -347,6 +394,9 @@ export const useRagSettings = (sessionId: string) => {
       if (minScoreThreshold !== undefined) {
         settingsToSave.min_score_threshold = minScoreThreshold;
       }
+      if (selectedChunkStrategy) {
+        settingsToSave.chunk_strategy = selectedChunkStrategy;
+      }
 
       const response = await saveSessionRagSettings(
         sessionId,
@@ -377,6 +427,7 @@ export const useRagSettings = (sessionId: string) => {
     setMinScoreThreshold(0.4); // Reset to default
     setUseKb(true);
     setUseQaPairs(true);
+    setSelectedChunkStrategy("multi_agent"); // Reset to default
     setError(null);
     setSuccess(null);
   };
@@ -440,6 +491,7 @@ export const useRagSettings = (sessionId: string) => {
     minScoreThreshold,
     useKb,
     useQaPairs,
+    selectedChunkStrategy,
 
     // Loading states
     modelsLoading,
@@ -462,6 +514,7 @@ export const useRagSettings = (sessionId: string) => {
     setMinScoreThreshold,
     setUseKb,
     setUseQaPairs,
+    setSelectedChunkStrategy,
 
     // Operations
     saveSettings,
@@ -475,5 +528,6 @@ export const useRagSettings = (sessionId: string) => {
     PROVIDER_OPTIONS,
     EMBEDDING_PROVIDER_OPTIONS,
     RERANKER_TYPE_OPTIONS,
+    CHUNKING_STRATEGY_OPTIONS,
   };
 };

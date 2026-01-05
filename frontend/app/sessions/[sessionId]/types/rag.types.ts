@@ -90,6 +90,45 @@ export const RERANKER_MODELS: Record<string, RerankerModel> = {
   },
 };
 
+// Chunking Strategy Types
+export type ChunkingStrategy = "multi_agent" | "lightweight" | "traditional" | "semantic";
+
+export interface ChunkingStrategyOption {
+  value: ChunkingStrategy;
+  label: string;
+  description: string;
+  recommended?: boolean;
+  badge?: string;
+}
+
+export const CHUNKING_STRATEGY_OPTIONS: ChunkingStrategyOption[] = [
+  {
+    value: "multi_agent",
+    label: "Multi-Agent Chunking",
+    description: "Advanced AI-powered chunking with multiple specialized agents for optimal content segmentation",
+    recommended: true,
+    badge: "Recommended"
+  },
+  {
+    value: "lightweight",
+    label: "Lightweight Chunking",
+    description: "Fast and efficient chunking for quick processing with minimal resource usage",
+    recommended: false
+  },
+  {
+    value: "traditional",
+    label: "Traditional Chunking",
+    description: "Standard rule-based chunking using fixed-size segments with overlap",
+    recommended: false
+  },
+  {
+    value: "semantic",
+    label: "Semantic Chunking",
+    description: "Content-aware chunking that preserves semantic boundaries and context",
+    recommended: false
+  }
+];
+
 // RAG Configuration
 export interface RagConfig {
   // Basic RAG settings
@@ -121,6 +160,9 @@ export interface RagConfig {
   use_query_expansion: boolean;
   use_context_compression: boolean;
   response_language: "tr" | "en" | "auto";
+  
+  // Chunking strategy
+  chunk_strategy?: ChunkingStrategy;
 }
 
 // RAG Processing States
@@ -405,4 +447,5 @@ export const getDefaultRagConfig = (): RagConfig => ({
   use_query_expansion: false,
   use_context_compression: true,
   response_language: "tr",
+  chunk_strategy: "multi_agent", // Default to multi_agent strategy
 });

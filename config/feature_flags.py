@@ -42,6 +42,12 @@ class FeatureFlags:
     MODULE_QUALITY_VALIDATION_ENABLED = "module_quality_validation_enabled"
     MODULE_CURRICULUM_ALIGNMENT_ENABLED = "module_curriculum_alignment_enabled"
     
+    # Chunking Strategy Feature Flags
+    CHUNKING_MULTI_AGENT_ENABLED = "enable_multi_agent_chunking"
+    CHUNKING_AGENTIC_REASONING_ENABLED = "enable_agentic_reasoning"
+    CHUNKING_TRADITIONAL_ENABLED = "enable_traditional_chunking"
+    CHUNKING_DEFAULT_STRATEGY = "default_chunking_strategy"
+    
     # Default values (can be overridden by environment variables)
     _defaults = {
         APRAG_ENABLED: False,
@@ -63,6 +69,12 @@ class FeatureFlags:
         MODULE_EXTRACTION_ENABLED: True,  # Enabled by default for production readiness
         MODULE_QUALITY_VALIDATION_ENABLED: True,
         MODULE_CURRICULUM_ALIGNMENT_ENABLED: True,
+        
+        # Chunking strategy defaults
+        CHUNKING_MULTI_AGENT_ENABLED: True,  # Multi-agent chunking enabled by default
+        CHUNKING_AGENTIC_REASONING_ENABLED: True,
+        CHUNKING_TRADITIONAL_ENABLED: True,
+        CHUNKING_DEFAULT_STRATEGY: 'multi_agent',  # Default strategy is multi_agent
     }
     
     # Cache for flags (will be populated from database)
@@ -281,6 +293,11 @@ class FeatureFlags:
             cls.MODULE_EXTRACTION_ENABLED,
             cls.MODULE_QUALITY_VALIDATION_ENABLED,
             cls.MODULE_CURRICULUM_ALIGNMENT_ENABLED,
+            # Chunking strategy flags
+            cls.CHUNKING_MULTI_AGENT_ENABLED,
+            cls.CHUNKING_AGENTIC_REASONING_ENABLED,
+            cls.CHUNKING_TRADITIONAL_ENABLED,
+            cls.CHUNKING_DEFAULT_STRATEGY,
         ]:
             flags[flag_key] = cls.is_enabled(flag_key, session_id=session_id)
         return flags
@@ -346,4 +363,26 @@ def is_module_quality_validation_enabled(session_id: Optional[str] = None) -> bo
 def is_module_curriculum_alignment_enabled(session_id: Optional[str] = None) -> bool:
     """Check if module curriculum alignment is enabled"""
     return FeatureFlags.is_module_curriculum_alignment_enabled(session_id)
+
+
+# Chunking Strategy Feature Functions
+def is_multi_agent_chunking_enabled(session_id: Optional[str] = None) -> bool:
+    """Check if multi-agent chunking is enabled"""
+    return FeatureFlags.is_enabled(FeatureFlags.CHUNKING_MULTI_AGENT_ENABLED, session_id=session_id)
+
+
+def is_agentic_reasoning_enabled(session_id: Optional[str] = None) -> bool:
+    """Check if agentic reasoning chunking is enabled"""
+    return FeatureFlags.is_enabled(FeatureFlags.CHUNKING_AGENTIC_REASONING_ENABLED, session_id=session_id)
+
+
+def is_traditional_chunking_enabled(session_id: Optional[str] = None) -> bool:
+    """Check if traditional chunking is enabled"""
+    return FeatureFlags.is_enabled(FeatureFlags.CHUNKING_TRADITIONAL_ENABLED, session_id=session_id)
+
+
+def get_default_chunking_strategy(session_id: Optional[str] = None) -> str:
+    """Get the default chunking strategy"""
+    strategy = FeatureFlags.is_enabled(FeatureFlags.CHUNKING_DEFAULT_STRATEGY, session_id=session_id)
+    return strategy if isinstance(strategy, str) else 'multi_agent'
 

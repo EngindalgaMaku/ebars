@@ -357,79 +357,90 @@ class QualityAgent(BaseAgent):
         
         return max(0.0, min(1.0, score))
     
+    def _detect_garbage_with_llm(self, text: str) -> Optional[bool]:
+        """
+        Use LLM to intelligently detect garbage chunks.
+        
+        Returns:
+            True if garbage, False if not garbage, None if LLM call failed
+        """
+        try:
+            from .llm_client import generate_text, LLMProvider
+            
+            prompt = f"""Sen bir metin kalite analiz uzmanısın. Aşağıdaki metin parçasının çöp/gereksiz içerik olup olmadığını değerlendir.
+
+ÇÖPÜ TANIMLAYAN KRITERLER:
+- Boş tablo başlıkları (örn: "### Tablo 1 | | | |---|---|---|")
+- Sadece sayfa numaraları
+- Sadece navigasyon elemanları
+- İçeriksiz metadata etiketleri
+- Eğitim değeri olmayan formatlar
+- Anlamlı kelime sayısı çok az olan metinler
+
+METIN:
+{text[:500]}
+
+Bu metin çöp mü? Sadece "true" veya "false" cevap ver."""
+
+            # Try OpenRouter first (free), fallback to Docker
+            result = generate_text(
+                prompt,
+                provider=LLMProvider.OPENROUTER,
+                max_tokens=10,
+                timeout=5
+            )
+            
+            if not result:
+                # Fallback to Docker LLM
+                result = generate_text(
+                    prompt,
+                    provider=LLMProvider.LOCAL_DOCKER,
+                    max_tokens=10,
+                    timeout=5
+                )
+            
+            if result:
+                content = result.strip().lower()
+                if 'true' in content:
+                    return True
+                elif 'false' in content:
+                    return False
+                    
+        except Exception as e:
+            logger.debug(f"LLM garbage detection failed: {e}")
+        
+        return None
+    
     def _is_garbage_chunk(self, text: str) -> bool:
         """
-        Detect garbage/useless chunks that should be discarded.
+        Detect garbage/useless chunks using LLM for intelligent analysis.
         
-        Garbage chunks include:
-        - Only page numbers
-        - Only metadata tags
-        - Only whitespace/formatting
-        - Only image credits without context
-        - Only navigation elements
+        Uses LLM to identify:
+        - Empty table structures without content
+        - Page numbers and navigation elements
+        - Metadata tags without meaningful content
+        - Incomplete or broken formatting
+        - Any content that has no educational value
         """
         text_stripped = text.strip()
-        text_lower = text_stripped.lower()
         
-        # Very short chunks (< 50 chars) are suspicious
-        if len(text_stripped) < 50:
-            # Check if it's just a page number
-            if re.match(r'^(page\s*)?\d+\s*$', text_lower):
-                return True
-            # Check if it's just metadata tags
-            if re.match(r'^<[^>]+>\s*\d*\s*<[^>]+>$', text_stripped):
-                return True
-            # Check if it's just "## Page X" type header
-            if re.match(r'^#+\s*(page|sayfa)\s*\d+', text_lower):
-                return True
-        
-        # Check for page number patterns
-        page_patterns = [
-            r'^##\s*page\s*\d+\s*<[^>]*>\d+<[^>]*>\s*$',  # ## Page 22 <page_number>30</page_number>
-            r'^page\s*\d+\s*of\s*\d+\s*$',  # Page 1 of 10
-            r'^\d+\s*/\s*\d+\s*$',  # 1 / 10
-            r'^-\s*\d+\s*-\s*$',  # - 1 -
-            r'^\[\s*\d+\s*\]\s*$',  # [1]
-        ]
-        
-        for pattern in page_patterns:
-            if re.match(pattern, text_lower, re.IGNORECASE):
-                return True
-        
-        # Check for only image credits
-        credit_patterns = [
-            r'^(credit|photo|image|figure):\s*',
-            r'^(source|kaynak):\s*',
-            r'^\(?(credit|photo|image):\s*[^)]+\)?\s*$',
-        ]
-        
-        for pattern in credit_patterns:
-            if re.match(pattern, text_lower) and len(text_stripped) < 200:
-                return True
-        
-        # Check for navigation/UI elements
-        nav_patterns = [
-            r'^(next|previous|back|forward|continue)\s*$',
-            r'^(ileri|geri|devam|sonraki|önceki)\s*$',
-            r'^(chapter|section|bölüm|kısım)\s*\d+\s*$',
-        ]
-        
-        for pattern in nav_patterns:
-            if re.match(pattern, text_lower):
-                return True
-        
-        # Check for only HTML/XML tags with minimal content
-        # Remove all tags and check remaining content
-        text_no_tags = re.sub(r'<[^>]+>', '', text_stripped)
-        if len(text_no_tags.strip()) < 20 and len(text_stripped) > 20:
+        # Quick basic checks first (performance optimization)
+        if len(text_stripped) < 10:
             return True
         
-        # Check word count - less than 5 meaningful words is garbage
+        # Very obvious garbage patterns (fast check)
+        if re.match(r'^(page\s*)?\d+\s*$', text_stripped.lower()):
+            return True
+        
+        # Use LLM for intelligent garbage detection
+        if self.config.use_llm:
+            llm_result = self._detect_garbage_with_llm(text_stripped)
+            if llm_result is not None:
+                return llm_result
+        
+        # Fallback to basic word count check
         words = [w for w in text_stripped.split() if len(w) > 2 and not w.startswith('<')]
-        if len(words) < 5:
-            return True
-        
-        return False
+        return len(words) < 5
     
     def _determine_improvement_strategy(self, quality_score: QualityScore) -> ImprovementStrategy:
         """Determine best improvement strategy based on quality issues."""
@@ -462,19 +473,24 @@ class QualityAgent(BaseAgent):
             prompt = self.get_prompt(context)
             
             response = requests.post(
-                f"{self.config.model_inference_url}/v1/chat/completions",
+                f"{self.config.model_inference_url}/models/generate",
                 json={
                     "model": self.config.llm_model,
-                    "messages": [{"role": "user", "content": prompt}],
+                    "prompt": prompt,
                     "temperature": 0.1,
-                    "max_tokens": 500
+                    "max_tokens": 500,
+                    "stream": False
                 },
                 timeout=self.config.llm_timeout
             )
             
             if response.status_code == 200:
                 result = response.json()
-                content = result['choices'][0]['message']['content']
+                # Handle the correct response format from /models/generate
+                if 'text' in result:
+                    content = result['text']
+                else:
+                    content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
                 
                 # Parse JSON response
                 json_match = re.search(r'\{[^{}]*\}', content, re.DOTALL)

@@ -25,11 +25,13 @@ import {
   Zap,
   Globe,
   Crown,
+  Scissors,
 } from "lucide-react";
 import { ModelSelector } from "./ModelSelector";
 import { EmbeddingSelector } from "./EmbeddingSelector";
 import { RerankerSelector } from "./RerankerSelector";
 import { SettingsSaveButton } from "./SettingsSaveButton";
+import { ChunkingStrategySelector } from "./ChunkingStrategySelector";
 import { useRagSettings } from "../../hooks/useRagSettings";
 import { Target } from "lucide-react";
 
@@ -304,6 +306,24 @@ export const RagSettingsTab: React.FC<RagSettingsTabProps> = ({
           </Badge>
         </div>
         <RerankerSelector sessionId={sessionId} />
+      </div>
+
+      {/* Chunking Strategy Selection Section */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Scissors className="w-4 h-4 text-primary" />
+          <h3 className="text-lg font-medium text-foreground">
+            Parçalama Stratejisi
+          </h3>
+          <Badge
+            variant="outline"
+            className="border-purple-200 text-purple-700"
+          >
+            <Crown className="w-3 h-3 mr-1" />
+            Multi-Agent Önerilen
+          </Badge>
+        </div>
+        <ChunkingStrategySelector sessionId={sessionId} />
       </div>
 
       {/* Knowledge Base & QA Usage Section */}
