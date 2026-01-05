@@ -41,6 +41,15 @@ except ImportError as e:
     UNIFIED_CHUNKING_AVAILABLE = False
     logging.getLogger(__name__).warning(f"⚠️ CRITICAL: Unified chunking system not available: {e}")
 
+# Import ChunkEnricher for metadata enrichment
+CHUNK_ENRICHER_AVAILABLE = False
+try:
+    from src.text_processing.metadata import ChunkEnricher, EnricherConfig
+    CHUNK_ENRICHER_AVAILABLE = True
+    logging.getLogger(__name__).info("✅ ChunkEnricher imported successfully for metadata enrichment")
+except ImportError as e:
+    logging.getLogger(__name__).warning(f"⚠️ ChunkEnricher not available: {e}")
+
 # Import langdetect for language detection
 from langdetect import detect, LangDetectException
 
@@ -61,7 +70,7 @@ class ProcessRequest(BaseModel):
     collection_name: Optional[str] = "documents"
     chunk_size: Optional[int] = 1000
     chunk_overlap: Optional[int] = 200
-    chunk_strategy: Optional[str] = "lightweight"  # NEW: Enable lightweight Turkish chunking by default
+    chunk_strategy: Optional[str] = "multi_agent"  # Multi-agent intelligent chunking (4 agents: Structural, Semantic, Size, Quality)
     use_llm_post_processing: Optional[bool] = False  # NEW: Optional LLM post-processing for chunk refinement
     llm_model_name: Optional[str] = "llama-3.1-8b-instant"  # NEW: LLM model for post-processing
     model_inference_url: Optional[str] = None  # NEW: Override model inference URL for LLM post-processing
@@ -494,6 +503,63 @@ async def process_and_store(request: ProcessRequest):
             raise HTTPException(status_code=400, detail="Text could not be split into chunks")
         
         logger.info(f"Successfully split text into {len(chunks)} chunks.")
+        
+        # NEW: Enrich chunks with metadata (keywords, headers, section info)
+        enriched_metadata_list = []
+        if CHUNK_ENRICHER_AVAILABLE:
+            try:
+                logger.info("🔧 Enriching chunks with metadata...")
+                
+                # Create wrapper objects for enrichment
+                class SimpleChunk:
+                    def __init__(self, text):
+                        self.text = text
+                        self.metadata = {}
+                
+                chunk_objects = [SimpleChunk(chunk) for chunk in chunks]
+                enricher = ChunkEnricher(EnricherConfig(
+                    use_llm_keywords=False,  # Disable LLM for speed
+                    detect_language=True,
+                    max_keywords=5
+                ))
+                enriched_chunks = enricher.enrich_chunks(chunk_objects)
+                
+                # Extract enriched metadata
+                for chunk_obj in enriched_chunks:
+                    chunk_meta = chunk_obj.metadata if hasattr(chunk_obj, 'metadata') and chunk_obj.metadata else {}
+                    
+                    # Parse JSON fields if they are strings
+                    keywords = chunk_meta.get('keywords_json', '[]')
+                    if isinstance(keywords, str):
+                        try:
+                            keywords = json.loads(keywords)
+                        except:
+                            keywords = []
+                    
+                    header_hierarchy = chunk_meta.get('header_hierarchy_json', '[]')
+                    if isinstance(header_hierarchy, str):
+                        try:
+                            header_hierarchy = json.loads(header_hierarchy)
+                        except:
+                            header_hierarchy = []
+                    
+                    enriched_metadata_list.append({
+                        "chunk_id": chunk_meta.get('chunk_id', ''),
+                        "parent_header": chunk_meta.get('parent_header', ''),
+                        "section_title": chunk_meta.get('section_title', ''),
+                        "header_hierarchy": header_hierarchy,
+                        "keywords": keywords,
+                        "chunk_type": chunk_meta.get('chunk_type', 'content'),
+                        "language": chunk_meta.get('language', 'auto'),
+                    })
+                
+                logger.info(f"✅ Enriched {len(enriched_chunks)} chunks with metadata (keywords, headers, sections)")
+            except Exception as enrich_error:
+                logger.warning(f"⚠️ Metadata enrichment failed: {enrich_error}, continuing without enrichment")
+                enriched_metadata_list = [{} for _ in chunks]
+        else:
+            logger.info("⚠️ ChunkEnricher not available, skipping metadata enrichment")
+            enriched_metadata_list = [{} for _ in chunks]
 
         # Get embeddings - check for embedding model preference in metadata
         # (embedding_model already extracted above for chunk size adjustment)
@@ -600,6 +666,22 @@ async def process_and_store(request: ProcessRequest):
                 # Extract chunk title from content (if chunk starts with #)
                 chunk_title = extract_chunk_title_from_content(chunk, f"Bölüm {i + 1}")
                 chunk_metadata["chunk_title"] = chunk_title
+                
+                # NEW: Add enriched metadata (keywords, headers, section info)
+                if enriched_metadata_list and i < len(enriched_metadata_list):
+                    enriched = enriched_metadata_list[i]
+                    if enriched.get("parent_header"):
+                        chunk_metadata["parent_header"] = enriched["parent_header"]
+                    if enriched.get("section_title"):
+                        chunk_metadata["section_title"] = enriched["section_title"]
+                    if enriched.get("header_hierarchy"):
+                        chunk_metadata["header_hierarchy_json"] = json.dumps(enriched["header_hierarchy"])
+                    if enriched.get("keywords"):
+                        chunk_metadata["keywords_json"] = json.dumps(enriched["keywords"])
+                    if enriched.get("chunk_type"):
+                        chunk_metadata["chunk_type"] = enriched["chunk_type"]
+                    if enriched.get("language"):
+                        chunk_metadata["language"] = enriched["language"]
                 
                 chunk_metadatas.append(chunk_metadata)
 

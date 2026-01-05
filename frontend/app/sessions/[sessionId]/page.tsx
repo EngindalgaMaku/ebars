@@ -2417,7 +2417,122 @@ export default function SessionPage() {
                   </svg>
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+                {/* Metadata Section */}
+                {selectedChunkForModal.chunk_metadata && Object.keys(selectedChunkForModal.chunk_metadata).length > 0 && (
+                  <div className="bg-muted/30 rounded-lg p-4 border border-border space-y-3">
+                    <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                      <Database className="w-4 h-4 text-primary" />
+                      Metadata Bilgileri
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      {/* Chunk Title */}
+                      {selectedChunkForModal.chunk_metadata.chunk_title && (
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted-foreground">Başlık</span>
+                          <span className="text-foreground font-medium">{selectedChunkForModal.chunk_metadata.chunk_title}</span>
+                        </div>
+                      )}
+                      
+                      {/* Parent Header */}
+                      {selectedChunkForModal.chunk_metadata.parent_header && (
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted-foreground">Üst Başlık</span>
+                          <span className="text-foreground">{selectedChunkForModal.chunk_metadata.parent_header}</span>
+                        </div>
+                      )}
+                      
+                      {/* Section Title */}
+                      {selectedChunkForModal.chunk_metadata.section_title && (
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted-foreground">Bölüm</span>
+                          <span className="text-foreground">{selectedChunkForModal.chunk_metadata.section_title}</span>
+                        </div>
+                      )}
+                      
+                      {/* Chunk Type */}
+                      {selectedChunkForModal.chunk_metadata.chunk_type && (
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted-foreground">Tip</span>
+                          <span className="text-foreground capitalize">{selectedChunkForModal.chunk_metadata.chunk_type}</span>
+                        </div>
+                      )}
+                      
+                      {/* Language */}
+                      {selectedChunkForModal.chunk_metadata.language && (
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted-foreground">Dil</span>
+                          <span className="text-foreground">{selectedChunkForModal.chunk_metadata.language === 'tr' ? 'Türkçe' : selectedChunkForModal.chunk_metadata.language === 'en' ? 'İngilizce' : selectedChunkForModal.chunk_metadata.language}</span>
+                        </div>
+                      )}
+                      
+                      {/* Chunk Index */}
+                      {selectedChunkForModal.chunk_metadata.chunk_index && (
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted-foreground">Sıra</span>
+                          <span className="text-foreground">{selectedChunkForModal.chunk_metadata.chunk_index} / {selectedChunkForModal.chunk_metadata.total_chunks || '?'}</span>
+                        </div>
+                      )}
+                      
+                      {/* Embedding Model */}
+                      {selectedChunkForModal.chunk_metadata.embedding_model && (
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted-foreground">Embedding Model</span>
+                          <span className="text-foreground text-xs">{selectedChunkForModal.chunk_metadata.embedding_model}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Keywords */}
+                    {selectedChunkForModal.chunk_metadata.keywords_json && (
+                      <div className="pt-2 border-t border-border">
+                        <span className="text-xs text-muted-foreground block mb-2">Anahtar Kelimeler</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(() => {
+                            try {
+                              const keywords = typeof selectedChunkForModal.chunk_metadata.keywords_json === 'string' 
+                                ? JSON.parse(selectedChunkForModal.chunk_metadata.keywords_json) 
+                                : selectedChunkForModal.chunk_metadata.keywords_json;
+                              return Array.isArray(keywords) ? keywords.map((kw: string, idx: number) => (
+                                <span key={idx} className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
+                                  {kw}
+                                </span>
+                              )) : null;
+                            } catch {
+                              return null;
+                            }
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Header Hierarchy */}
+                    {selectedChunkForModal.chunk_metadata.header_hierarchy_json && (
+                      <div className="pt-2 border-t border-border">
+                        <span className="text-xs text-muted-foreground block mb-2">Başlık Hiyerarşisi</span>
+                        <div className="flex flex-wrap items-center gap-1 text-xs">
+                          {(() => {
+                            try {
+                              const hierarchy = typeof selectedChunkForModal.chunk_metadata.header_hierarchy_json === 'string' 
+                                ? JSON.parse(selectedChunkForModal.chunk_metadata.header_hierarchy_json) 
+                                : selectedChunkForModal.chunk_metadata.header_hierarchy_json;
+                              return Array.isArray(hierarchy) ? hierarchy.map((h: string, idx: number) => (
+                                <span key={idx} className="flex items-center gap-1">
+                                  {idx > 0 && <span className="text-muted-foreground">›</span>}
+                                  <span className="text-foreground">{h}</span>
+                                </span>
+                              )) : null;
+                            } catch {
+                              return null;
+                            }
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Chunk Content */}
                 <div className="prose prose-sm dark:prose-invert max-w-none">
                   <pre className="whitespace-pre-wrap text-sm text-foreground font-mono bg-muted/30 rounded-lg p-4 border border-border">
                     {selectedChunkForModal.chunk_text}

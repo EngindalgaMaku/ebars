@@ -12,7 +12,7 @@ class ProcessRequest(BaseModel):
     collection_name: Optional[str] = "documents"
     chunk_size: Optional[int] = 1000
     chunk_overlap: Optional[int] = 200
-    chunk_strategy: Optional[str] = "lightweight"  # Enable lightweight Turkish chunking by default
+    chunk_strategy: Optional[str] = "multi_agent"  # Multi-agent intelligent chunking (4 agents: Structural, Semantic, Size, Quality)
     use_llm_post_processing: Optional[bool] = False  # Optional LLM post-processing for chunk refinement
     llm_model_name: Optional[str] = "llama-3.1-8b-instant"  # LLM model for post-processing
     model_inference_url: Optional[str] = None  # Override model inference URL for LLM post-processing
