@@ -177,34 +177,51 @@ Fixed text:"""
     
     def _call_llm(self, prompt: str, max_tokens: int = 1000) -> Optional[Dict[str, Any]]:
         """
-        Call LLM API with fallback chain: Groq -> Docker -> None.
+        Call LLM API directly via model-inference-service.
+        Fixed: Use direct endpoint instead of fallback chain to avoid Docker routing issues.
         """
         try:
-            # Import fallback client
-            from .agents.llm_client import generate_with_fallback
+            import requests
             
-            # Use fallback chain
-            result = generate_with_fallback(
-                prompt,
-                max_tokens=max_tokens,
-                temperature=self.config.temperature
+            # Use direct model-inference-service endpoint (the only one that works)
+            payload = {
+                "model": self.config.llm_model,
+                "prompt": prompt,
+                "temperature": self.config.temperature,
+                "max_tokens": max_tokens,
+                "stream": False
+            }
+            
+            logger.debug(f"🔧 Calling model-inference-service directly: {self.config.model_inference_url}/models/generate")
+            
+            response = requests.post(
+                f"{self.config.model_inference_url}/models/generate",
+                json=payload,
+                timeout=30
             )
             
-            if result:
-                # Convert to expected format
-                return {
-                    'choices': [{
-                        'message': {
-                            'content': result
-                        }
-                    }]
-                }
+            if response.status_code == 200:
+                result = response.json()
+                text_content = result.get('text', result.get('response', ''))
+                
+                if text_content:
+                    # Convert to expected format
+                    return {
+                        'choices': [{
+                            'message': {
+                                'content': text_content
+                            }
+                        }]
+                    }
+                else:
+                    logger.warning("Model inference returned empty response")
+                    return None
             else:
-                logger.error("All LLM providers failed")
+                logger.error(f"Model inference error: {response.status_code} - {response.text}")
                 return None
                 
         except Exception as e:
-            logger.error(f"Error calling LLM API: {e}")
+            logger.error(f"Error calling model inference service: {e}")
             return None
 
 

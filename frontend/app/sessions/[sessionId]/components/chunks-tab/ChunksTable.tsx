@@ -186,6 +186,10 @@ export default function ChunksTable({
               </th>
 
               <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Metadata
+              </th>
+
+              <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 İçerik
               </th>
 
@@ -242,6 +246,36 @@ export default function ChunksTable({
                         Orijinal
                       </Badge>
                     )}
+                  </td>
+
+                  <td className="px-4 py-3 text-sm text-muted-foreground max-w-[250px]">
+                    <div className="space-y-1">
+                      {chunk.chunk_metadata && Object.keys(chunk.chunk_metadata).length > 0 ? (
+                        <div className="text-xs">
+                          <div className="font-medium text-blue-600 mb-1">Zengin Metadata:</div>
+                          <div className="text-xs text-muted-foreground">
+                            {Object.keys(chunk.chunk_metadata).slice(0, 3).map((key) => (
+                              <div key={key} className="truncate">
+                                <span className="font-medium">{key}:</span> {
+                                  typeof chunk.chunk_metadata![key] === 'object'
+                                    ? JSON.stringify(chunk.chunk_metadata![key]).substring(0, 30) + '...'
+                                    : String(chunk.chunk_metadata![key]).substring(0, 30)
+                                }
+                              </div>
+                            ))}
+                            {Object.keys(chunk.chunk_metadata).length > 3 && (
+                              <div className="text-xs text-muted-foreground italic">
+                                +{Object.keys(chunk.chunk_metadata).length - 3} daha...
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground italic">
+                          Metadata yok
+                        </div>
+                      )}
+                    </div>
                   </td>
 
                   <td className="px-4 py-3 text-sm text-muted-foreground max-w-[300px]">

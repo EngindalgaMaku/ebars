@@ -31,8 +31,8 @@ docker-compose -f docker-compose.prod.yml down || true
 
 # Build only changed services (with cache - MUCH faster!)
 echo "🔨 Building services (using cache - fast)..."
-# Force rebuild document-processing-service to ensure latest code changes
-docker-compose -f docker-compose.prod.yml --env-file .env.production build --no-cache document-processing-service
+# Force rebuild document-processing-service and frontend to ensure latest code changes
+docker-compose -f docker-compose.prod.yml --env-file .env.production build --no-cache document-processing-service frontend
 # Build other services with cache
 docker-compose -f docker-compose.prod.yml --env-file .env.production build
 

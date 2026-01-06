@@ -57,9 +57,9 @@ async def process_and_store(request: ProcessRequest):
             default_chunk_overlap = 200
             logger.info(f"⚪ Standard embedding model ({embedding_model}): Using standard chunk sizes (size={default_chunk_size}, overlap={default_chunk_overlap})")
         
-        # Step 1: Chunk text
+        # Step 1: Chunk text with RICH METADATA
         # CRITICAL: Default to multi_agent for intelligent chunking (4 agents: Structural, Semantic, Size, Quality)
-        chunks = chunk_text_with_strategy(
+        chunks, rich_metadata_list = chunk_text_with_strategy(
             text=request.text,
             chunk_size=request.chunk_size or default_chunk_size,
             chunk_overlap=request.chunk_overlap or default_chunk_overlap,
@@ -73,7 +73,8 @@ async def process_and_store(request: ProcessRequest):
             logger.warning("Text could not be split into any chunks.")
             raise HTTPException(status_code=400, detail="Text could not be split into chunks")
         
-        logger.info(f"✅ Successfully split text into {len(chunks)} chunks")
+        logger.info(f"✅ Successfully split text into {len(chunks)} chunks with RICH METADATA")
+        logger.info(f"📊 Rich metadata sample: {rich_metadata_list[0] if rich_metadata_list else 'None'}")
 
         # Step 2: Get embeddings
         # (embedding_model already extracted above for chunk size adjustment)
@@ -99,12 +100,15 @@ async def process_and_store(request: ProcessRequest):
         )
         logger.info(f"📦 Collection name (NO TIMESTAMP): {collection_name}")
         
-        # Step 5: Prepare metadata
+        # Step 5: Prepare metadata with RICH METADATA INTEGRATION
         sanitized_metadata = sanitize_metadata(request.metadata)
         
         chunk_metadatas = []
         for i, chunk in enumerate(chunks):
+            # Start with base metadata from request
             chunk_metadata = sanitized_metadata.copy()
+            
+            # Add basic chunk info
             chunk_metadata["chunk_index"] = i + 1
             chunk_metadata["total_chunks"] = len(chunks)
             chunk_metadata["chunk_length"] = len(chunk)
@@ -120,7 +124,40 @@ async def process_and_store(request: ProcessRequest):
             chunk_title = extract_chunk_title_from_content(chunk, f"Bölüm {i + 1}")
             chunk_metadata["chunk_title"] = chunk_title
             
+            # CRITICAL: Merge with RICH METADATA from multi-agent chunker
+            if i < len(rich_metadata_list):
+                rich_metadata = rich_metadata_list[i]
+                
+                # Add multi-agent specific metadata
+                chunk_metadata.update({
+                    "quality_score": rich_metadata.get("quality_score", 0.0),
+                    "confidence": rich_metadata.get("confidence", 0.0),
+                    "structural_decision": rich_metadata.get("structural_decision", ""),
+                    "semantic_decision": rich_metadata.get("semantic_decision", ""),
+                    "size_decision": rich_metadata.get("size_decision", ""),
+                    "quality_decision": rich_metadata.get("quality_decision", ""),
+                    "improvement_iterations": rich_metadata.get("improvement_iterations", 0),
+                    "processing_time": rich_metadata.get("processing_time", 0.0),
+                    "reasoning": rich_metadata.get("reasoning", ""),
+                    "strategy_used": rich_metadata.get("strategy_used", "unknown"),
+                    
+                    # Enriched metadata from ChunkEnricher (if available)
+                    "parent_header": rich_metadata.get("parent_header", ""),
+                    "section_title": rich_metadata.get("section_title", ""),
+                    "header_hierarchy_json": rich_metadata.get("header_hierarchy_json", "[]"),
+                    "keywords_json": rich_metadata.get("keywords_json", "[]"),
+                    "chunk_type": rich_metadata.get("chunk_type", "content"),
+                    "language": rich_metadata.get("language", "auto"),
+                    "previous_chunk_id": rich_metadata.get("previous_chunk_id", ""),
+                    "next_chunk_id": rich_metadata.get("next_chunk_id", ""),
+                    "sibling_chunk_ids_json": rich_metadata.get("sibling_chunk_ids_json", "[]")
+                })
+                
+                logger.debug(f"Chunk {i+1} enriched with {len(rich_metadata)} metadata fields")
+            
             chunk_metadatas.append(chunk_metadata)
+        
+        logger.info(f"📊 RICH METADATA INTEGRATION: {len(chunk_metadatas)} chunks with comprehensive metadata")
 
         # Step 6: Store in ChromaDB
         if not CHROMA_SERVICE_URL:

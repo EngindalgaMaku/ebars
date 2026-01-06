@@ -16,6 +16,59 @@ export interface ChunkMetadata {
   improved_length?: number;
   quality_score?: number;
   processing_time_ms?: number;
+  
+  // Enhanced metadata from backend
+  full_metadata?: {
+    // Basic chunk info
+    source_file?: string;
+    filename?: string;
+    chunk_strategy?: string;
+    chunk_preview?: string;
+    embedding_model?: string;
+    total_chunks?: number;
+    chunk_index?: number;
+    session_id?: string;
+    chunk_length?: number;
+    chunk_title?: string;
+    parent_header?: string;
+    section_title?: string;
+    chunk_type?: string;
+    language?: string;
+    document_title?: string;
+    page_number?: number;
+    
+    // Multi-agent specific metadata
+    quality_score?: number;
+    confidence?: number;
+    structural_decision?: string;
+    semantic_decision?: string;
+    size_decision?: string;
+    quality_decision?: string;
+    improvement_iterations?: number;
+    processing_time?: number;
+    reasoning?: string;
+    strategy_used?: string;
+    word_count?: number;
+    char_count?: number;
+    start_pos?: number;
+    end_pos?: number;
+    
+    // JSON fields that need parsing
+    header_hierarchy_json?: string;
+    keywords_json?: string;
+    sibling_chunk_ids_json?: string;
+    
+    // Legacy array fields (for backward compatibility)
+    header_hierarchy?: string[];
+    keywords?: string[];
+    
+    // Chunk relationships
+    previous_chunk_id?: string;
+    next_chunk_id?: string;
+  };
+  
+  // Index signature to allow dynamic metadata fields
+  [key: string]: any;
 }
 
 export interface Chunk {

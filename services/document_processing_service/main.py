@@ -2083,12 +2083,66 @@ async def get_session_chunks(session_id: str):
                 # Fallback: use global index (all_chunks length + 1)
                 chunk_index = len(all_chunks) + 1
             
+            # CRITICAL FIX: Extract enriched metadata fields that were stored during processing
+            # Parse JSON fields back to proper data structures for frontend consumption
+            enriched_metadata = {}
+            
+            # Extract parent_header
+            if metadata.get("parent_header"):
+                enriched_metadata["parent_header"] = metadata["parent_header"]
+            
+            # Extract section_title
+            if metadata.get("section_title"):
+                enriched_metadata["section_title"] = metadata["section_title"]
+            
+            # Extract header_hierarchy from JSON
+            if metadata.get("header_hierarchy_json"):
+                try:
+                    enriched_metadata["header_hierarchy"] = json.loads(metadata["header_hierarchy_json"])
+                except (json.JSONDecodeError, TypeError):
+                    enriched_metadata["header_hierarchy"] = []
+            
+            # Extract keywords from JSON
+            if metadata.get("keywords_json"):
+                try:
+                    enriched_metadata["keywords"] = json.loads(metadata["keywords_json"])
+                except (json.JSONDecodeError, TypeError):
+                    enriched_metadata["keywords"] = []
+            
+            # Extract chunk_type
+            if metadata.get("chunk_type"):
+                enriched_metadata["chunk_type"] = metadata["chunk_type"]
+            
+            # Extract language
+            if metadata.get("language"):
+                enriched_metadata["language"] = metadata["language"]
+            
+            # Extract document_title if available
+            if metadata.get("document_title"):
+                enriched_metadata["document_title"] = metadata["document_title"]
+            
+            # Extract page_number if available
+            if metadata.get("page_number"):
+                enriched_metadata["page_number"] = metadata["page_number"]
+            
+            # Log metadata extraction for debugging
+            if enriched_metadata:
+                logger.debug(f"🔧 METADATA FIX: Extracted enriched metadata for chunk {chunk_id}: {list(enriched_metadata.keys())}")
+            else:
+                logger.debug(f"⚠️ METADATA FIX: No enriched metadata found for chunk {chunk_id}")
+            
+            # Merge enriched metadata with original metadata
+            enhanced_metadata = metadata.copy()
+            enhanced_metadata.update(enriched_metadata)
+            
             all_chunks.append({
                 "document_name": document_name,
                 "chunk_index": chunk_index,  # Use metadata chunk_index or global index
                 "chunk_text": document,
-                "chunk_metadata": metadata,
-                "chunk_id": chunk_id
+                "chunk_metadata": enhanced_metadata,  # Use enhanced metadata with enriched fields
+                "chunk_id": chunk_id,
+                # Add enriched fields directly for easier frontend access
+                **enriched_metadata
             })
     
     # Sort chunks by document_name and chunk_index for consistent display

@@ -303,7 +303,7 @@ export default function ChunkModal({
               </div>
 
               {/* Metadata */}
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-sm">Temel Bilgiler</CardTitle>
@@ -333,11 +333,262 @@ export default function ChunkModal({
                         <span>{chunk.language}</span>
                       </div>
                     )}
+                    {(chunk.chunk_metadata?.full_metadata?.chunk_strategy || chunk.chunk_metadata?.chunk_strategy) && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Strateji:</span>
+                        <span className="capitalize">
+                          {chunk.chunk_metadata?.full_metadata?.chunk_strategy || chunk.chunk_metadata?.chunk_strategy}
+                        </span>
+                      </div>
+                    )}
+                    {(chunk.chunk_metadata?.full_metadata?.embedding_model || chunk.chunk_metadata?.embedding_model) && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Embedding:</span>
+                        <span className="text-xs">
+                          {chunk.chunk_metadata?.full_metadata?.embedding_model || chunk.chunk_metadata?.embedding_model}
+                        </span>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
-                {chunk.quality_metrics && (
+                {/* RAW METADATA DEBUG */}
+                {chunk.chunk_metadata && Object.keys(chunk.chunk_metadata).length > 0 && (
+                  <Card className="md:col-span-2">
+                    <CardHeader>
+                      <CardTitle className="text-sm text-blue-600">🔍 Zengin Metadata (Tüm Alanlar)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-xs space-y-1 max-h-64 overflow-y-auto">
+                      {Object.entries(chunk.chunk_metadata).map(([key, value]) => (
+                        <div key={key} className="flex justify-between border-b border-muted pb-1">
+                          <span className="text-muted-foreground font-medium">{key}:</span>
+                          <span className="text-right max-w-[200px] truncate">
+                            {typeof value === 'object'
+                              ? JSON.stringify(value).substring(0, 50) + '...'
+                              : String(value)
+                            }
+                          </span>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Enhanced Metadata */}
+                {chunk.chunk_metadata?.full_metadata && (
                   <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">İçerik Bilgileri</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm space-y-2">
+                      {chunk.chunk_metadata.full_metadata.chunk_title && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Başlık:</span>
+                          <span className="text-right max-w-[150px] truncate">
+                            {chunk.chunk_metadata.full_metadata.chunk_title}
+                          </span>
+                        </div>
+                      )}
+                      {chunk.chunk_metadata.full_metadata.parent_header && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Üst Başlık:</span>
+                          <span className="text-right max-w-[150px] truncate">
+                            {chunk.chunk_metadata.full_metadata.parent_header}
+                          </span>
+                        </div>
+                      )}
+                      {chunk.chunk_metadata.full_metadata.section_title && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Bölüm:</span>
+                          <span className="text-right max-w-[150px] truncate">
+                            {chunk.chunk_metadata.full_metadata.section_title}
+                          </span>
+                        </div>
+                      )}
+                      {chunk.chunk_metadata.full_metadata.chunk_type && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Tür:</span>
+                          <span className="capitalize">
+                            {chunk.chunk_metadata.full_metadata.chunk_type}
+                          </span>
+                        </div>
+                      )}
+                      {chunk.chunk_metadata.full_metadata.language && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Dil:</span>
+                          <span className="uppercase">
+                            {chunk.chunk_metadata.full_metadata.language}
+                          </span>
+                        </div>
+                      )}
+                      {chunk.chunk_metadata.full_metadata.total_chunks && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Toplam Parça:</span>
+                          <span>
+                            {chunk.chunk_metadata.full_metadata.total_chunks}
+                          </span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Multi-Agent Quality Metrics */}
+                {chunk.chunk_metadata?.full_metadata && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Brain className="w-4 h-4 text-violet-600" />
+                        Multi-Agent Kalite Metrikleri
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm space-y-2">
+                      {chunk.chunk_metadata.full_metadata.quality_score !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Kalite Skoru:</span>
+                          <span className="font-medium text-green-600">
+                            {Math.round(chunk.chunk_metadata.full_metadata.quality_score * 100)}%
+                          </span>
+                        </div>
+                      )}
+                      {chunk.chunk_metadata.full_metadata.confidence !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Güven:</span>
+                          <span className="font-medium">
+                            {Math.round(chunk.chunk_metadata.full_metadata.confidence * 100)}%
+                          </span>
+                        </div>
+                      )}
+                      {chunk.chunk_metadata.full_metadata.processing_time !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">İşlem Süresi:</span>
+                          <span>
+                            {chunk.chunk_metadata.full_metadata.processing_time.toFixed(2)}s
+                          </span>
+                        </div>
+                      )}
+                      {chunk.chunk_metadata.full_metadata.improvement_iterations !== undefined && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">İyileştirme:</span>
+                          <span>
+                            {chunk.chunk_metadata.full_metadata.improvement_iterations} iterasyon
+                          </span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Agent Decisions */}
+                {chunk.chunk_metadata?.full_metadata && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-blue-600" />
+                        Agent Kararları
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm space-y-2">
+                      {chunk.chunk_metadata.full_metadata.structural_decision && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Yapısal:</span>
+                          <Badge variant="outline" className="text-xs">
+                            {chunk.chunk_metadata.full_metadata.structural_decision}
+                          </Badge>
+                        </div>
+                      )}
+                      {chunk.chunk_metadata.full_metadata.semantic_decision && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Semantik:</span>
+                          <Badge variant="outline" className="text-xs">
+                            {chunk.chunk_metadata.full_metadata.semantic_decision}
+                          </Badge>
+                        </div>
+                      )}
+                      {chunk.chunk_metadata.full_metadata.size_decision && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Boyut:</span>
+                          <Badge variant="outline" className="text-xs">
+                            {chunk.chunk_metadata.full_metadata.size_decision}
+                          </Badge>
+                        </div>
+                      )}
+                      {chunk.chunk_metadata.full_metadata.quality_decision && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Kalite:</span>
+                          <Badge variant="outline" className="text-xs">
+                            {chunk.chunk_metadata.full_metadata.quality_decision}
+                          </Badge>
+                        </div>
+                      )}
+                      {chunk.chunk_metadata.full_metadata.reasoning && (
+                        <div className="mt-3">
+                          <span className="text-muted-foreground block mb-1">Gerekçe:</span>
+                          <div className="text-xs bg-muted/30 rounded p-2 border">
+                            {chunk.chunk_metadata.full_metadata.reasoning}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Keywords and Hierarchy */}
+                {(chunk.chunk_metadata?.full_metadata?.keywords_json ||
+                  chunk.chunk_metadata?.full_metadata?.header_hierarchy_json) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Yapısal Bilgiler</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-sm space-y-3">
+                      {chunk.chunk_metadata.full_metadata.keywords_json && (() => {
+                        try {
+                          const keywords = JSON.parse(chunk.chunk_metadata.full_metadata.keywords_json);
+                          return keywords.length > 0 && (
+                            <div>
+                              <span className="text-muted-foreground block mb-1">
+                                Anahtar Kelimeler:
+                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                {keywords.map((keyword: string, idx: number) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    {keyword}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        } catch {
+                          return null;
+                        }
+                      })()}
+                      {chunk.chunk_metadata.full_metadata.header_hierarchy_json && (() => {
+                        try {
+                          const hierarchy = JSON.parse(chunk.chunk_metadata.full_metadata.header_hierarchy_json);
+                          return hierarchy.length > 0 && (
+                            <div>
+                              <span className="text-muted-foreground block mb-1">
+                                Başlık Hiyerarşisi:
+                              </span>
+                              <div className="space-y-1">
+                                {hierarchy.map((header: string, idx: number) => (
+                                  <div key={idx} className="text-xs pl-2 border-l-2 border-muted">
+                                    {header}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        } catch {
+                          return null;
+                        }
+                      })()}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {chunk.quality_metrics && (
+                  <Card className="md:col-span-2 lg:col-span-1">
                     <CardHeader>
                       <CardTitle className="text-sm">
                         Kalite Metrikleri
