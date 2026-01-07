@@ -14,6 +14,15 @@ from utils.logger import logger
 from config import MODEL_INFERENCER_URL, DEFAULT_EMBEDDING_MODEL
 import os
 
+# RAG-Native Integration
+try:
+    from cohere_rag_native import is_cohere_rag_native_model, get_cohere_rag_native
+    RAG_NATIVE_AVAILABLE = True
+    logger.info("✅ RAG-Native integration loaded successfully")
+except ImportError as e:
+    RAG_NATIVE_AVAILABLE = False
+    logger.warning(f"⚠️ RAG-Native integration not available: {e}")
+
 router = APIRouter()
 
 # Import centralized prompt policy from API Gateway codebase (shared src/)
@@ -105,6 +114,147 @@ async def rag_query(request: RAGQueryRequest):
             logger.info(f"🔍 Using model: {effective_model} (from request: {request.model}, session: {session_rag_settings.get('model')})")
         if effective_embedding_model:
             logger.info(f"🔍 Using embedding model: {effective_embedding_model}")
+        
+        # RAG-Native Detection: Check if we should use Cohere RAG-Native
+        use_rag_native = False
+        if RAG_NATIVE_AVAILABLE and effective_model and is_cohere_rag_native_model(effective_model):
+            rag_native_enabled = os.getenv("COHERE_RAG_NATIVE_ENABLED", "true").lower() == "true"
+            if rag_native_enabled:
+                logger.info(f"🚀 RAG-Native detected for model: {effective_model}")
+                use_rag_native = True
+            else:
+                logger.info(f"⚠️ RAG-Native disabled by environment variable for model: {effective_model}")
+        
+        # If RAG-Native is available, use it directly
+        if use_rag_native:
+            try:
+                logger.info(f"🚀 Using Cohere RAG-Native for query: {request.query[:100]}...")
+                rag_native = get_cohere_rag_native()
+                
+                # Get documents from ChromaDB for RAG-Native
+                client = get_chroma_client()
+                collection_name = format_collection_name(request.session_id, add_timestamp=False)
+                logger.info(f"🔍 [RAG-NATIVE DEBUG] Looking for collection: {collection_name}")
+                
+                collection = _find_collection_with_alternatives(client, collection_name, request.session_id)
+                
+                if not collection:
+                    logger.error(f"❌ [RAG-NATIVE DEBUG] Collection not found: {collection_name}")
+                    logger.info(f"🔄 [RAG-NATIVE DEBUG] Falling back to traditional RAG...")
+                    raise Exception(f"Collection not found for session {request.session_id} - fallback to traditional RAG")
+                
+                logger.info(f"✅ [RAG-NATIVE DEBUG] Found collection: {collection.name}")
+                
+                # Get documents from collection for RAG-Native with semantic search
+                logger.info(f"🔍 [RAG-NATIVE DEBUG] Getting query embeddings for semantic search...")
+                
+                # Get query embeddings for semantic search (not all documents!)
+                collection_dimension = None
+                collection_embedding_model = None
+                
+                # Get embedding model from collection metadata
+                try:
+                    sample_meta = collection.get(limit=1, include=["metadatas"])
+                    if sample_meta and sample_meta.get('metadatas') and len(sample_meta['metadatas']) > 0:
+                        collection_embedding_model = sample_meta['metadatas'][0].get('embedding_model')
+                        logger.info(f"🔍 [RAG-NATIVE DEBUG] Collection embedding model: {collection_embedding_model}")
+                except Exception as e:
+                    logger.warning(f"⚠️ [RAG-NATIVE DEBUG] Could not get embedding model: {e}")
+                
+                # Use semantic search instead of getting all documents
+                preferred_model = (
+                    request.embedding_model or
+                    session_rag_settings.get("embedding_model") or
+                    collection_embedding_model or
+                    "text-embedding-v4"
+                )
+                
+                logger.info(f"🔍 [RAG-NATIVE DEBUG] Using embedding model: {preferred_model}")
+                query_embeddings = _get_query_embeddings_with_fallback(
+                    request.query,
+                    preferred_model,
+                    required_dimension=collection_dimension
+                )
+                
+                # Semantic search with limited results (5-10, not 20!)
+                rag_native_top_k = min(10, request.top_k or 10)  # Limit to 10 max
+                logger.info(f"🔍 [RAG-NATIVE DEBUG] Performing semantic search with top_k={rag_native_top_k}")
+                
+                search_results = collection.query(
+                    query_embeddings=query_embeddings,
+                    n_results=rag_native_top_k
+                )
+                
+                documents = search_results.get('documents', [[]])[0]
+                metadatas = search_results.get('metadatas', [[]])[0]
+                distances = search_results.get('distances', [[]])[0]
+                
+                logger.info(f"📊 [RAG-NATIVE DEBUG] Semantic search returned {len(documents)} documents")
+                
+                if not documents:
+                    return RAGQueryResponse(
+                        answer="Üzgünüm, bu soruyla ilgili yeterli bilgi bulamadım.",
+                        sources=[],
+                        chain_type=chain_type
+                    )
+                
+                # Quality control: Filter documents by similarity score
+                min_similarity = 0.3  # Minimum similarity threshold
+                quality_docs = []
+                
+                for i, doc in enumerate(documents):
+                    metadata = metadatas[i] if i < len(metadatas) else {}
+                    distance = distances[i] if i < len(distances) else float('inf')
+                    similarity = max(0.0, 1.0 - distance) if distance != float('inf') else 0.0
+                    
+                    # Filter out low-quality documents
+                    if similarity >= min_similarity:
+                        quality_docs.append({
+                            "text": doc,
+                            "metadata": metadata,
+                            "similarity": similarity
+                        })
+                        logger.debug(f"✅ [RAG-NATIVE DEBUG] Doc {i}: similarity={similarity:.3f}")
+                    else:
+                        logger.debug(f"❌ [RAG-NATIVE DEBUG] Doc {i}: similarity={similarity:.3f} (filtered out)")
+                
+                logger.info(f"📊 [RAG-NATIVE DEBUG] Quality control: {len(quality_docs)}/{len(documents)} documents passed")
+                
+                if not quality_docs:
+                    return RAGQueryResponse(
+                        answer="Üzgünüm, bu soruyla ilgili yeterli kaliteli bilgi bulamadım.",
+                        sources=[],
+                        chain_type=chain_type
+                    )
+                
+                # Format documents for RAG-Native (use quality-filtered docs)
+                formatted_docs = quality_docs
+                
+                # Use RAG-Native
+                rag_response = rag_native.query_with_rag_native(
+                    query=request.query,
+                    documents=formatted_docs,
+                    model=effective_model,
+                    max_tokens=request.max_tokens or 2048,
+                    conversation_history=request.conversation_history,
+                    language=effective_language
+                )
+                
+                logger.info(f"✅ RAG-Native response generated successfully")
+                return RAGQueryResponse(
+                    answer=rag_response["answer"],
+                    sources=rag_response["sources"],
+                    chain_type=chain_type
+                )
+                
+            except Exception as rag_native_error:
+                logger.error(f"❌ RAG-Native failed: {rag_native_error}")
+                fallback_enabled = os.getenv("COHERE_RAG_NATIVE_FALLBACK", "true").lower() == "true"
+                if fallback_enabled:
+                    logger.info("🔄 Falling back to traditional RAG pipeline...")
+                    # Continue with traditional RAG below
+                else:
+                    raise HTTPException(status_code=500, detail=f"RAG-Native failed: {str(rag_native_error)}")
         
         # Step 1: Find collection
         client = get_chroma_client()
@@ -404,9 +554,13 @@ async def rag_query(request: RAGQueryRequest):
 
 def _find_collection_with_alternatives(client, collection_name: str, session_id: str):
     """Find collection with alternative naming patterns including UUID formats"""
+    logger.info(f"🔍 [COLLECTION DEBUG] Looking for collection: {collection_name}")
     try:
-        return client.get_collection(name=collection_name)
-    except:
+        collection = client.get_collection(name=collection_name)
+        logger.info(f"✅ [COLLECTION DEBUG] Found exact match: {collection_name}")
+        return collection
+    except Exception as e:
+        logger.warning(f"⚠️ [COLLECTION DEBUG] Exact match failed: {e}")
         # Try alternatives including timestamped and UUID formats
         alternative_names = []
         search_patterns = [collection_name]
@@ -420,10 +574,13 @@ def _find_collection_with_alternatives(client, collection_name: str, session_id:
             uuid_format = f"{collection_name[:8]}-{collection_name[8:12]}-{collection_name[12:16]}-{collection_name[16:20]}-{collection_name[20:]}"
             search_patterns.append(uuid_format)
         
+        logger.info(f"🔍 [COLLECTION DEBUG] Search patterns: {search_patterns}")
+        
         try:
             all_collections = client.list_collections()
             all_collection_names = [c.name for c in all_collections]
-            logger.info(f"🔍 Searching in {len(all_collection_names)} collections for patterns: {search_patterns}")
+            logger.info(f"🔍 [COLLECTION DEBUG] Available collections ({len(all_collection_names)}): {all_collection_names[:10]}")
+            logger.info(f"🔍 [COLLECTION DEBUG] Searching for patterns: {search_patterns}")
             
             # Search for exact matches and timestamped versions
             for pattern in search_patterns:
@@ -446,18 +603,24 @@ def _find_collection_with_alternatives(client, collection_name: str, session_id:
             alternative_names.sort(key=lambda x: x[1], reverse=True)
             
             if alternative_names:
-                logger.info(f"🔍 Found {len(alternative_names)} timestamped alternatives")
+                logger.info(f"🔍 [COLLECTION DEBUG] Found {len(alternative_names)} timestamped alternatives: {[name for name, _ in alternative_names[:5]]}")
+            else:
+                logger.warning(f"⚠️ [COLLECTION DEBUG] No timestamped alternatives found")
             
             for alt_name, timestamp in alternative_names:
                 try:
-                    logger.info(f"✅ Trying timestamped collection: {alt_name}")
-                    return client.get_collection(name=alt_name)
-                except:
+                    logger.info(f"✅ [COLLECTION DEBUG] Trying timestamped collection: {alt_name}")
+                    collection = client.get_collection(name=alt_name)
+                    logger.info(f"✅ [COLLECTION DEBUG] Successfully found: {alt_name}")
+                    return collection
+                except Exception as alt_e:
+                    logger.warning(f"⚠️ [COLLECTION DEBUG] Failed to get {alt_name}: {alt_e}")
                     continue
                     
         except Exception as e:
-            logger.error(f"❌ Error finding collection alternatives: {e}")
+            logger.error(f"❌ [COLLECTION DEBUG] Error finding collection alternatives: {e}")
         
+        logger.error(f"❌ [COLLECTION DEBUG] No collection found for session {session_id}")
         return None
 
 

@@ -26,6 +26,10 @@ http_client = get_http_client()
 logger = logging.getLogger(__name__)
 logger.info("🚀 PERFORMANCE: Model Inference Service - Connection pooling enabled!")
 
+# 🚀 RAG-NATIVE INTEGRATION: Model detection only (RAG-Native logic is in Document Processing Service)
+RAG_NATIVE_AVAILABLE = False  # RAG-Native is handled by Document Processing Service
+logger.info("ℹ️ RAG-Native detection enabled - processing handled by Document Processing Service")
+
 # Disable SSL warnings for HuggingFace API (common in corporate/proxy environments)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -40,7 +44,49 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 ALIBABA_API_KEY = os.getenv("ALIBABA_API_KEY", os.getenv("DASHSCOPE_API_KEY"))
 ALIBABA_API_BASE = os.getenv("ALIBABA_API_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+# Cohere API Keys - Trial and Production fallback system
+COHERE_API_KEY_TRIAL = os.getenv("COHERE_API_KEY_TRIAL")
+COHERE_API_KEY_PRODUCTION = os.getenv("COHERE_API_KEY_PRODUCTION")
+COHERE_API_KEY = os.getenv("COHERE_API_KEY")  # Backward compatibility
+
+# Smart fallback: Use trial first, then production, then legacy
+def get_cohere_api_key():
+    """Get the appropriate Cohere API key with smart fallback logic"""
+    if COHERE_API_KEY_TRIAL:
+        return COHERE_API_KEY_TRIAL
+    elif COHERE_API_KEY_PRODUCTION:
+        return COHERE_API_KEY_PRODUCTION
+    else:
+        return COHERE_API_KEY
+
+# Global variable to track if we should use production key
+_use_production_cohere_key = False
+
+def should_fallback_to_production_cohere(error_message: str) -> bool:
+    """Check if error indicates trial limit exceeded"""
+    error_lower = error_message.lower()
+    trial_limit_indicators = [
+        "trial", "limit", "quota", "exceeded", "rate limit",
+        "429", "usage limit", "monthly limit", "free tier"
+    ]
+    return any(indicator in error_lower for indicator in trial_limit_indicators)
+
+def get_active_cohere_key():
+    """Get the currently active Cohere API key (trial or production)"""
+    global _use_production_cohere_key
+    
+    if _use_production_cohere_key and COHERE_API_KEY_PRODUCTION:
+        print("🔑 Using Cohere PRODUCTION key (trial limit exceeded)")
+        return COHERE_API_KEY_PRODUCTION
+    elif COHERE_API_KEY_TRIAL:
+        print("🔑 Using Cohere TRIAL key")
+        return COHERE_API_KEY_TRIAL
+    elif COHERE_API_KEY_PRODUCTION:
+        print("🔑 Using Cohere PRODUCTION key (no trial key available)")
+        return COHERE_API_KEY_PRODUCTION
+    else:
+        print("🔑 Using legacy Cohere key")
+        return COHERE_API_KEY
 
 # --- Model Configuration File Path ---
 CONFIG_FILE_PATH = Path(__file__).parent / "models_config.json"
@@ -303,17 +349,18 @@ if ALIBABA_API_KEY:
 else:
     print("⚠️ Warning: ALIBABA_API_KEY not set. Alibaba models will not be available.")
 
-# Cohere client setup
+# Cohere client setup with smart fallback
 cohere_client = None
-if COHERE_API_KEY:
+active_cohere_key = get_active_cohere_key()
+if active_cohere_key:
     try:
-        cohere_client = cohere.Client(COHERE_API_KEY)
-        print("✅ Cohere API client initialized.")
+        cohere_client = cohere.Client(active_cohere_key)
+        print("✅ Cohere API client initialized with smart fallback system.")
     except Exception as e:
         print(f"⚠️ Warning: Failed to initialize Cohere client: {e}")
         cohere_client = None
 else:
-    print("⚠️ Warning: COHERE_API_KEY not set. Cohere models will not be available.")
+    print("⚠️ Warning: No Cohere API keys configured. Cohere models will not be available.")
 
 # --- Reranking ---
 # NOTE: Reranking is now handled by reranker-service (Alibaba DashScope API)
@@ -526,15 +573,45 @@ def is_alibaba_model(model_name: str) -> bool:
 def is_cohere_model(model_name: str) -> bool:
     """Check if the model is a Cohere Command model."""
     cohere_models = [
-        "command-r-plus",
-        "command-r",
+        "command-r-plus-08-2024",
+        "command-r-08-2024",
         "command",
         "command-light",
-        "command-nightly",
-        "command-r-plus-08-2024",
-        "command-r-08-2024"
+        "command-nightly"
     ]
     return model_name in cohere_models or model_name.startswith("command")
+
+
+def is_cohere_rag_native_model(model_name: str) -> bool:
+    """
+    Check if the model supports Cohere RAG-Native functionality
+    
+    Args:
+        model_name: Name of the model to check
+        
+    Returns:
+        bool: True if model supports RAG-Native, False otherwise
+    """
+    if not model_name:
+        return False
+    
+    # Only Cohere models can support RAG-Native
+    if not is_cohere_model(model_name):
+        return False
+    
+    # Cohere models that support RAG-Native (ClientV2 with documents param)
+    rag_native_models = [
+        "command-r-plus-08-2024",
+        "command-r-08-2024",
+        "command-r-plus",
+        "command-r",
+        "command",  # Latest command model
+    ]
+    
+    # Check exact match or prefix match for versioned models
+    return (model_name in rag_native_models or
+            any(model_name.startswith(model)
+                for model in ["command-r", "command"]))
 
 def is_alibaba_embedding_model(model_name: str) -> bool:
     """Check if the model is an Alibaba DashScope embedding model."""
@@ -562,7 +639,7 @@ def health_check():
         "openrouter_available": bool(openrouter_client and OPENROUTER_API_KEY),
         "deepseek_available": bool(deepseek_client and DEEPSEEK_API_KEY),
         "alibaba_available": bool(alibaba_client and ALIBABA_API_KEY),
-        "cohere_available": bool(cohere_client and COHERE_API_KEY),
+        "cohere_available": bool(cohere_client and get_active_cohere_key()),
         "ollama_host": OLLAMA_HOST
     }
 
@@ -572,6 +649,8 @@ async def generate_response(request: GenerationRequest):
     Receives a prompt and a model name, and returns a generated response.
     It dynamically selects the provider (Ollama or Groq) based on the model name.
     """
+    global _use_production_cohere_key, cohere_client
+    
     model_name = request.model
     prompt = request.prompt
 
@@ -649,11 +728,17 @@ async def generate_response(request: GenerationRequest):
                     raise HTTPException(status_code=500, detail=error_detail)
 
         elif is_cohere_model(model_name):
-            if not cohere_client or not COHERE_API_KEY:
-                raise HTTPException(status_code=503, detail="Cohere client is not available. Check COHERE_API_KEY.")
+            if not cohere_client:
+                raise HTTPException(status_code=503, detail="Cohere client is not available. Check Cohere API keys.")
 
+            # 🚀 RAG-NATIVE INTEGRATION: Model detection for logging
+            if is_cohere_rag_native_model(model_name):
+                logger.info(f"🚀 RAG-Native compatible model detected: {model_name}")
+                logger.info("ℹ️ RAG-Native processing should be handled by Document Processing Service")
+
+            # Traditional Cohere chat API (fallback or non-RAG-Native models)
             try:
-                # Cohere chat API
+                logger.info(f"Using traditional Cohere chat API for model: {model_name}")
                 response = cohere_client.chat(
                     model=model_name,
                     message=prompt,
@@ -664,8 +749,38 @@ async def generate_response(request: GenerationRequest):
                 return GenerationResponse(response=response_content, model_used=model_name)
             except Exception as e:
                 error_str = str(e)
+                
+                # Check if this is a trial limit error and we haven't switched to production yet
+                if (should_fallback_to_production_cohere(error_str) and
+                    not _use_production_cohere_key and
+                    COHERE_API_KEY_PRODUCTION):
+                    
+                    print(f"🔄 Trial limit detected, switching to production Cohere key...")
+                    _use_production_cohere_key = True
+                    
+                    # Reinitialize client with production key
+                    try:
+                        cohere_client = cohere.Client(COHERE_API_KEY_PRODUCTION)
+                        print("✅ Switched to Cohere PRODUCTION key successfully")
+                        
+                        # Retry the request with production key
+                        response = cohere_client.chat(
+                            model=model_name,
+                            message=prompt,
+                            temperature=request.temperature,
+                            max_tokens=request.max_tokens
+                        )
+                        response_content = response.text or ""
+                        return GenerationResponse(response=response_content, model_used=f"{model_name} (production)")
+                        
+                    except Exception as prod_error:
+                        error_detail = f"Cohere production API error: {str(prod_error)}"
+                        print(f"❌ {error_detail}")
+                        raise HTTPException(status_code=500, detail=error_detail)
+                
+                # Handle other errors
                 if "401" in error_str or "authentication" in error_str.lower() or "invalid" in error_str.lower():
-                    error_detail = f"Cohere API authentication failed. Please check your COHERE_API_KEY environment variable. Error: {error_str}"
+                    error_detail = f"Cohere API authentication failed. Please check your Cohere API keys. Error: {error_str}"
                     print(f"❌ {error_detail}")
                     raise HTTPException(status_code=401, detail=error_detail)
                 else:
@@ -971,11 +1086,11 @@ def get_available_models():
     if deepseek_client and DEEPSEEK_API_KEY:
         models["deepseek"] = config_models.get("deepseek", [])
     
-    # Cohere models - if Cohere client is configured
-    if cohere_client and COHERE_API_KEY:
+    # Cohere models - if Cohere client is configured with any API key
+    if cohere_client and get_active_cohere_key():
         models["cohere"] = config_models.get("cohere", [
-            "command-r-plus",
-            "command-r",
+            "command-r-plus-08-2024",
+            "command-r-08-2024",
             "command",
             "command-light"
         ])
@@ -1157,7 +1272,7 @@ def get_available_embedding_models():
         embedding_models["openrouter"] = []
     
     # Cohere embedding models
-    if cohere_client and COHERE_API_KEY:
+    if cohere_client and get_active_cohere_key():
         embedding_models["cohere"] = [
             {
                 "id": "embed-multilingual-v3.0",
@@ -1497,10 +1612,11 @@ async def generate_embeddings(request: EmbedRequest):
         cohere_failed = False
         if is_cohere_embedding:
             print(f"🔵 [EMBEDDING] Detected Cohere embedding model: {model_name}")
-            if not cohere_client or not COHERE_API_KEY:
+            active_key = get_active_cohere_key()
+            if not cohere_client or not active_key:
                 error_msg = f"❌ [CRITICAL] Cohere client not available for embedding model '{model_name}'. "
-                if not COHERE_API_KEY:
-                    error_msg += "COHERE_API_KEY is not set. "
+                if not active_key:
+                    error_msg += "No Cohere API keys configured. "
                 error_msg += "Falling back to HuggingFace."
                 print(error_msg)
                 cohere_failed = True

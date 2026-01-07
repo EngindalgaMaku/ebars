@@ -43,3 +43,6 @@ lxml>=4.9.0
 
 # PDF processing - PyMuPDF for better font decoding (CID character fallback)
 pymupdf>=1.23.0
+
+# Cohere RAG-Native Integration
+cohere>=5.0.0

@@ -51,8 +51,8 @@
     "qwen2.5-max"
   ],
   "cohere": [
-    "command-r-plus",
-    "command-r",
+    "command-r-plus-08-2024",
+    "command-r-08-2024",
     "command",
     "command-light",
     "embed-multilingual-v3.0",
